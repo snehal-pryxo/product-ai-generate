@@ -1,0 +1,97 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider          = "mysql"
+  url               = env("DATABASE_URL")
+}
+
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+model shop {
+  id            Int       @id @default(autoincrement())
+  shop          String    @unique(map: "Shop_shop_key")
+  accessToken   String?
+  installed     Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  onboardedAt   DateTime?
+  uninstalledAt DateTime?
+  status                  String?   @default("installed") @db.VarChar(32)
+   ownerName               String?   @db.VarChar(255)
+  email                   String?   @db.VarChar(320)
+  contactEmail            String?   @db.VarChar(320)
+  name                    String?   @db.VarChar(255)
+  country                 String?   @db.VarChar(100)
+  city                    String?   @db.VarChar(100)
+  currency                String?   @db.VarChar(10)
+  phone                   String?   @db.VarChar(50)
+  primaryDomain           String?   @db.VarChar(255)
+}
+
+model GeneratedContentLog {
+  id                     BigInt    @id @default(autoincrement())
+  shop                   String
+  productId              String
+  productTitle           String?
+  intent                 String
+  language               String?
+  tone                   String?
+  lengthOption           String?
+  formatOption           String?
+  contextKeywords        String?   @db.Text
+  aiModel                String?
+  generatedDescription   String?   @db.LongText
+  generatedSeoTitle      String?
+  generatedSeoDescription String?  @db.Text
+  appliedToProduct       Boolean   @default(false)
+  createdAt              DateTime  @default(now())
+
+  @@index([shop, productId, createdAt], map: "GeneratedContentLog_shop_product_createdAt_idx")
+  @@map("generated_content_logs")
+}
+
+model CollectionGeneratedContent {
+  id                BigInt   @id @default(autoincrement())
+  shop              String
+  collectionId      String
+  collectionTitle   String?
+  language          String?
+  tone              String?
+  lengthOption      String?
+  formatOption      String?
+  contextKeywords   String?  @db.Text
+  aiModel           String?
+  descriptionHtml   String?  @db.LongText
+  seoTitle          String?
+  seoDescription    String?  @db.Text
+  appliedToCollection Boolean @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([shop, collectionId], map: "CollectionGeneratedContent_shop_collectionId_key")
+  @@index([shop, updatedAt], map: "CollectionGeneratedContent_shop_updatedAt_idx")
+  @@map("collection_generated_contents")
+}

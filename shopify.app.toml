@@ -1,0 +1,32 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "3c547ccca21c77a2e4894a02c124a7b4"
+name = "Product AI Generate"
+application_url = "https://product-ai-generate.vercel.app"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2026-04"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/webhooks/app/uninstalled"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/scopes_update" ]
+  uri = "/webhooks/app/scopes_update"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "write_products"
+
+[auth]
+redirect_urls = [
+  "https://product-ai-generate.vercel.app/api/auth",
+  "https://product-ai-generate.vercel.app/auth/callback",
+  "https://product-ai-generate.vercel.app/shopify/callback",
+  "https://product-ai-generate.vercel.app/api/auth/callback"
+]
