@@ -449,6 +449,10 @@ const CH = { vw: 800, vh: 220, pL: 44, pR: 20, pT: 20, pB: 50 };
 
 function AreaLineChart({ data, selectedDate, onDayClick }) {
   const n = data.length;
+  const [hoveredIdx, setHoveredIdx] = useState(null);
+  const svgRef = useRef(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+
   if (!n) return null;
 
   const maxY   = Math.max(...data.map(d => d.count), 1);
@@ -477,12 +481,32 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
     `${px(n - 1).toFixed(1)},${baseY}`,
   ].join(" ");
 
+  const handleMouseEnter = (i, e) => {
+    setHoveredIdx(i);
+    if (svgRef.current) {
+      const svgRect = svgRef.current.getBoundingClientRect();
+      const svgWidth = svgRect.width;
+      const svgHeight = svgRect.height;
+      const scaleX = svgWidth / CH.vw;
+      const scaleY = svgHeight / CH.vh;
+      const dotX = px(i) * scaleX;
+      const dotY = py(data[i].count) * scaleY;
+      // flip tooltip to left if near right edge
+      const flipLeft = dotX > svgWidth * 0.65;
+      setTooltipPos({ x: dotX, y: dotY, flipLeft });
+    }
+  };
+
+  const hoveredDay = hoveredIdx !== null ? data[hoveredIdx] : null;
+
   return (
-    <div>
+    <div style={{ position: "relative" }}>
       <div style={{ overflowX: "auto" }}>
         <svg
+          ref={svgRef}
           viewBox={`0 0 ${CH.vw} ${CH.vh}`}
           style={{ width: "100%", height: "auto", display: "block" }}
+          onMouseLeave={() => setHoveredIdx(null)}
         >
           {/* Y-axis grid + labels */}
           {yTicks.map(v => {
@@ -509,25 +533,25 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
             const x  = px(i);
             const y1 = py(d.count);
             const y2 = py(d.applied);
-            const isSel = d.date === selectedDate;
+            const isSel  = d.date === selectedDate;
+            const isHov  = i === hoveredIdx;
             return (
-              <g key={d.date} style={{ cursor: "pointer" }} onClick={() => onDayClick(d.date)}>
-                {/* Vertical hover line */}
-                {isSel && (
+              <g
+                key={d.date}
+                style={{ cursor: "pointer" }}
+                onClick={() => onDayClick(d.date)}
+                onMouseEnter={e => handleMouseEnter(i, e)}
+              >
+                {/* Vertical dashed line on hover or select */}
+                {(isSel || isHov) && (
                   <line x1={x} y1={CH.pT} x2={x} y2={baseY} stroke="#C9CCCF" strokeWidth="1" strokeDasharray="4 3" />
                 )}
-                {/* Invisible wide click area */}
+                {/* Invisible wide hover/click area */}
                 <rect x={x - 22} y={CH.pT} width={44} height={plotH} fill="transparent" />
                 {/* Series 1 dot */}
-                <circle cx={x} cy={y1} r={isSel ? 5.5 : 4} fill={S1_COLOR} stroke="white" strokeWidth="2" />
-                {/* Series 2 dot (only if > 0) */}
-                {d.applied > 0 && (
-                  <circle cx={x} cy={y2} r={isSel ? 4.5 : 3} fill={S2_COLOR} stroke="white" strokeWidth="2" />
-                )}
-                {/* Count label above dot on hover/select */}
-                {(isSel || d.count > 0) && (
-                  <text x={x} y={y1 - 10} textAnchor="middle" fontSize="11" fill={S1_COLOR} fontWeight="600">{d.count}</text>
-                )}
+                <circle cx={x} cy={y1} r={(isSel || isHov) ? 5.5 : 4} fill={S1_COLOR} stroke="white" strokeWidth="2" />
+                {/* Series 2 dot */}
+                <circle cx={x} cy={y2} r={(isSel || isHov) ? 4.5 : (d.applied > 0 ? 3 : 0)} fill={S2_COLOR} stroke="white" strokeWidth={d.applied > 0 ? 2 : 0} />
               </g>
             );
           })}
@@ -545,6 +569,55 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
             );
           })}
         </svg>
+
+        {/* Hover Tooltip */}
+        {hoveredDay && (
+          <div
+            style={{
+              position: "absolute",
+              top: Math.max(0, tooltipPos.y - 10),
+              ...(tooltipPos.flipLeft
+                ? { right: `calc(100% - ${tooltipPos.x}px + 14px)` }
+                : { left: tooltipPos.x + 14 }),
+              pointerEvents: "none",
+              zIndex: 20,
+              background: "white",
+              border: "1px solid #E4E5E7",
+              borderRadius: 10,
+              boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+              padding: "12px 16px",
+              minWidth: 200,
+            }}
+          >
+            {/* Date */}
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#202223", marginBottom: 8 }}>
+              {new Date(hoveredDay.date + "T12:00:00").toLocaleDateString("en-GB", {
+                day: "2-digit", month: "2-digit", year: "numeric",
+              })}
+            </div>
+            {/* Series rows */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                  <div style={{ width: 18, height: 2.5, background: S1_COLOR, borderRadius: 2, flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, color: "#6D7175" }}>AI Generations</span>
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#202223" }}>{hoveredDay.count}</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                  <div style={{ width: 18, height: 2.5, background: S2_COLOR, borderRadius: 2, flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, color: "#6D7175" }}>Applied to Product</span>
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#202223" }}>{hoveredDay.applied}</span>
+              </div>
+            </div>
+            {/* Click hint */}
+            <div style={{ fontSize: 11, color: "#8C9196", borderTop: "1px solid #F1F1F1", paddingTop: 7 }}>
+              Click to see day details
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Legend */}
