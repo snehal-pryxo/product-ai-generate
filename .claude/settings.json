@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(wc -l /c/xampp/htdocs/shopifyApps/product-ai-generate/app/routes/*.jsx)",
-      "Bash(npx prisma:*)"
+      "Bash(npx prisma:*)",
+      "Bash(npm run:*)"
     ]
   }
 }
