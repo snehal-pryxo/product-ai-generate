@@ -355,7 +355,7 @@ function DateRangePicker({ rangeParam, startDate, endDate }) {
           {/* Dropdown panel — position: fixed so it escapes all overflow clipping */}
           <div
             style={{
-              position: "fixed", top: dropPos.top, right: dropPos.right, zIndex: 9999,
+              position: "relative", top: dropPos.top, right: dropPos.right, zIndex: 9999,
               background: "white", border: "1px solid #C9CCCF", borderRadius: 12,
               boxShadow: "0 12px 40px rgba(0,0,0,0.15)", padding: 16, minWidth: 540,
               maxHeight: "calc(100vh - 80px)", overflowY: "auto",
