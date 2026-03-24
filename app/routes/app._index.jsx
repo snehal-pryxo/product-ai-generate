@@ -17,7 +17,6 @@ import {
   Badge,
   Divider,
   Box,
-  CalloutCard,
   Grid,
 } from "@shopify/polaris";
 
@@ -104,42 +103,40 @@ export default function Index() {
             <BlockStack gap="400">
               <Text variant="headingMd" as="h2">Features</Text>
               <Grid>
-                <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
-                  <CalloutCard
-                    title="Product Descriptions"
-                    illustration="https://cdn.shopify.com/s/assets/admin/checkout/settings-customizecart-705f57c725ac05be5a34ec20c05b94298cb8afd10aac7bd9c7ad02030f210d9d.svg"
-                    primaryAction={{ content: "Generate", url: "/app/products" }}
-                  >
-                    <p>Generate SEO-optimized product descriptions and meta tags powered by AI.</p>
-                  </CalloutCard>
-                </Grid.Cell>
-                <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
-                  <CalloutCard
-                    title="Blog Posts"
-                    illustration="https://cdn.shopify.com/s/assets/admin/checkout/settings-customizecart-705f57c725ac05be5a34ec20c05b94298cb8afd10aac7bd9c7ad02030f210d9d.svg"
-                    primaryAction={{ content: "Generate", url: "/app/blog" }}
-                  >
-                    <p>Create engaging blog content and articles for your store in 180+ languages.</p>
-                  </CalloutCard>
-                </Grid.Cell>
-                <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
-                  <CalloutCard
-                    title="Collection Descriptions"
-                    illustration="https://cdn.shopify.com/s/assets/admin/checkout/settings-customizecart-705f57c725ac05be5a34ec20c05b94298cb8afd10aac7bd9c7ad02030f210d9d.svg"
-                    primaryAction={{ content: "Generate", url: "/app/collections" }}
-                  >
-                    <p>Auto-generate descriptions for your product collections with AI.</p>
-                  </CalloutCard>
-                </Grid.Cell>
-                <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
-                  <CalloutCard
-                    title="Page Content"
-                    illustration="https://cdn.shopify.com/s/assets/admin/checkout/settings-customizecart-705f57c725ac05be5a34ec20c05b94298cb8afd10aac7bd9c7ad02030f210d9d.svg"
-                    primaryAction={{ content: "Generate", url: "/app/pages" }}
-                  >
-                    <p>Generate and optimize storefront page content for About, FAQ, and more.</p>
-                  </CalloutCard>
-                </Grid.Cell>
+                {[
+                  {
+                    title: "Product Descriptions",
+                    description: "Generate SEO-optimized product descriptions and meta tags powered by AI.",
+                    url: "/app/products",
+                  },
+                  {
+                    title: "Blog Posts",
+                    description: "Create engaging blog content and articles for your store in 180+ languages.",
+                    url: "/app/blog",
+                  },
+                  {
+                    title: "Collection Descriptions",
+                    description: "Auto-generate descriptions for your product collections with AI.",
+                    url: "/app/collections",
+                  },
+                  {
+                    title: "Page Content",
+                    description: "Generate and optimize storefront page content for About, FAQ, and more.",
+                    url: "/app/pages",
+                  },
+                ].map(({ title, description, url }) => (
+                  <Grid.Cell key={title} columnSpan={{ xs: 6, sm: 6, md: 3, lg: 3, xl: 3 }}>
+                    <Card>
+                      <BlockStack gap="400">
+                        <Text variant="headingSm" as="h3">{title}</Text>
+                        <Text variant="bodyMd" tone="subdued">{description}</Text>
+                        <InlineStack align="start">
+                          <Button url={url} variant="secondary" size="slim">Generate</Button>
+                        </InlineStack>
+                      </BlockStack>
+                    </Card>
+                  </Grid.Cell>
+                ))}
               </Grid>
             </BlockStack>
           </Layout.Section>
