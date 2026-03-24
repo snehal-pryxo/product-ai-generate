@@ -3,7 +3,8 @@
     "allow": [
       "Bash(wc -l /c/xampp/htdocs/shopifyApps/product-ai-generate/app/routes/*.jsx)",
       "Bash(npx prisma:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(node -e \"const p = JSON.parse\\(require\\(''fs''\\).readFileSync\\(''package.json'',''utf8''\\)\\); console.log\\(JSON.stringify\\(p.scripts, null, 2\\)\\)\")"
     ]
   }
 }
