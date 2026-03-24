@@ -80,6 +80,87 @@ export const action = async ({ request }) => {
   return { success: false, message: "Unknown action." };
 };
 
+const FEATURE_CARDS = [
+  {
+    color: "#008060",
+    emoji: "📦",
+    title: "Product Descriptions",
+    desc: "AI-generated SEO titles, meta descriptions & product copy.",
+    url: "/app/products",
+    btnText: "Generate",
+  },
+  {
+    color: "#2C6ECB",
+    emoji: "🗂️",
+    title: "Collection Descriptions",
+    desc: "Auto-generate rich descriptions for all your collections.",
+    url: "/app/collections",
+    btnText: "Generate",
+  },
+  {
+    color: "#E07D10",
+    emoji: "✍️",
+    title: "Blog Posts",
+    desc: "Create full blog articles in 180+ languages with one click.",
+    url: "/app/blog",
+    btnText: "Generate",
+  },
+  {
+    color: "#8456CD",
+    emoji: "📄",
+    title: "Page Content",
+    desc: "Generate About, FAQ, Contact and landing page content.",
+    url: "/app/pages",
+    btnText: "Generate",
+  },
+  {
+    color: "#00848E",
+    emoji: "📊",
+    title: "SEO Analytics",
+    desc: "View SEO health scores, coverage charts & generation stats.",
+    url: "/app/analytics",
+    btnText: "View Dashboard",
+  },
+];
+
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function FeatureCard({ color, emoji, title, desc, url, btnText }) {
+  return (
+    <Card>
+      <div style={{ borderLeft: `4px solid ${color}`, paddingLeft: "12px" }}>
+        <BlockStack gap="300">
+          <InlineStack gap="300" blockAlign="center">
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: hexToRgba(color, 0.12),
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 18,
+                flexShrink: 0,
+              }}
+            >
+              {emoji}
+            </div>
+            <Text variant="headingSm" as="h3">{title}</Text>
+          </InlineStack>
+          <Text variant="bodySm" tone="subdued">{desc}</Text>
+          <Button url={url} size="slim" variant="primary">{btnText}</Button>
+        </BlockStack>
+      </div>
+    </Card>
+  );
+}
+
 export default function Index() {
   const { hasOpenaiKey, hasAnthropicKey, defaultAiProvider } = useLoaderData();
   const actionData = useActionData();
@@ -91,66 +172,82 @@ export default function Index() {
   const [selectedProvider, setSelectedProvider] = useState(defaultAiProvider);
 
   return (
-    <Page
-      title="Proxy AI Content Generator"
-      subtitle="Generate high-quality, SEO-optimized content for your Shopify store in seconds"
-    >
+    <Page>
       <BlockStack gap="600">
-        {/* Feature Cards */}
-        <Layout>
-          <Layout.Section>
-            <BlockStack gap="400">
-              <Text variant="headingMd" as="h2">Features</Text>
-              <Grid>
-                {[
-                  {
-                    title: "Product Descriptions",
-                    description: "Generate SEO-optimized product descriptions and meta tags powered by AI.",
-                    url: "/app/products",
-                  },
-                  {
-                    title: "Blog Posts",
-                    description: "Create engaging blog content and articles for your store in 180+ languages.",
-                    url: "/app/blog",
-                  },
-                  {
-                    title: "Collection Descriptions",
-                    description: "Auto-generate descriptions for your product collections with AI.",
-                    url: "/app/collections",
-                  },
-                  {
-                    title: "Page Content",
-                    description: "Generate and optimize storefront page content for About, FAQ, and more.",
-                    url: "/app/pages",
-                    action: "Generate",
-                  },
-                  {
-                    title: "SEO Analytics",
-                    description: "Track SEO health scores, coverage charts, and AI generation activity across your store.",
-                    url: "/app/analytics",
-                    action: "View",
-                  },
-                ].map(({ title, description, url, action }) => (
-                  <Grid.Cell key={title} columnSpan={{ xs: 6, sm: 6, md: 3, lg: 3, xl: 3 }}>
-                    <Card>
-                      <BlockStack gap="400">
-                        <Text variant="headingSm" as="h3">{title}</Text>
-                        <Text variant="bodyMd" tone="subdued">{description}</Text>
-                        <InlineStack align="start">
-                          <Button url={url} variant="secondary" size="slim">{action || "Generate"}</Button>
-                        </InlineStack>
-                      </BlockStack>
-                    </Card>
-                  </Grid.Cell>
-                ))}
-              </Grid>
+
+        {/* Hero Banner */}
+        <div
+          style={{
+            background: "linear-gradient(135deg, #f0faf5 0%, #e8f5f0 100%)",
+            borderRadius: "12px",
+            padding: "32px 28px",
+          }}
+        >
+          <InlineStack align="space-between" blockAlign="center" wrap={false} gap="400">
+            <BlockStack gap="200">
+              <Text variant="headingXl" as="h1">Proxy AI Content Generator</Text>
+              <Text variant="bodyMd" tone="subdued">
+                Generate SEO-optimized content for every part of your Shopify store — powered by AI.
+              </Text>
             </BlockStack>
-          </Layout.Section>
-        </Layout>
+            <div
+              style={{
+                display: "inline-flex",
+                flexDirection: "column",
+                gap: "8px",
+                flexShrink: 0,
+              }}
+            >
+              <span
+                style={{
+                  display: "inline-block",
+                  padding: "6px 14px",
+                  background: "rgba(0,128,96,0.12)",
+                  color: "#005c3e",
+                  borderRadius: "20px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                5 Content Types
+              </span>
+              <span
+                style={{
+                  display: "inline-block",
+                  padding: "6px 14px",
+                  background: "rgba(0,128,96,0.12)",
+                  color: "#005c3e",
+                  borderRadius: "20px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                180+ Languages
+              </span>
+            </div>
+          </InlineStack>
+        </div>
+
+        {/* Generate Content Section */}
+        <BlockStack gap="400">
+          <Text variant="headingMd" as="h2">Generate Content</Text>
+          <Grid>
+            {FEATURE_CARDS.map((card) => (
+              <Grid.Cell
+                key={card.title}
+                columnSpan={{ xs: 6, sm: 6, md: 4, lg: 4, xl: 4 }}
+              >
+                <FeatureCard {...card} />
+              </Grid.Cell>
+            ))}
+          </Grid>
+        </BlockStack>
 
         <Divider />
 
-        {/* AI Provider & API Keys Settings */}
+        {/* AI Provider Settings */}
         <Layout>
           <Layout.Section variant="oneThird">
             <BlockStack gap="200">
@@ -195,8 +292,8 @@ export default function Index() {
 
                     <Divider />
 
-                    {/* OpenAI key — when ChatGPT / OpenAI or Auto is selected */}
-                    {(selectedProvider === "openai") && (
+                    {/* OpenAI key — when ChatGPT / OpenAI is selected */}
+                    {selectedProvider === "openai" && (
                       <BlockStack gap="300">
                         <InlineStack align="space-between" blockAlign="center">
                           <InlineStack gap="200" blockAlign="center">
@@ -237,8 +334,8 @@ export default function Index() {
                       </BlockStack>
                     )}
 
-                    {/* Anthropic key — when Claude AI / Anthropic or Auto is selected */}
-                    {(selectedProvider === "anthropic" || selectedProvider === "auto") && (
+                    {/* Anthropic key — when Claude AI / Anthropic is selected */}
+                    {selectedProvider === "anthropic" && (
                       <BlockStack gap="300">
                         <InlineStack align="space-between" blockAlign="center">
                           <InlineStack gap="200" blockAlign="center">
@@ -295,6 +392,7 @@ export default function Index() {
             </BlockStack>
           </Layout.Section>
         </Layout>
+
       </BlockStack>
 
       <Box paddingBlockEnd="800" />
