@@ -560,10 +560,12 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
                 )}
                 {/* Wide invisible hover/click target */}
                 <rect x={x - 22} y={CH.pT} width={44} height={plotH} fill="transparent" />
-                {/* Series 1 dot — always visible, larger on active */}
-                <circle cx={x} cy={y1} r={active ? 6 : 4}
-                  fill={S1_COLOR} stroke="white" strokeWidth="2" />
-                {/* Series 2 dot — visible on hover or when applied > 0 */}
+                {/* Series 1 dot — only when active or has data */}
+                {(active || d.count > 0) && (
+                  <circle cx={x} cy={y1} r={active ? 6 : 4}
+                    fill={S1_COLOR} stroke="white" strokeWidth="2" />
+                )}
+                {/* Series 2 dot — only when active or has applied data */}
                 {(active || d.applied > 0) && (
                   <circle cx={x} cy={y2} r={active ? 5 : 3.5}
                     fill={S2_COLOR} stroke="white" strokeWidth="2" />
