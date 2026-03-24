@@ -47,7 +47,6 @@ const ARTICLES_QUERY = `#graphql
           id
           title
           body
-          excerptHtml
           handle
           publishedAt
           blog {
@@ -209,7 +208,7 @@ export const loader = async ({ request }) => {
     const mfs = (node.metafields?.edges || []).map((me) => me.node);
     return {
       ...node,
-      excerpt: node.excerptHtml || "",
+      excerpt: "",
       seo: {
         title: mfs.find((m) => m.key === "title_tag")?.value || "",
         description: mfs.find((m) => m.key === "description_tag")?.value || "",
