@@ -10,7 +10,9 @@
       "Bash(node -e \"const m = require\\(''./node_modules/@react-router/node/dist/index.js''\\); console.log\\(Object.keys\\(m\\)\\)\")",
       "Bash(node -e \"const m = require\\(''./node_modules/react-router/dist/node/index.cjs''\\); console.log\\(Object.keys\\(m\\).filter\\(k => k.includes\\(''Request''\\) || k.includes\\(''Handler''\\) || k.includes\\(''handler''\\) || k.includes\\(''Listener''\\)\\)\\)\")",
       "Bash(node -e \"const p=require\\(''./node_modules/@shopify/polaris/package.json''\\); console.log\\(p.version\\)\")",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(node -e \"const icons = require\\(''@shopify/polaris-icons''\\); const names = Object.keys\\(icons\\).filter\\(k => /folder|calendar|chart|product|collection|page|blog|auto|inbox|lightning|package|note|search/i.test\\(k\\)\\); console.log\\(names.slice\\(0,40\\).join\\(''\\\\n''\\)\\);\")",
+      "Bash(node -e \"const icons = require\\(''@shopify/polaris-icons''\\); const names = Object.keys\\(icons\\).filter\\(k => /page|product|empty|lightning|flash|sparkle|star|target|aim/i.test\\(k\\)\\); console.log\\(names.slice\\(0,30\\).join\\(''\\\\n''\\)\\);\")"
     ]
   }
 }

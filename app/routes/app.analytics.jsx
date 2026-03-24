@@ -1,11 +1,16 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useLoaderData, useSearchParams } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import {
-  Page, Card, BlockStack, InlineStack, Text, Badge, Divider, Box, Grid, Button, Layout,
+  Page, Card, BlockStack, InlineStack, Text, Badge, Divider, Box, Grid, Button, Layout, Icon,
 } from "@shopify/polaris";
+import {
+  FolderIcon, TargetIcon, AutomationIcon, CalendarIcon,
+  ProductIcon, CollectionIcon, PageIcon, BlogIcon,
+  ChartLineIcon,
+} from "@shopify/polaris-icons";
 
 // ─── GraphQL ──────────────────────────────────────────────────────────────────
 
@@ -245,11 +250,22 @@ function CalendarMonth({ year, month, rangeStart, rangeEnd, hoverEnd, onDayClick
   );
 }
 
-// ─── DateRangePicker (inline — no floating/positioning) ───────────────────────
+// ─── DateRangePicker ──────────────────────────────────────────────────────────
 
 function DateRangePicker({ rangeParam, startDate, endDate }) {
   const [, setSearchParams] = useSearchParams();
   const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  // Close on outside click — no fixed overlay needed
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
 
   const [calYear,  setCalYear]  = useState(() => new Date(startDate + "T12:00:00").getFullYear());
   const [calMonth, setCalMonth] = useState(() => new Date(startDate + "T12:00:00").getMonth());
@@ -304,8 +320,8 @@ function DateRangePicker({ rangeParam, startDate, endDate }) {
   const label = RANGE_OPTIONS.find(o => o.value === rangeParam)?.label || `Last ${rangeParam} days`;
 
   return (
-    <div>
-      {/* Trigger button */}
+    <div ref={wrapRef} style={{ position: "relative", display: "inline-block" }}>
+      {/* Trigger */}
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
@@ -322,13 +338,18 @@ function DateRangePicker({ rangeParam, startDate, endDate }) {
         </svg>
       </button>
 
-      {/* Inline panel — no positioning, flows in the page */}
+      {/* Dropdown — position: absolute, no fixed overlay */}
       {open && (
         <div
           style={{
-            marginTop: 12,
-            border: "1px solid #E4E5E7", borderRadius: 12,
-            background: "#FAFAFA", padding: 16,
+            position: "absolute", top: "calc(100% + 6px)", right: 0,
+            zIndex: 400,
+            background: "white",
+            border: "1px solid #C9CCCF",
+            borderRadius: 12,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.14)",
+            padding: 16,
+            minWidth: 580,
           }}
           onMouseLeave={() => setHoverDate(null)}
         >
@@ -337,7 +358,7 @@ function DateRangePicker({ rangeParam, startDate, endDate }) {
             value={preset}
             onChange={handlePreset}
             style={{
-              width: "100%", padding: "8px 12px", marginBottom: 12,
+              width: "100%", padding: "9px 12px", marginBottom: 10,
               border: "1px solid #C9CCCF", borderRadius: 8, fontSize: 14,
               color: "#202223", background: "white",
             }}
@@ -346,13 +367,13 @@ function DateRangePicker({ rangeParam, startDate, endDate }) {
           </select>
 
           {/* Date inputs */}
-          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14 }}>
             <input
               type="date" value={pickerStart}
               onChange={e => { setPickerStart(e.target.value); setPreset("custom"); }}
               style={{ flex: 1, padding: "8px 10px", border: "1px solid #C9CCCF", borderRadius: 8, fontSize: 13, color: "#202223", background: "white" }}
             />
-            <span style={{ color: "#6D7175", fontSize: 18 }}>→</span>
+            <span style={{ color: "#6D7175", fontSize: 18, flexShrink: 0 }}>→</span>
             <input
               type="date" value={pickerEnd || ""}
               onChange={e => { setPickerEnd(e.target.value); setPreset("custom"); }}
@@ -361,7 +382,7 @@ function DateRangePicker({ rangeParam, startDate, endDate }) {
           </div>
 
           {/* Two-month calendars */}
-          <div style={{ display: "flex", gap: 0, borderTop: "1px solid #E4E5E7", paddingTop: 14 }}>
+          <div style={{ display: "flex", borderTop: "1px solid #E4E5E7", paddingTop: 14 }}>
             <CalendarMonth
               year={calYear} month={calMonth}
               rangeStart={pickerStart} rangeEnd={pickerEnd}
@@ -383,11 +404,11 @@ function DateRangePicker({ rangeParam, startDate, endDate }) {
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14, borderTop: "1px solid #E4E5E7", paddingTop: 12 }}>
             <button
               type="button" onClick={() => setOpen(false)}
-              style={{ padding: "7px 18px", border: "1px solid #C9CCCF", borderRadius: 8, background: "white", fontSize: 14, cursor: "pointer", color: "#202223", fontWeight: 500 }}
+              style={{ padding: "7px 20px", border: "1px solid #C9CCCF", borderRadius: 8, background: "white", fontSize: 14, cursor: "pointer", color: "#202223", fontWeight: 500 }}
             >Cancel</button>
             <button
               type="button" onClick={handleApply} disabled={!pickerStart}
-              style={{ padding: "7px 18px", border: "none", borderRadius: 8, background: "#1A1A1A", color: "white", fontSize: 14, cursor: "pointer", fontWeight: 600, opacity: !pickerStart ? 0.5 : 1 }}
+              style={{ padding: "7px 20px", border: "none", borderRadius: 8, background: "#1A1A1A", color: "white", fontSize: 14, cursor: "pointer", fontWeight: 700, opacity: !pickerStart ? 0.5 : 1 }}
             >Apply</button>
           </div>
         </div>
@@ -567,7 +588,7 @@ function StatTile({ title, total, withSeoTitle, withSeoDesc, url, color, icon })
         <BlockStack gap="300">
           <InlineStack align="space-between" blockAlign="center">
             <InlineStack gap="200" blockAlign="center">
-              <span style={{ fontSize: 16 }}>{icon}</span>
+              <Icon source={icon} tone="subdued" />
               <Text variant="headingSm" as="h3">{title}</Text>
             </InlineStack>
             <Badge tone={tone}>{total === 0 ? "Empty" : `${pct}%`}</Badge>
@@ -669,17 +690,17 @@ export default function AnalyticsPage() {
         {/* KPI Row */}
         <Grid>
           {[
-            { icon: "📁", sub: "Items across store",     val: storeTotal,        label: "Total Content"  },
-            { icon: "🎯", sub: "Average coverage",       val: seoScore + "%",    label: "SEO Coverage", color: coverageColor },
-            { icon: "⚡", sub: "All-time total",         val: totalGenerations,  label: "AI Generations" },
-            { icon: "📅", sub: rangeLabel,               val: rangeGenerations,  label: "In Range"       },
+            { icon: FolderIcon,      sub: "Items across store",  val: storeTotal,       label: "Total Content"  },
+            { icon: TargetIcon,      sub: "Average coverage",    val: seoScore + "%",   label: "SEO Coverage", color: coverageColor },
+            { icon: AutomationIcon,  sub: "All-time total",      val: totalGenerations, label: "AI Generations" },
+            { icon: CalendarIcon,    sub: rangeLabel,            val: rangeGenerations, label: "In Range"       },
           ].map(({ icon, sub, val, label, color }) => (
             <Grid.Cell key={label} columnSpan={{ xs: 6, sm: 6, md: 3, lg: 3, xl: 3 }}>
               <Card>
                 <BlockStack gap="200">
                   <InlineStack align="space-between" blockAlign="start">
                     <Text variant="bodySm" tone="subdued">{sub}</Text>
-                    <div style={{ fontSize: 20 }}>{icon}</div>
+                    <Icon source={icon} tone="subdued" />
                   </InlineStack>
                   <Text variant="heading2xl" as="p">
                     {color ? <span style={{ color }}>{val}</span> : val}
@@ -692,6 +713,7 @@ export default function AnalyticsPage() {
         </Grid>
 
         {/* Generation Activity Chart */}
+        <div style={{ position: "relative", zIndex: 10 }}>
         <Card>
           <BlockStack gap="400">
             {/* Header */}
@@ -728,7 +750,9 @@ export default function AnalyticsPage() {
               <Box paddingBlockStart="600" paddingBlockEnd="600">
                 <InlineStack align="center">
                   <BlockStack gap="200">
-                    <InlineStack align="center"><div style={{ fontSize: 36 }}>📭</div></InlineStack>
+                    <InlineStack align="center">
+                      <Icon source={ChartLineIcon} tone="subdued" />
+                    </InlineStack>
                     <Text variant="bodyMd" tone="subdued">No generation activity in this date range.</Text>
                   </BlockStack>
                 </InlineStack>
@@ -741,6 +765,7 @@ export default function AnalyticsPage() {
             {selectedDate && <DayDetailPanel date={selectedDate} recentLogs={recentLogs} />}
           </BlockStack>
         </Card>
+        </div>
 
         {/* SEO Score + Coverage */}
         <Layout>
@@ -796,10 +821,10 @@ export default function AnalyticsPage() {
         {/* Per-type StatTiles */}
         <Grid>
           {[
-            { title: "Products",      total: products.total,    wt: products.withSeoTitle,    wd: products.withSeoDesc,    url: "/app/products",    color: "#008060", icon: "📦" },
-            { title: "Collections",   total: collections.total, wt: collections.withSeoTitle, wd: collections.withSeoDesc, url: "/app/collections", color: "#2C6ECB", icon: "🗂️" },
-            { title: "Pages",         total: pages.total,       wt: pages.withSeoTitle,       wd: pages.withSeoDesc,       url: "/app/pages",       color: "#8456CD", icon: "📄" },
-            { title: "Blog Articles", total: articles.total,    wt: articles.withSeoTitle,    wd: articles.withSeoDesc,    url: "/app/blog",        color: "#E07D10", icon: "✍️" },
+            { title: "Products",      total: products.total,    wt: products.withSeoTitle,    wd: products.withSeoDesc,    url: "/app/products",    color: "#008060", icon: ProductIcon    },
+            { title: "Collections",   total: collections.total, wt: collections.withSeoTitle, wd: collections.withSeoDesc, url: "/app/collections", color: "#2C6ECB", icon: CollectionIcon },
+            { title: "Pages",         total: pages.total,       wt: pages.withSeoTitle,       wd: pages.withSeoDesc,       url: "/app/pages",       color: "#8456CD", icon: PageIcon       },
+            { title: "Blog Articles", total: articles.total,    wt: articles.withSeoTitle,    wd: articles.withSeoDesc,    url: "/app/blog",        color: "#E07D10", icon: BlogIcon       },
           ].map(({ title, total, wt, wd, url, color, icon }) => (
             <Grid.Cell key={title} columnSpan={{ xs: 6, sm: 6, md: 3, lg: 3, xl: 3 }}>
               <StatTile title={title} total={total} withSeoTitle={wt} withSeoDesc={wd} url={url} color={color} icon={icon} />
