@@ -937,7 +937,7 @@ export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const shopData = await db.shop.findUnique({
     where: { shop: session.shop },
-    select: { openaiApiKey: true, anthropicApiKey: true },
+    select: { openaiApiKey: true, anthropicApiKey: true, defaultAiProvider: true },
   });
   const url = new URL(request.url);
 
@@ -1043,11 +1043,12 @@ export const loader = async ({ request }) => {
     pageInfo: productConnection.pageInfo,
     hasOpenaiKey: !!(shopData?.openaiApiKey || process.env.OPENAI_API_KEY),
     hasAnthropicKey: !!(shopData?.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
+    defaultAiProvider: shopData?.defaultAiProvider || "auto",
   };
 };
 
 export default function ProductsPage() {
-  const { filters, products, pageInfo, hasOpenaiKey, hasAnthropicKey } = useLoaderData();
+  const { filters, products, pageInfo, hasOpenaiKey, hasAnthropicKey, defaultAiProvider } = useLoaderData();
   const navigation = useNavigation();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
@@ -1125,13 +1126,14 @@ export default function ProductsPage() {
     setModalMessage(null);
     setEditForm({
       ...editInitialState,
+      aiProvider: defaultAiProvider,
       title: product.title || "",
       description: product.descriptionHtml || product.descriptionText || "",
       seoTitle: product.seoTitleValue || "",
       seoDescription: product.seoDescriptionValue || "",
     });
     setModalOpen(true);
-  }, []);
+  }, [defaultAiProvider]);
 
   const updateEditField = useCallback((field, value) => {
     setEditForm((current) => ({ ...current, [field]: value }));

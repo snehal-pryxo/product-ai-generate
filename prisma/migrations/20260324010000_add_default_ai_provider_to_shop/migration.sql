@@ -1,0 +1,2 @@
+ALTER TABLE `shop`
+    ADD COLUMN IF NOT EXISTS `defaultAiProvider` VARCHAR(32) NULL DEFAULT 'auto';

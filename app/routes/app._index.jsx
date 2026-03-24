@@ -12,6 +12,7 @@ import {
   Text,
   Button,
   TextField,
+  Select,
   Banner,
   Badge,
   Divider,
@@ -20,15 +21,22 @@ import {
   Grid,
 } from "@shopify/polaris";
 
+const AI_PROVIDER_OPTIONS = [
+  { label: "Auto (use first available key)", value: "auto" },
+  { label: "ChatGPT / OpenAI", value: "openai" },
+  { label: "Claude AI / Anthropic", value: "anthropic" },
+];
+
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
   const shopData = await db.shop.findUnique({
     where: { shop: session.shop },
-    select: { openaiApiKey: true, anthropicApiKey: true },
+    select: { openaiApiKey: true, anthropicApiKey: true, defaultAiProvider: true },
   });
   return {
     hasOpenaiKey: !!shopData?.openaiApiKey,
     hasAnthropicKey: !!shopData?.anthropicApiKey,
+    defaultAiProvider: shopData?.defaultAiProvider || "auto",
   };
 };
 
@@ -41,18 +49,16 @@ export const action = async ({ request }) => {
   if (intent === "save_api_keys") {
     const openaiApiKey = formData.get("openaiApiKey")?.trim();
     const anthropicApiKey = formData.get("anthropicApiKey")?.trim();
-    const updateData = {};
+    const defaultAiProvider = formData.get("defaultAiProvider")?.trim() || "auto";
+    const updateData = { defaultAiProvider };
     if (openaiApiKey) updateData.openaiApiKey = openaiApiKey;
     if (anthropicApiKey) updateData.anthropicApiKey = anthropicApiKey;
-    if (Object.keys(updateData).length === 0) {
-      return { success: false, message: "Please enter at least one API key." };
-    }
     await db.shop.upsert({
       where: { shop },
       update: updateData,
       create: { shop, installed: true, ...updateData },
     });
-    return { success: true, message: "API keys saved successfully!" };
+    return { success: true, message: "Settings saved successfully!" };
   }
 
   if (intent === "clear_openai_key") {
@@ -77,13 +83,14 @@ export const action = async ({ request }) => {
 };
 
 export default function Index() {
-  const { hasOpenaiKey, hasAnthropicKey } = useLoaderData();
+  const { hasOpenaiKey, hasAnthropicKey, defaultAiProvider } = useLoaderData();
   const actionData = useActionData();
   const navigation = useNavigation();
   const isSaving = navigation.state === "submitting";
 
   const [openaiKey, setOpenaiKey] = useState("");
   const [anthropicKey, setAnthropicKey] = useState("");
+  const [selectedProvider, setSelectedProvider] = useState(defaultAiProvider);
 
   return (
     <Page
@@ -103,7 +110,7 @@ export default function Index() {
                     illustration="https://cdn.shopify.com/s/assets/admin/checkout/settings-customizecart-705f57c725ac05be5a34ec20c05b94298cb8afd10aac7bd9c7ad02030f210d9d.svg"
                     primaryAction={{ content: "Generate", url: "/app/products" }}
                   >
-                    <p>Generate SEO-optimized product descriptions and meta tags powered by GPT-4o.</p>
+                    <p>Generate SEO-optimized product descriptions and meta tags powered by AI.</p>
                   </CalloutCard>
                 </Grid.Cell>
                 <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
@@ -140,13 +147,13 @@ export default function Index() {
 
         <Divider />
 
-        {/* AI API Keys Settings */}
+        {/* AI Provider & API Keys Settings */}
         <Layout>
           <Layout.Section variant="oneThird">
             <BlockStack gap="200">
-              <Text variant="headingMd" as="h2">AI Provider Keys</Text>
+              <Text variant="headingMd" as="h2">AI Provider Settings</Text>
               <Text variant="bodyMd" tone="subdued">
-                Configure your API keys to enable AI content generation. Keys are stored securely per shop.
+                Choose your default AI provider and configure API keys. Keys are stored securely per shop.
               </Text>
             </BlockStack>
           </Layout.Section>
@@ -165,7 +172,26 @@ export default function Index() {
               <Form method="post">
                 <input type="hidden" name="intent" value="save_api_keys" />
                 <Card>
-                  <BlockStack gap="400">
+                  <BlockStack gap="500">
+
+                    {/* Default AI Provider selector */}
+                    <BlockStack gap="300">
+                      <Text variant="headingSm" as="h3">Default AI Provider</Text>
+                      <Text variant="bodySm" tone="subdued">
+                        Select which AI will be used by default when generating content. You can override this per generation.
+                      </Text>
+                      <Select
+                        label="Default AI Provider"
+                        labelHidden
+                        name="defaultAiProvider"
+                        options={AI_PROVIDER_OPTIONS}
+                        value={selectedProvider}
+                        onChange={setSelectedProvider}
+                      />
+                    </BlockStack>
+
+                    <Divider />
+
                     {/* OpenAI / ChatGPT */}
                     <BlockStack gap="300">
                       <InlineStack align="space-between" blockAlign="center">
@@ -225,7 +251,7 @@ export default function Index() {
                         )}
                       </InlineStack>
                       <Text variant="bodySm" tone="subdued">
-                        Used for Claude 3 and newer models. Get your key from{" "}
+                        Used for Claude Haiku and newer models. Get your key from{" "}
                         <a
                           href="https://console.anthropic.com/settings/keys"
                           target="_blank"
@@ -255,7 +281,7 @@ export default function Index() {
                         loading={isSaving}
                         disabled={isSaving}
                       >
-                        Save API Keys
+                        Save Settings
                       </Button>
                     </InlineStack>
                   </BlockStack>

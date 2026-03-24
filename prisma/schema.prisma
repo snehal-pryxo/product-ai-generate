@@ -51,6 +51,7 @@ model shop {
   primaryDomain           String?   @db.VarChar(255)
   openaiApiKey            String?   @db.VarChar(255)
   anthropicApiKey         String?   @db.VarChar(255)
+  defaultAiProvider       String?   @default("auto") @db.VarChar(32)
 }
 
 model GeneratedContentLog {
