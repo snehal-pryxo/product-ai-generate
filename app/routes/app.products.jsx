@@ -16,6 +16,7 @@ import {
   Card,
   Divider,
   EmptyState,
+  Grid,
   IndexTable,
   InlineStack,
   Layout,
@@ -1458,15 +1459,9 @@ export default function ProductsPage() {
                 </Banner>
               ) : null}
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
-                  gap: "16px",
-                  alignItems: "flex-start",
-                }}
-              >
+              <Grid>
                 {/* Left column: description + SEO fields */}
+                <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 7, lg: 7, xl: 7 }}>
                 <Card>
                   <BlockStack gap="400">
                     <TextField
@@ -1489,18 +1484,14 @@ export default function ProductsPage() {
                         background="bg-surface"
                       >
                         {/* Toolbar */}
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "6px",
-                            padding: "6px 10px",
-                            borderBottom: "1px solid var(--p-color-border)",
-                            background: "var(--p-color-bg-surface-secondary)",
-                            flexWrap: "wrap",
-                          }}
+                        <Box
+                          padding="200"
+                          background="bg-surface-secondary"
+                          borderBlockEndWidth="025"
+                          borderColor="border"
                         >
-                          <div style={{ width: "130px" }}>
+                          <InlineStack gap="200" blockAlign="center" wrap>
+                          <Box minWidth="130px">
                             <Select
                               label="Description style"
                               labelHidden
@@ -1508,7 +1499,7 @@ export default function ProductsPage() {
                               value={editForm.descriptionStyle}
                               onChange={handleDescriptionStyleChange}
                             />
-                          </div>
+                          </Box>
                           <ButtonGroup>
                             <Button
                               size="slim"
@@ -1567,17 +1558,19 @@ export default function ProductsPage() {
                               Clear
                             </Button>
                           </ButtonGroup>
-                        </div>
+                          </InlineStack>
+                        </Box>
 
                         {/* Editor body */}
-                        <div style={{ position: "relative", background: "#ffffff" }}>
+                        <Box padding="300" background="bg-surface">
+                          <div style={{ position: "relative", minHeight: "120px" }}>
                           {isDescriptionEmpty ? (
                             <span
                               style={{
                                 position: "absolute",
-                                top: "12px",
-                                left: "14px",
-                                color: "#8b9098",
+                                top: 0,
+                                left: 0,
+                                color: "var(--p-color-text-disabled)",
                                 fontSize: "14px",
                                 pointerEvents: "none",
                               }}
@@ -1591,10 +1584,9 @@ export default function ProductsPage() {
                             suppressContentEditableWarning
                             style={{
                               minHeight: "360px",
-                              padding: "12px 14px",
                               fontSize: "14px",
                               lineHeight: 1.55,
-                              color: "#30363c",
+                              color: "var(--p-color-text)",
                               outline: "none",
                               whiteSpace: "pre-wrap",
                               wordBreak: "break-word",
@@ -1605,7 +1597,8 @@ export default function ProductsPage() {
                               updateEditField("description", event.currentTarget.innerHTML || "")
                             }
                           />
-                        </div>
+                          </div>
+                        </Box>
                       </Box>
                     </BlockStack>
 
@@ -1622,22 +1615,16 @@ export default function ProductsPage() {
                         </Badge>
                       </InlineStack>
 
-                      <div style={{ position: "relative" }}>
-                        <TextField
+                      <TextField
                           label="Meta Title"
                           labelHidden
                           value={editForm.seoTitle}
                           maxLength={70}
+                          showCharacterCount
                           placeholder="Enter meta title..."
                           autoComplete="off"
                           onChange={(value) => updateEditField("seoTitle", value || "")}
-                          suffix={
-                            <Text as="span" tone="subdued" variant="bodySm">
-                              {seoTitleLength}/70
-                            </Text>
-                          }
                         />
-                      </div>
 
                       <Text as="p" tone="subdued" variant="bodySm">
                         Optimal Meta Title length: 40 to 70 characters. (Too short: less than
@@ -1668,23 +1655,17 @@ export default function ProductsPage() {
                         </Badge>
                       </InlineStack>
 
-                      <div style={{ position: "relative" }}>
-                        <TextField
+                      <TextField
                           label="Meta Description"
                           labelHidden
                           value={editForm.seoDescription}
                           maxLength={160}
+                          showCharacterCount
                           placeholder="Enter meta description..."
                           multiline={4}
                           autoComplete="off"
                           onChange={(value) => updateEditField("seoDescription", value || "")}
-                          suffix={
-                            <Text as="span" tone="subdued" variant="bodySm">
-                              {seoDescriptionLength}/160
-                            </Text>
-                          }
                         />
-                      </div>
 
                       <Text as="p" tone="subdued" variant="bodySm">
                         Optimal Meta Description length: 140 to 160 characters. (Too short: less
@@ -1703,8 +1684,10 @@ export default function ProductsPage() {
                     </BlockStack>
                   </BlockStack>
                 </Card>
+                </Grid.Cell>
 
                 {/* Right column: AI settings + generate */}
+                <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 5, lg: 5, xl: 5 }}>
                 <Card>
                   <BlockStack gap="400">
                     <Select
@@ -1770,7 +1753,8 @@ export default function ProductsPage() {
                     </Button>
                   </BlockStack>
                 </Card>
-              </div>
+                </Grid.Cell>
+              </Grid>
             </BlockStack>
           )}
         </Modal.Section>
