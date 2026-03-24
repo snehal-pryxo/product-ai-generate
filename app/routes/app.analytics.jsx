@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { useLoaderData, useSearchParams } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
@@ -172,76 +172,68 @@ const S2_COLOR = "#5C37A8";
 
 // ─── CalendarMonth ────────────────────────────────────────────────────────────
 
+const arrowBtn = {
+  width: 28, height: 28, border: "1px solid #C9CCCF", borderRadius: 6,
+  background: "white", cursor: "pointer", fontSize: 17, color: "#202223",
+  display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0,
+};
+
 function CalendarMonth({ year, month, rangeStart, rangeEnd, hoverEnd, onDayClick, onDayHover, showLeft, onLeft, showRight, onRight }) {
   const firstDow = new Date(year, month, 1).getDay();
-  const dim = new Date(year, month + 1, 0).getDate();
-  const cells = [];
+  const dim      = new Date(year, month + 1, 0).getDate();
+  const cells    = [];
   for (let i = 0; i < firstDow; i++) cells.push(null);
   for (let d = 1; d <= dim; d++) cells.push(d);
   while (cells.length % 7 !== 0) cells.push(null);
 
   const pad = n => String(n).padStart(2, "0");
-  const ds = d => !d ? null : `${year}-${pad(month + 1)}-${pad(d)}`;
+  const mkDs = d => !d ? null : `${year}-${pad(month + 1)}-${pad(d)}`;
 
-  const effectiveEnd = rangeEnd || hoverEnd;
-  const lo = rangeStart && effectiveEnd ? (rangeStart <= effectiveEnd ? rangeStart : effectiveEnd) : rangeStart;
-  const hi = rangeStart && effectiveEnd ? (rangeStart <= effectiveEnd ? effectiveEnd : rangeStart) : null;
+  const effEnd = rangeEnd || hoverEnd;
+  const lo = rangeStart && effEnd ? (rangeStart <= effEnd ? rangeStart : effEnd) : rangeStart;
+  const hi = rangeStart && effEnd ? (rangeStart <= effEnd ? effEnd   : rangeStart) : null;
 
   return (
-    <div style={{ flex: 1, minWidth: 220 }}>
-      {/* Month header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        {showLeft ? (
-          <button onClick={onLeft} style={arrowBtn}>‹</button>
-        ) : <div style={{ width: 28 }} />}
-        <span style={{ fontSize: 14, fontWeight: 700, color: "#202223" }}>
-          {MONTH_NAMES[month]} {year}
-        </span>
-        {showRight ? (
-          <button onClick={onRight} style={arrowBtn}>›</button>
-        ) : <div style={{ width: 28 }} />}
+    <div style={{ flex: 1 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        {showLeft  ? <button onClick={onLeft}  style={arrowBtn}>‹</button> : <div style={{ width: 28 }} />}
+        <span style={{ fontSize: 14, fontWeight: 700, color: "#202223" }}>{MONTH_NAMES[month]} {year}</span>
+        {showRight ? <button onClick={onRight} style={arrowBtn}>›</button> : <div style={{ width: 28 }} />}
       </div>
 
-      {/* Day-of-week headers */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
         {DAY_NAMES.map(d => (
           <div key={d} style={{ textAlign: "center", fontSize: 11, fontWeight: 600, color: "#8C9196", padding: "3px 0" }}>{d}</div>
         ))}
-
-        {/* Day cells */}
         {cells.map((day, idx) => {
-          const dateStr = ds(day);
-          const isStart  = !!(dateStr && dateStr === rangeStart);
-          const isEnd    = !!(dateStr && dateStr === rangeEnd);
-          const inRange  = !!(dateStr && lo && hi && dateStr > lo && dateStr < hi);
-          const isToday  = dateStr === toDateStr(new Date());
+          const ds      = mkDs(day);
+          const isStart = !!(ds && ds === rangeStart);
+          const isEnd   = !!(ds && ds === rangeEnd);
+          const inRange = !!(ds && lo && hi && ds > lo && ds < hi);
+          const isToday = ds === toDateStr(new Date());
 
           let cellBg = "transparent";
           if (day) {
-            if      (isStart && rangeEnd) cellBg = `linear-gradient(to right, transparent 50%, ${RANGE_BG} 50%)`;
-            else if (isEnd   && rangeStart) cellBg = `linear-gradient(to left, transparent 50%, ${RANGE_BG} 50%)`;
-            else if (inRange)             cellBg = RANGE_BG;
+            if      (isStart && rangeEnd)   cellBg = `linear-gradient(to right, transparent 50%, ${RANGE_BG} 50%)`;
+            else if (isEnd   && rangeStart) cellBg = `linear-gradient(to left,  transparent 50%, ${RANGE_BG} 50%)`;
+            else if (inRange)               cellBg = RANGE_BG;
           }
-
-          const showCircle   = isStart || isEnd;
-          const textColor    = showCircle ? "white" : day ? "#202223" : "transparent";
-
+          const showCircle = isStart || isEnd;
           return (
             <div
               key={idx}
               style={{ background: cellBg, position: "relative", height: 34, cursor: day ? "pointer" : "default" }}
-              onClick={() => day && onDayClick(dateStr)}
-              onMouseEnter={() => day && onDayHover(dateStr)}
+              onClick={() => day && onDayClick(ds)}
+              onMouseEnter={() => day && onDayHover(ds)}
             >
               {day && (
                 <div style={{
-                  position: "absolute", top: "50%", left: "50%",
-                  transform: "translate(-50%,-50%)",
+                  position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
                   width: 28, height: 28, borderRadius: "50%",
                   background: showCircle ? "#1A1A1A" : "transparent",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 13, color: textColor,
-                  fontWeight: showCircle ? 700 : 400,
+                  fontSize: 13, fontWeight: showCircle ? 700 : 400,
+                  color: showCircle ? "white" : "#202223",
                   ...(isToday && !showCircle ? { border: "1px solid #C9CCCF" } : {}),
                 }}>{day}</div>
               )}
@@ -253,19 +245,11 @@ function CalendarMonth({ year, month, rangeStart, rangeEnd, hoverEnd, onDayClick
   );
 }
 
-const arrowBtn = {
-  width: 28, height: 28, border: "1px solid #C9CCCF", borderRadius: 6,
-  background: "white", cursor: "pointer", fontSize: 17, color: "#202223",
-  display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0,
-};
-
-// ─── DateRangePicker ──────────────────────────────────────────────────────────
+// ─── DateRangePicker (inline — no floating/positioning) ───────────────────────
 
 function DateRangePicker({ rangeParam, startDate, endDate }) {
   const [, setSearchParams] = useSearchParams();
-  const [show, setShow] = useState(false);
-  const [dropPos, setDropPos] = useState({ top: 0, right: 0 });
-  const btnRef = useRef(null);
+  const [open, setOpen] = useState(false);
 
   const [calYear,  setCalYear]  = useState(() => new Date(startDate + "T12:00:00").getFullYear());
   const [calMonth, setCalMonth] = useState(() => new Date(startDate + "T12:00:00").getMonth());
@@ -275,11 +259,11 @@ function DateRangePicker({ rangeParam, startDate, endDate }) {
   const [hoverDate,   setHoverDate]   = useState(null);
   const [preset, setPreset] = useState(rangeParam);
 
-  const rightMonth = calMonth === 11 ? 0  : calMonth + 1;
+  const rightMonth = calMonth === 11 ? 0 : calMonth + 1;
   const rightYear  = calMonth === 11 ? calYear + 1 : calYear;
 
-  const goPrev = () => { if (calMonth === 0) { setCalYear(y => y-1); setCalMonth(11); } else setCalMonth(m => m-1); };
-  const goNext = () => { if (calMonth === 11) { setCalYear(y => y+1); setCalMonth(0);  } else setCalMonth(m => m+1); };
+  const goPrev = () => { if (calMonth === 0) { setCalYear(y => y - 1); setCalMonth(11); } else setCalMonth(m => m - 1); };
+  const goNext = () => { if (calMonth === 11) { setCalYear(y => y + 1); setCalMonth(0);  } else setCalMonth(m => m + 1); };
 
   const handlePreset = (e) => {
     const val = e.target.value;
@@ -314,26 +298,17 @@ function DateRangePicker({ rangeParam, startDate, endDate }) {
       p.set("endDate", pickerEnd || pickerStart);
       setSearchParams(p);
     }
-    setShow(false);
+    setOpen(false);
   };
 
   const label = RANGE_OPTIONS.find(o => o.value === rangeParam)?.label || `Last ${rangeParam} days`;
 
-  const openToggle = () => {
-    if (btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      setDropPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
-    }
-    setShow(v => !v);
-  };
-
   return (
-    <div style={{ display: "inline-block" }}>
-      {/* Trigger */}
+    <div>
+      {/* Trigger button */}
       <button
-        ref={btnRef}
         type="button"
-        onClick={openToggle}
+        onClick={() => setOpen(v => !v)}
         style={{
           display: "inline-flex", alignItems: "center", gap: 8,
           padding: "7px 14px", border: "1px solid #C9CCCF", borderRadius: 8,
@@ -343,85 +318,79 @@ function DateRangePicker({ rangeParam, startDate, endDate }) {
       >
         {label}
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M4 6l4 4 4-4" stroke="#6D7175" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path d={open ? "M4 10l4-4 4 4" : "M4 6l4 4 4-4"} stroke="#6D7175" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
 
-      {show && (
-        <>
-          {/* Click-away */}
-          <div style={{ position: "fixed", inset: 0, zIndex: 998 }} onClick={() => setShow(false)} />
-
-          {/* Dropdown panel — position: fixed so it escapes all overflow clipping */}
-          <div
+      {/* Inline panel — no positioning, flows in the page */}
+      {open && (
+        <div
+          style={{
+            marginTop: 12,
+            border: "1px solid #E4E5E7", borderRadius: 12,
+            background: "#FAFAFA", padding: 16,
+          }}
+          onMouseLeave={() => setHoverDate(null)}
+        >
+          {/* Preset select */}
+          <select
+            value={preset}
+            onChange={handlePreset}
             style={{
-              position: "relative", top: dropPos.top, right: dropPos.right, zIndex: 9999,
-              background: "white", border: "1px solid #C9CCCF", borderRadius: 12,
-              boxShadow: "0 12px 40px rgba(0,0,0,0.15)", padding: 16, minWidth: 540,
-              maxHeight: "calc(100vh - 80px)", overflowY: "auto",
+              width: "100%", padding: "8px 12px", marginBottom: 12,
+              border: "1px solid #C9CCCF", borderRadius: 8, fontSize: 14,
+              color: "#202223", background: "white",
             }}
-            onMouseLeave={() => setHoverDate(null)}
           >
-            {/* Preset select */}
-            <select
-              value={preset}
-              onChange={handlePreset}
-              style={{
-                width: "100%", padding: "8px 12px", marginBottom: 12,
-                border: "1px solid #C9CCCF", borderRadius: 8, fontSize: 14,
-                color: "#202223", background: "white",
-              }}
-            >
-              {RANGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+            {RANGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
 
-            {/* Date inputs row */}
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16 }}>
-              <input
-                type="date" value={pickerStart}
-                onChange={e => { setPickerStart(e.target.value); setPreset("custom"); }}
-                style={{ flex: 1, padding: "8px 10px", border: "1px solid #C9CCCF", borderRadius: 8, fontSize: 13, color: "#202223" }}
-              />
-              <span style={{ color: "#6D7175", fontSize: 18 }}>→</span>
-              <input
-                type="date" value={pickerEnd || ""}
-                onChange={e => { setPickerEnd(e.target.value); setPreset("custom"); }}
-                style={{ flex: 1, padding: "8px 10px", border: "1px solid #C9CCCF", borderRadius: 8, fontSize: 13, color: "#202223" }}
-              />
-            </div>
-
-            {/* Two-month calendar */}
-            <div style={{ display: "flex", gap: 0, borderTop: "1px solid #E4E5E7", paddingTop: 14 }}>
-              <CalendarMonth
-                year={calYear} month={calMonth}
-                rangeStart={pickerStart} rangeEnd={pickerEnd}
-                hoverEnd={selecting ? hoverDate : null}
-                onDayClick={handleDayClick} onDayHover={setHoverDate}
-                showLeft onLeft={goPrev} showRight={false}
-              />
-              <div style={{ width: 1, background: "#E4E5E7", margin: "0 16px" }} />
-              <CalendarMonth
-                year={rightYear} month={rightMonth}
-                rangeStart={pickerStart} rangeEnd={pickerEnd}
-                hoverEnd={selecting ? hoverDate : null}
-                onDayClick={handleDayClick} onDayHover={setHoverDate}
-                showLeft={false} showRight onRight={goNext}
-              />
-            </div>
-
-            {/* Actions */}
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14, borderTop: "1px solid #E4E5E7", paddingTop: 12 }}>
-              <button
-                type="button" onClick={() => setShow(false)}
-                style={{ padding: "7px 18px", border: "1px solid #C9CCCF", borderRadius: 8, background: "white", fontSize: 14, cursor: "pointer", color: "#202223", fontWeight: 500 }}
-              >Cancel</button>
-              <button
-                type="button" onClick={handleApply} disabled={!pickerStart}
-                style={{ padding: "7px 18px", border: "none", borderRadius: 8, background: "#1A1A1A", color: "white", fontSize: 14, cursor: "pointer", fontWeight: 600, opacity: !pickerStart ? 0.5 : 1 }}
-              >Apply</button>
-            </div>
+          {/* Date inputs */}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16 }}>
+            <input
+              type="date" value={pickerStart}
+              onChange={e => { setPickerStart(e.target.value); setPreset("custom"); }}
+              style={{ flex: 1, padding: "8px 10px", border: "1px solid #C9CCCF", borderRadius: 8, fontSize: 13, color: "#202223", background: "white" }}
+            />
+            <span style={{ color: "#6D7175", fontSize: 18 }}>→</span>
+            <input
+              type="date" value={pickerEnd || ""}
+              onChange={e => { setPickerEnd(e.target.value); setPreset("custom"); }}
+              style={{ flex: 1, padding: "8px 10px", border: "1px solid #C9CCCF", borderRadius: 8, fontSize: 13, color: "#202223", background: "white" }}
+            />
           </div>
-        </>
+
+          {/* Two-month calendars */}
+          <div style={{ display: "flex", gap: 0, borderTop: "1px solid #E4E5E7", paddingTop: 14 }}>
+            <CalendarMonth
+              year={calYear} month={calMonth}
+              rangeStart={pickerStart} rangeEnd={pickerEnd}
+              hoverEnd={selecting ? hoverDate : null}
+              onDayClick={handleDayClick} onDayHover={setHoverDate}
+              showLeft onLeft={goPrev} showRight={false}
+            />
+            <div style={{ width: 1, background: "#E4E5E7", margin: "0 16px", flexShrink: 0 }} />
+            <CalendarMonth
+              year={rightYear} month={rightMonth}
+              rangeStart={pickerStart} rangeEnd={pickerEnd}
+              hoverEnd={selecting ? hoverDate : null}
+              onDayClick={handleDayClick} onDayHover={setHoverDate}
+              showLeft={false} showRight onRight={goNext}
+            />
+          </div>
+
+          {/* Cancel / Apply */}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14, borderTop: "1px solid #E4E5E7", paddingTop: 12 }}>
+            <button
+              type="button" onClick={() => setOpen(false)}
+              style={{ padding: "7px 18px", border: "1px solid #C9CCCF", borderRadius: 8, background: "white", fontSize: 14, cursor: "pointer", color: "#202223", fontWeight: 500 }}
+            >Cancel</button>
+            <button
+              type="button" onClick={handleApply} disabled={!pickerStart}
+              style={{ padding: "7px 18px", border: "none", borderRadius: 8, background: "#1A1A1A", color: "white", fontSize: 14, cursor: "pointer", fontWeight: 600, opacity: !pickerStart ? 0.5 : 1 }}
+            >Apply</button>
+          </div>
+        </div>
       )}
     </div>
   );
