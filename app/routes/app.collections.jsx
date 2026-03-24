@@ -16,6 +16,7 @@ import {
   Card,
   Divider,
   EmptyState,
+  Grid,
   IndexTable,
   InlineStack,
   Layout,
@@ -28,6 +29,7 @@ import {
   TextField,
   Thumbnail,
 } from "@shopify/polaris";
+import { ViewIcon, UndoIcon } from "@shopify/polaris-icons";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 /* global process */
@@ -250,6 +252,7 @@ const editInitialState = {
   length: "50 - 150 words",
   format: "Single paragraph",
   contextKeywords: "",
+  aiProvider: "auto",
 };
 
 function escapeSearchValue(value) {
@@ -446,11 +449,49 @@ function buildGenerationPrompt({
   ].join("\n");
 }
 
-async function generateContentWithOpenAI(input) {
-  const apiKey = process.env.OPENAI_API_KEY;
+async function generateContentWithAnthropic(input, apiKey) {
+  if (!apiKey) {
+    throw new Error("Anthropic API key is not configured. Add it on the Dashboard Settings page.");
+  }
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 1024,
+      system:
+        "You are an expert Shopify copywriter. Always return valid JSON with the requested keys. No markdown, no code fences.",
+      messages: [{ role: "user", content: buildGenerationPrompt(input) }],
+    }),
+  });
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    const errorMsg =
+      payload?.error?.message || `Anthropic request failed with status ${response.status}.`;
+    throw new Error(errorMsg);
+  }
+
+  const rawContent = payload?.content?.[0]?.text;
+  return parseGenerationContent(rawContent, payload?.model || "claude-haiku-4-5-20251001");
+}
+
+async function generateContentWithOpenAI(input, shopApiKey) {
+  const apiKey = shopApiKey || process.env.OPENAI_API_KEY;
   const configuredModel = process.env.OPENAI_MODEL || DEFAULT_AI_MODEL;
   if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is missing. Please configure it in environment.");
+    throw new Error("OpenAI API key is not configured. Add it on the Dashboard Settings page.");
   }
 
   const requestPayload = (model) => ({
@@ -670,19 +711,38 @@ async function generateContentWithOllama(input) {
   return parseGenerationContent(payload?.message?.content, payload?.model || model);
 }
 
-async function generateContent(input) {
+async function generateContent(input, { aiProvider = "auto", shopOpenaiKey = null, shopAnthropicKey = null } = {}) {
+  const openaiKey = shopOpenaiKey || process.env.OPENAI_API_KEY;
+  const anthropicKey = shopAnthropicKey || process.env.ANTHROPIC_API_KEY;
+
+  if (aiProvider === "anthropic") {
+    return await generateContentWithAnthropic(input, anthropicKey);
+  }
+
+  if (aiProvider === "openai") {
+    try {
+      return await generateContentWithOpenAI(input, openaiKey);
+    } catch (openAiError) {
+      const message = openAiError?.message || "";
+      const shouldTryOllama = shouldFallbackToOllamaFromOpenAiMessage(message) && canUseOllamaFallback();
+      if (!shouldTryOllama) throw openAiError;
+      try {
+        return await generateContentWithOllama(input);
+      } catch (ollamaError) {
+        throw new Error(`${message} Local Ollama fallback failed: ${ollamaError?.message || "Unknown error."}`);
+      }
+    }
+  }
+
   const provider = (process.env.AI_PROVIDER || "").trim().toLowerCase();
 
   if (provider === "ollama") {
     try {
       return await generateContentWithOllama(input);
     } catch (ollamaError) {
-      if (!process.env.OPENAI_API_KEY) {
-        throw ollamaError;
-      }
-
+      if (!openaiKey) throw ollamaError;
       try {
-        return await generateContentWithOpenAI(input);
+        return await generateContentWithOpenAI(input, openaiKey);
       } catch (openAiError) {
         throw new Error(
           `${ollamaError?.message || "Ollama request failed."} OpenAI fallback failed: ${openAiError?.message || "Unknown error."}`,
@@ -691,45 +751,20 @@ async function generateContent(input) {
     }
   }
 
-  if (provider === "openai") {
-    try {
-      return await generateContentWithOpenAI(input);
-    } catch (openAiError) {
-      const message = openAiError?.message || "";
-      const shouldFallback = shouldFallbackToOllamaFromOpenAiMessage(message);
-      const shouldTryOllama = shouldFallback && canUseOllamaFallback();
-
-      if (!shouldTryOllama) {
-        throw openAiError;
-      }
-
-      try {
-        return await generateContentWithOllama(input);
-      } catch (ollamaError) {
-        throw new Error(
-          `${message} Local Ollama fallback failed: ${ollamaError?.message || "Unknown error."}`,
-        );
-      }
-    }
+  if (!openaiKey && anthropicKey) {
+    return await generateContentWithAnthropic(input, anthropicKey);
   }
 
   try {
-    return await generateContentWithOpenAI(input);
+    return await generateContentWithOpenAI(input, openaiKey);
   } catch (openAiError) {
     const message = openAiError?.message || "";
-    const shouldFallback = shouldFallbackToOllamaFromOpenAiMessage(message);
-    const shouldTryOllama = shouldFallback && canUseOllamaFallback();
-
-    if (!shouldTryOllama) {
-      throw openAiError;
-    }
-
+    const shouldTryOllama = shouldFallbackToOllamaFromOpenAiMessage(message) && canUseOllamaFallback();
+    if (!shouldTryOllama) throw openAiError;
     try {
       return await generateContentWithOllama(input);
     } catch (ollamaError) {
-      throw new Error(
-        `${message} Local Ollama fallback failed: ${ollamaError?.message || "Unknown error."}`,
-      );
+      throw new Error(`${message} Local Ollama fallback failed: ${ollamaError?.message || "Unknown error."}`);
     }
   }
 }
@@ -818,6 +853,12 @@ export const action = async ({ request }) => {
   const lengthOption = readFormString(formData, "length");
   const formatOption = readFormString(formData, "format");
   const contextKeywords = readFormString(formData, "contextKeywords");
+  const aiProvider = readFormString(formData, "aiProvider") || "auto";
+
+  const shopData = await db.shop.findUnique({
+    where: { shop: session.shop },
+    select: { openaiApiKey: true, anthropicApiKey: true },
+  });
 
   try {
     if (
@@ -825,18 +866,25 @@ export const action = async ({ request }) => {
       intent === GENERATE_META_TITLE_INTENT ||
       intent === GENERATE_META_DESCRIPTION_INTENT
     ) {
-      const generated = await generateContent({
-        title,
-        descriptionText: stripHtml(descriptionHtml),
-        seoTitle,
-        seoDescription,
-        language,
-        tone,
-        lengthOption,
-        format: formatOption,
-        contextKeywords,
-        intent,
-      });
+      const generated = await generateContent(
+        {
+          title,
+          descriptionText: stripHtml(descriptionHtml),
+          seoTitle,
+          seoDescription,
+          language,
+          tone,
+          lengthOption,
+          format: formatOption,
+          contextKeywords,
+          intent,
+        },
+        {
+          aiProvider,
+          shopOpenaiKey: shopData?.openaiApiKey || null,
+          shopAnthropicKey: shopData?.anthropicApiKey || null,
+        },
+      );
 
       let nextDescription = descriptionHtml;
       let nextSeoTitle = seoTitle;
@@ -1041,7 +1089,11 @@ export const action = async ({ request }) => {
 };
 
 export const loader = async ({ request }) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
+  const shopData = await db.shop.findUnique({
+    where: { shop: session.shop },
+    select: { openaiApiKey: true, anthropicApiKey: true },
+  });
   const url = new URL(request.url);
 
   const search = (url.searchParams.get("q") || "").trim();
@@ -1151,11 +1203,13 @@ export const loader = async ({ request }) => {
     filters: { search },
     collections,
     pageInfo: collectionConnection.pageInfo,
+    hasOpenaiKey: !!(shopData?.openaiApiKey || process.env.OPENAI_API_KEY),
+    hasAnthropicKey: !!(shopData?.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
   };
 };
 
 export default function CollectionsPage() {
-  const { filters, collections, pageInfo } = useLoaderData();
+  const { filters, collections, pageInfo, hasOpenaiKey, hasAnthropicKey } = useLoaderData();
   const navigation = useNavigation();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
@@ -1307,6 +1361,7 @@ export default function CollectionsPage() {
         length: editForm.length,
         format: editForm.format,
         contextKeywords: editForm.contextKeywords,
+        aiProvider: editForm.aiProvider,
       };
 
       if (intent === UPDATE_COLLECTION_INTENT) {
@@ -1397,8 +1452,6 @@ export default function CollectionsPage() {
   const metaTitleStatus = evaluateSeoTitle(editForm.seoTitle);
   const metaDescriptionStatus = evaluateSeoDescription(editForm.seoDescription);
   const isDescriptionEmpty = !stripHtml(editForm.description).trim();
-  const metaTitlePalette = toSeoPalette(metaTitleStatus.tone);
-  const metaDescriptionPalette = toSeoPalette(metaDescriptionStatus.tone);
   const metaTitleLength = editForm.seoTitle.length;
   const metaDescriptionLength = editForm.seoDescription.length;
 
@@ -1437,6 +1490,11 @@ export default function CollectionsPage() {
     label: s,
     value: s,
   }));
+  const aiProviderOptions = [
+    { label: "Auto (use configured key)", value: "auto" },
+    ...(hasOpenaiKey ? [{ label: "ChatGPT (OpenAI)", value: "openai" }] : []),
+    ...(hasAnthropicKey ? [{ label: "Claude (Anthropic)", value: "anthropic" }] : []),
+  ];
 
   return (
     <Page title="Collections">
@@ -1578,375 +1636,256 @@ export default function CollectionsPage() {
                 </Banner>
               ) : null}
 
-              <div style={{ display: "grid", gridTemplateColumns: "58% 42%", gap: "16px", alignItems: "flex-start" }}>
-                {/* Left column - main content */}
-                <BlockStack gap="400">
-                  <TextField
-                    label="Collection Title"
-                    value={editForm.title}
-                    readOnly
-                    autoComplete="off"
-                  />
+              <Grid>
+                {/* ── Left column: description + SEO ── */}
+                <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 7, lg: 7, xl: 7 }}>
+                  <Card>
+                    <BlockStack gap="400">
+                      <TextField
+                        label="Collection Title"
+                        value={editForm.title}
+                        readOnly
+                        autoComplete="off"
+                      />
 
-                  <BlockStack gap="200">
-                    <Text as="p" variant="bodyMd" fontWeight="bold">
-                      Description
-                    </Text>
-                    <Box
-                      borderWidth="025"
-                      borderColor="border"
-                      borderRadius="200"
-                      overflow="hidden"
-                    >
-                      {/* Toolbar */}
-                      <Box
-                        padding="200"
-                        background="bg-surface-secondary"
-                        borderBlockEndWidth="025"
-                        borderColor="border"
-                      >
-                        <InlineStack gap="200" blockAlign="center" wrap>
-                          <div style={{ width: "124px" }}>
-                            <Select
-                              label="Description style"
-                              labelHidden
-                              options={descriptionStyleSelectOptions}
-                              value={editForm.descriptionStyle}
-                              onChange={handleDescriptionStyleChange}
-                            />
-                          </div>
-                          <ButtonGroup>
-                            <Button
-                              size="slim"
-                              onClick={() => applyDescriptionCommand("bold")}
-                              accessibilityLabel="Bold"
-                            >
-                              B
-                            </Button>
-                            <Button
-                              size="slim"
-                              onClick={() => applyDescriptionCommand("italic")}
-                              accessibilityLabel="Italic"
-                            >
-                              I
-                            </Button>
-                            <Button
-                              size="slim"
-                              onClick={() => applyDescriptionCommand("underline")}
-                              accessibilityLabel="Underline"
-                            >
-                              U
-                            </Button>
-                            <Button
-                              size="slim"
-                              onClick={() => applyDescriptionCommand("strikeThrough")}
-                              accessibilityLabel="Strikethrough"
-                            >
-                              S
-                            </Button>
-                            <Button
-                              size="slim"
-                              onClick={handleDescriptionLink}
-                              accessibilityLabel="Link"
-                            >
-                              Link
-                            </Button>
-                            <Button
-                              size="slim"
-                              onClick={() => applyDescriptionCommand("insertUnorderedList")}
-                              accessibilityLabel="Bullet list"
-                            >
-                              &bull; List
-                            </Button>
-                            <Button
-                              size="slim"
-                              onClick={() => applyDescriptionCommand("insertOrderedList")}
-                              accessibilityLabel="Numbered list"
-                            >
-                              1. List
-                            </Button>
-                            <Button
-                              size="slim"
-                              onClick={() => applyDescriptionCommand("removeFormat")}
-                              accessibilityLabel="Clear formatting"
-                            >
-                              Clear
-                            </Button>
-                          </ButtonGroup>
-                        </InlineStack>
-                      </Box>
-
-                      {/* Editor body */}
-                      <Box padding="200" background="bg-surface">
-                        <div style={{ position: "relative", minHeight: "80px" }}>
-                          {isDescriptionEmpty ? (
-                            <span
-                              style={{
-                                position: "absolute",
-                                top: "8px",
-                                left: "4px",
-                                color: "#7b8087",
-                                fontSize: "14px",
-                                fontStyle: "italic",
-                                pointerEvents: "none",
-                              }}
-                            >
-                              Enter collection description...
-                            </span>
-                          ) : null}
-                          <div
-                            ref={descriptionEditorRef}
-                            contentEditable
-                            suppressContentEditableWarning
-                            style={{
-                              minHeight: "52px",
-                              padding: "8px 4px",
-                              fontSize: "14px",
-                              lineHeight: 1.55,
-                              color: "#3e444d",
-                              outline: "none",
-                              whiteSpace: "pre-wrap",
-                              wordBreak: "break-word",
-                            }}
-                            role="textbox"
-                            aria-label="Description body"
-                            onInput={(event) =>
-                              updateEditField("description", event.currentTarget.innerHTML || "")
-                            }
-                          />
-                        </div>
-                      </Box>
-                    </Box>
-                  </BlockStack>
-
-                  <Box minHeight="80px" />
-
-                  <BlockStack gap="200">
-                    <InlineStack gap="200" blockAlign="center">
-                      <Text as="span" variant="bodyMd" fontWeight="bold">
-                        SEO Title
-                      </Text>
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          borderRadius: "999px",
-                          padding: "3px 11px",
-                          border: `1px solid ${metaTitlePalette.border}`,
-                          background: metaTitlePalette.background,
-                          color: metaTitlePalette.text,
-                          fontSize: "13px",
-                          fontWeight: 600,
-                        }}
-                      >
-                        <span
-                          style={{
-                            width: "9px",
-                            height: "9px",
-                            borderRadius: "999px",
-                            background: metaTitlePalette.dot,
-                            display: "inline-block",
-                          }}
-                        />
-                        {metaTitleStatus.label}
-                      </span>
-                    </InlineStack>
-                    <TextField
-                      label="SEO Title"
-                      labelHidden
-                      value={editForm.seoTitle}
-                      onChange={(value) => updateEditField("seoTitle", value || "")}
-                      maxLength={70}
-                      showCharacterCount
-                      placeholder="Enter SEO title..."
-                      autoComplete="off"
-                    />
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      Optimal SEO Title length: 40 to 70 characters. (Too short: less than 40, Too long: more than 70)
-                    </Text>
-                    <InlineStack align="end">
-                      <Button
-                        variant="primary"
-                        tone="success"
-                        disabled={isGenerating || isUpdating}
-                        onClick={handleGenerateMetaTitle}
-                        loading={isGenerating}
-                      >
-                        {isGenerating ? "Generating..." : "Generate"}
-                      </Button>
-                    </InlineStack>
-                  </BlockStack>
-
-                  <Divider />
-
-                  <BlockStack gap="200">
-                    <InlineStack gap="200" blockAlign="center">
-                      <Text as="span" variant="bodyMd" fontWeight="bold">
-                        SEO Description
-                      </Text>
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          borderRadius: "999px",
-                          padding: "3px 11px",
-                          border: `1px solid ${metaDescriptionPalette.border}`,
-                          background: metaDescriptionPalette.background,
-                          color: metaDescriptionPalette.text,
-                          fontSize: "13px",
-                          fontWeight: 600,
-                        }}
-                      >
-                        <span
-                          style={{
-                            width: "9px",
-                            height: "9px",
-                            borderRadius: "999px",
-                            background: metaDescriptionPalette.dot,
-                            display: "inline-block",
-                          }}
-                        />
-                        {metaDescriptionStatus.label}
-                      </span>
-                    </InlineStack>
-                    <TextField
-                      label="SEO Description"
-                      labelHidden
-                      value={editForm.seoDescription}
-                      onChange={(value) => updateEditField("seoDescription", value || "")}
-                      maxLength={160}
-                      showCharacterCount
-                      multiline={4}
-                      placeholder="Enter SEO description..."
-                      autoComplete="off"
-                    />
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      Optimal SEO Description length: 140 to 160 characters. (Too short: less than 140, Too long: more than 160)
-                    </Text>
-                    <InlineStack align="end">
-                      <Button
-                        variant="primary"
-                        tone="success"
-                        disabled={isGenerating || isUpdating}
-                        onClick={handleGenerateMetaDescription}
-                        loading={isGenerating}
-                      >
-                        {isGenerating ? "Generating..." : "Generate"}
-                      </Button>
-                    </InlineStack>
-                  </BlockStack>
-                </BlockStack>
-
-                {/* Right column - settings */}
-                <BlockStack gap="300">
-                  <Select
-                    label="Language"
-                    options={languageSelectOptions}
-                    value={editForm.language}
-                    onChange={(value) => updateEditField("language", value || "")}
-                  />
-
-                  <Select
-                    label="Tone"
-                    options={toneSelectOptions}
-                    value={editForm.tone}
-                    onChange={(value) => updateEditField("tone", value || "")}
-                  />
-
-                  <Select
-                    label="Length (Words)"
-                    options={lengthSelectOptions}
-                    value={editForm.length}
-                    onChange={(value) => updateEditField("length", value || "")}
-                  />
-
-                  <Select
-                    label="Description Format"
-                    options={formatSelectOptions}
-                    value={editForm.format}
-                    onChange={(value) => updateEditField("format", value || "")}
-                  />
-
-                  <BlockStack gap="200">
-                    <TextField
-                      label="AI Context & Keywords"
-                      value={editForm.contextKeywords}
-                      onChange={(value) => updateEditField("contextKeywords", value || "")}
-                      multiline={5}
-                      placeholder="List collection features or keywords"
-                      autoComplete="off"
-                    />
-                    <InlineStack gap="200" wrap>
-                      {KEYWORD_CHIPS.map((chip) => (
-                        <Button
-                          key={chip}
-                          size="slim"
-                          onClick={() => appendKeywordChip(chip)}
+                      {/* Description editor */}
+                      <BlockStack gap="200">
+                        <Text as="p" variant="headingSm">Description</Text>
+                        <Box
+                          borderWidth="025"
+                          borderColor="border"
+                          borderRadius="200"
+                          background="bg-surface"
                         >
-                          {chip}
-                        </Button>
-                      ))}
-                    </InlineStack>
-                  </BlockStack>
+                          <Box
+                            padding="200"
+                            background="bg-surface-secondary"
+                            borderBlockEndWidth="025"
+                            borderColor="border"
+                          >
+                            <InlineStack gap="200" blockAlign="center" wrap>
+                              <Box minWidth="124px">
+                                <Select
+                                  label="Description style"
+                                  labelHidden
+                                  options={descriptionStyleSelectOptions}
+                                  value={editForm.descriptionStyle}
+                                  onChange={handleDescriptionStyleChange}
+                                />
+                              </Box>
+                              <ButtonGroup>
+                                <Button size="slim" onClick={() => applyDescriptionCommand("bold")} accessibilityLabel="Bold"><strong>B</strong></Button>
+                                <Button size="slim" onClick={() => applyDescriptionCommand("italic")} accessibilityLabel="Italic"><em>I</em></Button>
+                                <Button size="slim" onClick={() => applyDescriptionCommand("underline")} accessibilityLabel="Underline"><span style={{ textDecoration: "underline" }}>U</span></Button>
+                                <Button size="slim" onClick={() => applyDescriptionCommand("strikeThrough")} accessibilityLabel="Strikethrough"><span style={{ textDecoration: "line-through" }}>S</span></Button>
+                                <Button size="slim" onClick={handleDescriptionLink} accessibilityLabel="Link">Link</Button>
+                                <Button size="slim" onClick={() => applyDescriptionCommand("insertUnorderedList")} accessibilityLabel="Bullet list">• List</Button>
+                                <Button size="slim" onClick={() => applyDescriptionCommand("insertOrderedList")} accessibilityLabel="Numbered list">1. List</Button>
+                                <Button size="slim" onClick={() => applyDescriptionCommand("removeFormat")} accessibilityLabel="Clear formatting">Clear</Button>
+                              </ButtonGroup>
+                            </InlineStack>
+                          </Box>
+                          <Box padding="300" background="bg-surface">
+                            <div style={{ position: "relative", minHeight: "120px" }}>
+                              {isDescriptionEmpty && (
+                                <span style={{ position: "absolute", top: 0, left: 0, color: "var(--p-color-text-disabled)", fontSize: "14px", pointerEvents: "none" }}>
+                                  Enter collection description…
+                                </span>
+                              )}
+                              <div
+                                ref={descriptionEditorRef}
+                                contentEditable
+                                suppressContentEditableWarning
+                                style={{ minHeight: "120px", fontSize: "14px", lineHeight: 1.6, color: "var(--p-color-text)", outline: "none", whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+                                role="textbox"
+                                aria-label="Description body"
+                                onInput={(e) => updateEditField("description", e.currentTarget.innerHTML || "")}
+                              />
+                            </div>
+                          </Box>
+                        </Box>
+                      </BlockStack>
 
-                  <BlockStack gap="300">
-                    <Button
-                      variant="primary"
-                      fullWidth
-                      disabled={isGenerating || isUpdating}
-                      onClick={handleGenerate}
-                      loading={isGenerating}
-                      size="large"
-                    >
-                      {isGenerating ? "Generating..." : "Generate"}
-                    </Button>
+                      <Divider />
 
-                    <InlineStack gap="200" blockAlign="center">
-                      <Button
-                        size="slim"
-                        accessibilityLabel="Preview"
-                        icon={
-                          <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor">
-                            <path d="M10 4C5.5 4 2 10 2 10s3.5 6 8 6 8-6 8-6-3.5-6-8-6zm0 10a4 4 0 110-8 4 4 0 010 8zm0-6a2 2 0 100 4 2 2 0 000-4z" />
-                          </svg>
-                        }
+                      {/* SEO Title */}
+                      <BlockStack gap="200">
+                        <InlineStack gap="200" blockAlign="center">
+                          <Text as="h3" variant="headingSm">SEO Title</Text>
+                          <Badge tone={toBadgeTone(metaTitleStatus.tone)}>{metaTitleStatus.label}</Badge>
+                          <Text as="span" variant="bodySm" tone="subdued">{metaTitleLength}/70</Text>
+                        </InlineStack>
+                        <TextField
+                          label="SEO Title"
+                          labelHidden
+                          value={editForm.seoTitle}
+                          onChange={(value) => updateEditField("seoTitle", value || "")}
+                          maxLength={70}
+                          showCharacterCount
+                          placeholder="Enter SEO title…"
+                          autoComplete="off"
+                        />
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Optimal: 40–70 characters. Current: {metaTitleLength} chars.
+                        </Text>
+                        <InlineStack align="end">
+                          <Button
+                            variant="primary"
+                            tone="success"
+                            disabled={isGenerating || isUpdating}
+                            onClick={handleGenerateMetaTitle}
+                            loading={isGenerating}
+                          >
+                            {isGenerating ? "Generating…" : "Generate SEO Title"}
+                          </Button>
+                        </InlineStack>
+                      </BlockStack>
+
+                      <Divider />
+
+                      {/* SEO Description */}
+                      <BlockStack gap="200">
+                        <InlineStack gap="200" blockAlign="center">
+                          <Text as="h3" variant="headingSm">SEO Description</Text>
+                          <Badge tone={toBadgeTone(metaDescriptionStatus.tone)}>{metaDescriptionStatus.label}</Badge>
+                          <Text as="span" variant="bodySm" tone="subdued">{metaDescriptionLength}/160</Text>
+                        </InlineStack>
+                        <TextField
+                          label="SEO Description"
+                          labelHidden
+                          value={editForm.seoDescription}
+                          onChange={(value) => updateEditField("seoDescription", value || "")}
+                          maxLength={160}
+                          showCharacterCount
+                          multiline={4}
+                          placeholder="Enter SEO description…"
+                          autoComplete="off"
+                        />
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Optimal: 140–160 characters. Current: {metaDescriptionLength} chars.
+                        </Text>
+                        <InlineStack align="end">
+                          <Button
+                            variant="primary"
+                            tone="success"
+                            disabled={isGenerating || isUpdating}
+                            onClick={handleGenerateMetaDescription}
+                            loading={isGenerating}
+                          >
+                            {isGenerating ? "Generating…" : "Generate SEO Description"}
+                          </Button>
+                        </InlineStack>
+                      </BlockStack>
+                    </BlockStack>
+                  </Card>
+                </Grid.Cell>
+
+                {/* ── Right column: AI settings + actions ── */}
+                <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 5, lg: 5, xl: 5 }}>
+                  <Card>
+                    <BlockStack gap="400">
+                      <Text as="h3" variant="headingSm">AI Settings</Text>
+
+                      <Select
+                        label="AI Provider"
+                        options={aiProviderOptions}
+                        value={editForm.aiProvider}
+                        onChange={(value) => updateEditField("aiProvider", value || "auto")}
+                        helpText="Choose which AI to use for generation."
                       />
-                      <Button
-                        size="slim"
-                        accessibilityLabel="Undo"
-                        icon={
-                          <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor">
-                            <path d="M7.667 3.167L3.5 7.333l4.167 4.167V8.833c3.307 0 5.833 1.054 7.5 3.167-.667-3.5-2.833-7-7.5-7.5V3.167z" />
-                          </svg>
-                        }
+
+                      <Divider />
+
+                      <Select
+                        label="Language"
+                        options={languageSelectOptions}
+                        value={editForm.language}
+                        onChange={(value) => updateEditField("language", value || "")}
                       />
-                      <Button
-                        size="slim"
-                        accessibilityLabel="Close modal"
-                        onClick={resetEditModalState}
-                        icon={
-                          <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor">
-                            <path d="M11.414 10l4.293-4.293a1 1 0 00-1.414-1.414L10 8.586 5.707 4.293a1 1 0 00-1.414 1.414L8.586 10l-4.293 4.293a1 1 0 101.414 1.414L10 11.414l4.293 4.293a1 1 0 001.414-1.414L11.414 10z" />
-                          </svg>
-                        }
+                      <Select
+                        label="Tone"
+                        options={toneSelectOptions}
+                        value={editForm.tone}
+                        onChange={(value) => updateEditField("tone", value || "")}
                       />
-                      <div style={{ flex: 1 }}>
+                      <Select
+                        label="Length (Words)"
+                        options={lengthSelectOptions}
+                        value={editForm.length}
+                        onChange={(value) => updateEditField("length", value || "")}
+                      />
+                      <Select
+                        label="Description Format"
+                        options={formatSelectOptions}
+                        value={editForm.format}
+                        onChange={(value) => updateEditField("format", value || "")}
+                      />
+
+                      <BlockStack gap="200">
+                        <TextField
+                          label="AI Context & Keywords"
+                          value={editForm.contextKeywords}
+                          onChange={(value) => updateEditField("contextKeywords", value || "")}
+                          multiline={4}
+                          placeholder="List features, keywords, or brand notes…"
+                          autoComplete="off"
+                        />
+                        <InlineStack gap="150" wrap>
+                          {KEYWORD_CHIPS.map((chip) => (
+                            <Button key={chip} size="slim" onClick={() => appendKeywordChip(chip)}>
+                              {chip}
+                            </Button>
+                          ))}
+                        </InlineStack>
+                      </BlockStack>
+
+                      <Divider />
+
+                      <Button
+                        variant="primary"
+                        fullWidth
+                        size="large"
+                        disabled={isGenerating || isUpdating}
+                        onClick={handleGenerate}
+                        loading={isGenerating}
+                      >
+                        {isGenerating ? "Generating…" : "✦ Generate All Content"}
+                      </Button>
+
+                      <InlineStack align="space-between" blockAlign="center">
+                        <ButtonGroup>
+                          <Button
+                            size="slim"
+                            icon={ViewIcon}
+                            accessibilityLabel="Preview"
+                          />
+                          <Button
+                            size="slim"
+                            icon={UndoIcon}
+                            accessibilityLabel="Undo"
+                          />
+                          <Button
+                            size="slim"
+                            variant="plain"
+                            tone="critical"
+                            onClick={resetEditModalState}
+                          >
+                            Cancel
+                          </Button>
+                        </ButtonGroup>
                         <Button
                           variant="primary"
-                          fullWidth
                           disabled={!canUpdateCollection}
                           onClick={handleUpdateCollection}
                           loading={isUpdating}
                         >
-                          {isUpdating ? "Updating..." : "Update Collection"}
+                          {isUpdating ? "Saving…" : "Save to Shopify"}
                         </Button>
-                      </div>
-                    </InlineStack>
-                  </BlockStack>
-                </BlockStack>
-              </div>
+                      </InlineStack>
+                    </BlockStack>
+                  </Card>
+                </Grid.Cell>
+              </Grid>
             </BlockStack>
           )}
         </Modal.Section>

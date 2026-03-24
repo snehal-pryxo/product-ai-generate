@@ -233,6 +233,7 @@ const editInitialState = {
   length: "50 - 150 words",
   format: "Single paragraph",
   contextKeywords: "",
+  aiProvider: "auto",
 };
 
 function escapeSearchValue(value) {
@@ -423,11 +424,49 @@ function buildGenerationPrompt({
   ].join("\n");
 }
 
-async function generateContentWithOpenAI(input) {
-  const apiKey = process.env.OPENAI_API_KEY;
+async function generateContentWithAnthropic(input, apiKey) {
+  if (!apiKey) {
+    throw new Error("Anthropic API key is not configured. Add it on the Dashboard Settings page.");
+  }
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 1024,
+      system:
+        "You are an expert Shopify copywriter. Always return valid JSON with the requested keys. No markdown, no code fences.",
+      messages: [{ role: "user", content: buildGenerationPrompt(input) }],
+    }),
+  });
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    const errorMsg =
+      payload?.error?.message || `Anthropic request failed with status ${response.status}.`;
+    throw new Error(errorMsg);
+  }
+
+  const rawContent = payload?.content?.[0]?.text;
+  return parseGenerationContent(rawContent, payload?.model || "claude-haiku-4-5-20251001");
+}
+
+async function generateContentWithOpenAI(input, shopApiKey) {
+  const apiKey = shopApiKey || process.env.OPENAI_API_KEY;
   const configuredModel = process.env.OPENAI_MODEL || DEFAULT_AI_MODEL;
   if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is missing. Please configure it in environment.");
+    throw new Error("OpenAI API key is not configured. Add it on the Dashboard Settings page.");
   }
 
   const requestPayload = (model) => ({
@@ -642,19 +681,41 @@ async function generateContentWithOllama(input) {
   return parseGenerationContent(payload?.message?.content, payload?.model || model);
 }
 
-async function generateContent(input) {
+async function generateContent(input, { aiProvider = "auto", shopOpenaiKey = null, shopAnthropicKey = null } = {}) {
+  const openaiKey = shopOpenaiKey || process.env.OPENAI_API_KEY;
+  const anthropicKey = shopAnthropicKey || process.env.ANTHROPIC_API_KEY;
+
+  // User explicitly chose Claude / Anthropic
+  if (aiProvider === "anthropic") {
+    return await generateContentWithAnthropic(input, anthropicKey);
+  }
+
+  // User explicitly chose OpenAI
+  if (aiProvider === "openai") {
+    try {
+      return await generateContentWithOpenAI(input, openaiKey);
+    } catch (openAiError) {
+      const message = openAiError?.message || "";
+      const shouldTryOllama = shouldFallbackToOllamaFromOpenAiMessage(message) && canUseOllamaFallback();
+      if (!shouldTryOllama) throw openAiError;
+      try {
+        return await generateContentWithOllama(input);
+      } catch (ollamaError) {
+        throw new Error(`${message} Local Ollama fallback failed: ${ollamaError?.message || "Unknown error."}`);
+      }
+    }
+  }
+
+  // Auto / env-based routing
   const provider = (process.env.AI_PROVIDER || "").trim().toLowerCase();
 
   if (provider === "ollama") {
     try {
       return await generateContentWithOllama(input);
     } catch (ollamaError) {
-      if (!process.env.OPENAI_API_KEY) {
-        throw ollamaError;
-      }
-
+      if (!openaiKey) throw ollamaError;
       try {
-        return await generateContentWithOpenAI(input);
+        return await generateContentWithOpenAI(input, openaiKey);
       } catch (openAiError) {
         throw new Error(
           `${ollamaError?.message || "Ollama request failed."} OpenAI fallback failed: ${openAiError?.message || "Unknown error."}`,
@@ -663,45 +724,21 @@ async function generateContent(input) {
     }
   }
 
-  if (provider === "openai") {
-    try {
-      return await generateContentWithOpenAI(input);
-    } catch (openAiError) {
-      const message = openAiError?.message || "";
-      const shouldFallback = shouldFallbackToOllamaFromOpenAiMessage(message);
-      const shouldTryOllama = shouldFallback && canUseOllamaFallback();
-
-      if (!shouldTryOllama) {
-        throw openAiError;
-      }
-
-      try {
-        return await generateContentWithOllama(input);
-      } catch (ollamaError) {
-        throw new Error(
-          `${message} Local Ollama fallback failed: ${ollamaError?.message || "Unknown error."}`,
-        );
-      }
-    }
+  // Default: try OpenAI (or Anthropic if no OpenAI key but Anthropic key exists)
+  if (!openaiKey && anthropicKey) {
+    return await generateContentWithAnthropic(input, anthropicKey);
   }
 
   try {
-    return await generateContentWithOpenAI(input);
+    return await generateContentWithOpenAI(input, openaiKey);
   } catch (openAiError) {
     const message = openAiError?.message || "";
-    const shouldFallback = shouldFallbackToOllamaFromOpenAiMessage(message);
-    const shouldTryOllama = shouldFallback && canUseOllamaFallback();
-
-    if (!shouldTryOllama) {
-      throw openAiError;
-    }
-
+    const shouldTryOllama = shouldFallbackToOllamaFromOpenAiMessage(message) && canUseOllamaFallback();
+    if (!shouldTryOllama) throw openAiError;
     try {
       return await generateContentWithOllama(input);
     } catch (ollamaError) {
-      throw new Error(
-        `${message} Local Ollama fallback failed: ${ollamaError?.message || "Unknown error."}`,
-      );
+      throw new Error(`${message} Local Ollama fallback failed: ${ollamaError?.message || "Unknown error."}`);
     }
   }
 }
@@ -733,6 +770,12 @@ export const action = async ({ request }) => {
   const lengthOption = readFormString(formData, "length");
   const formatOption = readFormString(formData, "format");
   const contextKeywords = readFormString(formData, "contextKeywords");
+  const aiProvider = readFormString(formData, "aiProvider") || "auto";
+
+  const shopData = await db.shop.findUnique({
+    where: { shop: session.shop },
+    select: { openaiApiKey: true, anthropicApiKey: true },
+  });
 
   try {
     if (
@@ -740,18 +783,25 @@ export const action = async ({ request }) => {
       intent === GENERATE_SEO_TITLE_INTENT ||
       intent === GENERATE_SEO_DESCRIPTION_INTENT
     ) {
-      const generated = await generateContent({
-        title,
-        descriptionText: stripHtml(descriptionHtml),
-        seoTitle,
-        seoDescription,
-        language,
-        tone,
-        lengthOption,
-        format: formatOption,
-        contextKeywords,
-        intent,
-      });
+      const generated = await generateContent(
+        {
+          title,
+          descriptionText: stripHtml(descriptionHtml),
+          seoTitle,
+          seoDescription,
+          language,
+          tone,
+          lengthOption,
+          format: formatOption,
+          contextKeywords,
+          intent,
+        },
+        {
+          aiProvider,
+          shopOpenaiKey: shopData?.openaiApiKey || null,
+          shopAnthropicKey: shopData?.anthropicApiKey || null,
+        },
+      );
 
       let nextDescription = descriptionHtml;
       let nextSeoTitle = seoTitle;
@@ -884,7 +934,11 @@ export const action = async ({ request }) => {
 };
 
 export const loader = async ({ request }) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
+  const shopData = await db.shop.findUnique({
+    where: { shop: session.shop },
+    select: { openaiApiKey: true, anthropicApiKey: true },
+  });
   const url = new URL(request.url);
 
   const search = (url.searchParams.get("q") || "").trim();
@@ -987,11 +1041,13 @@ export const loader = async ({ request }) => {
     filters: { search, status },
     products,
     pageInfo: productConnection.pageInfo,
+    hasOpenaiKey: !!(shopData?.openaiApiKey || process.env.OPENAI_API_KEY),
+    hasAnthropicKey: !!(shopData?.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
   };
 };
 
 export default function ProductsPage() {
-  const { filters, products, pageInfo } = useLoaderData();
+  const { filters, products, pageInfo, hasOpenaiKey, hasAnthropicKey } = useLoaderData();
   const navigation = useNavigation();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
@@ -1144,6 +1200,7 @@ export default function ProductsPage() {
         length: editForm.length,
         format: editForm.format,
         contextKeywords: editForm.contextKeywords,
+        aiProvider: editForm.aiProvider,
       };
 
       if (intent === UPDATE_PRODUCT_INTENT) {
@@ -1292,6 +1349,11 @@ export default function ProductsPage() {
     label: s,
     value: s,
   }));
+  const aiProviderOptions = [
+    { label: "Auto (use configured key)", value: "auto" },
+    ...(hasOpenaiKey ? [{ label: "ChatGPT (OpenAI)", value: "openai" }] : []),
+    ...(hasAnthropicKey ? [{ label: "Claude (Anthropic)", value: "anthropic" }] : []),
+  ];
 
   const rowMarkup = filteredProducts.map((product, index) => (
     <IndexTable.Row id={product.id} key={product.id} position={index}>
@@ -1690,6 +1752,18 @@ export default function ProductsPage() {
                 <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 5, lg: 5, xl: 5 }}>
                 <Card>
                   <BlockStack gap="400">
+                    <Text as="h3" variant="headingSm">AI Settings</Text>
+
+                    <Select
+                      label="AI Provider"
+                      options={aiProviderOptions}
+                      value={editForm.aiProvider}
+                      onChange={(value) => updateEditField("aiProvider", value || "auto")}
+                      helpText="Choose which AI to use for generation."
+                    />
+
+                    <Divider />
+
                     <Select
                       label="Language"
                       options={languageSelectOptions}
