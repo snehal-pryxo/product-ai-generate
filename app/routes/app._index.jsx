@@ -104,16 +104,17 @@ const FEATURE_CARDS = [
     url: "/app/pages",
     tag: null,
   },
-  {
-    gradient: "linear-gradient(135deg, #00c9d4 0%, #0096a0 100%)",
-    glow: "rgba(0,201,212,0.25)",
-    icon: "📊",
-    title: "Analytics",
-    desc: "SEO health scores, coverage charts and generation statistics.",
-    url: "/app/analytics",
-    tag: "Insights",
-  },
 ];
+
+const ANALYTICS_CARD = {
+  gradient: "linear-gradient(135deg, #00c9d4 0%, #0096a0 100%)",
+  glow: "rgba(0,201,212,0.25)",
+  icon: "📊",
+  title: "Analytics",
+  desc: "SEO health scores, coverage charts and generation statistics.",
+  url: "/app/analytics",
+  tag: "Insights",
+};
 
 const STATS = [
   { value: "5", label: "Content Types", icon: "✦" },
@@ -452,37 +453,20 @@ export default function Index() {
           </div>
         </div>
 
-        {/* ── Feature Cards ── */}
+        {/* ── Feature Cards (4 cards, fixed 4-col grid) ── */}
         <div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: "20px",
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: "20px",
-                  fontWeight: 700,
-                  color: "#0d1117",
-                  marginBottom: "4px",
-                }}
-              >
-                Generate Content
-              </div>
-              <div style={{ fontSize: "13px", color: "#6b7280" }}>
-                Pick a content type to get started
-              </div>
+          <div style={{ marginBottom: "20px" }}>
+            <div style={{ fontSize: "20px", fontWeight: 700, color: "#0d1117", marginBottom: "4px" }}>
+              Generate Content
+            </div>
+            <div style={{ fontSize: "13px", color: "#6b7280" }}>
+              Pick a content type to get started
             </div>
           </div>
-
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+              gridTemplateColumns: "repeat(4, 1fr)",
               gap: "16px",
             }}
           >
@@ -492,58 +476,19 @@ export default function Index() {
           </div>
         </div>
 
-        {/* ── Divider ── */}
-        <div
-          style={{
-            height: "1px",
-            background: "linear-gradient(90deg, transparent, #e8eaed 20%, #e8eaed 80%, transparent)",
-          }}
-        />
-
-        {/* ── AI Provider Settings ── */}
+        {/* ── Analytics + AI Provider side by side ── */}
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "280px 1fr",
-            gap: "40px",
+            gridTemplateColumns: "1fr 2fr",
+            gap: "16px",
             alignItems: "start",
           }}
         >
-          {/* Left label */}
-          <div>
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                background: "linear-gradient(135deg, #f0fdf4, #ecfdf5)",
-                border: "1px solid #bbf7d0",
-                borderRadius: "8px",
-                padding: "6px 12px",
-                marginBottom: "12px",
-              }}
-            >
-              <span style={{ fontSize: "14px" }}>⚙️</span>
-              <span style={{ fontSize: "12px", fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                Settings
-              </span>
-            </div>
-            <div
-              style={{
-                fontSize: "20px",
-                fontWeight: 700,
-                color: "#0d1117",
-                marginBottom: "8px",
-              }}
-            >
-              AI Provider
-            </div>
-            <div style={{ fontSize: "13px", color: "#6b7280", lineHeight: "1.6" }}>
-              Configure your API keys and choose which AI model powers your content generation.
-            </div>
-          </div>
+          {/* Analytics card fills the left slot */}
+          <FeatureCard {...ANALYTICS_CARD} />
 
-          {/* Right form */}
+          {/* AI Provider Settings fills the right slot */}
           <div>
             {actionData && (
               <div style={{ marginBottom: "16px" }}>
@@ -585,7 +530,6 @@ export default function Index() {
                   </div>
                   <div style={{ display: "flex", gap: "12px" }}>
                     <ProviderCard
-                      value="openai"
                       label="ChatGPT / OpenAI"
                       logo="🤖"
                       desc="GPT-4o-mini model"
@@ -593,7 +537,6 @@ export default function Index() {
                       onClick={() => setSelectedProvider("openai")}
                     />
                     <ProviderCard
-                      value="anthropic"
                       label="Claude / Anthropic"
                       logo="🧠"
                       desc="Claude Haiku model"
