@@ -252,22 +252,28 @@ function CalendarMonth({ year, month, rangeStart, rangeEnd, hoverEnd, onDayClick
 }
 
 // ─── DateRangePicker ──────────────────────────────────────────────────────────
+// containerRef  — ref to the outer position:relative div (outside the Card)
+// dropdown is portaled into that div so Card overflow:hidden doesn't clip it
 
-function DateRangePicker({ rangeParam, startDate, endDate }) {
+function DateRangePicker({ rangeParam, startDate, endDate, containerRef }) {
   const [, setSearchParams] = useSearchParams();
   const [open, setOpen] = useState(false);
-  const [dropPos, setDropPos] = useState({ top: 0, right: 0 });
+  const [offset, setOffset] = useState({ top: 0, right: 0 });
   const btnRef  = useRef(null);
   const dropRef = useRef(null);
 
-  // Recalculate position whenever dropdown opens
+  // Calculate button position relative to the container div (not viewport)
   useEffect(() => {
-    if (!open || !btnRef.current) return;
-    const r = btnRef.current.getBoundingClientRect();
-    setDropPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
-  }, [open]);
+    if (!open || !btnRef.current || !containerRef?.current) return;
+    const btn  = btnRef.current.getBoundingClientRect();
+    const cont = containerRef.current.getBoundingClientRect();
+    setOffset({
+      top:   btn.bottom - cont.top + 6,
+      right: cont.right - btn.right,
+    });
+  }, [open, containerRef]);
 
-  // Close on outside click — no fixed backdrop overlay needed
+  // Close on outside click
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
@@ -336,10 +342,10 @@ function DateRangePicker({ rangeParam, startDate, endDate }) {
     <div
       ref={dropRef}
       style={{
-        position: "fixed",
-        top: dropPos.top,
-        right: dropPos.right,
-        zIndex: 9999,
+        position: "absolute",
+        top: offset.top,
+        right: offset.right,
+        zIndex: 100,
         background: "white",
         border: "1px solid #C9CCCF",
         borderRadius: 12,
@@ -430,9 +436,9 @@ function DateRangePicker({ rangeParam, startDate, endDate }) {
         </svg>
       </button>
 
-      {/* Portal — renders into document.body, escapes Card overflow:hidden */}
-      {typeof document !== "undefined" && dropdown
-        ? createPortal(dropdown, document.body)
+      {/* Portal into outer wrapper — escapes Card overflow:hidden, scrolls with page */}
+      {containerRef?.current && dropdown
+        ? createPortal(dropdown, containerRef.current)
         : null}
     </>
   );
@@ -686,6 +692,7 @@ export default function AnalyticsPage() {
 
   const [selectedDate, setSelectedDate] = useState(null);
   const handleDayClick = useCallback(date => setSelectedDate(p => p === date ? null : date), []);
+  const activityRef = useRef(null);
 
   const actions = [
     products.total    - products.withSeoTitle    > 0 && { label: `${products.total    - products.withSeoTitle} products missing SEO title`,    url: "/app/products"    },
@@ -734,6 +741,7 @@ export default function AnalyticsPage() {
         </Grid>
 
         {/* Generation Activity Chart */}
+        <div ref={activityRef} style={{ position: "relative" }}>
         <Card>
           <BlockStack gap="400">
             {/* Header */}
@@ -742,7 +750,7 @@ export default function AnalyticsPage() {
                 <Text variant="headingMd" as="h2">Generation Activity</Text>
                 <Text variant="bodySm" tone="subdued">Click a data point to see day details</Text>
               </BlockStack>
-              <DateRangePicker rangeParam={rangeParam} startDate={startDate} endDate={endDate} />
+              <DateRangePicker rangeParam={rangeParam} startDate={startDate} endDate={endDate} containerRef={activityRef} />
             </InlineStack>
 
             {/* Quick day buttons */}
@@ -785,6 +793,7 @@ export default function AnalyticsPage() {
             {selectedDate && <DayDetailPanel date={selectedDate} recentLogs={recentLogs} />}
           </BlockStack>
         </Card>
+        </div>
 
         {/* SEO Score + Coverage */}
         <Layout>
