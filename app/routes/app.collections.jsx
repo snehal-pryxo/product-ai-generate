@@ -1616,6 +1616,7 @@ export default function CollectionsPage() {
         </Layout.Section>
       </Layout>
 
+      <style>{`.Polaris-Modal-Dialog__Modal { max-width: 66rem !important; }`}</style>
       <Modal
         open={modalOpen}
         onClose={resetEditModalState}
@@ -1640,7 +1641,7 @@ export default function CollectionsPage() {
 
               <Grid>
                 {/* ── Left column: description + SEO ── */}
-                <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 7, lg: 7, xl: 7 }}>
+                <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 5, lg: 5, xl: 5 }}>
                   <Card>
                     <BlockStack gap="400">
                       <TextField
@@ -1783,7 +1784,7 @@ export default function CollectionsPage() {
                 </Grid.Cell>
 
                 {/* ── Right column: AI settings + actions ── */}
-                <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 5, lg: 5, xl: 5 }}>
+                <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 7, lg: 7, xl: 7 }}>
                   <Card>
                     <BlockStack gap="400">
                       <Text as="h3" variant="headingSm">AI Settings</Text>
