@@ -483,12 +483,15 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
   const handleMouseEnter = (i) => {
     setHoveredIdx(i);
     if (svgRef.current) {
-      const rect  = svgRef.current.getBoundingClientRect();
+      const rect   = svgRef.current.getBoundingClientRect();
       const scaleX = rect.width  / CH.vw;
       const scaleY = rect.height / CH.vh;
       const dotX   = px(i) * scaleX;
       const dotY   = py(data[i].count) * scaleY;
-      setTooltipPos({ x: dotX, y: dotY, flipLeft: dotX > rect.width * 0.62 });
+      // flip tooltip upward when dot is in lower 40% of chart
+      const flipUp   = dotY > rect.height * 0.6;
+      const flipLeft = dotX > rect.width  * 0.62;
+      setTooltipPos({ x: dotX, y: dotY, flipLeft, flipUp });
     }
   };
 
@@ -502,8 +505,6 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
           background: "#F9FAFB",
           border: "1px solid #E4E5E7",
           borderRadius: 10,
-          padding: "0 0 0 0",
-          overflow: "hidden",
           position: "relative",
         }}
       >
@@ -595,7 +596,9 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
           <div
             style={{
               position: "absolute",
-              top: Math.max(4, tooltipPos.y - 8),
+              ...(tooltipPos.flipUp
+                ? { bottom: `calc(100% - ${tooltipPos.y}px + 10px)` }
+                : { top: tooltipPos.y + 10 }),
               ...(tooltipPos.flipLeft
                 ? { right: `calc(100% - ${tooltipPos.x}px + 16px)` }
                 : { left: tooltipPos.x + 16 }),
