@@ -189,53 +189,50 @@ export default function Index() {
 
                     <Divider />
 
-                    {/* OpenAI / ChatGPT — visible when Auto or OpenAI selected */}
-                    {(selectedProvider === "auto" || selectedProvider === "openai") && (
-                      <>
-                        <BlockStack gap="300">
-                          <InlineStack align="space-between" blockAlign="center">
-                            <InlineStack gap="200" blockAlign="center">
-                              <Text variant="headingSm" as="h3">ChatGPT / OpenAI</Text>
-                              {hasOpenaiKey && <Badge tone="success">Configured</Badge>}
-                            </InlineStack>
-                            {hasOpenaiKey && (
-                              <Form method="post">
-                                <input type="hidden" name="intent" value="clear_openai_key" />
-                                <Button variant="plain" tone="critical" submit size="slim">
-                                  Remove key
-                                </Button>
-                              </Form>
-                            )}
+                    {/* OpenAI key — only when ChatGPT / OpenAI is selected */}
+                    {selectedProvider === "openai" && (
+                      <BlockStack gap="300">
+                        <InlineStack align="space-between" blockAlign="center">
+                          <InlineStack gap="200" blockAlign="center">
+                            <Text variant="headingSm" as="h3">ChatGPT / OpenAI</Text>
+                            {hasOpenaiKey && <Badge tone="success">Configured</Badge>}
                           </InlineStack>
-                          <Text variant="bodySm" tone="subdued">
-                            Used for GPT-4o-mini. Get your key from{" "}
-                            <a
-                              href="https://platform.openai.com/api-keys"
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{ color: "var(--p-color-text-emphasis)" }}
-                            >
-                              platform.openai.com
-                            </a>
-                          </Text>
-                          <TextField
-                            label="OpenAI API Key"
-                            labelHidden
-                            type="password"
-                            name="openaiApiKey"
-                            value={openaiKey}
-                            onChange={setOpenaiKey}
-                            placeholder={hasOpenaiKey ? "••••••••••••  (saved)" : "sk-proj-..."}
-                            autoComplete="off"
-                            prefix="sk-"
-                          />
-                        </BlockStack>
-                        {selectedProvider === "auto" && <Divider />}
-                      </>
+                          {hasOpenaiKey && (
+                            <Form method="post">
+                              <input type="hidden" name="intent" value="clear_openai_key" />
+                              <Button variant="plain" tone="critical" submit size="slim">
+                                Remove key
+                              </Button>
+                            </Form>
+                          )}
+                        </InlineStack>
+                        <Text variant="bodySm" tone="subdued">
+                          Used for GPT-4o-mini. Get your key from{" "}
+                          <a
+                            href="https://platform.openai.com/api-keys"
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ color: "var(--p-color-text-emphasis)" }}
+                          >
+                            platform.openai.com
+                          </a>
+                        </Text>
+                        <TextField
+                          label="OpenAI API Key"
+                          labelHidden
+                          type="password"
+                          name="openaiApiKey"
+                          value={openaiKey}
+                          onChange={setOpenaiKey}
+                          placeholder={hasOpenaiKey ? "••••••••••••  (saved)" : "sk-proj-..."}
+                          autoComplete="off"
+                          prefix="sk-"
+                        />
+                      </BlockStack>
                     )}
 
-                    {/* Anthropic / Claude — visible when Auto or Anthropic selected */}
-                    {(selectedProvider === "auto" || selectedProvider === "anthropic") && (
+                    {/* Anthropic key — only when Claude AI / Anthropic is selected */}
+                    {selectedProvider === "anthropic" && (
                       <BlockStack gap="300">
                         <InlineStack align="space-between" blockAlign="center">
                           <InlineStack gap="200" blockAlign="center">
