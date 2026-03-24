@@ -153,7 +153,7 @@ export const loader = async ({ request }) => {
     .catch(() => 0);
 
   const [totalProductLogs, recentLogs, weekLogs] = await Promise.all([
-    db.generatedContentLog.count({ where: { shop: session.shop } }),
+    db.generatedContentLog.count({ where: { shop: session.shop } }).catch(() => 0),
     db.generatedContentLog.findMany({
       where: { shop: session.shop },
       orderBy: { createdAt: "desc" },
@@ -167,11 +167,11 @@ export const loader = async ({ request }) => {
         appliedToProduct: true,
         language: true,
       },
-    }),
+    }).catch(() => []),
     db.generatedContentLog.findMany({
       where: { shop: session.shop, createdAt: { gte: sevenDaysAgo } },
       select: { createdAt: true },
-    }),
+    }).catch(() => []),
   ]);
 
   // Build 7-day activity chart data
