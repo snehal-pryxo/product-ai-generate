@@ -1,4 +1,5 @@
-import { createRequestHandler } from "@react-router/node";
+import pkg from "@react-router/node";
+const { createRequestHandler } = pkg;
 import * as serverBuild from "../build/server/index.js";
 
 const handler = createRequestHandler({
