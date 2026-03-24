@@ -514,6 +514,15 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
           style={{ width: "100%", height: "auto", display: "block" }}
           onMouseLeave={() => setHoveredIdx(null)}
         >
+          {/* Plot area background */}
+          <rect
+            x={CH.pL} y={CH.pT}
+            width={CH.vw - CH.pL - CH.pR}
+            height={CH.vh - CH.pT - CH.pB}
+            fill="#F0F4FF"
+            rx="4"
+          />
+
           {/* Y-axis grid lines + labels */}
           {yTicks.map((v, ki) => {
             const y = py(v);
