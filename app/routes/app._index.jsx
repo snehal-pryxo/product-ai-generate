@@ -5,25 +5,12 @@ import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import {
   Page,
-  Layout,
-  Card,
-  BlockStack,
-  InlineStack,
-  Text,
   Button,
   TextField,
-  Select,
   Banner,
   Badge,
-  Divider,
   Box,
-  Grid,
 } from "@shopify/polaris";
-
-const AI_PROVIDER_OPTIONS = [
-  { label: "ChatGPT / OpenAI", value: "openai" },
-  { label: "Claude AI / Anthropic", value: "anthropic" },
-];
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
@@ -34,7 +21,7 @@ export const loader = async ({ request }) => {
   return {
     hasOpenaiKey: !!shopData?.openaiApiKey,
     hasAnthropicKey: !!shopData?.anthropicApiKey,
-    defaultAiProvider: shopData?.defaultAiProvider || "auto",
+    defaultAiProvider: shopData?.defaultAiProvider || "openai",
   };
 };
 
@@ -47,7 +34,7 @@ export const action = async ({ request }) => {
   if (intent === "save_api_keys") {
     const openaiApiKey = formData.get("openaiApiKey")?.trim();
     const anthropicApiKey = formData.get("anthropicApiKey")?.trim();
-    const defaultAiProvider = formData.get("defaultAiProvider")?.trim() || "auto";
+    const defaultAiProvider = formData.get("defaultAiProvider")?.trim() || "openai";
     const updateData = { defaultAiProvider };
     if (openaiApiKey) updateData.openaiApiKey = openaiApiKey;
     if (anthropicApiKey) updateData.anthropicApiKey = anthropicApiKey;
@@ -82,82 +69,262 @@ export const action = async ({ request }) => {
 
 const FEATURE_CARDS = [
   {
-    color: "#008060",
-    emoji: "📦",
-    title: "Product Descriptions",
-    desc: "AI-generated SEO titles, meta descriptions & product copy.",
+    gradient: "linear-gradient(135deg, #00b374 0%, #007a50 100%)",
+    glow: "rgba(0,179,116,0.25)",
+    icon: "📦",
+    title: "Products",
+    desc: "SEO titles, meta descriptions & rich product copy — generated instantly.",
     url: "/app/products",
-    btnText: "Generate",
+    tag: "Most Popular",
   },
   {
-    color: "#2C6ECB",
-    emoji: "🗂️",
-    title: "Collection Descriptions",
-    desc: "Auto-generate rich descriptions for all your collections.",
+    gradient: "linear-gradient(135deg, #3d82f5 0%, #1a5fcc 100%)",
+    glow: "rgba(61,130,245,0.25)",
+    icon: "🗂️",
+    title: "Collections",
+    desc: "Auto-generate rich descriptions for every collection in your store.",
     url: "/app/collections",
-    btnText: "Generate",
+    tag: null,
   },
   {
-    color: "#E07D10",
-    emoji: "✍️",
+    gradient: "linear-gradient(135deg, #f5a623 0%, #d4840a 100%)",
+    glow: "rgba(245,166,35,0.25)",
+    icon: "✍️",
     title: "Blog Posts",
-    desc: "Create full blog articles in 180+ languages with one click.",
+    desc: "Full articles in 180+ languages with one click — publish-ready.",
     url: "/app/blog",
-    btnText: "Generate",
+    tag: "180+ Languages",
   },
   {
-    color: "#8456CD",
-    emoji: "📄",
-    title: "Page Content",
-    desc: "Generate About, FAQ, Contact and landing page content.",
+    gradient: "linear-gradient(135deg, #9b6bff 0%, #6b3fbf 100%)",
+    glow: "rgba(155,107,255,0.25)",
+    icon: "📄",
+    title: "Pages",
+    desc: "About, FAQ, Contact and landing page content crafted by AI.",
     url: "/app/pages",
-    btnText: "Generate",
+    tag: null,
   },
   {
-    color: "#00848E",
-    emoji: "📊",
-    title: "SEO Analytics",
-    desc: "View SEO health scores, coverage charts & generation stats.",
+    gradient: "linear-gradient(135deg, #00c9d4 0%, #0096a0 100%)",
+    glow: "rgba(0,201,212,0.25)",
+    icon: "📊",
+    title: "Analytics",
+    desc: "SEO health scores, coverage charts and generation statistics.",
     url: "/app/analytics",
-    btnText: "View Dashboard",
+    tag: "Insights",
   },
 ];
 
-function hexToRgba(hex, alpha) {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+const STATS = [
+  { value: "5", label: "Content Types", icon: "✦" },
+  { value: "180+", label: "Languages", icon: "🌍" },
+  { value: "2", label: "AI Providers", icon: "⚡" },
+  { value: "∞", label: "Generations", icon: "🔄" },
+];
+
+function FeatureCard({ gradient, glow, icon, title, desc, url, tag }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <a
+      href={url}
+      style={{ textDecoration: "none" }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <div
+        style={{
+          background: "#ffffff",
+          borderRadius: "16px",
+          padding: "24px",
+          border: `1px solid ${hovered ? "transparent" : "#e8eaed"}`,
+          boxShadow: hovered
+            ? `0 8px 32px ${glow}, 0 2px 8px rgba(0,0,0,0.08)`
+            : "0 1px 4px rgba(0,0,0,0.04)",
+          transition: "all 0.25s cubic-bezier(0.4,0,0.2,1)",
+          transform: hovered ? "translateY(-4px)" : "translateY(0)",
+          cursor: "pointer",
+          height: "100%",
+          boxSizing: "border-box",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        {/* Top accent bar */}
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: "3px",
+            background: gradient,
+            borderRadius: "16px 16px 0 0",
+          }}
+        />
+
+        {/* Tag */}
+        {tag && (
+          <div
+            style={{
+              position: "absolute",
+              top: "16px",
+              right: "16px",
+              background: gradient,
+              color: "#fff",
+              fontSize: "10px",
+              fontWeight: 700,
+              padding: "3px 8px",
+              borderRadius: "20px",
+              letterSpacing: "0.5px",
+              textTransform: "uppercase",
+            }}
+          >
+            {tag}
+          </div>
+        )}
+
+        {/* Icon */}
+        <div
+          style={{
+            width: "52px",
+            height: "52px",
+            borderRadius: "14px",
+            background: gradient,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "24px",
+            marginBottom: "16px",
+            boxShadow: `0 4px 12px ${glow}`,
+          }}
+        >
+          {icon}
+        </div>
+
+        <div
+          style={{
+            fontSize: "16px",
+            fontWeight: 700,
+            color: "#0d1117",
+            marginBottom: "8px",
+          }}
+        >
+          {title}
+        </div>
+        <div
+          style={{
+            fontSize: "13px",
+            color: "#6b7280",
+            lineHeight: "1.5",
+            marginBottom: "20px",
+          }}
+        >
+          {desc}
+        </div>
+
+        {/* Arrow CTA */}
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            fontSize: "13px",
+            fontWeight: 600,
+            background: gradient,
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
+          }}
+        >
+          Generate now
+          <span style={{ WebkitTextFillColor: "initial", color: "inherit" }}>→</span>
+        </div>
+      </div>
+    </a>
+  );
 }
 
-function FeatureCard({ color, emoji, title, desc, url, btnText }) {
+function StatCard({ value, label, icon }) {
   return (
-    <Card>
-      <div style={{ borderLeft: `4px solid ${color}`, paddingLeft: "12px" }}>
-        <BlockStack gap="300">
-          <InlineStack gap="300" blockAlign="center">
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
-                background: hexToRgba(color, 0.12),
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 18,
-                flexShrink: 0,
-              }}
-            >
-              {emoji}
-            </div>
-            <Text variant="headingSm" as="h3">{title}</Text>
-          </InlineStack>
-          <Text variant="bodySm" tone="subdued">{desc}</Text>
-          <Button url={url} size="slim" variant="primary">{btnText}</Button>
-        </BlockStack>
+    <div
+      style={{
+        flex: 1,
+        background: "rgba(255,255,255,0.1)",
+        backdropFilter: "blur(10px)",
+        borderRadius: "12px",
+        padding: "18px 20px",
+        border: "1px solid rgba(255,255,255,0.2)",
+        textAlign: "center",
+      }}
+    >
+      <div style={{ fontSize: "22px", marginBottom: "4px" }}>{icon}</div>
+      <div
+        style={{
+          fontSize: "28px",
+          fontWeight: 800,
+          color: "#ffffff",
+          lineHeight: 1,
+          marginBottom: "4px",
+        }}
+      >
+        {value}
       </div>
-    </Card>
+      <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.75)", fontWeight: 500 }}>
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function ProviderCard({ label, logo, desc, selected, onClick }) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        flex: 1,
+        padding: "18px",
+        borderRadius: "12px",
+        border: selected ? "2px solid #008060" : "2px solid #e8eaed",
+        background: selected ? "rgba(0,128,96,0.04)" : "#fff",
+        cursor: "pointer",
+        transition: "all 0.2s ease",
+        position: "relative",
+      }}
+    >
+      {selected && (
+        <div
+          style={{
+            position: "absolute",
+            top: "12px",
+            right: "12px",
+            width: "20px",
+            height: "20px",
+            borderRadius: "50%",
+            background: "#008060",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#fff",
+            fontSize: "12px",
+            fontWeight: 700,
+          }}
+        >
+          ✓
+        </div>
+      )}
+      <div style={{ fontSize: "28px", marginBottom: "8px" }}>{logo}</div>
+      <div
+        style={{
+          fontSize: "14px",
+          fontWeight: 700,
+          color: "#0d1117",
+          marginBottom: "4px",
+        }}
+      >
+        {label}
+      </div>
+      <div style={{ fontSize: "12px", color: "#6b7280" }}>{desc}</div>
+    </div>
   );
 }
 
@@ -173,229 +340,397 @@ export default function Index() {
 
   return (
     <Page>
-      <BlockStack gap="600">
+      <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
 
-        {/* Hero Banner */}
+        {/* ── Hero ── */}
         <div
           style={{
-            background: "linear-gradient(135deg, #f0faf5 0%, #e8f5f0 100%)",
-            borderRadius: "12px",
-            padding: "32px 28px",
+            background: "linear-gradient(135deg, #0a1628 0%, #0d2a4a 40%, #0a3d2e 100%)",
+            borderRadius: "20px",
+            padding: "48px 40px 36px",
+            position: "relative",
+            overflow: "hidden",
           }}
         >
-          <InlineStack align="space-between" blockAlign="center" wrap={false} gap="400">
-            <BlockStack gap="200">
-              <Text variant="headingXl" as="h1">Proxy AI Content Generator</Text>
-              <Text variant="bodyMd" tone="subdued">
-                Generate SEO-optimized content for every part of your Shopify store — powered by AI.
-              </Text>
-            </BlockStack>
+          {/* Decorative circles */}
+          <div
+            style={{
+              position: "absolute",
+              top: "-60px",
+              right: "-60px",
+              width: "240px",
+              height: "240px",
+              borderRadius: "50%",
+              background: "radial-gradient(circle, rgba(0,179,116,0.18) 0%, transparent 70%)",
+              pointerEvents: "none",
+            }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              bottom: "-40px",
+              left: "30%",
+              width: "180px",
+              height: "180px",
+              borderRadius: "50%",
+              background: "radial-gradient(circle, rgba(61,130,245,0.15) 0%, transparent 70%)",
+              pointerEvents: "none",
+            }}
+          />
+
+          {/* Badge */}
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              background: "rgba(0,179,116,0.15)",
+              border: "1px solid rgba(0,179,116,0.3)",
+              color: "#4ade80",
+              borderRadius: "20px",
+              padding: "5px 14px",
+              fontSize: "12px",
+              fontWeight: 600,
+              marginBottom: "20px",
+              letterSpacing: "0.5px",
+              textTransform: "uppercase",
+            }}
+          >
+            <span
+              style={{
+                width: "6px",
+                height: "6px",
+                borderRadius: "50%",
+                background: "#4ade80",
+                display: "inline-block",
+                animation: "pulse 2s infinite",
+              }}
+            />
+            AI-Powered · Shopify Native
+          </div>
+
+          <div
+            style={{
+              fontSize: "clamp(28px, 4vw, 42px)",
+              fontWeight: 800,
+              color: "#ffffff",
+              lineHeight: 1.15,
+              marginBottom: "14px",
+              maxWidth: "560px",
+            }}
+          >
+            Generate SEO Content<br />
+            <span
+              style={{
+                background: "linear-gradient(90deg, #4ade80, #34d399, #06b6d4)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}
+            >
+              Powered by AI
+            </span>
+          </div>
+
+          <div
+            style={{
+              fontSize: "15px",
+              color: "rgba(255,255,255,0.65)",
+              marginBottom: "36px",
+              maxWidth: "480px",
+              lineHeight: "1.6",
+            }}
+          >
+            Create product descriptions, blog posts, collection pages and more — optimized for SEO and ready to publish.
+          </div>
+
+          {/* Stats row */}
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            {STATS.map((s) => (
+              <StatCard key={s.label} {...s} />
+            ))}
+          </div>
+        </div>
+
+        {/* ── Feature Cards ── */}
+        <div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: "20px",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: "20px",
+                  fontWeight: 700,
+                  color: "#0d1117",
+                  marginBottom: "4px",
+                }}
+              >
+                Generate Content
+              </div>
+              <div style={{ fontSize: "13px", color: "#6b7280" }}>
+                Pick a content type to get started
+              </div>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+              gap: "16px",
+            }}
+          >
+            {FEATURE_CARDS.map((card) => (
+              <FeatureCard key={card.title} {...card} />
+            ))}
+          </div>
+        </div>
+
+        {/* ── Divider ── */}
+        <div
+          style={{
+            height: "1px",
+            background: "linear-gradient(90deg, transparent, #e8eaed 20%, #e8eaed 80%, transparent)",
+          }}
+        />
+
+        {/* ── AI Provider Settings ── */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "280px 1fr",
+            gap: "40px",
+            alignItems: "start",
+          }}
+        >
+          {/* Left label */}
+          <div>
             <div
               style={{
                 display: "inline-flex",
-                flexDirection: "column",
+                alignItems: "center",
                 gap: "8px",
-                flexShrink: 0,
+                background: "linear-gradient(135deg, #f0fdf4, #ecfdf5)",
+                border: "1px solid #bbf7d0",
+                borderRadius: "8px",
+                padding: "6px 12px",
+                marginBottom: "12px",
               }}
             >
-              <span
-                style={{
-                  display: "inline-block",
-                  padding: "6px 14px",
-                  background: "rgba(0,128,96,0.12)",
-                  color: "#005c3e",
-                  borderRadius: "20px",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                5 Content Types
-              </span>
-              <span
-                style={{
-                  display: "inline-block",
-                  padding: "6px 14px",
-                  background: "rgba(0,128,96,0.12)",
-                  color: "#005c3e",
-                  borderRadius: "20px",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                180+ Languages
+              <span style={{ fontSize: "14px" }}>⚙️</span>
+              <span style={{ fontSize: "12px", fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Settings
               </span>
             </div>
-          </InlineStack>
-        </div>
+            <div
+              style={{
+                fontSize: "20px",
+                fontWeight: 700,
+                color: "#0d1117",
+                marginBottom: "8px",
+              }}
+            >
+              AI Provider
+            </div>
+            <div style={{ fontSize: "13px", color: "#6b7280", lineHeight: "1.6" }}>
+              Configure your API keys and choose which AI model powers your content generation.
+            </div>
+          </div>
 
-        {/* Generate Content Section */}
-        <BlockStack gap="400">
-          <Text variant="headingMd" as="h2">Generate Content</Text>
-          <Grid>
-            {FEATURE_CARDS.map((card) => (
-              <Grid.Cell
-                key={card.title}
-                columnSpan={{ xs: 6, sm: 6, md: 4, lg: 4, xl: 4 }}
-              >
-                <FeatureCard {...card} />
-              </Grid.Cell>
-            ))}
-          </Grid>
-        </BlockStack>
-
-        <Divider />
-
-        {/* AI Provider Settings */}
-        <Layout>
-          <Layout.Section variant="oneThird">
-            <BlockStack gap="200">
-              <Text variant="headingMd" as="h2">AI Provider Settings</Text>
-              <Text variant="bodyMd" tone="subdued">
-                Choose your default AI provider and configure API keys. Keys are stored securely per shop.
-              </Text>
-            </BlockStack>
-          </Layout.Section>
-
-          <Layout.Section>
-            <BlockStack gap="400">
-              {actionData && (
+          {/* Right form */}
+          <div>
+            {actionData && (
+              <div style={{ marginBottom: "16px" }}>
                 <Banner
                   tone={actionData.success ? "success" : "critical"}
                   onDismiss={() => {}}
                 >
                   <p>{actionData.message}</p>
                 </Banner>
-              )}
+              </div>
+            )}
 
-              <Form method="post">
-                <input type="hidden" name="intent" value="save_api_keys" />
-                <Card>
-                  <BlockStack gap="500">
+            <Form method="post">
+              <input type="hidden" name="intent" value="save_api_keys" />
+              <input type="hidden" name="defaultAiProvider" value={selectedProvider} />
 
-                    {/* Default AI Provider selector */}
-                    <BlockStack gap="300">
-                      <Text variant="headingSm" as="h3">Default AI Provider</Text>
-                      <Text variant="bodySm" tone="subdued">
-                        Select which AI will be used by default when generating content. You can override this per generation.
-                      </Text>
-                      <Select
-                        label="Default AI Provider"
-                        labelHidden
-                        name="defaultAiProvider"
-                        options={AI_PROVIDER_OPTIONS}
-                        value={selectedProvider}
-                        onChange={setSelectedProvider}
-                      />
-                    </BlockStack>
+              <div
+                style={{
+                  background: "#ffffff",
+                  borderRadius: "16px",
+                  border: "1px solid #e8eaed",
+                  overflow: "hidden",
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+                }}
+              >
+                {/* Provider Picker */}
+                <div style={{ padding: "24px", borderBottom: "1px solid #f3f4f6" }}>
+                  <div
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: 700,
+                      color: "#374151",
+                      marginBottom: "12px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    Choose Default Provider
+                  </div>
+                  <div style={{ display: "flex", gap: "12px" }}>
+                    <ProviderCard
+                      value="openai"
+                      label="ChatGPT / OpenAI"
+                      logo="🤖"
+                      desc="GPT-4o-mini model"
+                      selected={selectedProvider === "openai"}
+                      onClick={() => setSelectedProvider("openai")}
+                    />
+                    <ProviderCard
+                      value="anthropic"
+                      label="Claude / Anthropic"
+                      logo="🧠"
+                      desc="Claude Haiku model"
+                      selected={selectedProvider === "anthropic"}
+                      onClick={() => setSelectedProvider("anthropic")}
+                    />
+                  </div>
+                </div>
 
-                    <Divider />
-
-                    {/* OpenAI key — when ChatGPT / OpenAI is selected */}
-                    {selectedProvider === "openai" && (
-                      <BlockStack gap="300">
-                        <InlineStack align="space-between" blockAlign="center">
-                          <InlineStack gap="200" blockAlign="center">
-                            <Text variant="headingSm" as="h3">ChatGPT / OpenAI</Text>
-                            {hasOpenaiKey && <Badge tone="success">Configured</Badge>}
-                          </InlineStack>
-                          {hasOpenaiKey && (
-                            <Form method="post">
-                              <input type="hidden" name="intent" value="clear_openai_key" />
-                              <Button variant="plain" tone="critical" submit size="slim">
-                                Remove key
-                              </Button>
-                            </Form>
-                          )}
-                        </InlineStack>
-                        <Text variant="bodySm" tone="subdued">
-                          Used for GPT-4o-mini. Get your key from{" "}
-                          <a
-                            href="https://platform.openai.com/api-keys"
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{ color: "var(--p-color-text-emphasis)" }}
-                          >
-                            platform.openai.com
-                          </a>
-                        </Text>
-                        <TextField
-                          label="OpenAI API Key"
-                          labelHidden
-                          type="password"
-                          name="openaiApiKey"
-                          value={openaiKey}
-                          onChange={setOpenaiKey}
-                          placeholder={hasOpenaiKey ? "••••••••••••  (saved)" : "sk-proj-..."}
-                          autoComplete="off"
-                          prefix="sk-"
-                        />
-                      </BlockStack>
-                    )}
-
-                    {/* Anthropic key — when Claude AI / Anthropic is selected */}
-                    {selectedProvider === "anthropic" && (
-                      <BlockStack gap="300">
-                        <InlineStack align="space-between" blockAlign="center">
-                          <InlineStack gap="200" blockAlign="center">
-                            <Text variant="headingSm" as="h3">Claude AI / Anthropic</Text>
-                            {hasAnthropicKey && <Badge tone="success">Configured</Badge>}
-                          </InlineStack>
-                          {hasAnthropicKey && (
-                            <Form method="post">
-                              <input type="hidden" name="intent" value="clear_anthropic_key" />
-                              <Button variant="plain" tone="critical" submit size="slim">
-                                Remove key
-                              </Button>
-                            </Form>
-                          )}
-                        </InlineStack>
-                        <Text variant="bodySm" tone="subdued">
-                          Used for Claude Haiku and newer models. Get your key from{" "}
-                          <a
-                            href="https://console.anthropic.com/settings/keys"
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{ color: "var(--p-color-text-emphasis)" }}
-                          >
-                            console.anthropic.com
-                          </a>
-                        </Text>
-                        <TextField
-                          label="Anthropic API Key"
-                          labelHidden
-                          type="password"
-                          name="anthropicApiKey"
-                          value={anthropicKey}
-                          onChange={setAnthropicKey}
-                          placeholder={hasAnthropicKey ? "••••••••••••  (saved)" : "sk-ant-..."}
-                          autoComplete="off"
-                          prefix="sk-ant-"
-                        />
-                      </BlockStack>
-                    )}
-
-                    <InlineStack align="end">
-                      <Button
-                        variant="primary"
-                        submit
-                        loading={isSaving}
-                        disabled={isSaving}
+                {/* API Key Section */}
+                <div style={{ padding: "24px" }}>
+                  {selectedProvider === "openai" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                        }}
                       >
-                        Save Settings
-                      </Button>
-                    </InlineStack>
-                  </BlockStack>
-                </Card>
-              </Form>
-            </BlockStack>
-          </Layout.Section>
-        </Layout>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ fontSize: "14px", fontWeight: 700, color: "#0d1117" }}>
+                            OpenAI API Key
+                          </span>
+                          {hasOpenaiKey && <Badge tone="success">Configured</Badge>}
+                        </div>
+                        {hasOpenaiKey && (
+                          <Form method="post">
+                            <input type="hidden" name="intent" value="clear_openai_key" />
+                            <Button variant="plain" tone="critical" submit size="slim">
+                              Remove key
+                            </Button>
+                          </Form>
+                        )}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                        Get your key at{" "}
+                        <a
+                          href="https://platform.openai.com/api-keys"
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ color: "#008060", fontWeight: 600 }}
+                        >
+                          platform.openai.com
+                        </a>
+                      </div>
+                      <TextField
+                        label="OpenAI API Key"
+                        labelHidden
+                        type="password"
+                        name="openaiApiKey"
+                        value={openaiKey}
+                        onChange={setOpenaiKey}
+                        placeholder={hasOpenaiKey ? "•••••••••••• (saved)" : "sk-proj-..."}
+                        autoComplete="off"
+                      />
+                    </div>
+                  )}
 
-      </BlockStack>
+                  {selectedProvider === "anthropic" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ fontSize: "14px", fontWeight: 700, color: "#0d1117" }}>
+                            Anthropic API Key
+                          </span>
+                          {hasAnthropicKey && <Badge tone="success">Configured</Badge>}
+                        </div>
+                        {hasAnthropicKey && (
+                          <Form method="post">
+                            <input type="hidden" name="intent" value="clear_anthropic_key" />
+                            <Button variant="plain" tone="critical" submit size="slim">
+                              Remove key
+                            </Button>
+                          </Form>
+                        )}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                        Get your key at{" "}
+                        <a
+                          href="https://console.anthropic.com/settings/keys"
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ color: "#008060", fontWeight: 600 }}
+                        >
+                          console.anthropic.com
+                        </a>
+                      </div>
+                      <TextField
+                        label="Anthropic API Key"
+                        labelHidden
+                        type="password"
+                        name="anthropicApiKey"
+                        value={anthropicKey}
+                        onChange={setAnthropicKey}
+                        placeholder={hasAnthropicKey ? "•••••••••••• (saved)" : "sk-ant-..."}
+                        autoComplete="off"
+                      />
+                    </div>
+                  )}
 
-      <Box paddingBlockEnd="800" />
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "20px" }}>
+                    <button
+                      type="submit"
+                      disabled={isSaving}
+                      style={{
+                        background: isSaving
+                          ? "#ccc"
+                          : "linear-gradient(135deg, #00b374 0%, #007a50 100%)",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "8px",
+                        padding: "10px 24px",
+                        fontSize: "14px",
+                        fontWeight: 700,
+                        cursor: isSaving ? "not-allowed" : "pointer",
+                        boxShadow: isSaving ? "none" : "0 4px 14px rgba(0,128,96,0.35)",
+                        transition: "all 0.2s ease",
+                      }}
+                    >
+                      {isSaving ? "Saving…" : "Save Settings"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </Form>
+          </div>
+        </div>
+
+        <Box paddingBlockEnd="800" />
+      </div>
     </Page>
   );
 }
