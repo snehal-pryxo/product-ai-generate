@@ -1048,7 +1048,7 @@ export const loader = async ({ request }) => {
 };
 
 export default function ProductsPage() {
-  const { filters, products, pageInfo, hasOpenaiKey, hasAnthropicKey, defaultAiProvider } = useLoaderData();
+  const { filters, products, pageInfo, defaultAiProvider } = useLoaderData();
   const navigation = useNavigation();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
@@ -1351,11 +1351,6 @@ export default function ProductsPage() {
     label: s,
     value: s,
   }));
-  const aiProviderOptions = [
-    { label: "Auto (use configured key)", value: "auto" },
-    ...(hasOpenaiKey ? [{ label: "ChatGPT (OpenAI)", value: "openai" }] : []),
-    ...(hasAnthropicKey ? [{ label: "Claude (Anthropic)", value: "anthropic" }] : []),
-  ];
 
   const rowMarkup = filteredProducts.map((product, index) => (
     <IndexTable.Row id={product.id} key={product.id} position={index}>
@@ -1756,14 +1751,6 @@ export default function ProductsPage() {
                 <Card>
                   <BlockStack gap="400">
                     <Text as="h3" variant="headingSm">AI Settings</Text>
-
-                    <Select
-                      label="AI Provider"
-                      options={aiProviderOptions}
-                      value={editForm.aiProvider}
-                      onChange={(value) => updateEditField("aiProvider", value || "auto")}
-                      helpText="Choose which AI to use for generation."
-                    />
 
                     <Divider />
 

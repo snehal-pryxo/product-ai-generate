@@ -267,11 +267,6 @@ export const action = async ({ request }) => {
 
 // ─── Options ─────────────────────────────────────────────────────────────────
 
-const AI_PROVIDER_OPTIONS = [
-  { label: "Auto (use first available key)", value: "auto" },
-  { label: "ChatGPT / OpenAI", value: "openai" },
-  { label: "Claude AI / Anthropic", value: "anthropic" },
-];
 
 const PAGE_TYPE_OPTIONS = [
   { label: "About Us", value: "About Us" },
@@ -535,7 +530,7 @@ export default function PagesPage() {
 
           <Grid>
             {/* Left column — 40% — content editor */}
-            <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 5, lg: 5, xl: 5 }}>
+            <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 8, lg: 8, xl: 8 }}>
               <BlockStack gap="400">
                 <Text variant="headingSm" as="h3">Page Content</Text>
 
@@ -576,16 +571,9 @@ export default function PagesPage() {
             </Grid.Cell>
 
             {/* Right column — 60% — AI settings */}
-            <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 7, lg: 7, xl: 7 }}>
+            <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 4, lg: 4, xl: 4 }}>
               <BlockStack gap="400">
                 <Text variant="headingSm" as="h3">AI Content Generation</Text>
-
-                <Select
-                  label="AI Provider"
-                  options={AI_PROVIDER_OPTIONS}
-                  value={editState.aiProvider}
-                  onChange={setField("aiProvider")}
-                />
 
                 <Select
                   label="Page Type"

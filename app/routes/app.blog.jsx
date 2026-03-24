@@ -347,11 +347,6 @@ export const action = async ({ request }) => {
 
 // ─── Options ─────────────────────────────────────────────────────────────────
 
-const AI_PROVIDER_OPTIONS = [
-  { label: "Auto (use first available key)", value: "auto" },
-  { label: "ChatGPT / OpenAI", value: "openai" },
-  { label: "Claude AI / Anthropic", value: "anthropic" },
-];
 
 const ARTICLE_TYPE_OPTIONS = [
   { label: "How-To Guide", value: "How-To Guide" },
@@ -762,12 +757,6 @@ export default function BlogPage() {
               <BlockStack gap="400">
                 <Text variant="headingSm" as="h3">AI Content Generation</Text>
 
-                <Select
-                  label="AI Provider"
-                  options={AI_PROVIDER_OPTIONS}
-                  value={editState.aiProvider}
-                  onChange={setField("aiProvider")}
-                />
 
                 <Select
                   label="Article Type"

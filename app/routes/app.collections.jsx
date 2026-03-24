@@ -1210,7 +1210,7 @@ export const loader = async ({ request }) => {
 };
 
 export default function CollectionsPage() {
-  const { filters, collections, pageInfo, hasOpenaiKey, hasAnthropicKey, defaultAiProvider } = useLoaderData();
+  const { filters, collections, pageInfo, defaultAiProvider } = useLoaderData();
   const navigation = useNavigation();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
@@ -1492,11 +1492,6 @@ export default function CollectionsPage() {
     label: s,
     value: s,
   }));
-  const aiProviderOptions = [
-    { label: "Auto (use configured key)", value: "auto" },
-    ...(hasOpenaiKey ? [{ label: "ChatGPT (OpenAI)", value: "openai" }] : []),
-    ...(hasAnthropicKey ? [{ label: "Claude (Anthropic)", value: "anthropic" }] : []),
-  ];
 
   return (
     <Page title="Collections">
@@ -1788,14 +1783,6 @@ export default function CollectionsPage() {
                   <Card>
                     <BlockStack gap="400">
                       <Text as="h3" variant="headingSm">AI Settings</Text>
-
-                      <Select
-                        label="AI Provider"
-                        options={aiProviderOptions}
-                        value={editForm.aiProvider}
-                        onChange={(value) => updateEditField("aiProvider", value || "auto")}
-                        helpText="Choose which AI to use for generation."
-                      />
 
                       <Divider />
 
