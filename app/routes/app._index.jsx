@@ -196,7 +196,7 @@ export default function Index() {
                     <Divider />
 
                     {/* OpenAI key — when ChatGPT / OpenAI or Auto is selected */}
-                    {(selectedProvider === "openai" || selectedProvider === "auto") && (
+                    {(selectedProvider === "openai") && (
                       <BlockStack gap="300">
                         <InlineStack align="space-between" blockAlign="center">
                           <InlineStack gap="200" blockAlign="center">

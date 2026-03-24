@@ -148,9 +148,12 @@ export const loader = async ({ request }) => {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-  const [totalProductLogs, totalCollectionLogs, recentLogs, weekLogs] = await Promise.all([
+  const collectionLogCount = await db.collectionGeneratedContent
+    .count({ where: { shop: session.shop } })
+    .catch(() => 0);
+
+  const [totalProductLogs, recentLogs, weekLogs] = await Promise.all([
     db.generatedContentLog.count({ where: { shop: session.shop } }),
-    db.collectionGeneratedContent.count({ where: { shop: session.shop } }),
     db.generatedContentLog.findMany({
       where: { shop: session.shop },
       orderBy: { createdAt: "desc" },
@@ -194,7 +197,7 @@ export const loader = async ({ request }) => {
     pages: { total: pages.length, withSeoTitle: pagesWithSeoTitle, withSeoDesc: pagesWithSeoDesc },
     articles: { total: articles.length, withSeoTitle: articlesWithSeoTitle, withSeoDesc: articlesWithSeoDesc },
     seoScore,
-    totalGenerations: totalProductLogs + totalCollectionLogs,
+    totalGenerations: totalProductLogs + collectionLogCount,
     weekGenerations: weekLogs.length,
     recentLogs: recentLogs.map((l) => ({ ...l, id: l.id.toString(), createdAt: l.createdAt.toISOString() })),
     dailyActivity,
