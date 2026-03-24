@@ -344,7 +344,7 @@ const editInitialState = {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function PagesPage() {
-  const { pages, hasOpenaiKey, hasAnthropicKey, defaultAiProvider } = useLoaderData();
+  const { pages, defaultAiProvider } = useLoaderData();
   const navigation = useNavigation();
   const isSaving = navigation.state === "submitting";
 
@@ -585,11 +585,6 @@ export default function PagesPage() {
                   options={AI_PROVIDER_OPTIONS}
                   value={editState.aiProvider}
                   onChange={setField("aiProvider")}
-                  helpText={
-                    !hasOpenaiKey && !hasAnthropicKey
-                      ? "No API keys configured. Add keys on the Dashboard."
-                      : undefined
-                  }
                 />
 
                 <Select

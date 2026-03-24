@@ -433,7 +433,7 @@ const editInitialState = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function BlogPage() {
-  const { blogs, articles, hasOpenaiKey, hasAnthropicKey, defaultAiProvider } = useLoaderData();
+  const { blogs, articles, defaultAiProvider } = useLoaderData();
   const navigation = useNavigation();
   const isSaving = navigation.state === "submitting";
 
@@ -767,11 +767,6 @@ export default function BlogPage() {
                   options={AI_PROVIDER_OPTIONS}
                   value={editState.aiProvider}
                   onChange={setField("aiProvider")}
-                  helpText={
-                    !hasOpenaiKey && !hasAnthropicKey
-                      ? "No API keys configured. Add keys on the Dashboard."
-                      : undefined
-                  }
                 />
 
                 <Select
