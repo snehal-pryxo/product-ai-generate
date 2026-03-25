@@ -601,7 +601,7 @@ export default function BlogPage() {
       {/* ── Hero Header ── */}
       <div style={{
         background: "linear-gradient(135deg, #1a001a 0%, #4a0e4e 50%, #1e0a3c 100%)",
-        borderRadius: "16px",
+        borderRadius: "6px",
         padding: "28px 32px",
         marginBottom: "24px",
         position: "relative",
@@ -611,7 +611,7 @@ export default function BlogPage() {
         <div style={{ position: "absolute", bottom: "-40px", left: "25%", width: "160px", height: "160px", borderRadius: "50%", background: "radial-gradient(circle, rgba(168,85,247,0.2) 0%, transparent 70%)", pointerEvents: "none" }} />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", zIndex: 1, flexWrap: "wrap", gap: "16px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            <div style={{ width: "54px", height: "54px", borderRadius: "14px", background: "rgba(236,72,153,0.2)", border: "1px solid rgba(236,72,153,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px", flexShrink: 0 }}>
+            <div style={{ width: "54px", height: "54px", borderRadius: "6px", background: "rgba(236,72,153,0.2)", border: "1px solid rgba(236,72,153,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px", flexShrink: 0 }}>
               ✍️
             </div>
             <div>
@@ -622,12 +622,12 @@ export default function BlogPage() {
           <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
             <button
               onClick={() => navigate("/app")}
-              style={{ padding: "7px 16px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
+              style={{ padding: "7px 16px", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
             >← Dashboard</button>
             {blogs.length > 0 && (
               <button
                 onClick={openCreateModal}
-                style={{ padding: "7px 16px", borderRadius: "8px", border: "none", background: "linear-gradient(135deg, #ec4899, #a855f7)", color: "#fff", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}
+                style={{ padding: "7px 16px", borderRadius: "6px", border: "none", background: "linear-gradient(135deg, #ec4899, #a855f7)", color: "#fff", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}
               >+ New Article</button>
             )}
           </div>

@@ -1498,7 +1498,7 @@ export default function CollectionsPage() {
       {/* ── Hero Header ── */}
       <div style={{
         background: "linear-gradient(135deg, #1c0a00 0%, #431407 50%, #1a2e00 100%)",
-        borderRadius: "16px",
+        borderRadius: "6px",
         padding: "28px 32px",
         marginBottom: "24px",
         position: "relative",
@@ -1508,7 +1508,7 @@ export default function CollectionsPage() {
         <div style={{ position: "absolute", bottom: "-40px", left: "25%", width: "160px", height: "160px", borderRadius: "50%", background: "radial-gradient(circle, rgba(234,179,8,0.18) 0%, transparent 70%)", pointerEvents: "none" }} />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", zIndex: 1, flexWrap: "wrap", gap: "16px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            <div style={{ width: "54px", height: "54px", borderRadius: "14px", background: "rgba(249,115,22,0.2)", border: "1px solid rgba(249,115,22,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px", flexShrink: 0 }}>
+            <div style={{ width: "54px", height: "54px", borderRadius: "6px", background: "rgba(249,115,22,0.2)", border: "1px solid rgba(249,115,22,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px", flexShrink: 0 }}>
               🗂️
             </div>
             <div>
@@ -1519,15 +1519,15 @@ export default function CollectionsPage() {
           <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
             <button
               onClick={() => navigate(makeUrl({}))}
-              style={{ padding: "7px 16px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#fff", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}
+              style={{ padding: "7px 16px", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#fff", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}
             >↺ Refresh</button>
             <button
               onClick={() => navigate("/app")}
-              style={{ padding: "7px 16px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
+              style={{ padding: "7px 16px", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
             >← Back</button>
             <button
               disabled
-              style={{ padding: "7px 16px", borderRadius: "8px", border: "none", background: "linear-gradient(135deg, #f97316, #eab308)", color: "#fff", cursor: "not-allowed", fontSize: "13px", fontWeight: 600, opacity: 0.75 }}
+              style={{ padding: "7px 16px", borderRadius: "6px", border: "none", background: "linear-gradient(135deg, #f97316, #eab308)", color: "#fff", cursor: "not-allowed", fontSize: "13px", fontWeight: 600, opacity: 0.75 }}
             >⚡ Upgrade Plan</button>
           </div>
         </div>
@@ -1584,7 +1584,7 @@ export default function CollectionsPage() {
                           <Box
                             width="52px"
                             minHeight="52px"
-                            borderRadius="200"
+                            borderRadius="150"
                             borderWidth="025"
                             borderColor="border-secondary"
                             background="bg-surface-secondary"
@@ -1683,7 +1683,7 @@ export default function CollectionsPage() {
                         <Box
                           borderWidth="025"
                           borderColor="border"
-                          borderRadius="200"
+                          borderRadius="150"
                           background="bg-surface"
                         >
                           <Box

@@ -1,0 +1,47 @@
+/* ── Global border-radius override: 6px everywhere ── */
+:root {
+  --p-border-radius-050: 6px;
+  --p-border-radius-100: 6px;
+  --p-border-radius-150: 6px;
+  --p-border-radius-200: 6px;
+  --p-border-radius-300: 6px;
+  --p-border-radius-400: 6px;
+  --p-border-radius-500: 6px;
+  --p-border-radius-750: 6px;
+}
+
+/* Polaris Button */
+.Polaris-Button { border-radius: 6px !important; }
+
+/* Polaris Card */
+.Polaris-Card { border-radius: 6px !important; }
+.Polaris-ShadowBevel { border-radius: 6px !important; }
+
+/* Polaris TextField / Select / input */
+.Polaris-TextField__Input,
+.Polaris-TextField,
+.Polaris-Select__Content,
+.Polaris-Select { border-radius: 6px !important; }
+
+/* Polaris Modal */
+.Polaris-Modal-Dialog__Modal { border-radius: 6px !important; }
+
+/* Polaris Badge */
+.Polaris-Badge { border-radius: 6px !important; }
+
+/* Polaris Banner */
+.Polaris-Banner { border-radius: 6px !important; }
+
+/* Polaris Popover */
+.Polaris-PositionedOverlay,
+.Polaris-Popover__Content { border-radius: 6px !important; }
+
+/* Polaris Tabs */
+.Polaris-Tabs__Tab { border-radius: 6px !important; }
+
+/* Polaris IndexTable */
+.Polaris-IndexTable { border-radius: 6px !important; }
+
+/* Any native button or input */
+button { border-radius: 6px !important; }
+input, textarea, select { border-radius: 6px !important; }

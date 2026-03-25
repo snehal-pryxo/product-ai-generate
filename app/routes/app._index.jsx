@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLoaderData, useActionData, Form, useNavigation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
@@ -135,7 +135,7 @@ function FeatureCard({ gradient, glow, icon, title, desc, url, tag }) {
       <div
         style={{
           background: "#ffffff",
-          borderRadius: "16px",
+          borderRadius: "6px",
           padding: "24px",
           border: `1px solid ${hovered ? "transparent" : "#e8eaed"}`,
           boxShadow: hovered
@@ -175,7 +175,7 @@ function FeatureCard({ gradient, glow, icon, title, desc, url, tag }) {
               fontSize: "10px",
               fontWeight: 700,
               padding: "3px 8px",
-              borderRadius: "20px",
+              borderRadius: "6px",
               letterSpacing: "0.5px",
               textTransform: "uppercase",
             }}
@@ -189,7 +189,7 @@ function FeatureCard({ gradient, glow, icon, title, desc, url, tag }) {
           style={{
             width: "52px",
             height: "52px",
-            borderRadius: "14px",
+            borderRadius: "6px",
             background: gradient,
             display: "flex",
             alignItems: "center",
@@ -252,7 +252,7 @@ function StatCard({ value, label, icon }) {
         flex: 1,
         background: "rgba(255,255,255,0.1)",
         backdropFilter: "blur(10px)",
-        borderRadius: "12px",
+        borderRadius: "6px",
         padding: "18px 20px",
         border: "1px solid rgba(255,255,255,0.2)",
         textAlign: "center",
@@ -284,7 +284,7 @@ function ProviderCard({ label, logo, desc, selected, onClick }) {
       style={{
         flex: 1,
         padding: "18px",
-        borderRadius: "12px",
+        borderRadius: "6px",
         border: selected ? "2px solid #008060" : "2px solid #e8eaed",
         background: selected ? "rgba(0,128,96,0.04)" : "#fff",
         cursor: "pointer",
@@ -337,7 +337,10 @@ export default function Index() {
 
   const [openaiKey, setOpenaiKey] = useState("");
   const [anthropicKey, setAnthropicKey] = useState("");
-  const [selectedProvider, setSelectedProvider] = useState(defaultAiProvider || "openai");
+  const [selectedProvider, setSelectedProvider] = useState("openai");
+  useEffect(() => {
+    if (defaultAiProvider) setSelectedProvider(defaultAiProvider);
+  }, [defaultAiProvider]);
 
   return (
     <Page>
@@ -347,7 +350,7 @@ export default function Index() {
         <div
           style={{
             background: "linear-gradient(135deg, #0a1628 0%, #0d2a4a 40%, #0a3d2e 100%)",
-            borderRadius: "20px",
+            borderRadius: "6px",
             padding: "48px 40px 36px",
             position: "relative",
             overflow: "hidden",
@@ -388,7 +391,7 @@ export default function Index() {
               background: "rgba(0,179,116,0.15)",
               border: "1px solid rgba(0,179,116,0.3)",
               color: "#4ade80",
-              borderRadius: "20px",
+              borderRadius: "6px",
               padding: "5px 14px",
               fontSize: "12px",
               fontWeight: 600,
@@ -508,7 +511,7 @@ export default function Index() {
               <div
                 style={{
                   background: "#ffffff",
-                  borderRadius: "16px",
+                  borderRadius: "6px",
                   border: "1px solid #e8eaed",
                   overflow: "hidden",
                   boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
@@ -654,7 +657,7 @@ export default function Index() {
                           : "linear-gradient(135deg, #00b374 0%, #007a50 100%)",
                         color: "#fff",
                         border: "none",
-                        borderRadius: "8px",
+                        borderRadius: "6px",
                         padding: "10px 24px",
                         fontSize: "14px",
                         fontWeight: 700,

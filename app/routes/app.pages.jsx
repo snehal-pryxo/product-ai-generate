@@ -477,7 +477,7 @@ export default function PagesPage() {
       {/* ── Hero Header ── */}
       <div style={{
         background: "linear-gradient(135deg, #00131a 0%, #064e3b 50%, #0c2a4a 100%)",
-        borderRadius: "16px",
+        borderRadius: "6px",
         padding: "28px 32px",
         marginBottom: "24px",
         position: "relative",
@@ -487,7 +487,7 @@ export default function PagesPage() {
         <div style={{ position: "absolute", bottom: "-40px", left: "25%", width: "160px", height: "160px", borderRadius: "50%", background: "radial-gradient(circle, rgba(16,185,129,0.2) 0%, transparent 70%)", pointerEvents: "none" }} />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", zIndex: 1, flexWrap: "wrap", gap: "16px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            <div style={{ width: "54px", height: "54px", borderRadius: "14px", background: "rgba(6,182,212,0.2)", border: "1px solid rgba(6,182,212,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px", flexShrink: 0 }}>
+            <div style={{ width: "54px", height: "54px", borderRadius: "6px", background: "rgba(6,182,212,0.2)", border: "1px solid rgba(6,182,212,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px", flexShrink: 0 }}>
               📄
             </div>
             <div>
@@ -497,7 +497,7 @@ export default function PagesPage() {
           </div>
           <button
             onClick={() => navigate("/app")}
-            style={{ padding: "7px 16px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
+            style={{ padding: "7px 16px", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
           >← Dashboard</button>
         </div>
       </div>

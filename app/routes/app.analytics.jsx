@@ -347,7 +347,7 @@ function DateRangePicker({ rangeParam, startDate, endDate, containerRef }) {
         zIndex: 100,
         background: "white",
         border: "1px solid #C9CCCF",
-        borderRadius: 12,
+        borderRadius: 6,
         boxShadow: "0 8px 32px rgba(0,0,0,0.16)",
         padding: 16,
         minWidth: 580,
@@ -360,7 +360,7 @@ function DateRangePicker({ rangeParam, startDate, endDate, containerRef }) {
         onChange={handlePreset}
         style={{
           width: "100%", padding: "9px 12px", marginBottom: 10,
-          border: "1px solid #C9CCCF", borderRadius: 8, fontSize: 14,
+          border: "1px solid #C9CCCF", borderRadius: 6, fontSize: 14,
           color: "#202223", background: "white",
         }}
       >
@@ -372,13 +372,13 @@ function DateRangePicker({ rangeParam, startDate, endDate, containerRef }) {
         <input
           type="date" value={pickerStart}
           onChange={e => { setPickerStart(e.target.value); setPreset("custom"); }}
-          style={{ flex: 1, padding: "8px 10px", border: "1px solid #C9CCCF", borderRadius: 8, fontSize: 13, color: "#202223", background: "white" }}
+          style={{ flex: 1, padding: "8px 10px", border: "1px solid #C9CCCF", borderRadius: 6, fontSize: 13, color: "#202223", background: "white" }}
         />
         <span style={{ color: "#6D7175", fontSize: 18, flexShrink: 0 }}>→</span>
         <input
           type="date" value={pickerEnd || ""}
           onChange={e => { setPickerEnd(e.target.value); setPreset("custom"); }}
-          style={{ flex: 1, padding: "8px 10px", border: "1px solid #C9CCCF", borderRadius: 8, fontSize: 13, color: "#202223", background: "white" }}
+          style={{ flex: 1, padding: "8px 10px", border: "1px solid #C9CCCF", borderRadius: 6, fontSize: 13, color: "#202223", background: "white" }}
         />
       </div>
 
@@ -405,11 +405,11 @@ function DateRangePicker({ rangeParam, startDate, endDate, containerRef }) {
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14, borderTop: "1px solid #E4E5E7", paddingTop: 12 }}>
         <button
           type="button" onClick={() => setOpen(false)}
-          style={{ padding: "7px 20px", border: "1px solid #C9CCCF", borderRadius: 8, background: "white", fontSize: 14, cursor: "pointer", color: "#202223", fontWeight: 500 }}
+          style={{ padding: "7px 20px", border: "1px solid #C9CCCF", borderRadius: 6, background: "white", fontSize: 14, cursor: "pointer", color: "#202223", fontWeight: 500 }}
         >Cancel</button>
         <button
           type="button" onClick={handleApply} disabled={!pickerStart}
-          style={{ padding: "7px 20px", border: "none", borderRadius: 8, background: "#1A1A1A", color: "white", fontSize: 14, cursor: "pointer", fontWeight: 700, opacity: !pickerStart ? 0.5 : 1 }}
+          style={{ padding: "7px 20px", border: "none", borderRadius: 6, background: "#1A1A1A", color: "white", fontSize: 14, cursor: "pointer", fontWeight: 700, opacity: !pickerStart ? 0.5 : 1 }}
         >Apply</button>
       </div>
     </div>
@@ -424,7 +424,7 @@ function DateRangePicker({ rangeParam, startDate, endDate, containerRef }) {
         onClick={() => setOpen(v => !v)}
         style={{
           display: "inline-flex", alignItems: "center", gap: 8,
-          padding: "7px 14px", border: "1px solid #C9CCCF", borderRadius: 8,
+          padding: "7px 14px", border: "1px solid #C9CCCF", borderRadius: 6,
           background: "white", cursor: "pointer", fontSize: 14, fontWeight: 500, color: "#202223",
           whiteSpace: "nowrap",
         }}
@@ -504,7 +504,7 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
         style={{
           background: "#F9FAFB",
           border: "1px solid #E4E5E7",
-          borderRadius: 10,
+          borderRadius: 6,
           position: "relative",
         }}
       >
@@ -615,7 +615,7 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
               zIndex: 20,
               background: "white",
               border: "1px solid #E4E5E7",
-              borderRadius: 8,
+              borderRadius: 6,
               boxShadow: "0 4px 20px rgba(0,0,0,0.10)",
               padding: "12px 16px",
               minWidth: 220,
@@ -633,14 +633,14 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 20, height: 2.5, background: S1_COLOR, borderRadius: 2, flexShrink: 0 }} />
+                  <div style={{ width: 20, height: 2.5, background: S1_COLOR, borderRadius: 6, flexShrink: 0 }} />
                   <span style={{ fontSize: 12, color: "#6D7175" }}>AI Generations</span>
                 </div>
                 <span style={{ fontSize: 13, fontWeight: 700, color: "#202223" }}>{hoveredDay.count}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 20, height: 2.5, background: S2_COLOR, borderRadius: 2, flexShrink: 0 }} />
+                  <div style={{ width: 20, height: 2.5, background: S2_COLOR, borderRadius: 6, flexShrink: 0 }} />
                   <span style={{ fontSize: 12, color: "#6D7175" }}>Applied to Product</span>
                 </div>
                 <span style={{ fontSize: 13, fontWeight: 700, color: "#202223" }}>{hoveredDay.applied}</span>
@@ -666,12 +666,12 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
               display: "flex", alignItems: "center", gap: 8,
               padding: "5px 12px",
               border: "1px solid #E4E5E7",
-              borderRadius: 20,
+              borderRadius: 6,
               background: "white",
               boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
             }}
           >
-            <div style={{ width: 20, height: 2.5, background: color, borderRadius: 2, flexShrink: 0 }} />
+            <div style={{ width: 20, height: 2.5, background: color, borderRadius: 6, flexShrink: 0 }} />
             <span style={{ fontSize: 12, color: "#6D7175", whiteSpace: "nowrap" }}>{label}</span>
           </div>
         ))}
@@ -716,8 +716,8 @@ function HBar({ label, value, total, color = "#008060" }) {
         <Text variant="bodySm" as="span">{label}</Text>
         <Text variant="bodySm" tone="subdued" as="span">{value} / {total} — {pct}%</Text>
       </InlineStack>
-      <div style={{ height: 8, background: "#F1F1F1", borderRadius: 99, overflow: "hidden" }}>
-        <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 99, minWidth: pct > 0 ? 4 : 0, transition: "width 0.4s ease" }} />
+      <div style={{ height: 8, background: "#F1F1F1", borderRadius: 6, overflow: "hidden" }}>
+        <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 6, minWidth: pct > 0 ? 4 : 0, transition: "width 0.4s ease" }} />
       </div>
     </BlockStack>
   );
@@ -830,7 +830,7 @@ export default function AnalyticsPage() {
       {/* ── Hero Header ── */}
       <div style={{
         background: "linear-gradient(135deg, #020c1b 0%, #0a2540 45%, #003d2e 100%)",
-        borderRadius: "16px",
+        borderRadius: "6px",
         padding: "28px 32px",
         marginBottom: "24px",
         position: "relative",
@@ -845,7 +845,7 @@ export default function AnalyticsPage() {
           {/* Top row: icon + title + back button */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "16px", marginBottom: "22px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-              <div style={{ width: "54px", height: "54px", borderRadius: "14px", background: "rgba(0,179,116,0.2)", border: "1px solid rgba(0,179,116,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px", flexShrink: 0 }}>
+              <div style={{ width: "54px", height: "54px", borderRadius: "6px", background: "rgba(0,179,116,0.2)", border: "1px solid rgba(0,179,116,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px", flexShrink: 0 }}>
                 📊
               </div>
               <div>
@@ -855,7 +855,7 @@ export default function AnalyticsPage() {
             </div>
             <button
               onClick={() => navigate("/app")}
-              style={{ padding: "7px 16px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer", flexShrink: 0 }}
+              style={{ padding: "7px 16px", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer", flexShrink: 0 }}
             >← Dashboard</button>
           </div>
 
@@ -867,7 +867,7 @@ export default function AnalyticsPage() {
               { label: "AI Generations",  value: totalGenerations,    icon: "⚡",  accent: "rgba(234,179,8,0.3)"   },
               { label: "Active Days",     value: activeDays,          icon: "📅",  accent: "rgba(168,85,247,0.3)"  },
             ].map(({ label, value, icon, accent, color }) => (
-              <div key={label} style={{ flex: "1 1 120px", background: accent, border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", padding: "12px 16px", backdropFilter: "blur(4px)" }}>
+              <div key={label} style={{ flex: "1 1 120px", background: accent, border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px", padding: "12px 16px", backdropFilter: "blur(4px)" }}>
                 <div style={{ fontSize: "18px", marginBottom: "4px" }}>{icon}</div>
                 <div style={{ fontSize: "18px", fontWeight: 800, color: color || "#ffffff", lineHeight: 1, marginBottom: "3px" }}>{value}</div>
                 <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", fontWeight: 500 }}>{label}</div>
@@ -925,7 +925,7 @@ export default function AnalyticsPage() {
                   href={`?range=${days}`}
                   style={{
                     display: "inline-block", padding: "4px 14px",
-                    borderRadius: 20, textDecoration: "none",
+                    borderRadius: 6, textDecoration: "none",
                     border: `1px solid ${rangeParam === days ? S1_COLOR : "#C9CCCF"}`,
                     background: rangeParam === days ? S1_COLOR : "white",
                     color: rangeParam === days ? "white" : "#202223",
@@ -984,7 +984,7 @@ export default function AnalyticsPage() {
                     {i > 0 && <Divider />}
                     <BlockStack gap="300">
                       <InlineStack gap="200" blockAlign="center">
-                        <div style={{ width: 12, height: 12, borderRadius: 3, background: c1 }} />
+                        <div style={{ width: 12, height: 12, borderRadius: 6, background: c1 }} />
                         <Text variant="headingSm" as="h3">{label} ({total})</Text>
                       </InlineStack>
                       <HBar label="SEO Title"       value={st} total={total} color={c1} />
@@ -1048,7 +1048,7 @@ export default function AnalyticsPage() {
               <Card>
                 <BlockStack gap="400">
                   <Text variant="headingMd" as="h2">Recent AI Generations</Text>
-                  <div style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #E4E5E7" }}>
+                  <div style={{ borderRadius: 6, overflow: "hidden", border: "1px solid #E4E5E7" }}>
                     {recentLogs.map((log, i) => (
                       <div key={log.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: i % 2 === 0 ? "#FAFAFA" : "white", gap: 12, flexWrap: "wrap" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>

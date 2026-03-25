@@ -12,7 +12,9 @@
       "Bash(node -e \"const p=require\\(''./node_modules/@shopify/polaris/package.json''\\); console.log\\(p.version\\)\")",
       "Bash(npm install:*)",
       "Bash(node -e \"const icons = require\\(''@shopify/polaris-icons''\\); const names = Object.keys\\(icons\\).filter\\(k => /folder|calendar|chart|product|collection|page|blog|auto|inbox|lightning|package|note|search/i.test\\(k\\)\\); console.log\\(names.slice\\(0,40\\).join\\(''\\\\n''\\)\\);\")",
-      "Bash(node -e \"const icons = require\\(''@shopify/polaris-icons''\\); const names = Object.keys\\(icons\\).filter\\(k => /page|product|empty|lightning|flash|sparkle|star|target|aim/i.test\\(k\\)\\); console.log\\(names.slice\\(0,30\\).join\\(''\\\\n''\\)\\);\")"
+      "Bash(node -e \"const icons = require\\(''@shopify/polaris-icons''\\); const names = Object.keys\\(icons\\).filter\\(k => /page|product|empty|lightning|flash|sparkle|star|target|aim/i.test\\(k\\)\\); console.log\\(names.slice\\(0,30\\).join\\(''\\\\n''\\)\\);\")",
+      "Bash(find /c/xampp/htdocs/shopifyApps/product-ai-generate/app -type f \\\\\\(-name *.css -o -name *.scss -o -name *.module.css \\\\\\))",
+      "Bash(grep -r \"import.*css\\\\|import.*scss\\\\|@import\" /c/xampp/htdocs/shopifyApps/product-ai-generate/app --include=*.jsx --include=*.tsx --include=*.js)"
     ]
   }
 }

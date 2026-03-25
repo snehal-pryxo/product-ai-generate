@@ -1394,7 +1394,7 @@ export default function ProductsPage() {
       {/* ── Hero Header ── */}
       <div style={{
         background: "linear-gradient(135deg, #1a0533 0%, #2d1b69 50%, #0f3460 100%)",
-        borderRadius: "16px",
+        borderRadius: "6px",
         padding: "28px 32px",
         marginBottom: "24px",
         position: "relative",
@@ -1404,7 +1404,7 @@ export default function ProductsPage() {
         <div style={{ position: "absolute", bottom: "-40px", left: "25%", width: "160px", height: "160px", borderRadius: "50%", background: "radial-gradient(circle, rgba(59,130,246,0.2) 0%, transparent 70%)", pointerEvents: "none" }} />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", zIndex: 1, flexWrap: "wrap", gap: "16px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            <div style={{ width: "54px", height: "54px", borderRadius: "14px", background: "rgba(139,92,246,0.25)", border: "1px solid rgba(139,92,246,0.45)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px", flexShrink: 0 }}>
+            <div style={{ width: "54px", height: "54px", borderRadius: "6px", background: "rgba(139,92,246,0.25)", border: "1px solid rgba(139,92,246,0.45)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px", flexShrink: 0 }}>
               📦
             </div>
             <div>
@@ -1415,15 +1415,15 @@ export default function ProductsPage() {
           <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
             <button
               onClick={() => navigate(makeUrl({}))}
-              style={{ padding: "7px 16px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#fff", cursor: "pointer", fontSize: "13px", fontWeight: 600, transition: "background 0.2s" }}
+              style={{ padding: "7px 16px", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#fff", cursor: "pointer", fontSize: "13px", fontWeight: 600, transition: "background 0.2s" }}
             >↺ Refresh</button>
             <button
               onClick={() => navigate("/app")}
-              style={{ padding: "7px 16px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
+              style={{ padding: "7px 16px", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
             >← Back</button>
             <button
               disabled
-              style={{ padding: "7px 16px", borderRadius: "8px", border: "none", background: "linear-gradient(135deg, #8b5cf6, #6366f1)", color: "#fff", cursor: "not-allowed", fontSize: "13px", fontWeight: 600, opacity: 0.75 }}
+              style={{ padding: "7px 16px", borderRadius: "6px", border: "none", background: "linear-gradient(135deg, #8b5cf6, #6366f1)", color: "#fff", cursor: "not-allowed", fontSize: "13px", fontWeight: 600, opacity: 0.75 }}
             >⚡ Upgrade Plan</button>
           </div>
         </div>
@@ -1563,7 +1563,7 @@ export default function ProductsPage() {
                       <Box
                         borderWidth="025"
                         borderColor="border"
-                        borderRadius="200"
+                        borderRadius="150"
                         background="bg-surface"
                       >
                         {/* Toolbar */}
