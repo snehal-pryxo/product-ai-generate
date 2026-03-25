@@ -412,15 +412,15 @@ export default function Index() {
 
           <div
             style={{
-              fontSize: "clamp(28px, 4vw, 42px)",
+              fontSize: "clamp(20px, 2.5vw, 28px)",
               fontWeight: 800,
               color: "#ffffff",
               lineHeight: 1.15,
               marginBottom: "14px",
-              maxWidth: "560px",
+              maxWidth: "100%",
             }}
           >
-            Generate SEO Content<br />
+            Generate SEO Content{" "}
             <span
               style={{
                 background: "linear-gradient(90deg, #4ade80, #34d399, #06b6d4)",
@@ -435,10 +435,10 @@ export default function Index() {
 
           <div
             style={{
-              fontSize: "15px",
+              fontSize: "13px",
               color: "rgba(255,255,255,0.65)",
               marginBottom: "36px",
-              maxWidth: "480px",
+              maxWidth: "100%",
               lineHeight: "1.6",
             }}
           >
