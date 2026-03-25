@@ -1,5 +1,6 @@
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
+import { sendUninstallEmails } from "../lib/email.server.js";
 
 export const action = async ({ request }) => {
   const { shop, session, topic } = await authenticate.webhook(request);
@@ -9,6 +10,9 @@ export const action = async ({ request }) => {
   // Webhook requests can trigger multiple times and after an app has already
   // been uninstalled, so make these operations idempotent.
   try {
+    // Read shop info before deleting sessions (for email)
+    const shopRecord = await db.shop.findUnique({ where: { shop } });
+
     await db.session.deleteMany({ where: { shop } });
     await db.shop.upsert({
       where: { shop },
@@ -23,6 +27,16 @@ export const action = async ({ request }) => {
         uninstalledAt: new Date(),
       },
     });
+
+    // Send uninstall notification emails (non-blocking)
+    sendUninstallEmails({
+      shopDomain: shop,
+      shopName: shopRecord?.name,
+      ownerName: shopRecord?.ownerName,
+      ownerEmail: shopRecord?.email,
+    }).catch((err) =>
+      console.error(`[email] Uninstall email failed for ${shop}:`, err)
+    );
   } catch (error) {
     console.error(`Failed to sync uninstall state for shop ${shop}`, error);
   }

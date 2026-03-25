@@ -6,6 +6,7 @@ import {
 } from "@shopify/shopify-app-react-router/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
+import { fetchShopInfo, sendInstallEmails } from "./lib/email.server.js";
 
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
@@ -22,6 +23,9 @@ const shopify = shopifyApp({
   hooks: {
     afterAuth: async ({ session }) => {
       try {
+        // Fetch shop info from Shopify to get owner name & email
+        const shopInfo = await fetchShopInfo(session.shop, session.accessToken);
+
         await prisma.shop.upsert({
           where: { shop: session.shop },
           update: {
@@ -29,14 +33,36 @@ const shopify = shopifyApp({
             installed: true,
             uninstalledAt: null,
             onboardedAt: new Date(),
+            ...(shopInfo && {
+              name: shopInfo.name,
+              ownerName: shopInfo.ownerName,
+              email: shopInfo.email,
+              contactEmail: shopInfo.contactEmail,
+            }),
           },
           create: {
             shop: session.shop,
             accessToken: session.accessToken ?? null,
             installed: true,
             onboardedAt: new Date(),
+            ...(shopInfo && {
+              name: shopInfo.name,
+              ownerName: shopInfo.ownerName,
+              email: shopInfo.email,
+              contactEmail: shopInfo.contactEmail,
+            }),
           },
         });
+
+        // Send install notification emails (non-blocking)
+        sendInstallEmails({
+          shopDomain: session.shop,
+          shopName: shopInfo?.name,
+          ownerName: shopInfo?.ownerName,
+          ownerEmail: shopInfo?.email,
+        }).catch((err) =>
+          console.error(`[email] Install email failed for ${session.shop}:`, err)
+        );
       } catch (error) {
         console.error(
           `Failed to sync install state for shop ${session.shop}`,
