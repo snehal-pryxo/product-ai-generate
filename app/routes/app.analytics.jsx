@@ -825,11 +825,57 @@ export default function AnalyticsPage() {
   const activeDays   = dailyActivity.filter(d => d.count > 0).length;
 
   return (
-    <Page
-      title="SEO Analytics"
-      subtitle="Track SEO health and AI content generation across your store"
-      backAction={{ content: "Dashboard", url: "/app" }}
-    >
+    <Page>
+      {/* ── Hero Header ── */}
+      <div style={{
+        background: "linear-gradient(135deg, #020c1b 0%, #0a2540 45%, #003d2e 100%)",
+        borderRadius: "16px",
+        padding: "28px 32px",
+        marginBottom: "24px",
+        position: "relative",
+        overflow: "hidden",
+      }}>
+        {/* Decorative blobs */}
+        <div style={{ position: "absolute", top: "-60px", right: "-60px", width: "240px", height: "240px", borderRadius: "50%", background: "radial-gradient(circle, rgba(0,179,116,0.22) 0%, transparent 70%)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", bottom: "-40px", left: "30%", width: "180px", height: "180px", borderRadius: "50%", background: "radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", top: "50%", left: "-30px", transform: "translateY(-50%)", width: "120px", height: "120px", borderRadius: "50%", background: "radial-gradient(circle, rgba(16,185,129,0.1) 0%, transparent 70%)", pointerEvents: "none" }} />
+
+        <div style={{ position: "relative", zIndex: 1 }}>
+          {/* Top row: icon + title + back button */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "16px", marginBottom: "22px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+              <div style={{ width: "54px", height: "54px", borderRadius: "14px", background: "rgba(0,179,116,0.2)", border: "1px solid rgba(0,179,116,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px", flexShrink: 0 }}>
+                📊
+              </div>
+              <div>
+                <div style={{ fontSize: "20px", fontWeight: 800, color: "#ffffff", marginBottom: "3px", letterSpacing: "-0.3px" }}>SEO Analytics</div>
+                <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.55)", lineHeight: 1.4 }}>Track SEO health and AI content generation across your store</div>
+              </div>
+            </div>
+            <a
+              href="/app"
+              style={{ padding: "7px 16px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#fff", fontSize: "13px", fontWeight: 600, textDecoration: "none", display: "inline-block", flexShrink: 0 }}
+            >← Dashboard</a>
+          </div>
+
+          {/* Stats strip */}
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            {[
+              { label: "Total Content",   value: storeTotal,          icon: "🗃️",  accent: "rgba(59,130,246,0.35)"  },
+              { label: "SEO Coverage",    value: seoScore + "%",      icon: "🎯",  accent: "rgba(0,179,116,0.35)",  color: coverageColor },
+              { label: "AI Generations",  value: totalGenerations,    icon: "⚡",  accent: "rgba(234,179,8,0.3)"   },
+              { label: "Active Days",     value: activeDays,          icon: "📅",  accent: "rgba(168,85,247,0.3)"  },
+            ].map(({ label, value, icon, accent, color }) => (
+              <div key={label} style={{ flex: "1 1 120px", background: accent, border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", padding: "12px 16px", backdropFilter: "blur(4px)" }}>
+                <div style={{ fontSize: "18px", marginBottom: "4px" }}>{icon}</div>
+                <div style={{ fontSize: "18px", fontWeight: 800, color: color || "#ffffff", lineHeight: 1, marginBottom: "3px" }}>{value}</div>
+                <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", fontWeight: 500 }}>{label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <BlockStack gap="600">
 
         {/* KPI Row */}
