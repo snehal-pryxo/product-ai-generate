@@ -685,7 +685,7 @@ export default function BlogPage() {
         onClose={closeModal}
         title={isCreateMode ? "Create New Blog Article" : `Edit: ${editState.title || "Article"}`}
         primaryAction={{
-          content: isCreateMode ? "Create Article" : "Save to Shopify",
+          content: isCreateMode ? "Create Article" : isSaving ? "Updating…" : "Update Article",
           onAction: handleSave,
           loading: isSaving,
         }}

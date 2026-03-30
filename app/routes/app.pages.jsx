@@ -534,7 +534,7 @@ export default function PagesPage() {
         open={editModal}
         onClose={closeEditModal}
         title={editState.title ? `Edit: ${editState.title}` : "Edit Page Content"}
-        primaryAction={{ content: "Save to Shopify", onAction: handleSave, loading: isSaving }}
+        primaryAction={{ content: isSaving ? "Updating…" : "Update Page", onAction: handleSave, loading: isSaving }}
         secondaryActions={[{ content: "Cancel", onAction: closeEditModal }]}
       >
         <Modal.Section>

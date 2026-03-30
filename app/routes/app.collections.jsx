@@ -1458,6 +1458,7 @@ export default function CollectionsPage() {
   const metaDescriptionLength = editForm.seoDescription.length;
 
   useEffect(() => {
+    if (!modalOpen || !editingCollection) return;
     const editor = descriptionEditorRef.current;
     if (!editor) return;
 
@@ -1465,7 +1466,7 @@ export default function CollectionsPage() {
     if (editor.innerHTML !== nextHtml) {
       editor.innerHTML = nextHtml;
     }
-  }, [editForm.description]);
+  }, [editForm.description, editingCollection?.id, modalOpen]);
 
   const previousUrl =
     pageInfo.hasPreviousPage && pageInfo.startCursor
@@ -1900,7 +1901,7 @@ export default function CollectionsPage() {
                           onClick={handleUpdateCollection}
                           loading={isUpdating}
                         >
-                          {isUpdating ? "Saving…" : "Save to Shopify"}
+                          {isUpdating ? "Updating…" : "Update Collection"}
                         </Button>
                       </InlineStack>
                     </BlockStack>
