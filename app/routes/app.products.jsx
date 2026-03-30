@@ -1299,6 +1299,7 @@ export default function ProductsPage() {
   const seoDescriptionLength = editForm.seoDescription.length;
 
   useEffect(() => {
+    if (!modalOpen || !editingProduct) return;
     const editor = descriptionEditorRef.current;
     if (!editor) return;
 
@@ -1306,7 +1307,7 @@ export default function ProductsPage() {
     if (editor.innerHTML !== nextHtml) {
       editor.innerHTML = nextHtml;
     }
-  }, [editForm.description]);
+  }, [editForm.description, editingProduct?.id, modalOpen]);
 
   const previousUrl =
     pageInfo.hasPreviousPage && pageInfo.startCursor
