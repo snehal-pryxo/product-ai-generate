@@ -365,14 +365,12 @@ export default function PagesPage() {
       seoDescription: page.seo?.description || "",
     });
     setGenerationError(null);
-    setSaveSuccess(false);
     setEditModal(true);
   }
 
   function closeEditModal() {
     setEditModal(false);
     setGenerationError(null);
-    setSaveSuccess(false);
   }
 
   function setField(field) {

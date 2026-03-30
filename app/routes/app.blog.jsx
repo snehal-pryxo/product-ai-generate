@@ -465,7 +465,6 @@ export default function BlogPage() {
     });
     setIsCreateMode(true);
     setGenerationError(null);
-    setSaveSuccess(false);
     setEditModal(true);
   }
 
@@ -484,14 +483,12 @@ export default function BlogPage() {
     });
     setIsCreateMode(false);
     setGenerationError(null);
-    setSaveSuccess(false);
     setEditModal(true);
   }
 
   function closeModal() {
     setEditModal(false);
     setGenerationError(null);
-    setSaveSuccess(false);
   }
 
   function setField(field) {
