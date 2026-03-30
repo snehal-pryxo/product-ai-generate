@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import { useLoaderData, useNavigation, useNavigate } from "react-router";
+import { useLoaderData, useNavigate, useFetcher } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
@@ -341,14 +341,15 @@ const editInitialState = {
 
 export default function PagesPage() {
   const { pages, defaultAiProvider } = useLoaderData();
-  const navigation = useNavigation();
   const navigate = useNavigate();
-  const isSaving = navigation.state === "submitting";
+  const generateFetcher = useFetcher();
+  const saveFetcher = useFetcher();
+  const isGenerating = generateFetcher.state !== "idle";
+  const isSaving = saveFetcher.state !== "idle";
 
   const shopify = useAppBridge();
   const [editModal, setEditModal] = useState(false);
   const [editState, setEditState] = useState(editInitialState);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState(null);
 
   const { selectedResources, allResourcesSelected, handleSelectionChange } =
@@ -384,10 +385,8 @@ export default function PagesPage() {
     }));
   }
 
-  async function handleGenerate() {
-    setIsGenerating(true);
+  function handleGenerate() {
     setGenerationError(null);
-
     const fd = new FormData();
     fd.append("intent", "generate_page_content");
     fd.append("pageType", editState.pageType);
@@ -398,48 +397,45 @@ export default function PagesPage() {
     fd.append("format", editState.format);
     fd.append("contextKeywords", editState.contextKeywords);
     fd.append("aiProvider", editState.aiProvider);
-
-    try {
-      const res = await fetch(window.location.pathname, { method: "POST", body: fd });
-      const data = await res.json();
-      if (data.success) {
-        setEditState((s) => ({
-          ...s,
-          body: data.pageBody || s.body,
-          seoTitle: data.seoTitle || s.seoTitle,
-          seoDescription: data.seoDescription || s.seoDescription,
-        }));
-      } else {
-        setGenerationError(data.error || "Generation failed.");
-      }
-    } catch (err) {
-      setGenerationError(err.message);
-    } finally {
-      setIsGenerating(false);
-    }
+    generateFetcher.submit(fd, { method: "post" });
   }
 
-  async function handleSave() {
+  function handleSave() {
     const fd = new FormData();
     fd.append("intent", "update_page");
     fd.append("pageId", editState.pageId);
     fd.append("body", editState.body);
     fd.append("seoTitle", editState.seoTitle);
     fd.append("seoDescription", editState.seoDescription);
-
-    try {
-      const res = await fetch(window.location.pathname, { method: "POST", body: fd });
-      const data = await res.json();
-      if (data.success) {
-        shopify.toast.show("Page updated successfully!");
-        closeEditModal();
-      } else {
-        setGenerationError(data.error || "Save failed.");
-      }
-    } catch (err) {
-      setGenerationError(err.message);
-    }
+    saveFetcher.submit(fd, { method: "post" });
   }
+
+  useEffect(() => {
+    const data = generateFetcher.data;
+    if (!data) return;
+    if (data.success) {
+      setEditState((s) => ({
+        ...s,
+        body: data.pageBody || s.body,
+        seoTitle: data.seoTitle || s.seoTitle,
+        seoDescription: data.seoDescription || s.seoDescription,
+      }));
+      setGenerationError(null);
+    } else {
+      setGenerationError(data.error || "Generation failed.");
+    }
+  }, [generateFetcher.data]);
+
+  useEffect(() => {
+    const data = saveFetcher.data;
+    if (!data) return;
+    if (data.success) {
+      shopify.toast.show("Page updated successfully!");
+      closeEditModal();
+    } else {
+      setGenerationError(data.error || "Save failed.");
+    }
+  }, [saveFetcher.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const rowMarkup = pages.map((page, index) => (
     <IndexTable.Row

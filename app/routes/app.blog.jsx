@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import { useLoaderData, useNavigation, useNavigate } from "react-router";
+import { useLoaderData, useNavigate, useFetcher } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
@@ -21,7 +21,6 @@ import {
   Modal,
   IndexTable,
   useIndexResourceState,
-  Spinner,
 } from "@shopify/polaris";
 
 // ─── GraphQL ─────────────────────────────────────────────────────────────────
@@ -48,6 +47,7 @@ const ARTICLES_QUERY = `#graphql
           id
           title
           body
+          excerpt
           handle
           publishedAt
           blog {
@@ -209,7 +209,7 @@ export const loader = async ({ request }) => {
     const mfs = (node.metafields?.edges || []).map((me) => me.node);
     return {
       ...node,
-      excerpt: "",
+      excerpt: node.excerpt || "",
       seo: {
         title: mfs.find((m) => m.key === "title_tag")?.value || "",
         description: mfs.find((m) => m.key === "description_tag")?.value || "",
@@ -430,20 +430,18 @@ const editInitialState = {
 
 export default function BlogPage() {
   const { blogs, articles, defaultAiProvider } = useLoaderData();
-  const navigation = useNavigation();
   const navigate = useNavigate();
-  const isSaving = navigation.state === "submitting";
+  const generateFetcher = useFetcher();
+  const saveFetcher = useFetcher();
+  const isGenerating = generateFetcher.state !== "idle";
+  const isSaving = saveFetcher.state !== "idle";
 
   const shopify = useAppBridge();
   const [editModal, setEditModal] = useState(false);
   const [isCreateMode, setIsCreateMode] = useState(false);
   const [editState, setEditState] = useState(editInitialState);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState(null);
   const [filterBlogId, setFilterBlogId] = useState("all");
-
-  const { selectedResources, allResourcesSelected, handleSelectionChange } =
-    useIndexResourceState(articles);
 
   const blogFilterOptions = [
     { label: "All Blogs", value: "all" },
@@ -456,6 +454,9 @@ export default function BlogPage() {
     filterBlogId === "all"
       ? articles
       : articles.filter((a) => a.blog?.id === filterBlogId);
+
+  const { selectedResources, allResourcesSelected, handleSelectionChange } =
+    useIndexResourceState(filteredArticles);
 
   function openCreateModal() {
     setEditState({
@@ -502,10 +503,8 @@ export default function BlogPage() {
     }));
   }
 
-  async function handleGenerate() {
-    setIsGenerating(true);
+  function handleGenerate() {
     setGenerationError(null);
-
     const fd = new FormData();
     fd.append("intent", "generate_article_content");
     fd.append("articleType", editState.articleType);
@@ -517,30 +516,10 @@ export default function BlogPage() {
     fd.append("format", editState.format);
     fd.append("contextKeywords", editState.contextKeywords);
     fd.append("aiProvider", editState.aiProvider);
-
-    try {
-      const res = await fetch(window.location.pathname, { method: "POST", body: fd });
-      const data = await res.json();
-      if (data.success) {
-        setEditState((s) => ({
-          ...s,
-          title: data.articleTitle || s.title,
-          body: data.articleBody || s.body,
-          excerpt: data.excerpt || s.excerpt,
-          seoTitle: data.seoTitle || s.seoTitle,
-          seoDescription: data.seoDescription || s.seoDescription,
-        }));
-      } else {
-        setGenerationError(data.error || "Generation failed.");
-      }
-    } catch (err) {
-      setGenerationError(err.message);
-    } finally {
-      setIsGenerating(false);
-    }
+    generateFetcher.submit(fd, { method: "post" });
   }
 
-  async function handleSave() {
+  function handleSave() {
     const fd = new FormData();
     fd.append("intent", isCreateMode ? "create_article" : "update_article");
     if (!isCreateMode) fd.append("articleId", editState.articleId);
@@ -551,20 +530,38 @@ export default function BlogPage() {
     fd.append("seoTitle", editState.seoTitle);
     fd.append("seoDescription", editState.seoDescription);
     fd.append("isPublished", editState.isPublished);
-
-    try {
-      const res = await fetch(window.location.pathname, { method: "POST", body: fd });
-      const data = await res.json();
-      if (data.success) {
-        shopify.toast.show(isCreateMode ? "Article created successfully!" : "Article updated successfully!");
-        closeModal();
-      } else {
-        setGenerationError(data.error || "Save failed.");
-      }
-    } catch (err) {
-      setGenerationError(err.message);
-    }
+    saveFetcher.submit(fd, { method: "post" });
   }
+
+  useEffect(() => {
+    const data = generateFetcher.data;
+    if (!data) return;
+    if (data.success) {
+      setEditState((s) => ({
+        ...s,
+        title: data.articleTitle || s.title,
+        body: data.articleBody || s.body,
+        excerpt: data.excerpt || s.excerpt,
+        seoTitle: data.seoTitle || s.seoTitle,
+        seoDescription: data.seoDescription || s.seoDescription,
+      }));
+      setGenerationError(null);
+    } else {
+      setGenerationError(data.error || "Generation failed.");
+    }
+  }, [generateFetcher.data]);
+
+  useEffect(() => {
+    const data = saveFetcher.data;
+    if (!data) return;
+    if (data.success) {
+      const msg = data.intent === "create_article" ? "Article created successfully!" : "Article updated successfully!";
+      shopify.toast.show(msg);
+      closeModal();
+    } else {
+      setGenerationError(data.error || "Save failed.");
+    }
+  }, [saveFetcher.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const rowMarkup = filteredArticles.map((article, index) => (
     <IndexTable.Row
@@ -684,7 +681,7 @@ export default function BlogPage() {
         onClose={closeModal}
         title={isCreateMode ? "Create New Blog Article" : `Edit: ${editState.title || "Article"}`}
         primaryAction={{
-          content: isCreateMode ? "Create Article" : isSaving ? "Updating…" : "Update Article",
+          content: isCreateMode ? (isSaving ? "Creating…" : "Create Article") : (isSaving ? "Updating…" : "Update Article"),
           onAction: handleSave,
           loading: isSaving,
         }}
@@ -832,17 +829,14 @@ export default function BlogPage() {
 
                 <Divider />
 
-                <InlineStack gap="300" align="start">
-                  <Button
-                    variant="primary"
-                    onClick={handleGenerate}
-                    loading={isGenerating}
-                    disabled={isGenerating}
-                  >
-                    Generate Content
-                  </Button>
-                  {isGenerating && <Spinner size="small" />}
-                </InlineStack>
+                <Button
+                  variant="primary"
+                  onClick={handleGenerate}
+                  loading={isGenerating}
+                  disabled={isGenerating}
+                >
+                  Generate Content
+                </Button>
               </BlockStack>
             </Grid.Cell>
           </Grid>
