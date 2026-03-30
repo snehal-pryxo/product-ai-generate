@@ -68,8 +68,8 @@ const ARTICLES_QUERY = `#graphql
 `;
 
 const ARTICLE_CREATE_MUTATION = `#graphql
-  mutation ArticleCreate($blogId: ID!, $article: ArticleCreateInput!) {
-    articleCreate(blogId: $blogId, article: $article) {
+  mutation ArticleCreate($article: ArticleCreateInput!) {
+    articleCreate(article: $article) {
       article {
         id
         title
@@ -290,8 +290,7 @@ export const action = async ({ request }) => {
 
       const response = await admin.graphql(ARTICLE_CREATE_MUTATION, {
         variables: {
-          blogId,
-          article: { title, body, isPublished, metafields },
+          article: { blogId, title, body, isPublished, metafields },
         },
       });
       const json = await response.json();
