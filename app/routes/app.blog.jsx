@@ -277,6 +277,7 @@ export const action = async ({ request }) => {
 
   if (intent === "create_article") {
     const blogId = formData.get("blogId");
+    const authorName = formData.get("authorName") || "Admin";
     const title = formData.get("title") || "";
     const body = formData.get("body") || "";
     const seoTitle = formData.get("seoTitle") || "";
@@ -290,7 +291,7 @@ export const action = async ({ request }) => {
 
       const response = await admin.graphql(ARTICLE_CREATE_MUTATION, {
         variables: {
-          article: { blogId, title, body, isPublished, metafields },
+          article: { blogId, author: { name: authorName }, title, body, isPublished, metafields },
         },
       });
       const json = await response.json();
@@ -406,6 +407,7 @@ const KEYWORD_CHIPS = ["Brand Name", "Products", "Sale", "Location", "Free Shipp
 const editInitialState = {
   articleId: "",
   blogId: "",
+  authorName: "",
   title: "",
   body: "",
   seoTitle: "",
@@ -517,6 +519,7 @@ export default function BlogPage() {
     fd.append("intent", isCreateMode ? "create_article" : "update_article");
     if (!isCreateMode) fd.append("articleId", editState.articleId);
     fd.append("blogId", editState.blogId);
+    if (isCreateMode) fd.append("authorName", editState.authorName || "Admin");
     fd.append("title", editState.title);
     fd.append("body", editState.body);
     fd.append("seoTitle", editState.seoTitle);
@@ -696,6 +699,17 @@ export default function BlogPage() {
                     options={blogSelectOptions}
                     value={editState.blogId}
                     onChange={setField("blogId")}
+                  />
+                )}
+
+                {isCreateMode && (
+                  <TextField
+                    label="Author Name"
+                    value={editState.authorName}
+                    onChange={setField("authorName")}
+                    autoComplete="off"
+                    placeholder="e.g. John Smith"
+                    helpText="Required by Shopify for new articles."
                   />
                 )}
 
