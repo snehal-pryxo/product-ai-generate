@@ -1872,9 +1872,11 @@ export default function CollectionsPage() {
       </IndexTable.Cell>
 
       <IndexTable.Cell>
-        <Text as="span" variant="bodyMd" fontWeight="medium">
-          {collection.title}
-        </Text>
+        <div style={{ maxWidth: "360px", whiteSpace: "normal", overflowWrap: "anywhere" }}>
+          <Text as="span" variant="bodyMd" fontWeight="medium">
+            {collection.title}
+          </Text>
+        </div>
       </IndexTable.Cell>
 
       <IndexTable.Cell>
@@ -2103,15 +2105,17 @@ export default function CollectionsPage() {
                   </Text>
                 </EmptyState>
               ) : (
-                <IndexTable
-                  resourceName={{ singular: "collection", plural: "collections" }}
-                  itemCount={filteredCollections.length}
-                  headings={tableHeadings}
-                  selectable={false}
-                  loading={isSearchLoading}
-                >
-                  {rowMarkup}
-                </IndexTable>
+                <div className="collections-table-wrap">
+                  <IndexTable
+                    resourceName={{ singular: "collection", plural: "collections" }}
+                    itemCount={filteredCollections.length}
+                    headings={tableHeadings}
+                    selectable={false}
+                    loading={isSearchLoading}
+                  >
+                    {rowMarkup}
+                  </IndexTable>
+                </div>
               )}
 
               <InlineStack align="start" blockAlign="center" gap="300">
@@ -2125,7 +2129,15 @@ export default function CollectionsPage() {
         </Layout.Section>
       </Layout>
 
-      <style>{`.Polaris-Modal-Dialog__Modal { max-width: 66rem !important; }`}</style>
+      <style>{`
+        .Polaris-Modal-Dialog__Modal { max-width: 66rem !important; }
+        .collections-table-wrap .Polaris-IndexTable__ScrollContainer {
+          overflow-x: hidden !important;
+        }
+        .collections-table-wrap .Polaris-IndexTable__TableCell {
+          white-space: normal !important;
+        }
+      `}</style>
       <Modal
         open={modalOpen}
         onClose={resetEditModalState}
