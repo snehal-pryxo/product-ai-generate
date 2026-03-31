@@ -25,7 +25,6 @@ import {
   Layout,
   Modal,
   Page,
-  Pagination,
   Select,
   Spinner,
   Tag,
@@ -38,7 +37,7 @@ import db from "../db.server";
 import { authenticate } from "../shopify.server";
 /* global process */
 
-const PAGE_SIZE = 8;
+const FETCH_BATCH_SIZE = 250;
 const STATUS_FILTERS = ["all", "active", "draft"];
 const EDIT_MODAL_ID = "product-edit-modal";
 const GENERATE_ALL_INTENT = "generate_all";
@@ -72,14 +71,12 @@ const COLLECTION_PRODUCTS_QUERY = `#graphql
   query CollectionProducts(
     $id: ID!
     $first: Int
-    $last: Int
     $after: String
-    $before: String
   ) {
     collection(id: $id) {
       id
       title
-      products(first: $first, last: $last, after: $after, before: $before, sortKey: TITLE) {
+      products(first: $first, after: $after, sortKey: TITLE) {
         edges {
           node {
             id
@@ -103,6 +100,43 @@ const COLLECTION_PRODUCTS_QUERY = `#graphql
           startCursor
           endCursor
         }
+      }
+    }
+  }
+`;
+
+const PRODUCT_LIST_QUERY = `#graphql
+  query ProductList(
+    $first: Int
+    $after: String
+    $query: String
+  ) {
+    products(
+      first: $first
+      after: $after
+      query: $query
+      sortKey: TITLE
+    ) {
+      edges {
+        node {
+          id
+          title
+          handle
+          status
+          descriptionHtml
+          seo {
+            title
+            description
+          }
+          featuredImage {
+            url
+            altText
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
       }
     }
   }
@@ -1200,103 +1234,71 @@ export const loader = async ({ request }) => {
   const statusParam = (url.searchParams.get("status") || "all").toLowerCase();
   const status = STATUS_FILTERS.includes(statusParam) ? statusParam : "all";
   const collectionId = url.searchParams.get("collectionId") || "";
-  const after = url.searchParams.get("after");
-  const before = url.searchParams.get("before");
-  const isPreviousPage = Boolean(before && !after);
 
   // Fetch collections for the filter dropdown (runs in parallel with products)
   const collectionsPromise = admin.graphql(COLLECTIONS_QUERY).then((r) => r.json());
-
-  let productConnection;
+  const productNodes = [];
 
   if (collectionId) {
-    // Filter by collection
-    const colRes = await admin.graphql(COLLECTION_PRODUCTS_QUERY, {
-      variables: {
-        id: collectionId,
-        first: isPreviousPage ? undefined : PAGE_SIZE,
-        last: isPreviousPage ? PAGE_SIZE : undefined,
-        after: isPreviousPage ? undefined : after || undefined,
-        before: isPreviousPage ? before : undefined,
-      },
-    });
-    const colJson = await colRes.json();
-    productConnection = colJson?.data?.collection?.products;
+    let afterCursor;
+    while (true) {
+      const colRes = await admin.graphql(COLLECTION_PRODUCTS_QUERY, {
+        variables: {
+          id: collectionId,
+          first: FETCH_BATCH_SIZE,
+          after: afterCursor,
+        },
+      });
+      const colJson = await colRes.json();
+      const productConnection = colJson?.data?.collection?.products;
+      if (!productConnection) break;
+
+      const nodes = (productConnection.edges || []).map(({ node }) => node);
+      productNodes.push(...nodes);
+
+      if (!productConnection.pageInfo?.hasNextPage || !productConnection.pageInfo?.endCursor) {
+        break;
+      }
+      afterCursor = productConnection.pageInfo.endCursor;
+    }
   } else {
     const query = toSearchQuery({ search: searchForQuery, status });
-    const response = await admin.graphql(
-      `#graphql
-        query ProductList(
-          $first: Int
-          $last: Int
-          $after: String
-          $before: String
-          $query: String
-        ) {
-          products(
-            first: $first
-            last: $last
-            after: $after
-            before: $before
-            query: $query
-            sortKey: TITLE
-          ) {
-            edges {
-              node {
-                id
-                title
-                handle
-                status
-                descriptionHtml
-                seo {
-                  title
-                  description
-                }
-                featuredImage {
-                  url
-                  altText
-                }
-              }
-            }
-            pageInfo {
-              hasNextPage
-              hasPreviousPage
-              startCursor
-              endCursor
-            }
-          }
-        }
-      `,
-      {
+    let afterCursor;
+    while (true) {
+      const response = await admin.graphql(PRODUCT_LIST_QUERY, {
         variables: {
-          first: isPreviousPage ? undefined : PAGE_SIZE,
-          last: isPreviousPage ? PAGE_SIZE : undefined,
-          after: isPreviousPage ? undefined : after || undefined,
-          before: isPreviousPage ? before : undefined,
+          first: FETCH_BATCH_SIZE,
+          after: afterCursor,
           query: query || undefined,
         },
-      },
-    );
-    const responseJson = await response.json();
-    productConnection = responseJson?.data?.products;
+      });
+      const responseJson = await response.json();
+      const productConnection = responseJson?.data?.products;
+      if (!productConnection) break;
+
+      const nodes = (productConnection.edges || []).map(({ node }) => node);
+      productNodes.push(...nodes);
+
+      if (!productConnection.pageInfo?.hasNextPage || !productConnection.pageInfo?.endCursor) {
+        break;
+      }
+      afterCursor = productConnection.pageInfo.endCursor;
+    }
   }
 
   const collectionsJson = await collectionsPromise;
   const collections = (collectionsJson?.data?.collections?.edges || []).map((e) => e.node);
 
-  if (!productConnection) {
+  if (productNodes.length === 0) {
     return {
       filters: { search, status, collectionId },
       collections,
       products: [],
-      pageInfo: { hasNextPage: false, hasPreviousPage: false, startCursor: null, endCursor: null },
       hasOpenaiKey: !!(shopData?.openaiApiKey || process.env.OPENAI_API_KEY),
       hasAnthropicKey: !!(shopData?.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
       defaultAiProvider: shopData?.defaultAiProvider || "auto",
     };
   }
-
-  const productNodes = productConnection.edges.map(({ node }) => node);
   const generatedContentByProductId = new Map();
 
   if (productNodes.length > 0) {
@@ -1342,7 +1344,6 @@ export const loader = async ({ request }) => {
     filters: { search, status, collectionId },
     collections,
     products,
-    pageInfo: productConnection.pageInfo,
     hasOpenaiKey: !!(shopData?.openaiApiKey || process.env.OPENAI_API_KEY),
     hasAnthropicKey: !!(shopData?.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
     defaultAiProvider: shopData?.defaultAiProvider || "auto",
@@ -1358,7 +1359,7 @@ const bulkInitialSettings = {
 };
 
 export default function ProductsPage() {
-  const { filters, products, pageInfo, collections, defaultAiProvider } = useLoaderData();
+  const { filters, products, collections, defaultAiProvider } = useLoaderData();
   const navigation = useNavigation();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
@@ -1413,11 +1414,7 @@ export default function ProductsPage() {
   useEffect(() => {
     setSelectedProductIds((current) => {
       const visibleSet = new Set(visibleProductIds);
-      const retained = current.filter((id) => visibleSet.has(id));
-      if (retained.length === 0 && visibleProductIds.length > 0) {
-        return [...visibleProductIds];
-      }
-      return retained;
+      return current.filter((id) => visibleSet.has(id));
     });
   }, [visibleProductIds]);
 
@@ -1427,13 +1424,11 @@ export default function ProductsPage() {
   );
 
   const makeUrl = useCallback(
-    ({ status = filters.status, search = searchValue.trim(), collectionId = filters.collectionId, before, after } = {}) => {
+    ({ status = filters.status, search = searchValue.trim(), collectionId = filters.collectionId } = {}) => {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
       if (status && status !== "all") params.set("status", status);
       if (collectionId) params.set("collectionId", collectionId);
-      if (before) params.set("before", before);
-      if (after) params.set("after", after);
       const query = params.toString();
       return query ? `?${query}` : "";
     },
@@ -1675,15 +1670,6 @@ export default function ProductsPage() {
     }
   }, [editForm.description, editingProduct?.id, modalOpen]);
 
-  const previousUrl =
-    pageInfo.hasPreviousPage && pageInfo.startCursor
-      ? makeUrl({ search: filters.search, before: pageInfo.startCursor })
-      : null;
-  const nextUrl =
-    pageInfo.hasNextPage && pageInfo.endCursor
-      ? makeUrl({ search: filters.search, after: pageInfo.endCursor })
-      : null;
-
   const statusTabIndex = filters.status === "active" ? 1 : filters.status === "draft" ? 2 : 0;
   const statusTabs = [
     { id: "all", content: "All" },
@@ -1705,7 +1691,6 @@ export default function ProductsPage() {
     { title: "Select" },
     { title: "Image" },
     { title: "Title" },
-    { title: "Shopify Status" },
     { title: "App Status" },
     { title: "Generated In" },
     { title: "Meta Title" },
@@ -1828,9 +1813,6 @@ export default function ProductsPage() {
         <Text variant="bodyMd" fontWeight="medium" as="span">
           {product.title}
         </Text>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        {renderBadge({ label: product.status.label, tone: product.status.tone })}
       </IndexTable.Cell>
       <IndexTable.Cell>
         {renderBadge({ label: product.appStatus.label, tone: product.appStatus.tone })}
@@ -2047,7 +2029,7 @@ export default function ProductsPage() {
                     label="Filter by Collection"
                     options={collectionOptions}
                     value={filters.collectionId || ""}
-                    onChange={(val) => navigate(makeUrl({ collectionId: val, before: undefined, after: undefined }))}
+                    onChange={(val) => navigate(makeUrl({ collectionId: val }))}
                   />
                 </div>
               </InlineStack>
@@ -2084,17 +2066,11 @@ export default function ProductsPage() {
                 </IndexTable>
               )}
 
-              <InlineStack align="space-between" blockAlign="center">
+              <InlineStack align="start" blockAlign="center">
                 <Text as="span" tone="subdued">
                   {filteredProducts.length} results{" "}
                   {isLoading && !isSearchLoading ? "(Loading...)" : ""}
                 </Text>
-                <Pagination
-                  hasPrevious={Boolean(previousUrl)}
-                  onPrevious={() => previousUrl && navigate(previousUrl)}
-                  hasNext={Boolean(nextUrl)}
-                  onNext={() => nextUrl && navigate(nextUrl)}
-                />
               </InlineStack>
             </BlockStack>
           </Card>
