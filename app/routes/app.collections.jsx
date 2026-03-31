@@ -8,6 +8,7 @@ import {
   useRevalidator,
 } from "react-router";
 import {
+  Autocomplete,
   Badge,
   Banner,
   BlockStack,
@@ -15,6 +16,7 @@ import {
   Button,
   ButtonGroup,
   Card,
+  Checkbox,
   Divider,
   EmptyState,
   Grid,
@@ -23,9 +25,9 @@ import {
   Layout,
   Modal,
   Page,
-  Pagination,
   Select,
   Spinner,
+  Tag,
   Text,
   TextField,
   Thumbnail,
@@ -35,12 +37,13 @@ import db from "../db.server";
 import { authenticate } from "../shopify.server";
 /* global process */
 
-const PAGE_SIZE = 8;
+const FETCH_BATCH_SIZE = 250;
 const EDIT_MODAL_ID = "collection-edit-modal";
 const GENERATE_ALL_INTENT = "generate_all";
 const GENERATE_META_TITLE_INTENT = "generate_meta_title";
 const GENERATE_META_DESCRIPTION_INTENT = "generate_meta_description";
 const UPDATE_COLLECTION_INTENT = "update_collection";
+const BULK_GENERATE_INTENT = "bulk_generate";
 const DEFAULT_AI_MODEL = "gpt-4o-mini";
 const DEFAULT_OLLAMA_MODEL = "llama3.2:1b";
 const DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434";
@@ -86,6 +89,49 @@ const COLLECTION_UPDATE_MUTATION_FALLBACK = `#graphql
       userErrors {
         field
         message
+      }
+    }
+  }
+`;
+
+const COLLECTION_LIST_QUERY = `#graphql
+  query CollectionList(
+    $first: Int
+    $after: String
+    $query: String
+  ) {
+    collections(
+      first: $first
+      after: $after
+      query: $query
+      sortKey: TITLE
+    ) {
+      edges {
+        node {
+          id
+          title
+          handle
+          descriptionHtml
+          updatedAt
+          seo {
+            title
+            description
+          }
+          image {
+            url
+            altText
+          }
+          productsCount {
+            count
+          }
+          ruleSet {
+            appliedDisjunctively
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
       }
     }
   }
@@ -240,6 +286,14 @@ const FORMAT_OPTIONS = [
   "Custom Formatting",
 ];
 const KEYWORD_CHIPS = ["[Description]"];
+const BULK_KEYWORD_OPTIONS = [
+  ...KEYWORD_CHIPS,
+  "Benefits",
+  "Features",
+  "Materials",
+  "Use cases",
+  "Target audience",
+];
 const DESCRIPTION_STYLE_OPTIONS = ["Normal", "Heading", "Subheading"];
 
 const editInitialState = {
@@ -301,6 +355,36 @@ function stripHtml(html) {
 function toCollectionTypeMeta(ruleSet) {
   if (ruleSet) return { label: "Smart", tone: "success" };
   return { label: "Manual", tone: "neutral" };
+}
+
+function toAppGenerationStatusMeta(generatedContent) {
+  if (!generatedContent) return { label: "Not generated", tone: "critical" };
+  if (generatedContent.appliedToCollection) return { label: "Active", tone: "success" };
+  return { label: "Generated", tone: "warning" };
+}
+
+function formatRelativeGenerationTime(value) {
+  if (!value) return "Not generated";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not generated";
+
+  const diffMs = Math.max(0, Date.now() - date.getTime());
+  const minuteMs = 60 * 1000;
+  const hourMs = 60 * minuteMs;
+  const dayMs = 24 * hourMs;
+
+  if (diffMs < hourMs) {
+    const minutes = Math.max(1, Math.floor(diffMs / minuteMs));
+    return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  }
+
+  if (diffMs < dayMs) {
+    const hours = Math.max(1, Math.floor(diffMs / hourMs));
+    return `${hours} hour${hours === 1 ? "" : "s"}`;
+  }
+
+  const days = Math.max(1, Math.floor(diffMs / dayMs));
+  return `${days} day${days === 1 ? "" : "s"}`;
 }
 
 function toBadgeTone(tone) {
@@ -366,6 +450,28 @@ function formatDate(dateValue) {
 function readFormString(formData, key) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeKeyword(value) {
+  return (value || "").trim().replace(/\s+/g, " ");
+}
+
+function mergeUniqueKeywords(...keywordLists) {
+  const merged = [];
+  const seen = new Set();
+
+  keywordLists.forEach((keywordList) => {
+    (keywordList || []).forEach((rawKeyword) => {
+      const keyword = normalizeKeyword(rawKeyword);
+      if (!keyword) return;
+      const key = keyword.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      merged.push(keyword);
+    });
+  });
+
+  return merged;
 }
 
 function parseLengthRange(lengthOption) {
@@ -841,7 +947,7 @@ export const action = async ({ request }) => {
   const intent = readFormString(formData, "intent");
   const collectionId = readFormString(formData, "collectionId");
 
-  if (!collectionId) {
+  if (!collectionId && intent !== BULK_GENERATE_INTENT) {
     return { ok: false, intent, error: "Collection id is required." };
   }
 
@@ -1077,6 +1183,141 @@ export const action = async ({ request }) => {
       };
     }
 
+    if (intent === BULK_GENERATE_INTENT) {
+      const collectionsJson = formData.get("collections");
+      const bulkCollections = JSON.parse(collectionsJson || "[]");
+      const language = readFormString(formData, "language") || "English";
+      const tone = readFormString(formData, "tone") || "Neutral";
+      const lengthOption = readFormString(formData, "length") || "50 - 150 words";
+      const formatOption = readFormString(formData, "format") || "Single paragraph";
+      const contextKeywords = readFormString(formData, "contextKeywords");
+      const aiProvider = readFormString(formData, "aiProvider") || "auto";
+
+      const results = await Promise.allSettled(
+        bulkCollections.map(async (c) => {
+          const generated = await generateContent(
+            {
+              title: c.title,
+              descriptionText: stripHtml(c.descriptionHtml || ""),
+              seoTitle: c.seoTitleValue || "",
+              seoDescription: c.seoDescriptionValue || "",
+              language,
+              tone,
+              lengthOption,
+              format: formatOption,
+              contextKeywords,
+              intent: GENERATE_ALL_INTENT,
+            },
+            {
+              aiProvider,
+              shopOpenaiKey: shopData?.openaiApiKey || null,
+              shopAnthropicKey: shopData?.anthropicApiKey || null,
+            },
+          );
+
+          const nextDescription = generated.collectionDescription
+            ? toParagraphHtml(generated.collectionDescription)
+            : c.descriptionHtml || "";
+          const nextSeoTitle = generated.seoTitle || c.seoTitleValue || "";
+          const nextSeoDescription = generated.seoDescription || c.seoDescriptionValue || "";
+
+          const updateInputPayload = {
+            id: c.id,
+            descriptionHtml: nextDescription,
+            seo: {
+              title: nextSeoTitle,
+              description: nextSeoDescription,
+            },
+          };
+
+          const mutationAttempts = [
+            {
+              mutation: COLLECTION_UPDATE_MUTATION_INPUT,
+              variables: { input: updateInputPayload },
+            },
+            {
+              mutation: COLLECTION_UPDATE_MUTATION_FALLBACK,
+              variables: { collection: updateInputPayload },
+            },
+          ];
+
+          let updated = false;
+          for (let attemptIndex = 0; attemptIndex < mutationAttempts.length; attemptIndex += 1) {
+            const attempt = mutationAttempts[attemptIndex];
+            const updateResponse = await admin.graphql(attempt.mutation, {
+              variables: attempt.variables,
+            });
+            const updateJson = await updateResponse.json();
+            const graphqlErrors =
+              updateJson?.errors?.map((item) => item?.message).filter(Boolean) || [];
+
+            if (graphqlErrors.length > 0) {
+              const schemaMismatch =
+                /unknown type|unknown argument|cannot query field|is not defined|expected type/i.test(
+                  graphqlErrors.join(" "),
+                );
+              const isLastAttempt = attemptIndex === mutationAttempts.length - 1;
+              if (!isLastAttempt && schemaMismatch) {
+                continue;
+              }
+              throw new Error(graphqlErrors.join(" "));
+            }
+
+            const userErrors = updateJson?.data?.collectionUpdate?.userErrors || [];
+            if (userErrors.length > 0) {
+              throw new Error(userErrors.map((item) => item?.message).filter(Boolean).join(" "));
+            }
+
+            updated = true;
+            break;
+          }
+
+          if (!updated) {
+            throw new Error("Failed to update collection in Shopify.");
+          }
+
+          await writeGenerationLog({
+            shop: session.shop,
+            productId: c.id,
+            productTitle: c.title || null,
+            intent: BULK_GENERATE_INTENT,
+            language: language || null,
+            tone: tone || null,
+            lengthOption: lengthOption || null,
+            formatOption: formatOption || null,
+            contextKeywords: contextKeywords || null,
+            aiModel: generated.aiModel || null,
+            generatedDescription: nextDescription || null,
+            generatedSeoTitle: nextSeoTitle || null,
+            generatedSeoDescription: nextSeoDescription || null,
+            appliedToProduct: true,
+          });
+
+          await upsertCollectionGeneratedContent({
+            shop: session.shop,
+            collectionId: c.id,
+            collectionTitle: c.title || null,
+            language: language || null,
+            tone: tone || null,
+            lengthOption: lengthOption || null,
+            formatOption: formatOption || null,
+            contextKeywords: contextKeywords || null,
+            aiModel: generated.aiModel || null,
+            descriptionHtml: nextDescription || null,
+            seoTitle: nextSeoTitle || null,
+            seoDescription: nextSeoDescription || null,
+            appliedToCollection: true,
+          });
+
+          return { id: c.id, title: c.title };
+        }),
+      );
+
+      const succeeded = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.filter((r) => r.status === "rejected").length;
+      return { ok: true, intent, succeeded, failed, total: bulkCollections.length };
+    }
+
     return { ok: false, intent, collectionId, error: "Unsupported action." };
   } catch (error) {
     console.error("Collection content action failed", error);
@@ -1099,124 +1340,106 @@ export const loader = async ({ request }) => {
 
   const search = (url.searchParams.get("q") || "").trim();
   const searchForQuery = search.length >= 2 ? search : "";
-  const after = url.searchParams.get("after");
-  const before = url.searchParams.get("before");
-  const isPreviousPage = Boolean(before && !after);
-
   const query = toSearchQuery(searchForQuery);
 
-  const response = await admin.graphql(
-    `#graphql
-      query CollectionList(
-        $first: Int
-        $last: Int
-        $after: String
-        $before: String
-        $query: String
-      ) {
-        collections(
-          first: $first
-          last: $last
-          after: $after
-          before: $before
-          query: $query
-          sortKey: TITLE
-        ) {
-          edges {
-            node {
-              id
-              title
-              handle
-              descriptionHtml
-              updatedAt
-              seo {
-                title
-                description
-              }
-              image {
-                url
-                altText
-              }
-              productsCount {
-                count
-              }
-              ruleSet {
-                appliedDisjunctively
-              }
-            }
-          }
-          pageInfo {
-            hasNextPage
-            hasPreviousPage
-            startCursor
-            endCursor
-          }
-        }
-      }
-    `,
-    {
+  const collectionNodes = [];
+  let afterCursor;
+  while (true) {
+    const response = await admin.graphql(COLLECTION_LIST_QUERY, {
       variables: {
-        first: isPreviousPage ? undefined : PAGE_SIZE,
-        last: isPreviousPage ? PAGE_SIZE : undefined,
-        after: isPreviousPage ? undefined : after || undefined,
-        before: isPreviousPage ? before : undefined,
+        first: FETCH_BATCH_SIZE,
+        after: afterCursor,
         query: query || undefined,
       },
-    },
-  );
+    });
+    const responseJson = await response.json();
+    const collectionConnection = responseJson?.data?.collections;
+    if (!collectionConnection) break;
 
-  const responseJson = await response.json();
-  const collectionConnection = responseJson?.data?.collections;
+    const nodes = (collectionConnection.edges || []).map(({ node }) => node);
+    collectionNodes.push(...nodes);
 
-  if (!collectionConnection) {
-    console.error("Failed to fetch collections", responseJson?.errors);
+    if (!collectionConnection.pageInfo?.hasNextPage || !collectionConnection.pageInfo?.endCursor) {
+      break;
+    }
+    afterCursor = collectionConnection.pageInfo.endCursor;
+  }
+
+  if (collectionNodes.length === 0) {
     return {
       filters: { search },
       collections: [],
-      pageInfo: {
-        hasNextPage: false,
-        hasPreviousPage: false,
-        startCursor: null,
-        endCursor: null,
-      },
+      hasOpenaiKey: !!(shopData?.openaiApiKey || process.env.OPENAI_API_KEY),
+      hasAnthropicKey: !!(shopData?.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
+      defaultAiProvider: shopData?.defaultAiProvider || "auto",
     };
   }
 
-  const collections = collectionConnection.edges.map(({ node }) => ({
-    id: node.id,
-    title: node.title,
-    handle: node.handle,
-    descriptionHtml: node.descriptionHtml || "",
-    descriptionText: stripHtml(node.descriptionHtml),
-    descriptionStatus: evaluateDescription(stripHtml(node.descriptionHtml)),
-    seoTitle: evaluateSeoTitle(node.seo?.title || node.title),
-    seoDescription: evaluateSeoDescription(node.seo?.description),
-    seoTitleValue: node.seo?.title || "",
-    seoDescriptionValue: node.seo?.description || "",
-    imageUrl: node.image?.url || null,
-    imageAlt: node.image?.altText || node.title,
-    collectionType: toCollectionTypeMeta(node.ruleSet),
-    productsCount: node.productsCount?.count || 0,
-    updatedAt: formatDate(node.updatedAt),
-  }));
+  const generatedContentByCollectionId = new Map();
+  const generatedContents = await db.collectionGeneratedContent.findMany({
+    where: {
+      shop: session.shop,
+      collectionId: { in: collectionNodes.map((node) => node.id) },
+    },
+    select: {
+      collectionId: true,
+      appliedToCollection: true,
+      updatedAt: true,
+    },
+  });
+
+  generatedContents.forEach((entry) => {
+    generatedContentByCollectionId.set(entry.collectionId, entry);
+  });
+
+  const collections = collectionNodes.map((node) => {
+    const generatedContent = generatedContentByCollectionId.get(node.id);
+    return {
+      id: node.id,
+      title: node.title,
+      handle: node.handle,
+      descriptionHtml: node.descriptionHtml || "",
+      descriptionText: stripHtml(node.descriptionHtml),
+      descriptionStatus: evaluateDescription(stripHtml(node.descriptionHtml)),
+      appStatus: toAppGenerationStatusMeta(generatedContent),
+      generatedTime: formatRelativeGenerationTime(generatedContent?.updatedAt),
+      seoTitle: evaluateSeoTitle(node.seo?.title || node.title),
+      seoDescription: evaluateSeoDescription(node.seo?.description),
+      seoTitleValue: node.seo?.title || "",
+      seoDescriptionValue: node.seo?.description || "",
+      imageUrl: node.image?.url || null,
+      imageAlt: node.image?.altText || node.title,
+      collectionType: toCollectionTypeMeta(node.ruleSet),
+      productsCount: node.productsCount?.count || 0,
+      updatedAt: formatDate(node.updatedAt),
+    };
+  });
 
   return {
     filters: { search },
     collections,
-    pageInfo: collectionConnection.pageInfo,
     hasOpenaiKey: !!(shopData?.openaiApiKey || process.env.OPENAI_API_KEY),
     hasAnthropicKey: !!(shopData?.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
     defaultAiProvider: shopData?.defaultAiProvider || "auto",
   };
 };
 
+const bulkInitialSettings = {
+  language: "English",
+  tone: "Neutral",
+  length: "50 - 150 words",
+  format: "Single paragraph",
+  aiProvider: "auto",
+};
+
 export default function CollectionsPage() {
-  const { filters, collections, pageInfo, defaultAiProvider } = useLoaderData();
+  const { filters, collections, defaultAiProvider } = useLoaderData();
   const navigation = useNavigation();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const generateFetcher = useFetcher();
   const updateFetcher = useFetcher();
+  const bulkFetcher = useFetcher();
   const shopify = useAppBridge();
   const descriptionEditorRef = useRef(null);
   const [searchValue, setSearchValue] = useState(filters.search);
@@ -1225,6 +1448,13 @@ export default function CollectionsPage() {
   const [editForm, setEditForm] = useState(editInitialState);
   const [modalMessage, setModalMessage] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [bulkSettings, setBulkSettings] = useState({ ...bulkInitialSettings, aiProvider: defaultAiProvider });
+  const [bulkResult, setBulkResult] = useState(null);
+  const [bulkKeywordQuery, setBulkKeywordQuery] = useState("");
+  const [bulkSelectedKeywords, setBulkSelectedKeywords] = useState([]);
+  const [bulkCustomKeywordInput, setBulkCustomKeywordInput] = useState("");
+  const [bulkCustomKeywords, setBulkCustomKeywords] = useState([]);
+  const [selectedCollectionIds, setSelectedCollectionIds] = useState([]);
 
   useEffect(() => {
     setSearchValue(filters.search);
@@ -1250,12 +1480,27 @@ export default function CollectionsPage() {
     );
   }, [normalizedSearch, collections, sourceCollections]);
 
+  const visibleCollectionIds = useMemo(
+    () => filteredCollections.map((collection) => collection.id),
+    [filteredCollections],
+  );
+
+  useEffect(() => {
+    setSelectedCollectionIds((current) => {
+      const visibleSet = new Set(visibleCollectionIds);
+      return current.filter((id) => visibleSet.has(id));
+    });
+  }, [visibleCollectionIds]);
+
+  const selectedCollections = useMemo(
+    () => filteredCollections.filter((collection) => selectedCollectionIds.includes(collection.id)),
+    [filteredCollections, selectedCollectionIds],
+  );
+
   const makeUrl = useCallback(
-    ({ search = searchValue.trim(), before, after } = {}) => {
+    ({ search = searchValue.trim() } = {}) => {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
-      if (before) params.set("before", before);
-      if (after) params.set("after", after);
       const query = params.toString();
       return query ? `?${query}` : "";
     },
@@ -1398,8 +1643,32 @@ export default function CollectionsPage() {
     [submitEditAction],
   );
 
+  const handleBulkGenerate = useCallback(() => {
+    setBulkResult(null);
+    const contextKeywords = mergeUniqueKeywords(bulkSelectedKeywords, bulkCustomKeywords).join(", ");
+    const payload = new FormData();
+    payload.append("intent", BULK_GENERATE_INTENT);
+    payload.append("collections", JSON.stringify(
+      selectedCollections.map((c) => ({
+        id: c.id,
+        title: c.title,
+        descriptionHtml: c.descriptionHtml,
+        seoTitleValue: c.seoTitleValue,
+        seoDescriptionValue: c.seoDescriptionValue,
+      })),
+    ));
+    payload.append("language", bulkSettings.language);
+    payload.append("tone", bulkSettings.tone);
+    payload.append("length", bulkSettings.length);
+    payload.append("format", bulkSettings.format);
+    payload.append("contextKeywords", contextKeywords);
+    payload.append("aiProvider", bulkSettings.aiProvider);
+    bulkFetcher.submit(payload, { method: "post" });
+  }, [bulkCustomKeywords, bulkFetcher, bulkSelectedKeywords, bulkSettings, selectedCollections]);
+
   const isGenerating = generateFetcher.state !== "idle";
   const isUpdating = updateFetcher.state !== "idle";
+  const isBulkGenerating = bulkFetcher.state !== "idle";
   const canUpdateCollection = Boolean(editingCollection?.id) && !isGenerating && !isUpdating;
 
   useEffect(() => {
@@ -1444,6 +1713,16 @@ export default function CollectionsPage() {
     resetEditModalState();
   }, [editingCollection?.id, revalidator, resetEditModalState, shopify, updateFetcher.data]);
 
+  useEffect(() => {
+    const response = bulkFetcher.data;
+    if (!response || response.intent !== BULK_GENERATE_INTENT) return;
+    setBulkResult(response);
+    if (response.ok) {
+      revalidator.revalidate();
+      shopify.toast.show(`Bulk generate complete: ${response.succeeded}/${response.total} updated.`);
+    }
+  }, [bulkFetcher.data, revalidator, shopify]);
+
   const metaTitleStatus = evaluateSeoTitle(editForm.seoTitle);
   const metaDescriptionStatus = evaluateSeoDescription(editForm.seoDescription);
   const isDescriptionEmpty = !stripHtml(editForm.description).trim();
@@ -1461,18 +1740,12 @@ export default function CollectionsPage() {
     }
   }, [editForm.description, editingCollection?.id, modalOpen]);
 
-  const previousUrl =
-    pageInfo.hasPreviousPage && pageInfo.startCursor
-      ? makeUrl({ search: filters.search, before: pageInfo.startCursor })
-      : null;
-  const nextUrl =
-    pageInfo.hasNextPage && pageInfo.endCursor
-      ? makeUrl({ search: filters.search, after: pageInfo.endCursor })
-      : null;
-
   const tableHeadings = [
+    { title: "Select" },
     { title: "Image" },
     { title: "Title" },
+    { title: "App Status" },
+    { title: "Generated In" },
     { title: "SEO Title" },
     { title: "SEO Description" },
     { title: "Actions" },
@@ -1486,6 +1759,152 @@ export default function CollectionsPage() {
     label: s,
     value: s,
   }));
+
+  const updateBulkField = (field) => (value) =>
+    setBulkSettings((prev) => ({ ...prev, [field]: value }));
+
+  const allVisibleSelected =
+    visibleCollectionIds.length > 0 && selectedCollectionIds.length === visibleCollectionIds.length;
+  const selectionIndeterminate =
+    selectedCollectionIds.length > 0 && selectedCollectionIds.length < visibleCollectionIds.length;
+
+  const handleToggleSelectAllVisible = useCallback(
+    (checked) => {
+      setSelectedCollectionIds(checked ? [...visibleCollectionIds] : []);
+    },
+    [visibleCollectionIds],
+  );
+
+  const handleToggleCollectionSelection = useCallback(
+    (collectionId) => (checked) => {
+      setSelectedCollectionIds((current) => {
+        if (checked) {
+          return current.includes(collectionId) ? current : [...current, collectionId];
+        }
+        return current.filter((id) => id !== collectionId);
+      });
+    },
+    [],
+  );
+
+  const bulkKeywordOptions = useMemo(() => {
+    const query = bulkKeywordQuery.trim().toLowerCase();
+    return BULK_KEYWORD_OPTIONS
+      .filter((keyword) => !bulkSelectedKeywords.includes(keyword))
+      .filter((keyword) => !query || keyword.toLowerCase().includes(query))
+      .map((keyword) => ({ label: keyword, value: keyword }));
+  }, [bulkKeywordQuery, bulkSelectedKeywords]);
+
+  const bulkKeywordTags = useMemo(
+    () => mergeUniqueKeywords(bulkSelectedKeywords, bulkCustomKeywords),
+    [bulkCustomKeywords, bulkSelectedKeywords],
+  );
+
+  const handleBulkKeywordSelect = useCallback((selected) => {
+    setBulkSelectedKeywords(selected);
+    setBulkKeywordQuery("");
+  }, []);
+
+  const handleAddBulkCustomKeyword = useCallback(() => {
+    const nextKeyword = normalizeKeyword(bulkCustomKeywordInput);
+    if (!nextKeyword) return;
+    setBulkCustomKeywords((current) => mergeUniqueKeywords(current, [nextKeyword]));
+    setBulkCustomKeywordInput("");
+  }, [bulkCustomKeywordInput]);
+
+  const handleRemoveBulkKeyword = useCallback((keywordToRemove) => {
+    const target = keywordToRemove.toLowerCase();
+    setBulkSelectedKeywords((current) =>
+      current.filter((keyword) => keyword.toLowerCase() !== target),
+    );
+    setBulkCustomKeywords((current) =>
+      current.filter((keyword) => keyword.toLowerCase() !== target),
+    );
+  }, []);
+
+  const bulkKeywordTextField = (
+    <Autocomplete.TextField
+      label="AI Context & Keywords"
+      value={bulkKeywordQuery}
+      onChange={setBulkKeywordQuery}
+      placeholder="Select one or more context keywords"
+      autoComplete="off"
+    />
+  );
+
+  const rowMarkup = filteredCollections.map((collection, index) => (
+    <IndexTable.Row
+      id={collection.id}
+      key={collection.id}
+      position={index}
+    >
+      <IndexTable.Cell>
+        <Checkbox
+          label={`Select ${collection.title}`}
+          labelHidden
+          checked={selectedCollectionIds.includes(collection.id)}
+          onChange={handleToggleCollectionSelection(collection.id)}
+        />
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        {collection.imageUrl ? (
+          <Thumbnail
+            source={collection.imageUrl}
+            alt={collection.imageAlt}
+            size="small"
+          />
+        ) : (
+          <Box
+            width="52px"
+            minHeight="52px"
+            borderRadius="150"
+            borderWidth="025"
+            borderColor="border-secondary"
+            background="bg-surface-secondary"
+          >
+            <InlineStack align="center" blockAlign="center">
+              <Text as="span" variant="bodySm" tone="subdued">
+                No img
+              </Text>
+            </InlineStack>
+          </Box>
+        )}
+      </IndexTable.Cell>
+
+      <IndexTable.Cell>
+        <Text as="span" variant="bodyMd" fontWeight="medium">
+          {collection.title}
+        </Text>
+      </IndexTable.Cell>
+
+      <IndexTable.Cell>
+        {renderBadge(collection.appStatus)}
+      </IndexTable.Cell>
+
+      <IndexTable.Cell>
+        <Text as="span" tone={collection.generatedTime === "Not generated" ? "subdued" : undefined}>
+          {collection.generatedTime}
+        </Text>
+      </IndexTable.Cell>
+
+      <IndexTable.Cell>
+        {renderBadge(collection.seoTitle)}
+      </IndexTable.Cell>
+
+      <IndexTable.Cell>
+        {renderBadge(collection.seoDescription)}
+      </IndexTable.Cell>
+
+      <IndexTable.Cell>
+        <Button
+          size="slim"
+          onClick={() => openEditModal(collection)}
+        >
+          Edit Content
+        </Button>
+      </IndexTable.Cell>
+    </IndexTable.Row>
+  ));
 
   return (
     <Page>
@@ -1529,9 +1948,139 @@ export default function CollectionsPage() {
 
       <Layout>
         <Layout.Section>
+          <div style={{ marginBottom: "16px" }}>
+            <Card>
+              <BlockStack gap="400">
+                <InlineStack align="space-between" blockAlign="center">
+                  <BlockStack gap="100">
+                    <Text variant="headingMd" as="h2">⚡ Bulk Generate Content</Text>
+                    <Text variant="bodySm" tone="subdued" as="p">
+                      Set AI options and generate descriptions + SEO for selected collections.
+                    </Text>
+                  </BlockStack>
+                  {bulkResult && (
+                    <Badge tone={bulkResult.failed > 0 ? "warning" : "success"}>
+                      {bulkResult.succeeded}/{bulkResult.total} updated
+                      {bulkResult.failed > 0 ? ` · ${bulkResult.failed} failed` : ""}
+                    </Badge>
+                  )}
+                </InlineStack>
+
+                <Divider />
+
+                <InlineStack align="space-between" blockAlign="center" wrap gap="200">
+                  <Checkbox
+                    label={`Select all visible collections (${filteredCollections.length})`}
+                    checked={allVisibleSelected}
+                    indeterminate={selectionIndeterminate}
+                    onChange={handleToggleSelectAllVisible}
+                  />
+                  <Text as="span" variant="bodySm" tone="subdued">
+                    {selectedCollections.length} selected
+                  </Text>
+                </InlineStack>
+
+                <Grid>
+                  <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
+                    <Select
+                      label="Language"
+                      options={languageSelectOptions}
+                      value={bulkSettings.language}
+                      onChange={updateBulkField("language")}
+                    />
+                  </Grid.Cell>
+                  <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
+                    <Select
+                      label="Tone"
+                      options={toneSelectOptions}
+                      value={bulkSettings.tone}
+                      onChange={updateBulkField("tone")}
+                    />
+                  </Grid.Cell>
+                  <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
+                    <Select
+                      label="Length"
+                      options={lengthSelectOptions}
+                      value={bulkSettings.length}
+                      onChange={updateBulkField("length")}
+                    />
+                  </Grid.Cell>
+                  <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
+                    <Select
+                      label="Format"
+                      options={formatSelectOptions}
+                      value={bulkSettings.format}
+                      onChange={updateBulkField("format")}
+                    />
+                  </Grid.Cell>
+                </Grid>
+
+                <BlockStack gap="200">
+                  <Autocomplete
+                    allowMultiple
+                    options={bulkKeywordOptions}
+                    selected={bulkSelectedKeywords}
+                    textField={bulkKeywordTextField}
+                    onSelect={handleBulkKeywordSelect}
+                  />
+                  <InlineStack gap="200" wrap blockAlign="end">
+                    <div style={{ minWidth: "240px", flex: 1 }}>
+                      <TextField
+                        label="Add custom keyword"
+                        labelHidden
+                        value={bulkCustomKeywordInput}
+                        onChange={setBulkCustomKeywordInput}
+                        placeholder="Add custom keyword or phrase"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <Button
+                      onClick={handleAddBulkCustomKeyword}
+                      disabled={!bulkCustomKeywordInput.trim()}
+                    >
+                      Add
+                    </Button>
+                  </InlineStack>
+                  {bulkKeywordTags.length > 0 ? (
+                    <InlineStack gap="200" wrap>
+                      {bulkKeywordTags.map((keyword) => (
+                        <Tag key={keyword} onRemove={() => handleRemoveBulkKeyword(keyword)}>
+                          {keyword}
+                        </Tag>
+                      ))}
+                    </InlineStack>
+                  ) : (
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Use the dropdown for preset keywords and Add for custom phrases.
+                    </Text>
+                  )}
+                </BlockStack>
+
+                <InlineStack align="end" gap="300">
+                  {isBulkGenerating && (
+                    <InlineStack gap="200" blockAlign="center">
+                      <Spinner size="small" />
+                      <Text variant="bodySm" tone="subdued">Generating for {selectedCollections.length} collections…</Text>
+                    </InlineStack>
+                  )}
+                  <Button
+                    variant="primary"
+                    onClick={handleBulkGenerate}
+                    loading={isBulkGenerating}
+                    disabled={isBulkGenerating || selectedCollections.length === 0}
+                    tone="success"
+                  >
+                    {isBulkGenerating
+                      ? "Generating…"
+                      : `Bulk Generate Selected ${selectedCollections.length} Collections`}
+                  </Button>
+                </InlineStack>
+              </BlockStack>
+            </Card>
+          </div>
+
           <Card>
             <BlockStack gap="400">
-
               <TextField
                 label="Search collections"
                 labelHidden
@@ -1561,75 +2110,15 @@ export default function CollectionsPage() {
                   selectable={false}
                   loading={isSearchLoading}
                 >
-                  {filteredCollections.map((collection, index) => (
-                    <IndexTable.Row
-                      id={collection.id}
-                      key={collection.id}
-                      position={index}
-                    >
-                      <IndexTable.Cell>
-                        {collection.imageUrl ? (
-                          <Thumbnail
-                            source={collection.imageUrl}
-                            alt={collection.imageAlt}
-                            size="small"
-                          />
-                        ) : (
-                          <Box
-                            width="52px"
-                            minHeight="52px"
-                            borderRadius="150"
-                            borderWidth="025"
-                            borderColor="border-secondary"
-                            background="bg-surface-secondary"
-                          >
-                            <InlineStack align="center" blockAlign="center">
-                              <Text as="span" variant="bodySm" tone="subdued">
-                                No img
-                              </Text>
-                            </InlineStack>
-                          </Box>
-                        )}
-                      </IndexTable.Cell>
-
-                      <IndexTable.Cell>
-                        <Text as="span" variant="bodyMd" fontWeight="medium">
-                          {collection.title}
-                        </Text>
-                      </IndexTable.Cell>
-
-                      <IndexTable.Cell>
-                        {renderBadge(collection.seoTitle)}
-                      </IndexTable.Cell>
-
-                      <IndexTable.Cell>
-                        {renderBadge(collection.seoDescription)}
-                      </IndexTable.Cell>
-
-                      <IndexTable.Cell>
-                        <Button
-                          size="slim"
-                          onClick={() => openEditModal(collection)}
-                        >
-                          Edit Content
-                        </Button>
-                      </IndexTable.Cell>
-                    </IndexTable.Row>
-                  ))}
+                  {rowMarkup}
                 </IndexTable>
               )}
 
-              <InlineStack align="space-between" blockAlign="center" gap="300">
+              <InlineStack align="start" blockAlign="center" gap="300">
                 <Text as="span" variant="bodySm" tone="subdued">
                   {filteredCollections.length} result{filteredCollections.length !== 1 ? "s" : ""}
                   {isSearchLoading ? " (Searching...)" : isLoading ? " (Loading...)" : ""}
                 </Text>
-                <Pagination
-                  hasPrevious={Boolean(previousUrl)}
-                  onPrevious={() => previousUrl && navigate(previousUrl)}
-                  hasNext={Boolean(nextUrl)}
-                  onNext={() => nextUrl && navigate(nextUrl)}
-                />
               </InlineStack>
             </BlockStack>
           </Card>
