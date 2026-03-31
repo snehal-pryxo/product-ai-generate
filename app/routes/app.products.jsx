@@ -1946,30 +1946,36 @@ export default function ProductsPage() {
                 </Grid>
 
                 <BlockStack gap="200">
-                  <Autocomplete
-                    allowMultiple
-                    options={bulkKeywordOptions}
-                    selected={bulkSelectedKeywords}
-                    textField={bulkKeywordTextField}
-                    onSelect={handleBulkKeywordSelect}
-                  />
-                  <InlineStack gap="200" wrap blockAlign="end">
-                    <div style={{ minWidth: "240px", flex: 1 }}>
-                      <TextField
-                        label="Add custom keyword"
-                        labelHidden
-                        value={bulkCustomKeywordInput}
-                        onChange={setBulkCustomKeywordInput}
-                        placeholder="Add custom keyword or phrase"
-                        autoComplete="off"
+                  <InlineStack gap="200" blockAlign="end" wrap>
+                    <div style={{ minWidth: "280px", flex: 2 }}>
+                      <Autocomplete
+                        allowMultiple
+                        options={bulkKeywordOptions}
+                        selected={bulkSelectedKeywords}
+                        textField={bulkKeywordTextField}
+                        onSelect={handleBulkKeywordSelect}
                       />
                     </div>
-                    <Button
-                      onClick={handleAddBulkCustomKeyword}
-                      disabled={!bulkCustomKeywordInput.trim()}
-                    >
-                      Add
-                    </Button>
+                    <div style={{ minWidth: "280px", flex: 1 }}>
+                      <InlineStack gap="200" blockAlign="end">
+                        <div style={{ minWidth: "200px", flex: 1 }}>
+                          <TextField
+                            label="Add custom keyword"
+                            labelHidden
+                            value={bulkCustomKeywordInput}
+                            onChange={setBulkCustomKeywordInput}
+                            placeholder="Add custom keyword or phrase"
+                            autoComplete="off"
+                          />
+                        </div>
+                        <Button
+                          onClick={handleAddBulkCustomKeyword}
+                          disabled={!bulkCustomKeywordInput.trim()}
+                        >
+                          Add
+                        </Button>
+                      </InlineStack>
+                    </div>
                   </InlineStack>
                   {bulkKeywordTags.length > 0 ? (
                     <InlineStack gap="200" wrap>
