@@ -1469,6 +1469,7 @@ export default function CollectionsPage() {
   const [bulkCustomKeywords, setBulkCustomKeywords] = useState([]);
   const [selectedCollectionIds, setSelectedCollectionIds] = useState([]);
   const [bulkValidationMessage, setBulkValidationMessage] = useState(null);
+  const bulkResultHandledRef = useRef(false);
 
   useEffect(() => {
     setSearchValue(filters.search);
@@ -1739,8 +1740,14 @@ export default function CollectionsPage() {
   }, [editingCollection?.id, revalidator, resetEditModalState, shopify, updateFetcher.data]);
 
   useEffect(() => {
+    if (bulkFetcher.state !== "idle") {
+      bulkResultHandledRef.current = false;
+      return;
+    }
+
     const response = bulkFetcher.data;
-    if (!response || response.intent !== BULK_GENERATE_INTENT) return;
+    if (!response || response.intent !== BULK_GENERATE_INTENT || bulkResultHandledRef.current) return;
+    bulkResultHandledRef.current = true;
     setBulkResult(response);
     if (response.ok) {
       setBulkValidationMessage(null);
@@ -1749,7 +1756,7 @@ export default function CollectionsPage() {
       return;
     }
     setBulkValidationMessage(response.error || "Bulk generation failed.");
-  }, [bulkFetcher.data, revalidator, shopify]);
+  }, [bulkFetcher.state, bulkFetcher.data, revalidator, shopify]);
 
   useEffect(() => {
     if (selectedCollections.length > MAX_BULK_ITEMS) {

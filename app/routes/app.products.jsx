@@ -1396,6 +1396,7 @@ export default function ProductsPage() {
   const [bulkCustomKeywords, setBulkCustomKeywords] = useState([]);
   const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [bulkValidationMessage, setBulkValidationMessage] = useState(null);
+  const bulkResultHandledRef = useRef(false);
 
   useEffect(() => {
     setSearchValue(filters.search);
@@ -1668,8 +1669,14 @@ export default function ProductsPage() {
   }, [editingProduct?.id, revalidator, resetEditModalState, shopify, updateFetcher.data]);
 
   useEffect(() => {
+    if (bulkFetcher.state !== "idle") {
+      bulkResultHandledRef.current = false;
+      return;
+    }
+
     const response = bulkFetcher.data;
-    if (!response || response.intent !== BULK_GENERATE_INTENT) return;
+    if (!response || response.intent !== BULK_GENERATE_INTENT || bulkResultHandledRef.current) return;
+    bulkResultHandledRef.current = true;
     setBulkResult(response);
     if (response.ok) {
       setBulkValidationMessage(null);
@@ -1678,7 +1685,7 @@ export default function ProductsPage() {
       return;
     }
     setBulkValidationMessage(response.error || "Bulk generation failed.");
-  }, [bulkFetcher.data, revalidator, shopify]);
+  }, [bulkFetcher.state, bulkFetcher.data, revalidator, shopify]);
 
   const seoTitleStatus = evaluateSeoTitle(editForm.seoTitle);
   const seoDescriptionStatus = evaluateSeoDescription(editForm.seoDescription);
