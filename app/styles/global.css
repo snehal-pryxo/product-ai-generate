@@ -38,6 +38,12 @@
 
 /* Polaris Tabs */
 .Polaris-Tabs__Tab { border-radius: 6px !important; }
+.Polaris-Tabs__Tab[aria-selected="true"] {
+  background: #000 !important;
+}
+.Polaris-Tabs__Tab[aria-selected="true"] .Polaris-Tabs__Title {
+  color: #fff !important;
+}
 
 /* Polaris IndexTable */
 .Polaris-IndexTable { border-radius: 6px !important; }
@@ -45,3 +51,29 @@
 /* Any native button or input */
 button { border-radius: 6px !important; }
 input, textarea, select { border-radius: 6px !important; }
+
+/* Button colors */
+.Polaris-Button {
+  background: #000 !important;
+  border-color: #000 !important;
+  color: #fff !important;
+}
+.Polaris-Button:hover,
+.Polaris-Button:active,
+.Polaris-Button:focus-visible {
+  background: #111 !important;
+  border-color: #111 !important;
+  color: #fff !important;
+}
+.Polaris-Button .Polaris-Text--root,
+.Polaris-Button .Polaris-Icon svg {
+  color: #fff !important;
+  fill: #fff !important;
+}
+.Polaris-Button[disabled],
+.Polaris-Button:disabled {
+  background: #000 !important;
+  border-color: #000 !important;
+  color: #fff !important;
+  opacity: 0.55 !important;
+}
