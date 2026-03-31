@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { useLoaderData, useNavigate, useFetcher } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -88,6 +88,48 @@ const ARTICLE_UPDATE_MUTATION = `#graphql
       article {
         id
         title
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const STAGED_UPLOADS_CREATE = `#graphql
+  mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
+    stagedUploadsCreate(input: $input) {
+      stagedTargets {
+        url
+        resourceUrl
+        parameters {
+          name
+          value
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const FILE_CREATE = `#graphql
+  mutation fileCreate($files: [FileCreateInput!]!) {
+    fileCreate(files: $files) {
+      files {
+        ... on MediaImage {
+          id
+          image {
+            url
+          }
+        }
+        ... on GenericFile {
+          id
+          url
+        }
       }
       userErrors {
         field
@@ -339,6 +381,68 @@ export const action = async ({ request }) => {
     }
   }
 
+  if (intent === "upload_blog_image") {
+    const file = formData.get("file");
+    if (!file || typeof file === "string") {
+      return { success: false, intent, error: "No file received." };
+    }
+    const filename = file.name;
+    const mimeType = file.type || "image/jpeg";
+    const fileSize = file.size;
+
+    try {
+      // 1. Create staged upload target
+      const stagedRes = await admin.graphql(STAGED_UPLOADS_CREATE, {
+        variables: {
+          input: [{
+            resource: "IMAGE",
+            filename,
+            mimeType,
+            fileSize: String(fileSize),
+            httpMethod: "POST",
+          }],
+        },
+      });
+      const stagedJson = await stagedRes.json();
+      const userErrors = stagedJson.data?.stagedUploadsCreate?.userErrors || [];
+      if (userErrors.length > 0) {
+        return { success: false, intent, error: userErrors.map((e) => e.message).join(", ") };
+      }
+      const target = stagedJson.data?.stagedUploadsCreate?.stagedTargets?.[0];
+      if (!target) return { success: false, intent, error: "Failed to create staged upload." };
+
+      // 2. Upload file to staged URL (multipart)
+      const uploadForm = new FormData();
+      for (const param of target.parameters) {
+        uploadForm.append(param.name, param.value);
+      }
+      uploadForm.append("file", file);
+      const uploadRes = await fetch(target.url, { method: "POST", body: uploadForm });
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text();
+        return { success: false, intent, error: `Staging upload failed: ${errText.slice(0, 200)}` };
+      }
+
+      // 3. Create file in Shopify Files
+      const fileRes = await admin.graphql(FILE_CREATE, {
+        variables: {
+          files: [{ alt: filename, contentType: "IMAGE", originalSource: target.resourceUrl }],
+        },
+      });
+      const fileJson = await fileRes.json();
+      const fileErrors = fileJson.data?.fileCreate?.userErrors || [];
+      if (fileErrors.length > 0) {
+        return { success: false, intent, error: fileErrors.map((e) => e.message).join(", ") };
+      }
+      const created = fileJson.data?.fileCreate?.files?.[0];
+      const imageUrl = created?.image?.url || created?.url || target.resourceUrl;
+
+      return { success: true, intent, imageUrl, filename };
+    } catch (err) {
+      return { success: false, intent, error: err.message };
+    }
+  }
+
   return { success: false, error: "Unknown action." };
 };
 
@@ -438,6 +542,10 @@ export default function BlogPage() {
   const [editState, setEditState] = useState(editInitialState);
   const [generationError, setGenerationError] = useState(null);
   const [filterBlogId, setFilterBlogId] = useState("all");
+  const [uploadedImages, setUploadedImages] = useState([]);
+  const imageFetcher = useFetcher();
+  const fileInputRef = useRef(null);
+  const isUploading = imageFetcher.state !== "idle";
 
   const blogFilterOptions = [
     { label: "All Blogs", value: "all" },
@@ -462,6 +570,7 @@ export default function BlogPage() {
     });
     setIsCreateMode(true);
     setGenerationError(null);
+    setUploadedImages([]);
     setEditModal(true);
   }
 
@@ -479,6 +588,7 @@ export default function BlogPage() {
     });
     setIsCreateMode(false);
     setGenerationError(null);
+    setUploadedImages([]);
     setEditModal(true);
   }
 
@@ -489,6 +599,21 @@ export default function BlogPage() {
 
   function setField(field) {
     return (value) => setEditState((s) => ({ ...s, [field]: value }));
+  }
+
+  function handleImageFileChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append("intent", "upload_blog_image");
+    fd.append("file", file);
+    imageFetcher.submit(fd, { method: "post", encType: "multipart/form-data" });
+    e.target.value = "";
+  }
+
+  function insertImageToBody(url, alt) {
+    const imgTag = `\n<img src="${url}" alt="${alt || ""}" style="max-width:100%;height:auto;" />\n`;
+    setEditState((s) => ({ ...s, body: s.body + imgTag }));
   }
 
   function appendKeyword(kw) {
@@ -556,6 +681,16 @@ export default function BlogPage() {
       setGenerationError(data.error || "Save failed.");
     }
   }, [saveFetcher.data]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const data = imageFetcher.data;
+    if (!data || data.intent !== "upload_blog_image") return;
+    if (data.success) {
+      setUploadedImages((prev) => [...prev, { url: data.imageUrl, name: data.filename }]);
+    } else {
+      setGenerationError(data.error || "Image upload failed.");
+    }
+  }, [imageFetcher.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const rowMarkup = filteredArticles.map((article, index) => (
     <IndexTable.Row
@@ -729,6 +864,69 @@ export default function BlogPage() {
                   autoComplete="off"
                   helpText="HTML is supported. This is the full article content."
                 />
+
+                {/* ── Blog Images ── */}
+                <BlockStack gap="300">
+                  <Text variant="headingSm" as="h3">Blog Images</Text>
+                  <Text variant="bodySm" tone="subdued" as="p">
+                    Upload images to your Shopify Files, then click <strong>Insert</strong> to add them to the article body.
+                  </Text>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    onChange={handleImageFileChange}
+                  />
+                  <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    loading={isUploading}
+                    disabled={isUploading}
+                  >
+                    {isUploading ? "Uploading…" : "Upload Image"}
+                  </Button>
+
+                  {uploadedImages.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                      {uploadedImages.map((img, i) => (
+                        <div
+                          key={i}
+                          style={{
+                            position: "relative",
+                            border: "1px solid #ddd",
+                            borderRadius: "6px",
+                            overflow: "hidden",
+                            width: "90px",
+                          }}
+                        >
+                          <img
+                            src={img.url}
+                            alt={img.name}
+                            style={{ width: "90px", height: "90px", objectFit: "cover", display: "block" }}
+                          />
+                          <div style={{ padding: "4px", background: "#f6f6f7" }}>
+                            <button
+                              onClick={() => insertImageToBody(img.url, img.name)}
+                              style={{
+                                width: "100%",
+                                background: "linear-gradient(135deg, #ec4899, #a855f7)",
+                                color: "#fff",
+                                border: "none",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                fontSize: "11px",
+                                fontWeight: 600,
+                                padding: "3px 0",
+                              }}
+                            >
+                              Insert
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </BlockStack>
 
                 <Divider />
 
