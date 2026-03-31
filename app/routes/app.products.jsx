@@ -44,6 +44,10 @@ const GENERATE_ALL_INTENT = "generate_all";
 const GENERATE_SEO_TITLE_INTENT = "generate_seo_title";
 const GENERATE_SEO_DESCRIPTION_INTENT = "generate_seo_description";
 const UPDATE_PRODUCT_INTENT = "update_product";
+const BULK_GENERATE_INTENT = "bulk_generate";
+const MAX_BULK_ITEMS = 50;
+const MIN_BULK_PRODUCT_SELECTION_ERROR = "Select at least one product for bulk generation.";
+const MAX_BULK_PRODUCT_SELECTION_ERROR = `You can bulk generate up to ${MAX_BULK_ITEMS} products at a time.`;
 const DEFAULT_AI_MODEL = "gpt-4o-mini";
 const DEFAULT_OLLAMA_MODEL = "llama3.2:1b";
 const DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434";
@@ -920,7 +924,7 @@ export const action = async ({ request }) => {
   const intent = readFormString(formData, "intent");
   const productId = readFormString(formData, "productId");
 
-  if (!productId && intent !== "bulk_generate") {
+  if (!productId && intent !== BULK_GENERATE_INTENT) {
     return { ok: false, intent, error: "Product id is required." };
   }
 
@@ -1116,9 +1120,19 @@ export const action = async ({ request }) => {
       };
     }
 
-    if (intent === "bulk_generate") {
+    if (intent === BULK_GENERATE_INTENT) {
       const productsJson = formData.get("products");
       const bulkProducts = JSON.parse(productsJson || "[]");
+      if (!Array.isArray(bulkProducts) || bulkProducts.length === 0) {
+        return { ok: false, intent, error: MIN_BULK_PRODUCT_SELECTION_ERROR };
+      }
+      if (bulkProducts.length > MAX_BULK_ITEMS) {
+        return {
+          ok: false,
+          intent,
+          error: MAX_BULK_PRODUCT_SELECTION_ERROR,
+        };
+      }
       const language = readFormString(formData, "language") || "English";
       const tone = readFormString(formData, "tone") || "Neutral";
       const lengthOption = readFormString(formData, "length") || "50 - 150 words";
@@ -1171,7 +1185,7 @@ export const action = async ({ request }) => {
             shop: session.shop,
             productId: p.id,
             productTitle: p.title || null,
-            intent: "bulk_generate",
+            intent: BULK_GENERATE_INTENT,
             language: language || null,
             tone: tone || null,
             lengthOption: lengthOption || null,
@@ -1381,6 +1395,7 @@ export default function ProductsPage() {
   const [bulkCustomKeywordInput, setBulkCustomKeywordInput] = useState("");
   const [bulkCustomKeywords, setBulkCustomKeywords] = useState([]);
   const [selectedProductIds, setSelectedProductIds] = useState([]);
+  const [bulkValidationMessage, setBulkValidationMessage] = useState(null);
 
   useEffect(() => {
     setSearchValue(filters.search);
@@ -1422,6 +1437,7 @@ export default function ProductsPage() {
     () => filteredProducts.filter((product) => selectedProductIds.includes(product.id)),
     [filteredProducts, selectedProductIds],
   );
+  const exceedsBulkLimit = selectedProducts.length > MAX_BULK_ITEMS;
 
   const makeUrl = useCallback(
     ({ status = filters.status, search = searchValue.trim(), collectionId = filters.collectionId } = {}) => {
@@ -1572,10 +1588,20 @@ export default function ProductsPage() {
   );
 
   const handleBulkGenerate = useCallback(() => {
+    if (selectedProducts.length === 0) {
+      setBulkValidationMessage(MIN_BULK_PRODUCT_SELECTION_ERROR);
+      return;
+    }
+    if (selectedProducts.length > MAX_BULK_ITEMS) {
+      setBulkValidationMessage(MAX_BULK_PRODUCT_SELECTION_ERROR);
+      return;
+    }
+
+    setBulkValidationMessage(null);
     setBulkResult(null);
     const contextKeywords = mergeUniqueKeywords(bulkSelectedKeywords, bulkCustomKeywords).join(", ");
     const payload = new FormData();
-    payload.append("intent", "bulk_generate");
+    payload.append("intent", BULK_GENERATE_INTENT);
     payload.append("products", JSON.stringify(
       selectedProducts.map((p) => ({
         id: p.id,
@@ -1643,12 +1669,15 @@ export default function ProductsPage() {
 
   useEffect(() => {
     const response = bulkFetcher.data;
-    if (!response || response.intent !== "bulk_generate") return;
+    if (!response || response.intent !== BULK_GENERATE_INTENT) return;
     setBulkResult(response);
     if (response.ok) {
+      setBulkValidationMessage(null);
       revalidator.revalidate();
       shopify.toast.show(`Bulk generate complete: ${response.succeeded}/${response.total} updated.`);
+      return;
     }
+    setBulkValidationMessage(response.error || "Bulk generation failed.");
   }, [bulkFetcher.data, revalidator, shopify]);
 
   const seoTitleStatus = evaluateSeoTitle(editForm.seoTitle);
@@ -1658,6 +1687,24 @@ export default function ProductsPage() {
   const seoDescriptionPalette = toSeoPalette(seoDescriptionStatus.tone);
   const seoTitleLength = editForm.seoTitle.length;
   const seoDescriptionLength = editForm.seoDescription.length;
+
+  useEffect(() => {
+    if (selectedProducts.length > MAX_BULK_ITEMS) {
+      if (bulkValidationMessage !== MAX_BULK_PRODUCT_SELECTION_ERROR) {
+        setBulkValidationMessage(MAX_BULK_PRODUCT_SELECTION_ERROR);
+      }
+      return;
+    }
+
+    if (selectedProducts.length > 0 && bulkValidationMessage === MIN_BULK_PRODUCT_SELECTION_ERROR) {
+      setBulkValidationMessage(null);
+      return;
+    }
+
+    if (bulkValidationMessage === MAX_BULK_PRODUCT_SELECTION_ERROR) {
+      setBulkValidationMessage(null);
+    }
+  }, [bulkValidationMessage, selectedProducts.length]);
 
   useEffect(() => {
     if (!modalOpen || !editingProduct) return;
@@ -1815,7 +1862,14 @@ export default function ProductsPage() {
         </Text>
       </IndexTable.Cell>
       <IndexTable.Cell>
-        {renderBadge({ label: product.appStatus.label, tone: product.appStatus.tone })}
+        {isBulkGenerating && selectedProductIds.includes(product.id) ? (
+          <InlineStack gap="100" blockAlign="center">
+            <Spinner size="small" />
+            <Text as="span" tone="subdued">Generating...</Text>
+          </InlineStack>
+        ) : (
+          renderBadge({ label: product.appStatus.label, tone: product.appStatus.tone })
+        )}
       </IndexTable.Cell>
       <IndexTable.Cell>
         <Text as="span" tone={product.generatedTime === "Not generated" ? "subdued" : undefined}>
@@ -1909,6 +1963,11 @@ export default function ProductsPage() {
                     {selectedProducts.length} selected
                   </Text>
                 </InlineStack>
+                {bulkValidationMessage && (
+                  <Banner tone="critical">
+                    <p>{bulkValidationMessage}</p>
+                  </Banner>
+                )}
 
                 <Grid>
                   <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
@@ -1992,25 +2051,26 @@ export default function ProductsPage() {
                   )}
                 </BlockStack>
 
-                <InlineStack align="end" gap="300">
+                <BlockStack gap="200">
                   {isBulkGenerating && (
-                    <InlineStack gap="200" blockAlign="center">
+                    <InlineStack align="center" blockAlign="center" gap="200">
                       <Spinner size="small" />
-                      <Text variant="bodySm" tone="subdued">Generating for {selectedProducts.length} products…</Text>
+                      <Text variant="bodySm" tone="subdued">Generating for {selectedProducts.length} products...</Text>
                     </InlineStack>
                   )}
-                  <Button
-                    variant="primary"
-                    onClick={handleBulkGenerate}
-                    loading={isBulkGenerating}
-                    disabled={isBulkGenerating || selectedProducts.length === 0}
-                    tone="success"
-                  >
-                    {isBulkGenerating
-                      ? "Generating…"
-                      : `Bulk Generate Selected ${selectedProducts.length} Products`}
-                  </Button>
-                </InlineStack>
+                  <InlineStack align="end" gap="300">
+                    <Button
+                      variant="primary"
+                      onClick={handleBulkGenerate}
+                      disabled={isBulkGenerating || selectedProducts.length === 0 || exceedsBulkLimit}
+                      tone="success"
+                    >
+                      {isBulkGenerating
+                        ? "Generating..."
+                        : `Bulk Generate Selected ${selectedProducts.length} Products`}
+                    </Button>
+                  </InlineStack>
+                </BlockStack>
               </BlockStack>
             </Card>
           </div>

@@ -44,6 +44,9 @@ const GENERATE_META_TITLE_INTENT = "generate_meta_title";
 const GENERATE_META_DESCRIPTION_INTENT = "generate_meta_description";
 const UPDATE_COLLECTION_INTENT = "update_collection";
 const BULK_GENERATE_INTENT = "bulk_generate";
+const MAX_BULK_ITEMS = 50;
+const MIN_BULK_COLLECTION_SELECTION_ERROR = "Select at least one collection for bulk generation.";
+const MAX_BULK_COLLECTION_SELECTION_ERROR = `You can bulk generate up to ${MAX_BULK_ITEMS} collections at a time.`;
 const DEFAULT_AI_MODEL = "gpt-4o-mini";
 const DEFAULT_OLLAMA_MODEL = "llama3.2:1b";
 const DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434";
@@ -1186,6 +1189,16 @@ export const action = async ({ request }) => {
     if (intent === BULK_GENERATE_INTENT) {
       const collectionsJson = formData.get("collections");
       const bulkCollections = JSON.parse(collectionsJson || "[]");
+      if (!Array.isArray(bulkCollections) || bulkCollections.length === 0) {
+        return { ok: false, intent, error: MIN_BULK_COLLECTION_SELECTION_ERROR };
+      }
+      if (bulkCollections.length > MAX_BULK_ITEMS) {
+        return {
+          ok: false,
+          intent,
+          error: MAX_BULK_COLLECTION_SELECTION_ERROR,
+        };
+      }
       const language = readFormString(formData, "language") || "English";
       const tone = readFormString(formData, "tone") || "Neutral";
       const lengthOption = readFormString(formData, "length") || "50 - 150 words";
@@ -1455,6 +1468,7 @@ export default function CollectionsPage() {
   const [bulkCustomKeywordInput, setBulkCustomKeywordInput] = useState("");
   const [bulkCustomKeywords, setBulkCustomKeywords] = useState([]);
   const [selectedCollectionIds, setSelectedCollectionIds] = useState([]);
+  const [bulkValidationMessage, setBulkValidationMessage] = useState(null);
 
   useEffect(() => {
     setSearchValue(filters.search);
@@ -1496,6 +1510,7 @@ export default function CollectionsPage() {
     () => filteredCollections.filter((collection) => selectedCollectionIds.includes(collection.id)),
     [filteredCollections, selectedCollectionIds],
   );
+  const exceedsBulkLimit = selectedCollections.length > MAX_BULK_ITEMS;
 
   const makeUrl = useCallback(
     ({ search = searchValue.trim() } = {}) => {
@@ -1644,6 +1659,16 @@ export default function CollectionsPage() {
   );
 
   const handleBulkGenerate = useCallback(() => {
+    if (selectedCollections.length === 0) {
+      setBulkValidationMessage(MIN_BULK_COLLECTION_SELECTION_ERROR);
+      return;
+    }
+    if (selectedCollections.length > MAX_BULK_ITEMS) {
+      setBulkValidationMessage(MAX_BULK_COLLECTION_SELECTION_ERROR);
+      return;
+    }
+
+    setBulkValidationMessage(null);
     setBulkResult(null);
     const contextKeywords = mergeUniqueKeywords(bulkSelectedKeywords, bulkCustomKeywords).join(", ");
     const payload = new FormData();
@@ -1718,10 +1743,31 @@ export default function CollectionsPage() {
     if (!response || response.intent !== BULK_GENERATE_INTENT) return;
     setBulkResult(response);
     if (response.ok) {
+      setBulkValidationMessage(null);
       revalidator.revalidate();
       shopify.toast.show(`Bulk generate complete: ${response.succeeded}/${response.total} updated.`);
+      return;
     }
+    setBulkValidationMessage(response.error || "Bulk generation failed.");
   }, [bulkFetcher.data, revalidator, shopify]);
+
+  useEffect(() => {
+    if (selectedCollections.length > MAX_BULK_ITEMS) {
+      if (bulkValidationMessage !== MAX_BULK_COLLECTION_SELECTION_ERROR) {
+        setBulkValidationMessage(MAX_BULK_COLLECTION_SELECTION_ERROR);
+      }
+      return;
+    }
+
+    if (selectedCollections.length > 0 && bulkValidationMessage === MIN_BULK_COLLECTION_SELECTION_ERROR) {
+      setBulkValidationMessage(null);
+      return;
+    }
+
+    if (bulkValidationMessage === MAX_BULK_COLLECTION_SELECTION_ERROR) {
+      setBulkValidationMessage(null);
+    }
+  }, [bulkValidationMessage, selectedCollections.length]);
 
   const metaTitleStatus = evaluateSeoTitle(editForm.seoTitle);
   const metaDescriptionStatus = evaluateSeoDescription(editForm.seoDescription);
@@ -1880,7 +1926,14 @@ export default function CollectionsPage() {
       </IndexTable.Cell>
 
       <IndexTable.Cell>
-        {renderBadge(collection.appStatus)}
+        {isBulkGenerating && selectedCollectionIds.includes(collection.id) ? (
+          <InlineStack gap="100" blockAlign="center">
+            <Spinner size="small" />
+            <Text as="span" tone="subdued">Generating...</Text>
+          </InlineStack>
+        ) : (
+          renderBadge(collection.appStatus)
+        )}
       </IndexTable.Cell>
 
       <IndexTable.Cell>
@@ -1981,6 +2034,11 @@ export default function CollectionsPage() {
                     {selectedCollections.length} selected
                   </Text>
                 </InlineStack>
+                {bulkValidationMessage && (
+                  <Banner tone="critical">
+                    <p>{bulkValidationMessage}</p>
+                  </Banner>
+                )}
 
                 <Grid>
                   <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
@@ -2064,25 +2122,26 @@ export default function CollectionsPage() {
                   )}
                 </BlockStack>
 
-                <InlineStack align="end" gap="300">
+                <BlockStack gap="200">
                   {isBulkGenerating && (
-                    <InlineStack gap="200" blockAlign="center">
+                    <InlineStack align="center" blockAlign="center" gap="200">
                       <Spinner size="small" />
-                      <Text variant="bodySm" tone="subdued">Generating for {selectedCollections.length} collections…</Text>
+                      <Text variant="bodySm" tone="subdued">Generating for {selectedCollections.length} collections...</Text>
                     </InlineStack>
                   )}
-                  <Button
-                    variant="primary"
-                    onClick={handleBulkGenerate}
-                    loading={isBulkGenerating}
-                    disabled={isBulkGenerating || selectedCollections.length === 0}
-                    tone="success"
-                  >
-                    {isBulkGenerating
-                      ? "Generating…"
-                      : `Bulk Generate Selected ${selectedCollections.length} Collections`}
-                  </Button>
-                </InlineStack>
+                  <InlineStack align="end" gap="300">
+                    <Button
+                      variant="primary"
+                      onClick={handleBulkGenerate}
+                      disabled={isBulkGenerating || selectedCollections.length === 0 || exceedsBulkLimit}
+                      tone="success"
+                    >
+                      {isBulkGenerating
+                        ? "Generating..."
+                        : `Bulk Generate Selected ${selectedCollections.length} Collections`}
+                    </Button>
+                  </InlineStack>
+                </BlockStack>
               </BlockStack>
             </Card>
           </div>
