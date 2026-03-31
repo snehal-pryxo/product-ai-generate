@@ -8,6 +8,7 @@ import {
   useRevalidator,
 } from "react-router";
 import {
+  Autocomplete,
   Badge,
   Banner,
   BlockStack,
@@ -26,6 +27,7 @@ import {
   Pagination,
   Select,
   Spinner,
+  Tag,
   Tabs,
   Text,
   TextField,
@@ -52,6 +54,59 @@ const OPENAI_RATE_LIMIT_ERROR_PATTERN = /rate limit|too many requests|429/i;
 const OPENAI_OLLAMA_FALLBACK_ERROR_PATTERN =
   /quota|billing|insufficient_quota|OPENAI_API_KEY is missing|does not exist|do not have access|rate limit|too many requests|429/i;
 const ENABLED_ENV_VALUE_PATTERN = /^(1|true|yes)$/i;
+const COLLECTIONS_QUERY = `#graphql
+  query GetCollections {
+    collections(first: 100, sortKey: TITLE) {
+      edges {
+        node {
+          id
+          title
+        }
+      }
+    }
+  }
+`;
+
+const COLLECTION_PRODUCTS_QUERY = `#graphql
+  query CollectionProducts(
+    $id: ID!
+    $first: Int
+    $last: Int
+    $after: String
+    $before: String
+  ) {
+    collection(id: $id) {
+      id
+      title
+      products(first: $first, last: $last, after: $after, before: $before, sortKey: TITLE) {
+        edges {
+          node {
+            id
+            title
+            handle
+            status
+            descriptionHtml
+            seo {
+              title
+              description
+            }
+            featuredImage {
+              url
+              altText
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+  }
+`;
+
 const PRODUCT_UPDATE_MUTATION = `#graphql
   mutation ProductUpdate($product: ProductUpdateInput!) {
     productUpdate(product: $product) {
@@ -221,6 +276,14 @@ const FORMAT_OPTIONS = [
   "Custom Formatting",
 ];
 const KEYWORD_CHIPS = ["[Description]", "[Category]", "[Variant Titles]", "[Vendor]"];
+const BULK_KEYWORD_OPTIONS = [
+  ...KEYWORD_CHIPS,
+  "Benefits",
+  "Features",
+  "Materials",
+  "Use cases",
+  "Target audience",
+];
 const DESCRIPTION_STYLE_OPTIONS = ["Normal", "Heading", "Subheading"];
 
 const editInitialState = {
@@ -290,6 +353,36 @@ function toStatusMeta(status) {
   return { label: status, tone: "neutral" };
 }
 
+function toAppGenerationStatusMeta(generatedContent) {
+  if (!generatedContent) return { label: "Not generated", tone: "critical" };
+  if (generatedContent.appliedToProduct) return { label: "Active", tone: "success" };
+  return { label: "Generated", tone: "warning" };
+}
+
+function formatRelativeGenerationTime(value) {
+  if (!value) return "Not generated";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not generated";
+
+  const diffMs = Math.max(0, Date.now() - date.getTime());
+  const minuteMs = 60 * 1000;
+  const hourMs = 60 * minuteMs;
+  const dayMs = 24 * hourMs;
+
+  if (diffMs < hourMs) {
+    const minutes = Math.max(1, Math.floor(diffMs / minuteMs));
+    return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  }
+
+  if (diffMs < dayMs) {
+    const hours = Math.max(1, Math.floor(diffMs / hourMs));
+    return `${hours} hour${hours === 1 ? "" : "s"}`;
+  }
+
+  const days = Math.max(1, Math.floor(diffMs / dayMs));
+  return `${days} day${days === 1 ? "" : "s"}`;
+}
+
 function toBadgeTone(tone) {
   if (tone === "success") return "success";
   if (tone === "warning") return "warning";
@@ -341,6 +434,28 @@ function renderBadge({ label, tone }) {
 function readFormString(formData, key) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeKeyword(value) {
+  return (value || "").trim().replace(/\s+/g, " ");
+}
+
+function mergeUniqueKeywords(...keywordLists) {
+  const merged = [];
+  const seen = new Set();
+
+  keywordLists.forEach((keywordList) => {
+    (keywordList || []).forEach((rawKeyword) => {
+      const keyword = normalizeKeyword(rawKeyword);
+      if (!keyword) return;
+      const key = keyword.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      merged.push(keyword);
+    });
+  });
+
+  return merged;
 }
 
 function parseLengthRange(lengthOption) {
@@ -770,7 +885,7 @@ export const action = async ({ request }) => {
   const intent = readFormString(formData, "intent");
   const productId = readFormString(formData, "productId");
 
-  if (!productId) {
+  if (!productId && intent !== "bulk_generate") {
     return { ok: false, intent, error: "Product id is required." };
   }
 
@@ -966,6 +1081,99 @@ export const action = async ({ request }) => {
       };
     }
 
+    if (intent === "bulk_generate") {
+      const productsJson = formData.get("products");
+      const bulkProducts = JSON.parse(productsJson || "[]");
+      const language = readFormString(formData, "language") || "English";
+      const tone = readFormString(formData, "tone") || "Neutral";
+      const lengthOption = readFormString(formData, "length") || "50 - 150 words";
+      const formatOption = readFormString(formData, "format") || "Single paragraph";
+      const contextKeywords = readFormString(formData, "contextKeywords");
+      const aiProvider = readFormString(formData, "aiProvider") || "auto";
+
+      const results = await Promise.allSettled(
+        bulkProducts.map(async (p) => {
+          const generated = await generateContent(
+            {
+              title: p.title,
+              descriptionText: stripHtml(p.descriptionHtml || ""),
+              seoTitle: p.seoTitleValue || "",
+              seoDescription: p.seoDescriptionValue || "",
+              language,
+              tone,
+              lengthOption,
+              format: formatOption,
+              contextKeywords,
+              intent: GENERATE_ALL_INTENT,
+            },
+            {
+              aiProvider,
+              shopOpenaiKey: shopData?.openaiApiKey || null,
+              shopAnthropicKey: shopData?.anthropicApiKey || null,
+            },
+          );
+
+          const nextDescription = generated.productDescription
+            ? toParagraphHtml(generated.productDescription)
+            : p.descriptionHtml || "";
+          const nextSeoTitle = generated.seoTitle || p.seoTitleValue || "";
+          const nextSeoDescription = generated.seoDescription || p.seoDescriptionValue || "";
+
+          const updateRes = await admin.graphql(PRODUCT_UPDATE_MUTATION, {
+            variables: {
+              product: {
+                id: p.id,
+                descriptionHtml: nextDescription,
+                seo: { title: nextSeoTitle, description: nextSeoDescription },
+              },
+            },
+          });
+          const updateJson = await updateRes.json();
+          const userErrors = updateJson?.data?.productUpdate?.userErrors || [];
+          if (userErrors.length > 0) throw new Error(userErrors.map((e) => e.message).join(", "));
+
+          await writeGenerationLog({
+            shop: session.shop,
+            productId: p.id,
+            productTitle: p.title || null,
+            intent: "bulk_generate",
+            language: language || null,
+            tone: tone || null,
+            lengthOption: lengthOption || null,
+            formatOption: formatOption || null,
+            contextKeywords: contextKeywords || null,
+            aiModel: generated.aiModel || null,
+            generatedDescription: nextDescription || null,
+            generatedSeoTitle: nextSeoTitle || null,
+            generatedSeoDescription: nextSeoDescription || null,
+            appliedToProduct: true,
+          });
+
+          await upsertProductContent({
+            shop: session.shop,
+            productId: p.id,
+            productTitle: p.title || null,
+            language: language || null,
+            tone: tone || null,
+            lengthOption: lengthOption || null,
+            formatOption: formatOption || null,
+            contextKeywords: contextKeywords || null,
+            aiModel: generated.aiModel || null,
+            descriptionHtml: nextDescription || null,
+            seoTitle: nextSeoTitle || null,
+            seoDescription: nextSeoDescription || null,
+            appliedToProduct: true,
+          });
+
+          return { id: p.id, title: p.title };
+        }),
+      );
+
+      const succeeded = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.filter((r) => r.status === "rejected").length;
+      return { ok: true, intent, succeeded, failed, total: bulkProducts.length };
+    }
+
     return { ok: false, intent, productId, error: "Unsupported action." };
   } catch (error) {
     console.error("Product content action failed", error);
@@ -990,100 +1198,148 @@ export const loader = async ({ request }) => {
   const searchForQuery = search.length >= 2 ? search : "";
   const statusParam = (url.searchParams.get("status") || "all").toLowerCase();
   const status = STATUS_FILTERS.includes(statusParam) ? statusParam : "all";
+  const collectionId = url.searchParams.get("collectionId") || "";
   const after = url.searchParams.get("after");
   const before = url.searchParams.get("before");
   const isPreviousPage = Boolean(before && !after);
 
-  const query = toSearchQuery({ search: searchForQuery, status });
+  // Fetch collections for the filter dropdown (runs in parallel with products)
+  const collectionsPromise = admin.graphql(COLLECTIONS_QUERY).then((r) => r.json());
 
-  const response = await admin.graphql(
-    `#graphql
-      query ProductList(
-        $first: Int
-        $last: Int
-        $after: String
-        $before: String
-        $query: String
-      ) {
-        products(
-          first: $first
-          last: $last
-          after: $after
-          before: $before
-          query: $query
-          sortKey: TITLE
-        ) {
-          edges {
-            node {
-              id
-              title
-              handle
-              status
-              descriptionHtml
-              seo {
-                title
-                description
-              }
-              featuredImage {
-                url
-                altText
-              }
-            }
-          }
-          pageInfo {
-            hasNextPage
-            hasPreviousPage
-            startCursor
-            endCursor
-          }
-        }
-      }
-    `,
-    {
+  let productConnection;
+
+  if (collectionId) {
+    // Filter by collection
+    const colRes = await admin.graphql(COLLECTION_PRODUCTS_QUERY, {
       variables: {
+        id: collectionId,
         first: isPreviousPage ? undefined : PAGE_SIZE,
         last: isPreviousPage ? PAGE_SIZE : undefined,
         after: isPreviousPage ? undefined : after || undefined,
         before: isPreviousPage ? before : undefined,
-        query: query || undefined,
       },
-    },
-  );
+    });
+    const colJson = await colRes.json();
+    productConnection = colJson?.data?.collection?.products;
+  } else {
+    const query = toSearchQuery({ search: searchForQuery, status });
+    const response = await admin.graphql(
+      `#graphql
+        query ProductList(
+          $first: Int
+          $last: Int
+          $after: String
+          $before: String
+          $query: String
+        ) {
+          products(
+            first: $first
+            last: $last
+            after: $after
+            before: $before
+            query: $query
+            sortKey: TITLE
+          ) {
+            edges {
+              node {
+                id
+                title
+                handle
+                status
+                descriptionHtml
+                seo {
+                  title
+                  description
+                }
+                featuredImage {
+                  url
+                  altText
+                }
+              }
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+              startCursor
+              endCursor
+            }
+          }
+        }
+      `,
+      {
+        variables: {
+          first: isPreviousPage ? undefined : PAGE_SIZE,
+          last: isPreviousPage ? PAGE_SIZE : undefined,
+          after: isPreviousPage ? undefined : after || undefined,
+          before: isPreviousPage ? before : undefined,
+          query: query || undefined,
+        },
+      },
+    );
+    const responseJson = await response.json();
+    productConnection = responseJson?.data?.products;
+  }
 
-  const responseJson = await response.json();
-  const productConnection = responseJson?.data?.products;
+  const collectionsJson = await collectionsPromise;
+  const collections = (collectionsJson?.data?.collections?.edges || []).map((e) => e.node);
 
   if (!productConnection) {
-    console.error("Failed to fetch products", responseJson?.errors);
     return {
-      filters: { search, status },
+      filters: { search, status, collectionId },
+      collections,
       products: [],
-      pageInfo: {
-        hasNextPage: false,
-        hasPreviousPage: false,
-        startCursor: null,
-        endCursor: null,
-      },
+      pageInfo: { hasNextPage: false, hasPreviousPage: false, startCursor: null, endCursor: null },
+      hasOpenaiKey: !!(shopData?.openaiApiKey || process.env.OPENAI_API_KEY),
+      hasAnthropicKey: !!(shopData?.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
+      defaultAiProvider: shopData?.defaultAiProvider || "auto",
     };
   }
 
-  const products = productConnection.edges.map(({ node }) => ({
-    id: node.id,
-    title: node.title,
-    handle: node.handle,
-    descriptionHtml: node.descriptionHtml || "",
-    descriptionText: stripHtml(node.descriptionHtml),
-    status: toStatusMeta(node.status),
-    seoTitle: evaluateSeoTitle(node.seo?.title || node.title),
-    seoDescription: evaluateSeoDescription(node.seo?.description),
-    seoTitleValue: node.seo?.title || "",
-    seoDescriptionValue: node.seo?.description || "",
-    imageUrl: node.featuredImage?.url || null,
-    imageAlt: node.featuredImage?.altText || node.title,
-  }));
+  const productNodes = productConnection.edges.map(({ node }) => node);
+  const generatedContentByProductId = new Map();
+
+  if (productNodes.length > 0) {
+    const generatedContents = await db.productGeneratedContent.findMany({
+      where: {
+        shop: session.shop,
+        productId: { in: productNodes.map((node) => node.id) },
+      },
+      select: {
+        productId: true,
+        appliedToProduct: true,
+        updatedAt: true,
+      },
+    });
+
+    generatedContents.forEach((entry) => {
+      generatedContentByProductId.set(entry.productId, entry);
+    });
+  }
+
+  const products = productNodes.map((node) => {
+    const generatedContent = generatedContentByProductId.get(node.id);
+
+    return {
+      id: node.id,
+      title: node.title,
+      handle: node.handle,
+      descriptionHtml: node.descriptionHtml || "",
+      descriptionText: stripHtml(node.descriptionHtml),
+      status: toStatusMeta(node.status),
+      appStatus: toAppGenerationStatusMeta(generatedContent),
+      generatedTime: formatRelativeGenerationTime(generatedContent?.updatedAt),
+      seoTitle: evaluateSeoTitle(node.seo?.title || node.title),
+      seoDescription: evaluateSeoDescription(node.seo?.description),
+      seoTitleValue: node.seo?.title || "",
+      seoDescriptionValue: node.seo?.description || "",
+      imageUrl: node.featuredImage?.url || null,
+      imageAlt: node.featuredImage?.altText || node.title,
+    };
+  });
 
   return {
-    filters: { search, status },
+    filters: { search, status, collectionId },
+    collections,
     products,
     pageInfo: productConnection.pageInfo,
     hasOpenaiKey: !!(shopData?.openaiApiKey || process.env.OPENAI_API_KEY),
@@ -1092,13 +1348,22 @@ export const loader = async ({ request }) => {
   };
 };
 
+const bulkInitialSettings = {
+  language: "English",
+  tone: "Neutral",
+  length: "50 - 150 words",
+  format: "Single paragraph",
+  aiProvider: "auto",
+};
+
 export default function ProductsPage() {
-  const { filters, products, pageInfo, defaultAiProvider } = useLoaderData();
+  const { filters, products, pageInfo, collections, defaultAiProvider } = useLoaderData();
   const navigation = useNavigation();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const generateFetcher = useFetcher();
   const updateFetcher = useFetcher();
+  const bulkFetcher = useFetcher();
   const shopify = useAppBridge();
   const descriptionEditorRef = useRef(null);
   const [searchValue, setSearchValue] = useState(filters.search);
@@ -1107,6 +1372,12 @@ export default function ProductsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editForm, setEditForm] = useState(editInitialState);
   const [modalMessage, setModalMessage] = useState(null);
+  const [bulkSettings, setBulkSettings] = useState({ ...bulkInitialSettings, aiProvider: defaultAiProvider });
+  const [bulkResult, setBulkResult] = useState(null);
+  const [bulkKeywordQuery, setBulkKeywordQuery] = useState("");
+  const [bulkSelectedKeywords, setBulkSelectedKeywords] = useState([]);
+  const [bulkCustomKeywordInput, setBulkCustomKeywordInput] = useState("");
+  const [bulkCustomKeywords, setBulkCustomKeywords] = useState([]);
 
   useEffect(() => {
     setSearchValue(filters.search);
@@ -1133,16 +1404,17 @@ export default function ProductsPage() {
   }, [normalizedSearch, products, sourceProducts]);
 
   const makeUrl = useCallback(
-    ({ status = filters.status, search = searchValue.trim(), before, after } = {}) => {
+    ({ status = filters.status, search = searchValue.trim(), collectionId = filters.collectionId, before, after } = {}) => {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
       if (status && status !== "all") params.set("status", status);
+      if (collectionId) params.set("collectionId", collectionId);
       if (before) params.set("before", before);
       if (after) params.set("after", after);
       const query = params.toString();
       return query ? `?${query}` : "";
     },
-    [filters.status, searchValue],
+    [filters.status, filters.collectionId, searchValue],
   );
 
   useEffect(() => {
@@ -1281,8 +1553,32 @@ export default function ProductsPage() {
     [submitEditAction],
   );
 
+  const handleBulkGenerate = useCallback(() => {
+    setBulkResult(null);
+    const contextKeywords = mergeUniqueKeywords(bulkSelectedKeywords, bulkCustomKeywords).join(", ");
+    const payload = new FormData();
+    payload.append("intent", "bulk_generate");
+    payload.append("products", JSON.stringify(
+      filteredProducts.map((p) => ({
+        id: p.id,
+        title: p.title,
+        descriptionHtml: p.descriptionHtml,
+        seoTitleValue: p.seoTitleValue,
+        seoDescriptionValue: p.seoDescriptionValue,
+      }))
+    ));
+    payload.append("language", bulkSettings.language);
+    payload.append("tone", bulkSettings.tone);
+    payload.append("length", bulkSettings.length);
+    payload.append("format", bulkSettings.format);
+    payload.append("contextKeywords", contextKeywords);
+    payload.append("aiProvider", bulkSettings.aiProvider);
+    bulkFetcher.submit(payload, { method: "post" });
+  }, [bulkCustomKeywords, bulkFetcher, bulkSelectedKeywords, bulkSettings, filteredProducts]);
+
   const isGenerating = generateFetcher.state !== "idle";
   const isUpdating = updateFetcher.state !== "idle";
+  const isBulkGenerating = bulkFetcher.state !== "idle";
   const canUpdateProduct = Boolean(editingProduct?.id) && !isGenerating && !isUpdating;
 
   useEffect(() => {
@@ -1326,6 +1622,16 @@ export default function ProductsPage() {
     shopify.toast.show(response.message || "Product updated successfully.");
     resetEditModalState();
   }, [editingProduct?.id, revalidator, resetEditModalState, shopify, updateFetcher.data]);
+
+  useEffect(() => {
+    const response = bulkFetcher.data;
+    if (!response || response.intent !== "bulk_generate") return;
+    setBulkResult(response);
+    if (response.ok) {
+      revalidator.revalidate();
+      shopify.toast.show(`Bulk generate complete: ${response.succeeded}/${response.total} updated.`);
+    }
+  }, [bulkFetcher.data, revalidator, shopify]);
 
   const seoTitleStatus = evaluateSeoTitle(editForm.seoTitle);
   const seoDescriptionStatus = evaluateSeoDescription(editForm.seoDescription);
@@ -1375,7 +1681,9 @@ export default function ProductsPage() {
   const headings = [
     { title: "Image" },
     { title: "Title" },
-    { title: "Status" },
+    { title: "Shopify Status" },
+    { title: "App Status" },
+    { title: "Generated In" },
     { title: "Meta Title" },
     { title: "Meta Description" },
     { title: "Actions" },
@@ -1389,6 +1697,59 @@ export default function ProductsPage() {
     label: s,
     value: s,
   }));
+
+  const collectionOptions = [
+    { label: "All Collections", value: "" },
+    ...(collections || []).map((c) => ({ label: c.title, value: c.id })),
+  ];
+
+  const updateBulkField = (field) => (value) =>
+    setBulkSettings((prev) => ({ ...prev, [field]: value }));
+
+  const bulkKeywordOptions = useMemo(() => {
+    const query = bulkKeywordQuery.trim().toLowerCase();
+    return BULK_KEYWORD_OPTIONS
+      .filter((keyword) => !bulkSelectedKeywords.includes(keyword))
+      .filter((keyword) => !query || keyword.toLowerCase().includes(query))
+      .map((keyword) => ({ label: keyword, value: keyword }));
+  }, [bulkKeywordQuery, bulkSelectedKeywords]);
+
+  const bulkKeywordTags = useMemo(
+    () => mergeUniqueKeywords(bulkSelectedKeywords, bulkCustomKeywords),
+    [bulkCustomKeywords, bulkSelectedKeywords],
+  );
+
+  const handleBulkKeywordSelect = useCallback((selected) => {
+    setBulkSelectedKeywords(selected);
+    setBulkKeywordQuery("");
+  }, []);
+
+  const handleAddBulkCustomKeyword = useCallback(() => {
+    const nextKeyword = normalizeKeyword(bulkCustomKeywordInput);
+    if (!nextKeyword) return;
+    setBulkCustomKeywords((current) => mergeUniqueKeywords(current, [nextKeyword]));
+    setBulkCustomKeywordInput("");
+  }, [bulkCustomKeywordInput]);
+
+  const handleRemoveBulkKeyword = useCallback((keywordToRemove) => {
+    const target = keywordToRemove.toLowerCase();
+    setBulkSelectedKeywords((current) =>
+      current.filter((keyword) => keyword.toLowerCase() !== target),
+    );
+    setBulkCustomKeywords((current) =>
+      current.filter((keyword) => keyword.toLowerCase() !== target),
+    );
+  }, []);
+
+  const bulkKeywordTextField = (
+    <Autocomplete.TextField
+      label="AI Context & Keywords"
+      value={bulkKeywordQuery}
+      onChange={setBulkKeywordQuery}
+      placeholder="Select one or more context keywords"
+      autoComplete="off"
+    />
+  );
 
   const rowMarkup = filteredProducts.map((product, index) => (
     <IndexTable.Row id={product.id} key={product.id} position={index}>
@@ -1414,6 +1775,14 @@ export default function ProductsPage() {
       </IndexTable.Cell>
       <IndexTable.Cell>
         {renderBadge({ label: product.status.label, tone: product.status.tone })}
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        {renderBadge({ label: product.appStatus.label, tone: product.appStatus.tone })}
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        <Text as="span" tone={product.generatedTime === "Not generated" ? "subdued" : undefined}>
+          {product.generatedTime}
+        </Text>
       </IndexTable.Cell>
       <IndexTable.Cell>
         {renderBadge({ label: product.seoTitle.label, tone: product.seoTitle.tone })}
@@ -1469,19 +1838,151 @@ export default function ProductsPage() {
 
       <Layout>
         <Layout.Section>
+
+          {/* ── Bulk Generate Card ── */}
+          <div style={{ marginBottom: "16px" }}>
+            <Card>
+              <BlockStack gap="400">
+                <InlineStack align="space-between" blockAlign="center">
+                  <BlockStack gap="100">
+                    <Text variant="headingMd" as="h2">⚡ Bulk Generate Content</Text>
+                    <Text variant="bodySm" tone="subdued" as="p">
+                      Set AI options and generate descriptions + SEO for all {filteredProducts.length} visible products at once.
+                    </Text>
+                  </BlockStack>
+                  {bulkResult && (
+                    <Badge tone={bulkResult.failed > 0 ? "warning" : "success"}>
+                      {bulkResult.succeeded}/{bulkResult.total} updated
+                      {bulkResult.failed > 0 ? ` · ${bulkResult.failed} failed` : ""}
+                    </Badge>
+                  )}
+                </InlineStack>
+
+                <Divider />
+
+                <Grid>
+                  <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
+                    <Select
+                      label="Language"
+                      options={languageSelectOptions}
+                      value={bulkSettings.language}
+                      onChange={updateBulkField("language")}
+                    />
+                  </Grid.Cell>
+                  <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
+                    <Select
+                      label="Tone"
+                      options={toneSelectOptions}
+                      value={bulkSettings.tone}
+                      onChange={updateBulkField("tone")}
+                    />
+                  </Grid.Cell>
+                  <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
+                    <Select
+                      label="Length"
+                      options={lengthSelectOptions}
+                      value={bulkSettings.length}
+                      onChange={updateBulkField("length")}
+                    />
+                  </Grid.Cell>
+                  <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
+                    <Select
+                      label="Format"
+                      options={formatSelectOptions}
+                      value={bulkSettings.format}
+                      onChange={updateBulkField("format")}
+                    />
+                  </Grid.Cell>
+                </Grid>
+
+                <BlockStack gap="200">
+                  <Autocomplete
+                    allowMultiple
+                    options={bulkKeywordOptions}
+                    selected={bulkSelectedKeywords}
+                    textField={bulkKeywordTextField}
+                    onSelect={handleBulkKeywordSelect}
+                  />
+                  <InlineStack gap="200" wrap blockAlign="end">
+                    <div style={{ minWidth: "240px", flex: 1 }}>
+                      <TextField
+                        label="Add custom keyword"
+                        labelHidden
+                        value={bulkCustomKeywordInput}
+                        onChange={setBulkCustomKeywordInput}
+                        placeholder="Add custom keyword or phrase"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <Button
+                      onClick={handleAddBulkCustomKeyword}
+                      disabled={!bulkCustomKeywordInput.trim()}
+                    >
+                      Add
+                    </Button>
+                  </InlineStack>
+                  {bulkKeywordTags.length > 0 ? (
+                    <InlineStack gap="200" wrap>
+                      {bulkKeywordTags.map((keyword) => (
+                        <Tag key={keyword} onRemove={() => handleRemoveBulkKeyword(keyword)}>
+                          {keyword}
+                        </Tag>
+                      ))}
+                    </InlineStack>
+                  ) : (
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Use the dropdown for preset keywords and Add for custom phrases.
+                    </Text>
+                  )}
+                </BlockStack>
+
+                <InlineStack align="end" gap="300">
+                  {isBulkGenerating && (
+                    <InlineStack gap="200" blockAlign="center">
+                      <Spinner size="small" />
+                      <Text variant="bodySm" tone="subdued">Generating for {filteredProducts.length} products…</Text>
+                    </InlineStack>
+                  )}
+                  <Button
+                    variant="primary"
+                    onClick={handleBulkGenerate}
+                    loading={isBulkGenerating}
+                    disabled={isBulkGenerating || filteredProducts.length === 0}
+                    tone="success"
+                  >
+                    {isBulkGenerating
+                      ? "Generating…"
+                      : `Bulk Generate All ${filteredProducts.length} Products`}
+                  </Button>
+                </InlineStack>
+              </BlockStack>
+            </Card>
+          </div>
+
           <Card>
             <BlockStack gap="400">
-              <TextField
-                label="Search products"
-                labelHidden
-                placeholder="Search by product title..."
-                value={searchValue}
-                onChange={handleSearchInput}
-                autoComplete="off"
-                prefix={
-                  isSearchLoading ? <Spinner size="small" /> : undefined
-                }
-              />
+              {/* ── Filters row ── */}
+              <InlineStack gap="300" blockAlign="end" wrap>
+                <div style={{ flex: 1, minWidth: "200px" }}>
+                  <TextField
+                    label="Search products"
+                    labelHidden
+                    placeholder="Search by product title..."
+                    value={searchValue}
+                    onChange={handleSearchInput}
+                    autoComplete="off"
+                    prefix={isSearchLoading ? <Spinner size="small" /> : undefined}
+                  />
+                </div>
+                <div style={{ minWidth: "200px" }}>
+                  <Select
+                    label="Filter by Collection"
+                    options={collectionOptions}
+                    value={filters.collectionId || ""}
+                    onChange={(val) => navigate(makeUrl({ collectionId: val, before: undefined, after: undefined }))}
+                  />
+                </div>
+              </InlineStack>
 
               <Tabs
                 tabs={statusTabs}
