@@ -257,7 +257,7 @@ export const loader = async ({ request }) => {
 
   const blogs = (blogsJson.data?.blogs?.edges || []).map((e) => e.node);
 
-  const articles = (articlesJson.data?.articles?.edges || []).map((e) => {
+  const rawArticles = (articlesJson.data?.articles?.edges || []).map((e) => {
     const node = e.node;
     const mfs = (node.metafields?.edges || []).map((me) => me.node);
     return {
@@ -269,6 +269,17 @@ export const loader = async ({ request }) => {
       },
     };
   });
+
+  // Fetch generate times from DB
+  const articleIds = rawArticles.map((a) => a.id);
+  const generatedContents = articleIds.length > 0
+    ? await db.blogArticleGeneratedContent.findMany({
+        where: { shop: session.shop, articleId: { in: articleIds } },
+        select: { articleId: true, updatedAt: true },
+      })
+    : [];
+  const generatedMap = Object.fromEntries(generatedContents.map((g) => [g.articleId, g.updatedAt]));
+  const articles = rawArticles.map((a) => ({ ...a, generatedAt: generatedMap[a.id] || null }));
 
   const shopData = await db.shop.findUnique({
     where: { shop: session.shop },
@@ -868,6 +879,13 @@ export default function BlogPage() {
           : <Badge tone="attention">Missing</Badge>}
       </IndexTable.Cell>
       <IndexTable.Cell>
+        <Text variant="bodySm" tone="subdued" as="span">
+          {article.generatedAt
+            ? new Date(article.generatedAt).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+            : "—"}
+        </Text>
+      </IndexTable.Cell>
+      <IndexTable.Cell>
         <Button size="slim" onClick={() => openEditModal(article)}>Edit Content</Button>
       </IndexTable.Cell>
     </IndexTable.Row>
@@ -882,7 +900,6 @@ export default function BlogPage() {
         padding: "28px 32px",
         marginBottom: "24px",
         position: "relative",
-        overflow: "hidden",
       }}>
         <div style={{ position: "absolute", top: "-50px", right: "-50px", width: "220px", height: "220px", borderRadius: "50%", background: "radial-gradient(circle, rgba(236,72,153,0.28) 0%, transparent 70%)", pointerEvents: "none" }} />
         <div style={{ position: "absolute", bottom: "-40px", left: "25%", width: "160px", height: "160px", borderRadius: "50%", background: "radial-gradient(circle, rgba(168,85,247,0.2) 0%, transparent 70%)", pointerEvents: "none" }} />
@@ -947,6 +964,7 @@ export default function BlogPage() {
               { title: "Blog" },
               { title: "Status" },
               { title: "SEO" },
+              { title: "Generated" },
               { title: "Action" },
             ]}
           >

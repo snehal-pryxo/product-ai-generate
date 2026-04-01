@@ -175,7 +175,7 @@ export const loader = async ({ request }) => {
     variables: { first: 50 },
   });
   const json = await response.json();
-  const pages = (json.data?.pages?.edges || []).map((e) => {
+  const rawPages = (json.data?.pages?.edges || []).map((e) => {
     const node = e.node;
     const mfs = (node.metafields?.edges || []).map((me) => me.node);
     return {
@@ -186,6 +186,17 @@ export const loader = async ({ request }) => {
       },
     };
   });
+
+  // Fetch generate times from DB
+  const pageIds = rawPages.map((p) => p.id);
+  const generatedContents = pageIds.length > 0
+    ? await db.pageGeneratedContent.findMany({
+        where: { shop: session.shop, pageId: { in: pageIds } },
+        select: { pageId: true, updatedAt: true },
+      })
+    : [];
+  const generatedMap = Object.fromEntries(generatedContents.map((g) => [g.pageId, g.updatedAt]));
+  const pages = rawPages.map((p) => ({ ...p, generatedAt: generatedMap[p.id] || null }));
 
   // Fetch shop API keys
   const shopData = await db.shop.findUnique({
@@ -530,6 +541,13 @@ export default function PagesPage() {
           : <Badge tone="attention">Missing</Badge>}
       </IndexTable.Cell>
       <IndexTable.Cell>
+        <Text variant="bodySm" tone="subdued" as="span">
+          {page.generatedAt
+            ? new Date(page.generatedAt).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+            : "—"}
+        </Text>
+      </IndexTable.Cell>
+      <IndexTable.Cell>
         <Button size="slim" onClick={() => openEditModal(page)}>Edit Content</Button>
       </IndexTable.Cell>
     </IndexTable.Row>
@@ -544,7 +562,6 @@ export default function PagesPage() {
         padding: "28px 32px",
         marginBottom: "24px",
         position: "relative",
-        overflow: "hidden",
       }}>
         <div style={{ position: "absolute", top: "-50px", right: "-50px", width: "220px", height: "220px", borderRadius: "50%", background: "radial-gradient(circle, rgba(6,182,212,0.28) 0%, transparent 70%)", pointerEvents: "none" }} />
         <div style={{ position: "absolute", bottom: "-40px", left: "25%", width: "160px", height: "160px", borderRadius: "50%", background: "radial-gradient(circle, rgba(16,185,129,0.2) 0%, transparent 70%)", pointerEvents: "none" }} />
@@ -583,6 +600,7 @@ export default function PagesPage() {
               { title: "Summary" },
               { title: "SEO Title" },
               { title: "SEO Description" },
+              { title: "Generated" },
               { title: "Action" },
             ]}
           >
