@@ -1,0 +1,168 @@
+export const PAGE_PROMPT_TEMPLATE_STORAGE_KEY = "page_prompt_template_selection_v1";
+
+const EMPTY_TEMPLATE_SELECTION = {
+  bodyTemplateId: "",
+  bodyPromptTemplate: "",
+  metaTitleTemplateId: "",
+  metaTitlePromptTemplate: "",
+  metaDescriptionTemplateId: "",
+  metaDescriptionPromptTemplate: "",
+};
+
+function toStringOrEmpty(value) {
+  return typeof value === "string" ? value : "";
+}
+
+function normalizeTemplateSelection(value) {
+  const input = value && typeof value === "object" ? value : {};
+  return {
+    bodyTemplateId: toStringOrEmpty(input.bodyTemplateId),
+    bodyPromptTemplate: toStringOrEmpty(input.bodyPromptTemplate),
+    metaTitleTemplateId: toStringOrEmpty(input.metaTitleTemplateId),
+    metaTitlePromptTemplate: toStringOrEmpty(input.metaTitlePromptTemplate),
+    metaDescriptionTemplateId: toStringOrEmpty(input.metaDescriptionTemplateId),
+    metaDescriptionPromptTemplate: toStringOrEmpty(input.metaDescriptionPromptTemplate),
+  };
+}
+
+export function getEmptyPageTemplateSelection() {
+  return { ...EMPTY_TEMPLATE_SELECTION };
+}
+
+export function readStoredPagePromptTemplateSelection() {
+  if (typeof window === "undefined") return getEmptyPageTemplateSelection();
+
+  try {
+    const raw = window.localStorage.getItem(PAGE_PROMPT_TEMPLATE_STORAGE_KEY);
+    if (!raw) return getEmptyPageTemplateSelection();
+    return normalizeTemplateSelection(JSON.parse(raw));
+  } catch {
+    return getEmptyPageTemplateSelection();
+  }
+}
+
+export function writeStoredPagePromptTemplateSelection(selection) {
+  const normalized = normalizeTemplateSelection(selection);
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(PAGE_PROMPT_TEMPLATE_STORAGE_KEY, JSON.stringify(normalized));
+  }
+  return normalized;
+}
+
+export function clearStoredPagePromptTemplateSelection() {
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(PAGE_PROMPT_TEMPLATE_STORAGE_KEY);
+  }
+  return getEmptyPageTemplateSelection();
+}
+
+export const PAGE_BODY_TEMPLATES = [
+  {
+    id: "page-body-brand-story",
+    name: "Brand Story",
+    description: "Great for About Us pages with trust and mission narrative.",
+    template:
+      "[Intro hook about brand purpose]\n[Founding story and why brand exists]\n[Core mission and values]\n[What makes your brand different]\n[Proof: years, milestones, or customer trust]\n[Invite visitors to explore products or contact you]",
+  },
+  {
+    id: "page-body-policy-clarity",
+    name: "Policy Clarity",
+    description: "For shipping, refund, privacy, and terms pages.",
+    template:
+      "[Policy summary in plain language]\n[Scope: what this policy applies to]\n[Key clauses in clear sections]\n[Exceptions and limitations]\n[Customer action steps]\n[Support contact and response timeline]",
+  },
+  {
+    id: "page-body-faq-structured",
+    name: "FAQ Structured",
+    description: "Organized question-answer structure for common concerns.",
+    template:
+      "[Short intro for FAQ page]\n[Category heading 1]\n[Question + concise answer]\n[Question + concise answer]\n[Category heading 2]\n[Question + concise answer]\n[Question + concise answer]\n[Escalation to support or contact]",
+  },
+  {
+    id: "page-body-contact-conversion",
+    name: "Contact Conversion",
+    description: "Contact page focused on clarity, confidence, and action.",
+    template:
+      "[Friendly opening statement]\n[Primary reasons to contact]\n[Expected response time]\n[Preferred contact channels]\n[Information users should include]\n[Reassurance and final CTA]",
+  },
+  {
+    id: "page-body-landing-offer",
+    name: "Landing Offer",
+    description: "For campaign pages with clear offer and CTA blocks.",
+    template:
+      "[Headline with value proposition]\n[Offer summary]\n[Problem-solution section]\n[Key benefits list]\n[Social proof/testimonial section]\n[Urgency cue]\n[Primary CTA block]",
+  },
+  {
+    id: "page-body-comparison",
+    name: "Comparison",
+    description: "Comparison or why-choose-us page template.",
+    template:
+      "[Intro to comparison intent]\n[Criteria used for comparison]\n[How your brand/page solution performs per criterion]\n[Evidence and proof points]\n[Best-fit customer profile]\n[Conclusion and CTA]",
+  },
+];
+
+export const PAGE_META_DESCRIPTION_TEMPLATES = [
+  {
+    id: "page-md-benefit-first",
+    name: "Benefit First",
+    description: "Starts with the key user benefit then action.",
+    template: "{primary_page_benefit}. {supporting_value}. {cta_phrase}.",
+  },
+  {
+    id: "page-md-problem-solution",
+    name: "Problem-Solution",
+    description: "Frames the page as solution to user need.",
+    template: "{user_need} solved with {page_topic}. {key_detail}. {cta_phrase}.",
+  },
+  {
+    id: "page-md-trust-signal",
+    name: "Trust Signal",
+    description: "Uses authority, reliability, or transparency cues.",
+    template: "{trust_statement} for {page_topic}. {proof_or_reassurance}. {action_phrase}.",
+  },
+  {
+    id: "page-md-concise-seo",
+    name: "Concise SEO",
+    description: "Keyword-aligned but natural snippet style.",
+    template: "{page_keyword} page with {value_statement}. {secondary_keyword}.",
+  },
+  {
+    id: "page-md-action-oriented",
+    name: "Action Oriented",
+    description: "Encourages users to take the next step quickly.",
+    template: "{action_lead} with {page_topic}. {benefit_statement}. {cta_phrase}.",
+  },
+];
+
+export const PAGE_META_TITLE_TEMPLATES = [
+  {
+    id: "page-mt-intent-keyword",
+    name: "Intent + Keyword",
+    description: "Combines user intent keyword and page topic.",
+    template: "{page_topic} | {intent_keyword}",
+  },
+  {
+    id: "page-mt-brand-keyword",
+    name: "Brand + Keyword",
+    description: "Brand-safe title format with keyword targeting.",
+    template: "{page_topic} | {brand_name}",
+  },
+  {
+    id: "page-mt-action-benefit",
+    name: "Action + Benefit",
+    description: "Action-oriented title with clear value.",
+    template: "{action_phrase}: {page_topic}",
+  },
+  {
+    id: "page-mt-question-style",
+    name: "Question Style",
+    description: "Useful for FAQ/help style pages.",
+    template: "{question_hook} | {page_topic}",
+  },
+  {
+    id: "page-mt-trust",
+    name: "Trust Focus",
+    description: "Emphasizes reliability and clarity.",
+    template: "{page_topic} - {trust_signal}",
+  },
+];

@@ -5,6 +5,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { buildBlogContentPrompt } from "../lib/contentPromptTemplates";
+import { readStoredBlogPromptTemplateSelection } from "../lib/blogPromptTemplateLibrary";
 import {
   Page,
   Card,
@@ -203,7 +204,19 @@ async function generateContent(input, { aiProvider, shopOpenaiKey, shopAnthropic
   return generateContentWithAnthropic(input, shopAnthropicKey);
 }
 
-function buildGenerationPrompt({ articleType, title, body, language, tone, length, format, contextKeywords }) {
+function buildGenerationPrompt({
+  articleType,
+  title,
+  body,
+  language,
+  tone,
+  length,
+  format,
+  contextKeywords,
+  bodyPromptTemplate,
+  metaTitlePromptTemplate,
+  metaDescriptionPromptTemplate,
+}) {
   return {
     prompt: buildBlogContentPrompt({
       articleType,
@@ -214,6 +227,9 @@ function buildGenerationPrompt({ articleType, title, body, language, tone, lengt
       length,
       format,
       contextKeywords,
+      bodyPromptTemplate,
+      metaTitlePromptTemplate,
+      metaDescriptionPromptTemplate,
     }),
   };
 }
@@ -303,6 +319,10 @@ export const action = async ({ request }) => {
     const length = formData.get("length") || "";
     const format = formData.get("format") || "";
     const contextKeywords = formData.get("contextKeywords") || "";
+    const articleBodyPromptTemplate = formData.get("articleBodyPromptTemplate") || "";
+    const articleMetaTitlePromptTemplate = formData.get("articleMetaTitlePromptTemplate") || "";
+    const articleMetaDescriptionPromptTemplate =
+      formData.get("articleMetaDescriptionPromptTemplate") || "";
     const aiProvider = formData.get("aiProvider") || "auto";
 
     const shopData = await db.shop.findUnique({
@@ -311,7 +331,19 @@ export const action = async ({ request }) => {
     });
 
     try {
-      const input = buildGenerationPrompt({ articleType, title, body, language, tone, length, format, contextKeywords });
+      const input = buildGenerationPrompt({
+        articleType,
+        title,
+        body,
+        language,
+        tone,
+        length,
+        format,
+        contextKeywords,
+        bodyPromptTemplate: articleBodyPromptTemplate,
+        metaTitlePromptTemplate: articleMetaTitlePromptTemplate,
+        metaDescriptionPromptTemplate: articleMetaDescriptionPromptTemplate,
+      });
       const raw = await generateContent(input, {
         aiProvider,
         shopOpenaiKey: shopData?.openaiApiKey,
@@ -646,6 +678,9 @@ const editInitialState = {
   length: "medium (around 600 words)",
   format: "headings and paragraphs",
   contextKeywords: "",
+  articleBodyPromptTemplate: "",
+  articleMetaTitlePromptTemplate: "",
+  articleMetaDescriptionPromptTemplate: "",
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -685,11 +720,30 @@ export default function BlogPage() {
   const { selectedResources, allResourcesSelected, handleSelectionChange } =
     useIndexResourceState(filteredArticles);
 
+  useEffect(() => {
+    const templateSelection = readStoredBlogPromptTemplateSelection();
+    setEditState((current) => ({
+      ...current,
+      articleBodyPromptTemplate:
+        current.articleBodyPromptTemplate || templateSelection.bodyPromptTemplate || "",
+      articleMetaTitlePromptTemplate:
+        current.articleMetaTitlePromptTemplate || templateSelection.metaTitlePromptTemplate || "",
+      articleMetaDescriptionPromptTemplate:
+        current.articleMetaDescriptionPromptTemplate ||
+        templateSelection.metaDescriptionPromptTemplate ||
+        "",
+    }));
+  }, []);
+
   function openCreateModal() {
+    const templateSelection = readStoredBlogPromptTemplateSelection();
     setEditState({
       ...editInitialState,
       aiProvider: defaultAiProvider,
       blogId: blogs[0]?.id || "",
+      articleBodyPromptTemplate: templateSelection.bodyPromptTemplate || "",
+      articleMetaTitlePromptTemplate: templateSelection.metaTitlePromptTemplate || "",
+      articleMetaDescriptionPromptTemplate: templateSelection.metaDescriptionPromptTemplate || "",
     });
     setIsCreateMode(true);
     setGenerationError(null);
@@ -698,6 +752,7 @@ export default function BlogPage() {
   }
 
   function openEditModal(article) {
+    const templateSelection = readStoredBlogPromptTemplateSelection();
     setEditState({
       ...editInitialState,
       aiProvider: defaultAiProvider,
@@ -708,6 +763,9 @@ export default function BlogPage() {
       seoTitle: article.seo?.title || "",
       seoDescription: article.seo?.description || "",
       isPublished: article.publishedAt ? "true" : "false",
+      articleBodyPromptTemplate: templateSelection.bodyPromptTemplate || "",
+      articleMetaTitlePromptTemplate: templateSelection.metaTitlePromptTemplate || "",
+      articleMetaDescriptionPromptTemplate: templateSelection.metaDescriptionPromptTemplate || "",
     });
     setIsCreateMode(false);
     setGenerationError(null);
@@ -773,6 +831,12 @@ export default function BlogPage() {
     fd.append("length", editState.length);
     fd.append("format", editState.format);
     fd.append("contextKeywords", editState.contextKeywords);
+    fd.append("articleBodyPromptTemplate", editState.articleBodyPromptTemplate);
+    fd.append("articleMetaTitlePromptTemplate", editState.articleMetaTitlePromptTemplate);
+    fd.append(
+      "articleMetaDescriptionPromptTemplate",
+      editState.articleMetaDescriptionPromptTemplate,
+    );
     fd.append("aiProvider", editState.aiProvider);
     generateFetcher.submit(fd, { method: "post" });
   }
@@ -1209,6 +1273,36 @@ export default function BlogPage() {
                       </Button>
                     ))}
                   </InlineStack>
+                </BlockStack>
+
+                <Divider />
+
+                <BlockStack gap="200">
+                  <Text variant="headingSm" as="h4">Blog Prompt Templates</Text>
+                  <TextField
+                    label="Article Body Prompt Template"
+                    value={editState.articleBodyPromptTemplate}
+                    onChange={setField("articleBodyPromptTemplate")}
+                    multiline={3}
+                    autoComplete="off"
+                    placeholder="No template selected from Template page"
+                  />
+                  <TextField
+                    label="Meta Title Prompt Template"
+                    value={editState.articleMetaTitlePromptTemplate}
+                    onChange={setField("articleMetaTitlePromptTemplate")}
+                    multiline={2}
+                    autoComplete="off"
+                    placeholder="No template selected from Template page"
+                  />
+                  <TextField
+                    label="Meta Description Prompt Template"
+                    value={editState.articleMetaDescriptionPromptTemplate}
+                    onChange={setField("articleMetaDescriptionPromptTemplate")}
+                    multiline={2}
+                    autoComplete="off"
+                    placeholder="No template selected from Template page"
+                  />
                 </BlockStack>
 
                 <Divider />

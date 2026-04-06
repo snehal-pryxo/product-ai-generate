@@ -36,6 +36,7 @@ import {
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import { buildProductContentPrompt } from "../lib/contentPromptTemplates";
+import { readStoredProductPromptTemplateSelection } from "../lib/productPromptTemplateLibrary";
 /* global process */
 
 const FETCH_BATCH_SIZE = 250;
@@ -337,6 +338,9 @@ const editInitialState = {
   length: "50 - 150 words",
   format: "Single paragraph",
   contextKeywords: "",
+  descriptionPromptTemplate: "",
+  metaTitlePromptTemplate: "",
+  metaDescriptionPromptTemplate: "",
   aiProvider: "auto",
 };
 
@@ -536,6 +540,9 @@ function buildGenerationPrompt({
   lengthOption,
   format,
   contextKeywords,
+  descriptionPromptTemplate,
+  metaTitlePromptTemplate,
+  metaDescriptionPromptTemplate,
   intent,
 }) {
   const promptIntent =
@@ -555,6 +562,9 @@ function buildGenerationPrompt({
     lengthOption,
     format,
     contextKeywords,
+    descriptionPromptTemplate,
+    metaTitlePromptTemplate,
+    metaDescriptionPromptTemplate,
     intent: promptIntent,
   });
 }
@@ -917,6 +927,9 @@ export const action = async ({ request }) => {
   const lengthOption = readFormString(formData, "length");
   const formatOption = readFormString(formData, "format");
   const contextKeywords = readFormString(formData, "contextKeywords");
+  const descriptionPromptTemplate = readFormString(formData, "descriptionPromptTemplate");
+  const metaTitlePromptTemplate = readFormString(formData, "metaTitlePromptTemplate");
+  const metaDescriptionPromptTemplate = readFormString(formData, "metaDescriptionPromptTemplate");
   const aiProvider = readFormString(formData, "aiProvider") || "auto";
 
   const shopData = await db.shop.findUnique({
@@ -941,6 +954,9 @@ export const action = async ({ request }) => {
           lengthOption,
           format: formatOption,
           contextKeywords,
+          descriptionPromptTemplate,
+          metaTitlePromptTemplate,
+          metaDescriptionPromptTemplate,
           intent,
         },
         {
@@ -1118,6 +1134,9 @@ export const action = async ({ request }) => {
       const lengthOption = readFormString(formData, "length") || "50 - 150 words";
       const formatOption = readFormString(formData, "format") || "Single paragraph";
       const contextKeywords = readFormString(formData, "contextKeywords");
+      const descriptionPromptTemplate = readFormString(formData, "descriptionPromptTemplate");
+      const metaTitlePromptTemplate = readFormString(formData, "metaTitlePromptTemplate");
+      const metaDescriptionPromptTemplate = readFormString(formData, "metaDescriptionPromptTemplate");
       const aiProvider = readFormString(formData, "aiProvider") || "auto";
 
       const results = await Promise.allSettled(
@@ -1133,6 +1152,9 @@ export const action = async ({ request }) => {
               lengthOption,
               format: formatOption,
               contextKeywords,
+              descriptionPromptTemplate,
+              metaTitlePromptTemplate,
+              metaDescriptionPromptTemplate,
               intent: GENERATE_ALL_INTENT,
             },
             {
@@ -1379,6 +1401,19 @@ export default function ProductsPage() {
   const bulkResultHandledRef = useRef(false);
 
   useEffect(() => {
+    const templateSelection = readStoredProductPromptTemplateSelection();
+    setEditForm((current) => ({
+      ...current,
+      descriptionPromptTemplate:
+        current.descriptionPromptTemplate || templateSelection.descriptionPromptTemplate || "",
+      metaTitlePromptTemplate:
+        current.metaTitlePromptTemplate || templateSelection.metaTitlePromptTemplate || "",
+      metaDescriptionPromptTemplate:
+        current.metaDescriptionPromptTemplate || templateSelection.metaDescriptionPromptTemplate || "",
+    }));
+  }, []);
+
+  useEffect(() => {
     setSearchValue(filters.search);
   }, [filters.search]);
 
@@ -1455,6 +1490,7 @@ export default function ProductsPage() {
   }, []);
 
   const openEditModal = useCallback((product) => {
+    const templateSelection = readStoredProductPromptTemplateSelection();
     setEditingProduct(product);
     setModalMessage(null);
     setEditForm({
@@ -1464,6 +1500,9 @@ export default function ProductsPage() {
       description: product.descriptionHtml || product.descriptionText || "",
       seoTitle: product.seoTitleValue || "",
       seoDescription: product.seoDescriptionValue || "",
+      descriptionPromptTemplate: templateSelection.descriptionPromptTemplate || "",
+      metaTitlePromptTemplate: templateSelection.metaTitlePromptTemplate || "",
+      metaDescriptionPromptTemplate: templateSelection.metaDescriptionPromptTemplate || "",
     });
     setModalOpen(true);
   }, [defaultAiProvider]);
@@ -1535,6 +1574,9 @@ export default function ProductsPage() {
         length: editForm.length,
         format: editForm.format,
         contextKeywords: editForm.contextKeywords,
+        descriptionPromptTemplate: editForm.descriptionPromptTemplate,
+        metaTitlePromptTemplate: editForm.metaTitlePromptTemplate,
+        metaDescriptionPromptTemplate: editForm.metaDescriptionPromptTemplate,
         aiProvider: editForm.aiProvider,
       };
 
@@ -1597,9 +1639,21 @@ export default function ProductsPage() {
     payload.append("length", bulkSettings.length);
     payload.append("format", bulkSettings.format);
     payload.append("contextKeywords", contextKeywords);
+    payload.append("descriptionPromptTemplate", editForm.descriptionPromptTemplate || "");
+    payload.append("metaTitlePromptTemplate", editForm.metaTitlePromptTemplate || "");
+    payload.append("metaDescriptionPromptTemplate", editForm.metaDescriptionPromptTemplate || "");
     payload.append("aiProvider", bulkSettings.aiProvider);
     bulkFetcher.submit(payload, { method: "post" });
-  }, [bulkCustomKeywords, bulkFetcher, bulkSelectedKeywords, bulkSettings, selectedProducts]);
+  }, [
+    bulkCustomKeywords,
+    bulkFetcher,
+    bulkSelectedKeywords,
+    bulkSettings,
+    editForm.descriptionPromptTemplate,
+    editForm.metaDescriptionPromptTemplate,
+    editForm.metaTitlePromptTemplate,
+    selectedProducts,
+  ]);
 
   const isGenerating = generateFetcher.state !== "idle";
   const isUpdating = updateFetcher.state !== "idle";
@@ -2463,6 +2517,50 @@ export default function ProductsPage() {
                           </Button>
                         ))}
                       </InlineStack>
+                    </BlockStack>
+
+                    <Divider />
+
+                    <BlockStack gap="300">
+                      <Text as="h4" variant="headingSm">
+                        Product Prompt Templates
+                      </Text>
+                      <Text as="p" tone="subdued" variant="bodySm">
+                        Templates selected in the Template page are applied during generation. You can edit them here.
+                      </Text>
+
+                      <TextField
+                        label="Description Prompt Template"
+                        value={editForm.descriptionPromptTemplate}
+                        multiline={4}
+                        autoComplete="off"
+                        placeholder="No template selected"
+                        onChange={(value) =>
+                          updateEditField("descriptionPromptTemplate", value || "")
+                        }
+                      />
+
+                      <TextField
+                        label="Meta Title Prompt Template"
+                        value={editForm.metaTitlePromptTemplate}
+                        multiline={2}
+                        autoComplete="off"
+                        placeholder="No template selected"
+                        onChange={(value) =>
+                          updateEditField("metaTitlePromptTemplate", value || "")
+                        }
+                      />
+
+                      <TextField
+                        label="Meta Description Prompt Template"
+                        value={editForm.metaDescriptionPromptTemplate}
+                        multiline={3}
+                        autoComplete="off"
+                        placeholder="No template selected"
+                        onChange={(value) =>
+                          updateEditField("metaDescriptionPromptTemplate", value || "")
+                        }
+                      />
                     </BlockStack>
 
                     <Button

@@ -5,6 +5,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { buildPageContentPrompt } from "../lib/contentPromptTemplates";
+import { readStoredPagePromptTemplateSelection } from "../lib/pagePromptTemplateLibrary";
 import {
   Page,
   Card,
@@ -132,7 +133,19 @@ async function generateContent(input, { aiProvider, shopOpenaiKey, shopAnthropic
   return generateContentWithAnthropic(input, shopAnthropicKey);
 }
 
-function buildGenerationPrompt({ pageTitle, pageType, body, language, tone, length, format, contextKeywords }) {
+function buildGenerationPrompt({
+  pageTitle,
+  pageType,
+  body,
+  language,
+  tone,
+  length,
+  format,
+  contextKeywords,
+  bodyPromptTemplate,
+  metaTitlePromptTemplate,
+  metaDescriptionPromptTemplate,
+}) {
   return {
     prompt: buildPageContentPrompt({
       pageTitle,
@@ -143,6 +156,9 @@ function buildGenerationPrompt({ pageTitle, pageType, body, language, tone, leng
       length,
       format,
       contextKeywords,
+      bodyPromptTemplate,
+      metaTitlePromptTemplate,
+      metaDescriptionPromptTemplate,
     }),
   };
 }
@@ -223,6 +239,9 @@ export const action = async ({ request }) => {
     const length = formData.get("length") || "";
     const format = formData.get("format") || "";
     const contextKeywords = formData.get("contextKeywords") || "";
+    const pageBodyPromptTemplate = formData.get("pageBodyPromptTemplate") || "";
+    const pageMetaTitlePromptTemplate = formData.get("pageMetaTitlePromptTemplate") || "";
+    const pageMetaDescriptionPromptTemplate = formData.get("pageMetaDescriptionPromptTemplate") || "";
     const aiProvider = formData.get("aiProvider") || "auto";
 
     const shopData = await db.shop.findUnique({
@@ -240,6 +259,9 @@ export const action = async ({ request }) => {
         length,
         format,
         contextKeywords,
+        bodyPromptTemplate: pageBodyPromptTemplate,
+        metaTitlePromptTemplate: pageMetaTitlePromptTemplate,
+        metaDescriptionPromptTemplate: pageMetaDescriptionPromptTemplate,
       });
       const raw = await generateContent(input, {
         aiProvider,
@@ -407,6 +429,9 @@ const editInitialState = {
   length: "medium",
   format: "paragraphs",
   contextKeywords: "",
+  pageBodyPromptTemplate: "",
+  pageMetaTitlePromptTemplate: "",
+  pageMetaDescriptionPromptTemplate: "",
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -427,7 +452,23 @@ export default function PagesPage() {
   const { selectedResources, allResourcesSelected, handleSelectionChange } =
     useIndexResourceState(pages);
 
+  useEffect(() => {
+    const templateSelection = readStoredPagePromptTemplateSelection();
+    setEditState((current) => ({
+      ...current,
+      pageBodyPromptTemplate:
+        current.pageBodyPromptTemplate || templateSelection.bodyPromptTemplate || "",
+      pageMetaTitlePromptTemplate:
+        current.pageMetaTitlePromptTemplate || templateSelection.metaTitlePromptTemplate || "",
+      pageMetaDescriptionPromptTemplate:
+        current.pageMetaDescriptionPromptTemplate ||
+        templateSelection.metaDescriptionPromptTemplate ||
+        "",
+    }));
+  }, []);
+
   function openEditModal(page) {
+    const templateSelection = readStoredPagePromptTemplateSelection();
     setEditState({
       ...editInitialState,
       aiProvider: defaultAiProvider,
@@ -436,6 +477,9 @@ export default function PagesPage() {
       body: page.body || "",
       seoTitle: page.seo?.title || "",
       seoDescription: page.seo?.description || "",
+      pageBodyPromptTemplate: templateSelection.bodyPromptTemplate || "",
+      pageMetaTitlePromptTemplate: templateSelection.metaTitlePromptTemplate || "",
+      pageMetaDescriptionPromptTemplate: templateSelection.metaDescriptionPromptTemplate || "",
     });
     setGenerationError(null);
     setEditModal(true);
@@ -470,6 +514,9 @@ export default function PagesPage() {
     fd.append("length", editState.length);
     fd.append("format", editState.format);
     fd.append("contextKeywords", editState.contextKeywords);
+    fd.append("pageBodyPromptTemplate", editState.pageBodyPromptTemplate);
+    fd.append("pageMetaTitlePromptTemplate", editState.pageMetaTitlePromptTemplate);
+    fd.append("pageMetaDescriptionPromptTemplate", editState.pageMetaDescriptionPromptTemplate);
     fd.append("aiProvider", editState.aiProvider);
     generateFetcher.submit(fd, { method: "post" });
   }
@@ -740,6 +787,36 @@ export default function PagesPage() {
                       </Button>
                     ))}
                   </InlineStack>
+                </BlockStack>
+
+                <Divider />
+
+                <BlockStack gap="200">
+                  <Text variant="headingSm" as="h4">Page Prompt Templates</Text>
+                  <TextField
+                    label="Body Prompt Template"
+                    value={editState.pageBodyPromptTemplate}
+                    onChange={setField("pageBodyPromptTemplate")}
+                    multiline={3}
+                    autoComplete="off"
+                    placeholder="No template selected from Template page"
+                  />
+                  <TextField
+                    label="Meta Title Prompt Template"
+                    value={editState.pageMetaTitlePromptTemplate}
+                    onChange={setField("pageMetaTitlePromptTemplate")}
+                    multiline={2}
+                    autoComplete="off"
+                    placeholder="No template selected from Template page"
+                  />
+                  <TextField
+                    label="Meta Description Prompt Template"
+                    value={editState.pageMetaDescriptionPromptTemplate}
+                    onChange={setField("pageMetaDescriptionPromptTemplate")}
+                    multiline={2}
+                    autoComplete="off"
+                    placeholder="No template selected from Template page"
+                  />
                 </BlockStack>
 
                 <Divider />

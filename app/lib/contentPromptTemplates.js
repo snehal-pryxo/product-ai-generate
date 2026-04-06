@@ -39,9 +39,19 @@ export function buildProductContentPrompt({
   lengthOption,
   format,
   contextKeywords,
+  descriptionPromptTemplate,
+  metaTitlePromptTemplate,
+  metaDescriptionPromptTemplate,
   intent = "all",
 }) {
   const { min, max } = parseLengthRange(lengthOption);
+  const descriptionTemplate = normalizeText(descriptionPromptTemplate, "");
+  const seoTitleTemplate = normalizeText(metaTitlePromptTemplate, "");
+  const seoDescriptionTemplate = normalizeText(metaDescriptionPromptTemplate, "");
+  const hasDescriptionTemplate = Boolean(descriptionTemplate);
+  const hasSeoTitleTemplate = Boolean(seoTitleTemplate);
+  const hasSeoDescriptionTemplate = Boolean(seoDescriptionTemplate);
+  const hasAnyTemplate = hasDescriptionTemplate || hasSeoTitleTemplate || hasSeoDescriptionTemplate;
 
   return [
     "Role: You are a senior Shopify product copywriter and SEO specialist.",
@@ -59,6 +69,21 @@ export function buildProductContentPrompt({
     `- Current meta title: ${normalizeText(seoTitle)}`,
     `- Current meta description: ${normalizeText(seoDescription)}`,
     `- Keywords and context: ${normalizeText(contextKeywords, "Not provided")}`,
+    ...(hasAnyTemplate
+      ? [
+          "",
+          "Template instructions:",
+          hasDescriptionTemplate
+            ? `- Product description template (follow structure): ${descriptionTemplate}`
+            : "- Product description template: Not provided",
+          hasSeoTitleTemplate
+            ? `- Meta title template (adapt placeholders): ${seoTitleTemplate}`
+            : "- Meta title template: Not provided",
+          hasSeoDescriptionTemplate
+            ? `- Meta description template (adapt placeholders): ${seoDescriptionTemplate}`
+            : "- Meta description template: Not provided",
+        ]
+      : []),
     "",
     "Output (return valid JSON only, no markdown, no backticks):",
     '{ "productDescription": "...", "seoTitle": "...", "seoDescription": "..." }',
@@ -81,9 +106,19 @@ export function buildCollectionContentPrompt({
   lengthOption,
   format,
   contextKeywords,
+  descriptionPromptTemplate,
+  metaTitlePromptTemplate,
+  metaDescriptionPromptTemplate,
   intent = "all",
 }) {
   const { min, max } = parseLengthRange(lengthOption);
+  const descriptionTemplate = normalizeText(descriptionPromptTemplate, "");
+  const seoTitleTemplate = normalizeText(metaTitlePromptTemplate, "");
+  const seoDescriptionTemplate = normalizeText(metaDescriptionPromptTemplate, "");
+  const hasDescriptionTemplate = Boolean(descriptionTemplate);
+  const hasSeoTitleTemplate = Boolean(seoTitleTemplate);
+  const hasSeoDescriptionTemplate = Boolean(seoDescriptionTemplate);
+  const hasAnyTemplate = hasDescriptionTemplate || hasSeoTitleTemplate || hasSeoDescriptionTemplate;
 
   return [
     "Role: You are a senior Shopify collection page copywriter and SEO specialist.",
@@ -101,6 +136,21 @@ export function buildCollectionContentPrompt({
     `- Current meta title: ${normalizeText(seoTitle)}`,
     `- Current meta description: ${normalizeText(seoDescription)}`,
     `- Keywords and context: ${normalizeText(contextKeywords, "Not provided")}`,
+    ...(hasAnyTemplate
+      ? [
+          "",
+          "Template instructions:",
+          hasDescriptionTemplate
+            ? `- Collection description template (follow structure): ${descriptionTemplate}`
+            : "- Collection description template: Not provided",
+          hasSeoTitleTemplate
+            ? `- Meta title template (adapt placeholders): ${seoTitleTemplate}`
+            : "- Meta title template: Not provided",
+          hasSeoDescriptionTemplate
+            ? `- Meta description template (adapt placeholders): ${seoDescriptionTemplate}`
+            : "- Meta description template: Not provided",
+        ]
+      : []),
     "",
     "Output (return valid JSON only, no markdown, no backticks):",
     '{ "collectionDescription": "...", "seoTitle": "...", "seoDescription": "..." }',
@@ -122,7 +172,18 @@ export function buildPageContentPrompt({
   length,
   format,
   contextKeywords,
+  bodyPromptTemplate,
+  metaTitlePromptTemplate,
+  metaDescriptionPromptTemplate,
 }) {
+  const pageBodyTemplate = normalizeText(bodyPromptTemplate, "");
+  const seoTitleTemplate = normalizeText(metaTitlePromptTemplate, "");
+  const seoDescriptionTemplate = normalizeText(metaDescriptionPromptTemplate, "");
+  const hasBodyTemplate = Boolean(pageBodyTemplate);
+  const hasSeoTitleTemplate = Boolean(seoTitleTemplate);
+  const hasSeoDescriptionTemplate = Boolean(seoDescriptionTemplate);
+  const hasAnyTemplate = hasBodyTemplate || hasSeoTitleTemplate || hasSeoDescriptionTemplate;
+
   return [
     "Role: You are an expert Shopify storefront page copywriter and SEO specialist.",
     `Task: Generate content for a Shopify page of type "${normalizeText(pageType, "General")}".`,
@@ -135,6 +196,21 @@ export function buildPageContentPrompt({
     `- Formatting preference: ${normalizeText(format, "Mixed headings and paragraphs")}`,
     `- Keywords and context: ${normalizeText(contextKeywords, "Not provided")}`,
     `- Existing page content snippet: ${normalizeText(body ? body.slice(0, 700) : "", "Not available")}`,
+    ...(hasAnyTemplate
+      ? [
+          "",
+          "Template instructions:",
+          hasBodyTemplate
+            ? `- Page body template (follow structure): ${pageBodyTemplate}`
+            : "- Page body template: Not provided",
+          hasSeoTitleTemplate
+            ? `- Meta title template (adapt placeholders): ${seoTitleTemplate}`
+            : "- Meta title template: Not provided",
+          hasSeoDescriptionTemplate
+            ? `- Meta description template (adapt placeholders): ${seoDescriptionTemplate}`
+            : "- Meta description template: Not provided",
+        ]
+      : []),
     "",
     "Output (return valid JSON only, no markdown, no backticks):",
     '{ "pageBody": "<HTML>", "seoTitle": "...", "seoDescription": "..." }',
@@ -156,7 +232,18 @@ export function buildBlogContentPrompt({
   length,
   format,
   contextKeywords,
+  bodyPromptTemplate,
+  metaTitlePromptTemplate,
+  metaDescriptionPromptTemplate,
 }) {
+  const articleBodyTemplate = normalizeText(bodyPromptTemplate, "");
+  const seoTitleTemplate = normalizeText(metaTitlePromptTemplate, "");
+  const seoDescriptionTemplate = normalizeText(metaDescriptionPromptTemplate, "");
+  const hasBodyTemplate = Boolean(articleBodyTemplate);
+  const hasSeoTitleTemplate = Boolean(seoTitleTemplate);
+  const hasSeoDescriptionTemplate = Boolean(seoDescriptionTemplate);
+  const hasAnyTemplate = hasBodyTemplate || hasSeoTitleTemplate || hasSeoDescriptionTemplate;
+
   return [
     "Role: You are an expert Shopify blog writer and SEO content strategist.",
     `Task: Generate a complete blog article for article type "${normalizeText(articleType, "General")}".`,
@@ -169,6 +256,21 @@ export function buildBlogContentPrompt({
     `- Formatting preference: ${normalizeText(format, "Heading + paragraph format")}`,
     `- Keywords and context: ${normalizeText(contextKeywords, "Not provided")}`,
     `- Existing article content snippet: ${normalizeText(body ? body.slice(0, 700) : "", "Not available")}`,
+    ...(hasAnyTemplate
+      ? [
+          "",
+          "Template instructions:",
+          hasBodyTemplate
+            ? `- Article body template (follow structure): ${articleBodyTemplate}`
+            : "- Article body template: Not provided",
+          hasSeoTitleTemplate
+            ? `- Meta title template (adapt placeholders): ${seoTitleTemplate}`
+            : "- Meta title template: Not provided",
+          hasSeoDescriptionTemplate
+            ? `- Meta description template (adapt placeholders): ${seoDescriptionTemplate}`
+            : "- Meta description template: Not provided",
+        ]
+      : []),
     "",
     "Output (return valid JSON only, no markdown, no backticks):",
     '{ "articleTitle": "...", "articleBody": "<HTML>", "excerpt": "...", "seoTitle": "...", "seoDescription": "..." }',
