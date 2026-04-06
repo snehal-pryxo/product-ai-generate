@@ -35,6 +35,7 @@ import {
 } from "@shopify/polaris";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
+import { buildProductContentPrompt } from "../lib/contentPromptTemplates";
 /* global process */
 
 const FETCH_BATCH_SIZE = 250;
@@ -497,15 +498,6 @@ function mergeUniqueKeywords(...keywordLists) {
   return merged;
 }
 
-function parseLengthRange(lengthOption) {
-  const match = /(\d+)\s*-\s*(\d+)/.exec(lengthOption || "");
-  if (!match) return { min: 50, max: 150 };
-  return {
-    min: Number(match[1]),
-    max: Number(match[2]),
-  };
-}
-
 function cleanInlineText(value, maxLength) {
   return (value || "")
     .replace(/\s+/g, " ")
@@ -546,37 +538,25 @@ function buildGenerationPrompt({
   contextKeywords,
   intent,
 }) {
-  const { min, max } = parseLengthRange(lengthOption);
-  const focus =
+  const promptIntent =
     intent === GENERATE_SEO_TITLE_INTENT
-      ? "Primary focus: generate a strong meta title."
+      ? "seo_title"
       : intent === GENERATE_SEO_DESCRIPTION_INTENT
-        ? "Primary focus: generate a strong meta description."
-        : "Primary focus: generate product description, meta title, and meta description.";
+        ? "seo_description"
+        : "all";
 
-  return [
-    "Generate Shopify-ready content and return strict JSON only.",
-    "",
-    focus,
-    `Language: ${language || "English"}`,
-    `Tone: ${tone || "Neutral"}`,
-    `Description word range: ${min}-${max}`,
-    `Description format: ${format || "Single paragraph"}`,
-    `Product title: ${title || "Untitled product"}`,
-    `Current product description: ${descriptionText || "Not available"}`,
-    `Current meta title (SEO title): ${seoTitle || "Not available"}`,
-    `Current meta description (SEO description): ${seoDescription || "Not available"}`,
-    `Keywords/context: ${contextKeywords || "Not provided"}`,
-    "",
-    "Return only valid JSON with these keys:",
-    '{ "productDescription": "...", "seoTitle": "...", "seoDescription": "..." }',
-    "",
-    "Rules:",
-    "- No markdown, no code fences.",
-    "- Meta title max 70 characters.",
-    "- Meta description max 160 characters.",
-    "- Product description should be natural and conversion-focused.",
-  ].join("\n");
+  return buildProductContentPrompt({
+    title,
+    descriptionText,
+    seoTitle,
+    seoDescription,
+    language,
+    tone,
+    lengthOption,
+    format,
+    contextKeywords,
+    intent: promptIntent,
+  });
 }
 
 async function generateContentWithAnthropic(input, apiKey) {

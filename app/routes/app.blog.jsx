@@ -4,6 +4,7 @@ import { useLoaderData, useNavigate, useFetcher } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
+import { buildBlogContentPrompt } from "../lib/contentPromptTemplates";
 import {
   Page,
   Card,
@@ -203,29 +204,18 @@ async function generateContent(input, { aiProvider, shopOpenaiKey, shopAnthropic
 }
 
 function buildGenerationPrompt({ articleType, title, body, language, tone, length, format, contextKeywords }) {
-  const langStr = language && language !== "en" ? `Language: ${language}.` : "Language: English.";
-  const toneStr = tone ? `Tone: ${tone}.` : "";
-  const lengthStr = length ? `Length: ${length}.` : "";
-  const formatStr = format ? `Format: ${format}.` : "";
-  const kwStr = contextKeywords ? `Keywords to include: ${contextKeywords}.` : "";
-  const titleStr = title ? `Article title / topic: "${title}".` : "";
-  const bodySnippet = body ? `\nExisting content:\n${body.slice(0, 400)}` : "";
-
-  const prompt = `You are an expert e-commerce blog writer for Shopify stores. Generate a blog article of type "${articleType}".
-${titleStr}
-${langStr} ${toneStr} ${lengthStr} ${formatStr} ${kwStr}
-${bodySnippet}
-
-Return ONLY a JSON object with these keys (no markdown, no extra text):
-{
-  "articleTitle": "<engaging blog post title>",
-  "articleBody": "<full HTML blog post content with proper headings and paragraphs>",
-  "excerpt": "<compelling 1-2 sentence summary for blog listings>",
-  "seoTitle": "<SEO meta title, max 60 chars>",
-  "seoDescription": "<SEO meta description, max 160 chars>"
-}`;
-
-  return { prompt };
+  return {
+    prompt: buildBlogContentPrompt({
+      articleType,
+      title,
+      body,
+      language,
+      tone,
+      length,
+      format,
+      contextKeywords,
+    }),
+  };
 }
 
 async function upsertBlogArticleContent(data) {

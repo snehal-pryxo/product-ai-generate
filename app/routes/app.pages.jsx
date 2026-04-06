@@ -4,6 +4,7 @@ import { useLoaderData, useNavigate, useFetcher } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
+import { buildPageContentPrompt } from "../lib/contentPromptTemplates";
 import {
   Page,
   Card,
@@ -131,26 +132,19 @@ async function generateContent(input, { aiProvider, shopOpenaiKey, shopAnthropic
   return generateContentWithAnthropic(input, shopAnthropicKey);
 }
 
-function buildGenerationPrompt({ pageType, body, language, tone, length, format, contextKeywords }) {
-  const langStr = language && language !== "en" ? `Language: ${language}.` : "Language: English.";
-  const toneStr = tone ? `Tone: ${tone}.` : "";
-  const lengthStr = length ? `Length: ${length}.` : "";
-  const formatStr = format ? `Format: ${format}.` : "";
-  const kwStr = contextKeywords ? `Keywords to include: ${contextKeywords}.` : "";
-  const bodySnippet = body ? `\nExisting page content:\n${body.slice(0, 600)}` : "";
-
-  const prompt = `You are an expert Shopify store copywriter. Generate page content for a "${pageType}" page.
-${langStr} ${toneStr} ${lengthStr} ${formatStr} ${kwStr}
-${bodySnippet}
-
-Return ONLY a JSON object with these keys (no markdown, no extra text):
-{
-  "pageBody": "<full HTML page body content>",
-  "seoTitle": "<SEO meta title, max 60 chars>",
-  "seoDescription": "<SEO meta description, max 160 chars>"
-}`;
-
-  return { prompt };
+function buildGenerationPrompt({ pageTitle, pageType, body, language, tone, length, format, contextKeywords }) {
+  return {
+    prompt: buildPageContentPrompt({
+      pageTitle,
+      pageType,
+      body,
+      language,
+      tone,
+      length,
+      format,
+      contextKeywords,
+    }),
+  };
 }
 
 async function upsertPageContent(data) {
@@ -237,7 +231,16 @@ export const action = async ({ request }) => {
     });
 
     try {
-      const input = buildGenerationPrompt({ pageType, body, language, tone, length, format, contextKeywords });
+      const input = buildGenerationPrompt({
+        pageTitle,
+        pageType,
+        body,
+        language,
+        tone,
+        length,
+        format,
+        contextKeywords,
+      });
       const raw = await generateContent(input, {
         aiProvider,
         shopOpenaiKey: shopData?.openaiApiKey,
