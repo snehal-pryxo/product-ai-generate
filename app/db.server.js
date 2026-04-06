@@ -82,11 +82,16 @@ async function ensureTables() {
   } catch (_) { /* index already exists */ }
 }
 
-// Ensure defaultAiModel column exists (migration may not have run yet)
+// Ensure defaultAiModel and credits columns exist (migration may not have run yet)
 async function ensureShopColumns() {
   try {
     await prisma.$executeRawUnsafe(
       "ALTER TABLE `shop` ADD COLUMN IF NOT EXISTS `defaultAiModel` VARCHAR(100) NULL DEFAULT 'gpt-4o-mini'"
+    );
+  } catch (_) { /* column already exists */ }
+  try {
+    await prisma.$executeRawUnsafe(
+      "ALTER TABLE `shop` ADD COLUMN IF NOT EXISTS `credits` INT NOT NULL DEFAULT 100"
     );
   } catch (_) { /* column already exists */ }
 }

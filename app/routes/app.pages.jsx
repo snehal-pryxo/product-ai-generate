@@ -464,6 +464,9 @@ export default function PagesPage() {
   const [useCustomBodyInstructions, setUseCustomBodyInstructions] = useState(false);
   const [useCustomMetaTitleInstructions, setUseCustomMetaTitleInstructions] = useState(false);
   const [useCustomMetaDescInstructions, setUseCustomMetaDescInstructions] = useState(false);
+  const [selectedBodyTemplateId, setSelectedBodyTemplateId] = useState(() => PAGE_BODY_TEMPLATES[0]?.id || "");
+  const [selectedMetaTitleTemplateId, setSelectedMetaTitleTemplateId] = useState(() => PAGE_META_TITLE_TEMPLATES[0]?.id || "");
+  const [selectedMetaDescTemplateId, setSelectedMetaDescTemplateId] = useState(() => PAGE_META_DESCRIPTION_TEMPLATES[0]?.id || "");
 
   const [templateLib, setTemplateLib] = useState({ open: false, tab: "description", target: "pageBodyPromptTemplate" });
 
@@ -514,9 +517,18 @@ export default function PagesPage() {
     fd.append("format", bulkSettings.format);
     fd.append("pageType", bulkSettings.pageType);
     fd.append("contextKeywords", "");
-    fd.append("bodyPromptTemplate", bulkBodyTemplate || "");
-    fd.append("metaTitlePromptTemplate", bulkMetaTitleTemplate || "");
-    fd.append("metaDescriptionPromptTemplate", bulkMetaDescTemplate || "");
+    const effectiveBodyTemplate = useCustomBodyInstructions
+      ? (bulkBodyTemplate || "")
+      : (PAGE_BODY_TEMPLATES.find((t) => t.id === selectedBodyTemplateId)?.template || "");
+    const effectiveMetaTitleTemplate = useCustomMetaTitleInstructions
+      ? (bulkMetaTitleTemplate || "")
+      : (PAGE_META_TITLE_TEMPLATES.find((t) => t.id === selectedMetaTitleTemplateId)?.template || "");
+    const effectiveMetaDescTemplate = useCustomMetaDescInstructions
+      ? (bulkMetaDescTemplate || "")
+      : (PAGE_META_DESCRIPTION_TEMPLATES.find((t) => t.id === selectedMetaDescTemplateId)?.template || "");
+    fd.append("bodyPromptTemplate", effectiveBodyTemplate);
+    fd.append("metaTitlePromptTemplate", effectiveMetaTitleTemplate);
+    fd.append("metaDescriptionPromptTemplate", effectiveMetaDescTemplate);
     fd.append("aiProvider", bulkSettings.aiProvider);
     bulkFetcher.submit(fd, { method: "post" });
   }
@@ -682,7 +694,9 @@ export default function PagesPage() {
               <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
                 <InlineStack align="space-between" blockAlign="center">
                   <Text as="h3" variant="headingSm" fontWeight="semibold">Body</Text>
-                  <button onClick={() => openPageTemplateLib("description", "pageBodyPromptTemplate")} style={btnStyle}>Browse Templates</button>
+                  {useCustomBodyInstructions && (
+                    <button onClick={() => openPageTemplateLib("description", "pageBodyPromptTemplate")} style={btnStyle}>Browse Templates</button>
+                  )}
                 </InlineStack>
                 <div style={{ marginTop: "8px" }}>
                   <Checkbox
@@ -690,7 +704,7 @@ export default function PagesPage() {
                     checked={useCustomBodyInstructions}
                     onChange={setUseCustomBodyInstructions}
                   />
-                  {useCustomBodyInstructions && (
+                  {useCustomBodyInstructions ? (
                     <div style={{ marginTop: "8px" }}>
                       <TextField
                         label="Body custom prompt" labelHidden
@@ -705,6 +719,15 @@ export default function PagesPage() {
                         </div>
                       )}
                     </div>
+                  ) : (
+                    <div style={{ marginTop: "8px" }}>
+                      <Select
+                        label="Template" labelHidden
+                        options={PAGE_BODY_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))}
+                        value={selectedBodyTemplateId}
+                        onChange={setSelectedBodyTemplateId}
+                      />
+                    </div>
                   )}
                 </div>
               </div>
@@ -715,7 +738,9 @@ export default function PagesPage() {
               <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
                 <InlineStack align="space-between" blockAlign="center">
                   <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Title</Text>
-                  <button onClick={() => openPageTemplateLib("seo-title", "pageMetaTitlePromptTemplate")} style={btnStyle}>Browse Templates</button>
+                  {useCustomMetaTitleInstructions && (
+                    <button onClick={() => openPageTemplateLib("seo-title", "pageMetaTitlePromptTemplate")} style={btnStyle}>Browse Templates</button>
+                  )}
                 </InlineStack>
                 <div style={{ marginTop: "8px" }}>
                   <Checkbox
@@ -723,7 +748,7 @@ export default function PagesPage() {
                     checked={useCustomMetaTitleInstructions}
                     onChange={setUseCustomMetaTitleInstructions}
                   />
-                  {useCustomMetaTitleInstructions && (
+                  {useCustomMetaTitleInstructions ? (
                     <div style={{ marginTop: "8px" }}>
                       <TextField
                         label="Meta title custom prompt" labelHidden
@@ -738,6 +763,15 @@ export default function PagesPage() {
                         </div>
                       )}
                     </div>
+                  ) : (
+                    <div style={{ marginTop: "8px" }}>
+                      <Select
+                        label="Template" labelHidden
+                        options={PAGE_META_TITLE_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))}
+                        value={selectedMetaTitleTemplateId}
+                        onChange={setSelectedMetaTitleTemplateId}
+                      />
+                    </div>
                   )}
                 </div>
               </div>
@@ -748,7 +782,9 @@ export default function PagesPage() {
               <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
                 <InlineStack align="space-between" blockAlign="center">
                   <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Description</Text>
-                  <button onClick={() => openPageTemplateLib("seo-description", "pageMetaDescriptionPromptTemplate")} style={btnStyle}>Browse Templates</button>
+                  {useCustomMetaDescInstructions && (
+                    <button onClick={() => openPageTemplateLib("seo-description", "pageMetaDescriptionPromptTemplate")} style={btnStyle}>Browse Templates</button>
+                  )}
                 </InlineStack>
                 <div style={{ marginTop: "8px" }}>
                   <Checkbox
@@ -756,7 +792,7 @@ export default function PagesPage() {
                     checked={useCustomMetaDescInstructions}
                     onChange={setUseCustomMetaDescInstructions}
                   />
-                  {useCustomMetaDescInstructions && (
+                  {useCustomMetaDescInstructions ? (
                     <div style={{ marginTop: "8px" }}>
                       <TextField
                         label="Meta description custom prompt" labelHidden
@@ -770,6 +806,15 @@ export default function PagesPage() {
                           <button onClick={() => setBulkMetaDescTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
                         </div>
                       )}
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: "8px" }}>
+                      <Select
+                        label="Template" labelHidden
+                        options={PAGE_META_DESCRIPTION_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))}
+                        value={selectedMetaDescTemplateId}
+                        onChange={setSelectedMetaDescTemplateId}
+                      />
                     </div>
                   )}
                 </div>

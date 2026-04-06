@@ -1180,6 +1180,9 @@ export default function ProductsPage() {
   const [useCustomInstructions, setUseCustomInstructions] = useState(false);
   const [useCustomMetaDescInstructions, setUseCustomMetaDescInstructions] = useState(false);
   const [useCustomMetaTitleInstructions, setUseCustomMetaTitleInstructions] = useState(false);
+  const [selectedDescTemplateId, setSelectedDescTemplateId] = useState(() => PRODUCT_DESCRIPTION_TEMPLATES[0]?.id || "");
+  const [selectedMetaDescTemplateId, setSelectedMetaDescTemplateId] = useState(() => PRODUCT_META_DESCRIPTION_TEMPLATES[0]?.id || "");
+  const [selectedMetaTitleTemplateId, setSelectedMetaTitleTemplateId] = useState(() => PRODUCT_META_TITLE_TEMPLATES[0]?.id || "");
   const [templateLib, setTemplateLib] = useState({ open: false, tab: "description", target: "descriptionPromptTemplate" });
   const [showAdvancedBulkSettings, setShowAdvancedBulkSettings] = useState(false);
   const bulkResultHandledRef = useRef(false);
@@ -1309,9 +1312,18 @@ export default function ProductsPage() {
     payload.append("length", bulkSettings.length);
     payload.append("format", bulkSettings.format);
     payload.append("contextKeywords", contextKeywords);
-    payload.append("descriptionPromptTemplate", bulkDescTemplate || "");
-    payload.append("metaTitlePromptTemplate", bulkMetaTitleTemplate || "");
-    payload.append("metaDescriptionPromptTemplate", bulkMetaDescTemplate || "");
+    const effectiveDescTemplate = useCustomInstructions
+      ? (bulkDescTemplate || "")
+      : (PRODUCT_DESCRIPTION_TEMPLATES.find((t) => t.id === selectedDescTemplateId)?.template || "");
+    const effectiveMetaDescTemplate = useCustomMetaDescInstructions
+      ? (bulkMetaDescTemplate || "")
+      : (PRODUCT_META_DESCRIPTION_TEMPLATES.find((t) => t.id === selectedMetaDescTemplateId)?.template || "");
+    const effectiveMetaTitleTemplate = useCustomMetaTitleInstructions
+      ? (bulkMetaTitleTemplate || "")
+      : (PRODUCT_META_TITLE_TEMPLATES.find((t) => t.id === selectedMetaTitleTemplateId)?.template || "");
+    payload.append("descriptionPromptTemplate", effectiveDescTemplate);
+    payload.append("metaTitlePromptTemplate", effectiveMetaTitleTemplate);
+    payload.append("metaDescriptionPromptTemplate", effectiveMetaDescTemplate);
     payload.append("aiProvider", bulkSettings.aiProvider);
     bulkFetcher.submit(payload, { method: "post" });
   }, [
@@ -1323,6 +1335,12 @@ export default function ProductsPage() {
     bulkSelectedKeywords,
     bulkSettings,
     selectedProducts,
+    useCustomInstructions,
+    useCustomMetaDescInstructions,
+    useCustomMetaTitleInstructions,
+    selectedDescTemplateId,
+    selectedMetaDescTemplateId,
+    selectedMetaTitleTemplateId,
   ]);
 
   const isBulkGenerating = bulkFetcher.state !== "idle";
@@ -1721,7 +1739,9 @@ export default function ProductsPage() {
               <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
                 <InlineStack align="space-between" blockAlign="center">
                   <Text as="h3" variant="headingSm" fontWeight="semibold">Description</Text>
-                  <button onClick={() => openProductTemplateLib("description", "descriptionPromptTemplate")} style={btnStyle}>Browse Templates</button>
+                  {useCustomInstructions && (
+                    <button onClick={() => openProductTemplateLib("description", "descriptionPromptTemplate")} style={btnStyle}>Browse Templates</button>
+                  )}
                 </InlineStack>
                 <div style={{ marginTop: "8px" }}>
                   <Checkbox
@@ -1729,7 +1749,7 @@ export default function ProductsPage() {
                     checked={useCustomInstructions}
                     onChange={setUseCustomInstructions}
                   />
-                  {useCustomInstructions && (
+                  {useCustomInstructions ? (
                     <div style={{ marginTop: "8px" }}>
                       <TextField
                         label="Custom Prompt" labelHidden
@@ -1745,6 +1765,15 @@ export default function ProductsPage() {
                         </div>
                       )}
                     </div>
+                  ) : (
+                    <div style={{ marginTop: "8px" }}>
+                      <Select
+                        label="Template" labelHidden
+                        options={PRODUCT_DESCRIPTION_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))}
+                        value={selectedDescTemplateId}
+                        onChange={setSelectedDescTemplateId}
+                      />
+                    </div>
                   )}
                 </div>
               </div>
@@ -1755,7 +1784,9 @@ export default function ProductsPage() {
               <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
                 <InlineStack align="space-between" blockAlign="center">
                   <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Description</Text>
-                  <button onClick={() => openProductTemplateLib("seo-description", "metaDescriptionPromptTemplate")} style={btnStyle}>Browse Templates</button>
+                  {useCustomMetaDescInstructions && (
+                    <button onClick={() => openProductTemplateLib("seo-description", "metaDescriptionPromptTemplate")} style={btnStyle}>Browse Templates</button>
+                  )}
                 </InlineStack>
                 <div style={{ marginTop: "8px" }}>
                   <Checkbox
@@ -1763,7 +1794,7 @@ export default function ProductsPage() {
                     checked={useCustomMetaDescInstructions}
                     onChange={setUseCustomMetaDescInstructions}
                   />
-                  {useCustomMetaDescInstructions && (
+                  {useCustomMetaDescInstructions ? (
                     <div style={{ marginTop: "8px" }}>
                       <TextField
                         label="Custom Prompt" labelHidden
@@ -1779,6 +1810,15 @@ export default function ProductsPage() {
                         </div>
                       )}
                     </div>
+                  ) : (
+                    <div style={{ marginTop: "8px" }}>
+                      <Select
+                        label="Template" labelHidden
+                        options={PRODUCT_META_DESCRIPTION_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))}
+                        value={selectedMetaDescTemplateId}
+                        onChange={setSelectedMetaDescTemplateId}
+                      />
+                    </div>
                   )}
                 </div>
               </div>
@@ -1789,7 +1829,9 @@ export default function ProductsPage() {
               <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
                 <InlineStack align="space-between" blockAlign="center">
                   <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Title</Text>
-                  <button onClick={() => openProductTemplateLib("seo-title", "metaTitlePromptTemplate")} style={btnStyle}>Browse Templates</button>
+                  {useCustomMetaTitleInstructions && (
+                    <button onClick={() => openProductTemplateLib("seo-title", "metaTitlePromptTemplate")} style={btnStyle}>Browse Templates</button>
+                  )}
                 </InlineStack>
                 <div style={{ marginTop: "8px" }}>
                   <Checkbox
@@ -1797,7 +1839,7 @@ export default function ProductsPage() {
                     checked={useCustomMetaTitleInstructions}
                     onChange={setUseCustomMetaTitleInstructions}
                   />
-                  {useCustomMetaTitleInstructions && (
+                  {useCustomMetaTitleInstructions ? (
                     <div style={{ marginTop: "8px" }}>
                       <TextField
                         label="Custom Prompt" labelHidden
@@ -1812,6 +1854,15 @@ export default function ProductsPage() {
                           <button onClick={() => setBulkMetaTitleTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
                         </div>
                       )}
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: "8px" }}>
+                      <Select
+                        label="Template" labelHidden
+                        options={PRODUCT_META_TITLE_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))}
+                        value={selectedMetaTitleTemplateId}
+                        onChange={setSelectedMetaTitleTemplateId}
+                      />
                     </div>
                   )}
                 </div>

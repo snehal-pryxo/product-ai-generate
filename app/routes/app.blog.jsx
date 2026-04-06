@@ -430,6 +430,9 @@ export default function BlogPage() {
   const [useCustomBodyInstructions, setUseCustomBodyInstructions] = useState(false);
   const [useCustomMetaDescInstructions, setUseCustomMetaDescInstructions] = useState(false);
   const [useCustomMetaTitleInstructions, setUseCustomMetaTitleInstructions] = useState(false);
+  const [selectedBodyTemplateId, setSelectedBodyTemplateId] = useState(() => BLOG_BODY_TEMPLATES[0]?.id || "");
+  const [selectedMetaDescTemplateId, setSelectedMetaDescTemplateId] = useState(() => BLOG_META_DESCRIPTION_TEMPLATES[0]?.id || "");
+  const [selectedMetaTitleTemplateId, setSelectedMetaTitleTemplateId] = useState(() => BLOG_META_TITLE_TEMPLATES[0]?.id || "");
   const [bulkBodyPromptTemplate, setBulkBodyPromptTemplate] = useState("");
   const [bulkMetaDescPromptTemplate, setBulkMetaDescPromptTemplate] = useState("");
   const [bulkMetaTitlePromptTemplate, setBulkMetaTitlePromptTemplate] = useState("");
@@ -512,9 +515,18 @@ export default function BlogPage() {
     payload.append("format", bulkSettings.format);
     payload.append("articleType", bulkSettings.articleType);
     payload.append("aiProvider", bulkSettings.aiProvider);
-    payload.append("bodyPromptTemplate", bulkBodyPromptTemplate);
-    payload.append("metaTitlePromptTemplate", bulkMetaTitlePromptTemplate);
-    payload.append("metaDescriptionPromptTemplate", bulkMetaDescPromptTemplate);
+    const effectiveBodyTemplate = useCustomBodyInstructions
+      ? (bulkBodyPromptTemplate || "")
+      : (BLOG_BODY_TEMPLATES.find((t) => t.id === selectedBodyTemplateId)?.template || "");
+    const effectiveMetaDescTemplate = useCustomMetaDescInstructions
+      ? (bulkMetaDescPromptTemplate || "")
+      : (BLOG_META_DESCRIPTION_TEMPLATES.find((t) => t.id === selectedMetaDescTemplateId)?.template || "");
+    const effectiveMetaTitleTemplate = useCustomMetaTitleInstructions
+      ? (bulkMetaTitlePromptTemplate || "")
+      : (BLOG_META_TITLE_TEMPLATES.find((t) => t.id === selectedMetaTitleTemplateId)?.template || "");
+    payload.append("bodyPromptTemplate", effectiveBodyTemplate);
+    payload.append("metaTitlePromptTemplate", effectiveMetaTitleTemplate);
+    payload.append("metaDescriptionPromptTemplate", effectiveMetaDescTemplate);
     bulkFetcher.submit(payload, { method: "post" });
   }
 
@@ -704,7 +716,9 @@ export default function BlogPage() {
               <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
                 <InlineStack align="space-between" blockAlign="center">
                   <Text as="h3" variant="headingSm" fontWeight="semibold">Body</Text>
-                  <button onClick={() => openBlogTemplateLib("description", "bulk_body")} style={btnStyle}>Browse Templates</button>
+                  {useCustomBodyInstructions && (
+                    <button onClick={() => openBlogTemplateLib("description", "bulk_body")} style={btnStyle}>Browse Templates</button>
+                  )}
                 </InlineStack>
                 <div style={{ marginTop: "8px" }}>
                   <Checkbox
@@ -712,7 +726,7 @@ export default function BlogPage() {
                     checked={useCustomBodyInstructions}
                     onChange={setUseCustomBodyInstructions}
                   />
-                  {useCustomBodyInstructions && (
+                  {useCustomBodyInstructions ? (
                     <div style={{ marginTop: "8px" }}>
                       <TextField
                         label="Body custom prompt" labelHidden
@@ -727,6 +741,15 @@ export default function BlogPage() {
                         </div>
                       )}
                     </div>
+                  ) : (
+                    <div style={{ marginTop: "8px" }}>
+                      <Select
+                        label="Template" labelHidden
+                        options={BLOG_BODY_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))}
+                        value={selectedBodyTemplateId}
+                        onChange={setSelectedBodyTemplateId}
+                      />
+                    </div>
                   )}
                 </div>
               </div>
@@ -737,7 +760,9 @@ export default function BlogPage() {
               <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
                 <InlineStack align="space-between" blockAlign="center">
                   <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Description</Text>
-                  <button onClick={() => openBlogTemplateLib("seo-description", "bulk_meta_desc")} style={btnStyle}>Browse Templates</button>
+                  {useCustomMetaDescInstructions && (
+                    <button onClick={() => openBlogTemplateLib("seo-description", "bulk_meta_desc")} style={btnStyle}>Browse Templates</button>
+                  )}
                 </InlineStack>
                 <div style={{ marginTop: "8px" }}>
                   <Checkbox
@@ -745,7 +770,7 @@ export default function BlogPage() {
                     checked={useCustomMetaDescInstructions}
                     onChange={setUseCustomMetaDescInstructions}
                   />
-                  {useCustomMetaDescInstructions && (
+                  {useCustomMetaDescInstructions ? (
                     <div style={{ marginTop: "8px" }}>
                       <TextField
                         label="Meta description custom prompt" labelHidden
@@ -760,6 +785,15 @@ export default function BlogPage() {
                         </div>
                       )}
                     </div>
+                  ) : (
+                    <div style={{ marginTop: "8px" }}>
+                      <Select
+                        label="Template" labelHidden
+                        options={BLOG_META_DESCRIPTION_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))}
+                        value={selectedMetaDescTemplateId}
+                        onChange={setSelectedMetaDescTemplateId}
+                      />
+                    </div>
                   )}
                 </div>
               </div>
@@ -770,7 +804,9 @@ export default function BlogPage() {
               <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
                 <InlineStack align="space-between" blockAlign="center">
                   <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Title</Text>
-                  <button onClick={() => openBlogTemplateLib("seo-title", "bulk_meta_title")} style={btnStyle}>Browse Templates</button>
+                  {useCustomMetaTitleInstructions && (
+                    <button onClick={() => openBlogTemplateLib("seo-title", "bulk_meta_title")} style={btnStyle}>Browse Templates</button>
+                  )}
                 </InlineStack>
                 <div style={{ marginTop: "8px" }}>
                   <Checkbox
@@ -778,7 +814,7 @@ export default function BlogPage() {
                     checked={useCustomMetaTitleInstructions}
                     onChange={setUseCustomMetaTitleInstructions}
                   />
-                  {useCustomMetaTitleInstructions && (
+                  {useCustomMetaTitleInstructions ? (
                     <div style={{ marginTop: "8px" }}>
                       <TextField
                         label="Meta title custom prompt" labelHidden
@@ -792,6 +828,15 @@ export default function BlogPage() {
                           <button onClick={() => setBulkMetaTitlePromptTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
                         </div>
                       )}
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: "8px" }}>
+                      <Select
+                        label="Template" labelHidden
+                        options={BLOG_META_TITLE_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))}
+                        value={selectedMetaTitleTemplateId}
+                        onChange={setSelectedMetaTitleTemplateId}
+                      />
                     </div>
                   )}
                 </div>

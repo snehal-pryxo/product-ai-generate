@@ -25,6 +25,7 @@ export default function App() {
           <s-link href="/app/blog">Blog</s-link>
           <s-link href="/app/template">Template</s-link>
            <s-link href="/app/analytics">Analytics</s-link>
+          <s-link href="/app/content-management">Content Management</s-link>
         </s-app-nav>
         <Outlet />
       </ShopifyAppProvider>

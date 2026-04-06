@@ -1,5 +1,6 @@
 {
     "recommendations": [
-        "chadbumstead.vscode-chatgpt-batch"
+        "chadbumstead.vscode-chatgpt-batch",
+        "google.geminicodeassist"
     ]
 }

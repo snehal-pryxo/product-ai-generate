@@ -53,6 +53,7 @@ model shop {
   anthropicApiKey         String?   @db.VarChar(255)
   defaultAiProvider       String?   @default("auto") @db.VarChar(32)
   defaultAiModel          String?   @default("gpt-4o-mini") @db.VarChar(100)
+  credits                 Int       @default(100)
 }
 
 model GeneratedContentLog {
