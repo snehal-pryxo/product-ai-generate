@@ -1410,6 +1410,9 @@ export default function CollectionsPage() {
   const updateBulkField = (field) => (value) =>
     setBulkSettings((prev) => ({ ...prev, [field]: value }));
 
+  const btnStyle = { padding: "5px 12px", borderRadius: "6px", border: "1px solid #1a1a1a", background: "#1a1a1a", color: "#fff", cursor: "pointer", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap" };
+  const resetBtnStyle = { padding: "4px 10px", borderRadius: "5px", border: "1px solid #d1d5db", background: "#f9fafb", color: "#374151", cursor: "pointer", fontSize: "12px", fontWeight: 500 };
+
   const allVisibleSelected =
     visibleCollectionIds.length > 0 && selectedCollectionIds.length === visibleCollectionIds.length;
   const selectionIndeterminate =
@@ -1756,34 +1759,31 @@ export default function CollectionsPage() {
 
             {/* Description Settings */}
             <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-              <Text as="h3" variant="headingSm" fontWeight="semibold">Description</Text>
-              <div style={{ marginTop: "10px" }}>
-                <InlineStack align="space-between" blockAlign="center">
-                  <Checkbox
-                    label={<span>Use custom instructions <span style={{ fontSize: "14px" }}>✨</span></span>}
-                    checked={useCustomInstructions}
-                    onChange={setUseCustomInstructions}
-                  />
-                  <Button size="slim" onClick={() => openCollectionTemplateLib("description", "descriptionPromptTemplate")}>Browse Templates</Button>
-                </InlineStack>
+              <InlineStack align="space-between" blockAlign="center">
+                <Text as="h3" variant="headingSm" fontWeight="semibold">Description</Text>
+                <button onClick={() => openCollectionTemplateLib("description", "descriptionPromptTemplate")} style={btnStyle}>Browse Templates</button>
+              </InlineStack>
+              <div style={{ marginTop: "8px" }}>
+                <Checkbox
+                  label={<span style={{ fontSize: "13px", color: "#374151" }}>Use custom instructions <span style={{ fontSize: "13px" }}>✨</span></span>}
+                  checked={useCustomInstructions}
+                  onChange={setUseCustomInstructions}
+                />
                 {useCustomInstructions && (
-                  <div style={{ marginTop: "10px" }}>
-                    <Text as="p" variant="bodySm" tone="subdued">Custom Prompt</Text>
+                  <div style={{ marginTop: "8px" }}>
                     <TextField
-                      label="Custom Prompt"
-                      labelHidden
+                      label="Custom Prompt" labelHidden
                       value={bulkDescTemplate}
                       onChange={setBulkDescTemplate}
-                      multiline={4}
+                      multiline={3}
                       placeholder="Enter custom instructions for description generation..."
                       autoComplete="off"
                     />
-                    <div style={{ marginTop: "6px" }}>
-                      <InlineStack gap="200" blockAlign="center">
-                        <Button size="micro" onClick={() => openCollectionTemplateLib("description", "descriptionPromptTemplate")}>Browse Templates</Button>
-                        <Button size="micro" onClick={() => setBulkDescTemplate("")}>Reset to Default</Button>
-                      </InlineStack>
-                    </div>
+                    {bulkDescTemplate && (
+                      <div style={{ marginTop: "4px" }}>
+                        <button onClick={() => setBulkDescTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1791,34 +1791,31 @@ export default function CollectionsPage() {
 
             {/* Meta Description Settings */}
             <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-              <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Description</Text>
-              <div style={{ marginTop: "10px" }}>
-                <InlineStack align="space-between" blockAlign="center">
-                  <Checkbox
-                    label={<span>Use custom instructions <span style={{ fontSize: "14px" }}>✨</span></span>}
-                    checked={useCustomMetaDescInstructions}
-                    onChange={setUseCustomMetaDescInstructions}
-                  />
-                  <Button size="slim" onClick={() => openCollectionTemplateLib("seo-description", "metaDescriptionPromptTemplate")}>Browse Templates</Button>
-                </InlineStack>
+              <InlineStack align="space-between" blockAlign="center">
+                <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Description</Text>
+                <button onClick={() => openCollectionTemplateLib("seo-description", "metaDescriptionPromptTemplate")} style={btnStyle}>Browse Templates</button>
+              </InlineStack>
+              <div style={{ marginTop: "8px" }}>
+                <Checkbox
+                  label={<span style={{ fontSize: "13px", color: "#374151" }}>Use custom instructions <span style={{ fontSize: "13px" }}>✨</span></span>}
+                  checked={useCustomMetaDescInstructions}
+                  onChange={setUseCustomMetaDescInstructions}
+                />
                 {useCustomMetaDescInstructions && (
-                  <div style={{ marginTop: "10px" }}>
-                    <Text as="p" variant="bodySm" tone="subdued">Custom Prompt</Text>
+                  <div style={{ marginTop: "8px" }}>
                     <TextField
-                      label="Custom Prompt"
-                      labelHidden
+                      label="Custom Prompt" labelHidden
                       value={bulkMetaDescTemplate}
                       onChange={setBulkMetaDescTemplate}
-                      multiline={4}
+                      multiline={3}
                       placeholder="Enter custom instructions for meta description generation..."
                       autoComplete="off"
                     />
-                    <div style={{ marginTop: "6px" }}>
-                      <InlineStack gap="200" blockAlign="center">
-                        <Button size="micro" onClick={() => openCollectionTemplateLib("seo-description", "metaDescriptionPromptTemplate")}>Browse Templates</Button>
-                        <Button size="micro" onClick={() => setBulkMetaDescTemplate("")}>Reset to Default</Button>
-                      </InlineStack>
-                    </div>
+                    {bulkMetaDescTemplate && (
+                      <div style={{ marginTop: "4px" }}>
+                        <button onClick={() => setBulkMetaDescTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1826,34 +1823,31 @@ export default function CollectionsPage() {
 
             {/* Meta Title Settings */}
             <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-              <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Title</Text>
-              <div style={{ marginTop: "10px" }}>
-                <InlineStack align="space-between" blockAlign="center">
-                  <Checkbox
-                    label={<span>Use custom instructions <span style={{ fontSize: "14px" }}>✨</span></span>}
-                    checked={useCustomMetaTitleInstructions}
-                    onChange={setUseCustomMetaTitleInstructions}
-                  />
-                  <Button size="slim" onClick={() => openCollectionTemplateLib("seo-title", "metaTitlePromptTemplate")}>Browse Templates</Button>
-                </InlineStack>
+              <InlineStack align="space-between" blockAlign="center">
+                <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Title</Text>
+                <button onClick={() => openCollectionTemplateLib("seo-title", "metaTitlePromptTemplate")} style={btnStyle}>Browse Templates</button>
+              </InlineStack>
+              <div style={{ marginTop: "8px" }}>
+                <Checkbox
+                  label={<span style={{ fontSize: "13px", color: "#374151" }}>Use custom instructions <span style={{ fontSize: "13px" }}>✨</span></span>}
+                  checked={useCustomMetaTitleInstructions}
+                  onChange={setUseCustomMetaTitleInstructions}
+                />
                 {useCustomMetaTitleInstructions && (
-                  <div style={{ marginTop: "10px" }}>
-                    <Text as="p" variant="bodySm" tone="subdued">Custom Prompt</Text>
+                  <div style={{ marginTop: "8px" }}>
                     <TextField
-                      label="Custom Prompt"
-                      labelHidden
+                      label="Custom Prompt" labelHidden
                       value={bulkMetaTitleTemplate}
                       onChange={setBulkMetaTitleTemplate}
-                      multiline={4}
+                      multiline={3}
                       placeholder="Enter custom instructions for meta title generation..."
                       autoComplete="off"
                     />
-                    <div style={{ marginTop: "6px" }}>
-                      <InlineStack gap="200" blockAlign="center">
-                        <Button size="micro" onClick={() => openCollectionTemplateLib("seo-title", "metaTitlePromptTemplate")}>Browse Templates</Button>
-                        <Button size="micro" onClick={() => setBulkMetaTitleTemplate("")}>Reset to Default</Button>
-                      </InlineStack>
-                    </div>
+                    {bulkMetaTitleTemplate && (
+                      <div style={{ marginTop: "4px" }}>
+                        <button onClick={() => setBulkMetaTitleTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
