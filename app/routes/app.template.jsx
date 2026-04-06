@@ -190,11 +190,7 @@ function TemplateCard({ template, active, showResource, isCustom, onPreview, onE
             overflowY: "auto",
             padding: "12px 14px",
             borderBottom: "1px solid var(--p-color-border)",
-            whiteSpace: "pre-wrap",
             lineHeight: 1.55,
-            fontSize: 12.5,
-            color: "var(--p-color-text-secondary)",
-            fontFamily: "var(--p-font-family-mono, monospace)",
           }}
         >
           {template.template}
