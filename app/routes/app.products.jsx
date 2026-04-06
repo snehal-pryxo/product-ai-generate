@@ -8,7 +8,6 @@ import {
   useRevalidator,
 } from "react-router";
 import {
-  Autocomplete,
   Badge,
   Banner,
   BlockStack,
@@ -24,7 +23,6 @@ import {
   Page,
   Select,
   Spinner,
-  Tag,
   Tabs,
   Text,
   TextField,
@@ -32,13 +30,13 @@ import {
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import { buildProductContentPrompt } from "../lib/contentPromptTemplates";
+import { readGlobalSettings } from "../lib/globalSettings";
 import {
   readStoredProductPromptTemplateSelection,
   PRODUCT_DESCRIPTION_TEMPLATES,
   PRODUCT_META_DESCRIPTION_TEMPLATES,
   PRODUCT_META_TITLE_TEMPLATES,
 } from "../lib/productPromptTemplateLibrary";
-import { TemplateLibraryModal } from "../components/TemplateLibraryModal";
 /* global process */
 
 const FETCH_BATCH_SIZE = 250;
@@ -1157,41 +1155,23 @@ export default function ProductsPage() {
   const [bulkDescTemplate, setBulkDescTemplate] = useState("");
   const [bulkMetaDescTemplate, setBulkMetaDescTemplate] = useState("");
   const [bulkMetaTitleTemplate, setBulkMetaTitleTemplate] = useState("");
-  const [bulkSettings, setBulkSettings] = useState({ ...bulkInitialSettings, aiProvider: defaultAiProvider });
+  const [bulkSettings, setBulkSettings] = useState(() => {
+    const gs = readGlobalSettings();
+    return {
+      ...bulkInitialSettings,
+      tone: gs.tone || "professional",
+      length: gs.length || "medium",
+      aiProvider: gs.aiProvider || defaultAiProvider || "auto",
+    };
+  });
   const [bulkResult, setBulkResult] = useState(null);
-  const [bulkKeywordQuery, setBulkKeywordQuery] = useState("");
-  const [bulkSelectedKeywords, setBulkSelectedKeywords] = useState([]);
-  const [bulkCustomKeywordInput, setBulkCustomKeywordInput] = useState("");
-  const [bulkCustomKeywords, setBulkCustomKeywords] = useState([]);
   const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [bulkValidationMessage, setBulkValidationMessage] = useState(null);
   const [bulkContentTypes, setBulkContentTypes] = useState(["description"]);
-  const [useCustomInstructions, setUseCustomInstructions] = useState(false);
-  const [useCustomMetaDescInstructions, setUseCustomMetaDescInstructions] = useState(false);
-  const [useCustomMetaTitleInstructions, setUseCustomMetaTitleInstructions] = useState(false);
-  const [templateLib, setTemplateLib] = useState({ open: false, tab: "description", target: "descriptionPromptTemplate" });
-  const [showAdvancedBulkSettings, setShowAdvancedBulkSettings] = useState(false);
+  const [selectedDescTemplateId, setSelectedDescTemplateId] = useState("");
+  const [selectedMetaDescTemplateId, setSelectedMetaDescTemplateId] = useState("");
+  const [selectedMetaTitleTemplateId, setSelectedMetaTitleTemplateId] = useState("");
   const bulkResultHandledRef = useRef(false);
-
-  const productTemplatesByTab = {
-    description: PRODUCT_DESCRIPTION_TEMPLATES,
-    "seo-description": PRODUCT_META_DESCRIPTION_TEMPLATES,
-    "seo-title": PRODUCT_META_TITLE_TEMPLATES,
-  };
-  const productTemplateTabs = [
-    { id: "description", label: "Description" },
-    { id: "seo-description", label: "Meta Description" },
-    { id: "seo-title", label: "Meta Title" },
-  ];
-  function openProductTemplateLib(tab, target) {
-    setTemplateLib({ open: true, tab, target });
-  }
-  function handleProductUseTemplate(templateText) {
-    if (templateLib.target === "descriptionPromptTemplate") { setBulkDescTemplate(templateText); setUseCustomInstructions(true); }
-    else if (templateLib.target === "metaDescriptionPromptTemplate") { setBulkMetaDescTemplate(templateText); setUseCustomMetaDescInstructions(true); }
-    else if (templateLib.target === "metaTitlePromptTemplate") { setBulkMetaTitleTemplate(templateText); setUseCustomMetaTitleInstructions(true); }
-    setTemplateLib((s) => ({ ...s, open: false }));
-  }
 
   useEffect(() => {
     const templateSelection = readStoredProductPromptTemplateSelection();
@@ -1281,7 +1261,7 @@ export default function ProductsPage() {
 
     setBulkValidationMessage(null);
     setBulkResult(null);
-    const contextKeywords = mergeUniqueKeywords(bulkSelectedKeywords, bulkCustomKeywords).join(", ");
+    const contextKeywords = readGlobalSettings().contextKeywords || "";
     const payload = new FormData();
     payload.append("intent", BULK_GENERATE_INTENT);
     payload.append("products", JSON.stringify(
@@ -1304,12 +1284,10 @@ export default function ProductsPage() {
     payload.append("aiProvider", bulkSettings.aiProvider);
     bulkFetcher.submit(payload, { method: "post" });
   }, [
-    bulkCustomKeywords,
     bulkDescTemplate,
     bulkMetaDescTemplate,
     bulkMetaTitleTemplate,
     bulkFetcher,
-    bulkSelectedKeywords,
     bulkSettings,
     selectedProducts,
   ]);
@@ -1354,9 +1332,6 @@ export default function ProductsPage() {
   }, [bulkValidationMessage, selectedProducts.length]);
 
   const statusTabIndex = filters.status === "active" ? 1 : filters.status === "draft" ? 2 : 0;
-  const btnStyle = { padding: "5px 12px", borderRadius: "6px", border: "1px solid #1a1a1a", background: "#1a1a1a", color: "#fff", cursor: "pointer", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap" };
-  const resetBtnStyle = { padding: "4px 10px", borderRadius: "5px", border: "1px solid #d1d5db", background: "#f9fafb", color: "#374151", cursor: "pointer", fontSize: "12px", fontWeight: 500 };
-
   const statusTabs = [
     { id: "all", content: "All" },
     { id: "active", content: "Active" },
@@ -1421,51 +1396,6 @@ export default function ProductsPage() {
     [],
   );
 
-  const bulkKeywordOptions = useMemo(() => {
-    const query = bulkKeywordQuery.trim().toLowerCase();
-    return BULK_KEYWORD_OPTIONS
-      .filter((keyword) => !bulkSelectedKeywords.includes(keyword))
-      .filter((keyword) => !query || keyword.toLowerCase().includes(query))
-      .map((keyword) => ({ label: keyword, value: keyword }));
-  }, [bulkKeywordQuery, bulkSelectedKeywords]);
-
-  const bulkKeywordTags = useMemo(
-    () => mergeUniqueKeywords(bulkSelectedKeywords, bulkCustomKeywords),
-    [bulkCustomKeywords, bulkSelectedKeywords],
-  );
-
-  const handleBulkKeywordSelect = useCallback((selected) => {
-    setBulkSelectedKeywords(selected);
-    setBulkKeywordQuery("");
-  }, []);
-
-  const handleAddBulkCustomKeyword = useCallback(() => {
-    const nextKeyword = normalizeKeyword(bulkCustomKeywordInput);
-    if (!nextKeyword) return;
-    setBulkCustomKeywords((current) => mergeUniqueKeywords(current, [nextKeyword]));
-    setBulkCustomKeywordInput("");
-  }, [bulkCustomKeywordInput]);
-
-  const handleRemoveBulkKeyword = useCallback((keywordToRemove) => {
-    const target = keywordToRemove.toLowerCase();
-    setBulkSelectedKeywords((current) =>
-      current.filter((keyword) => keyword.toLowerCase() !== target),
-    );
-    setBulkCustomKeywords((current) =>
-      current.filter((keyword) => keyword.toLowerCase() !== target),
-    );
-  }, []);
-
-  const bulkKeywordTextField = (
-    <Autocomplete.TextField
-      label="AI Context & Keywords"
-      value={bulkKeywordQuery}
-      onChange={setBulkKeywordQuery}
-      placeholder="Select one or more context keywords"
-      autoComplete="off"
-    />
-  );
-
   return (
     <Page fullWidth>
       {/* ── Hero Header ── */}
@@ -1504,6 +1434,41 @@ export default function ProductsPage() {
             >⚡ Upgrade Plan</button>
           </div>
         </div>
+      </div>
+
+      {/* Products / Collections tab bar */}
+      <div style={{ display: "flex", gap: "0", borderBottom: "2px solid #e5e7eb", marginBottom: "16px" }}>
+        <button
+          style={{
+            padding: "10px 24px",
+            border: "none",
+            background: "none",
+            cursor: "default",
+            fontSize: "14px",
+            fontWeight: 700,
+            color: "#111",
+            borderBottom: "2px solid #111",
+            marginBottom: "-2px",
+          }}
+        >
+          Products
+        </button>
+        <button
+          onClick={() => navigate("/app/collections")}
+          style={{
+            padding: "10px 24px",
+            border: "none",
+            background: "none",
+            cursor: "pointer",
+            fontSize: "14px",
+            fontWeight: 500,
+            color: "#6b7280",
+            borderBottom: "2px solid transparent",
+            marginBottom: "-2px",
+          }}
+        >
+          Collections
+        </button>
       </div>
 
       <div style={{ display: "flex", gap: "16px", alignItems: "flex-start", marginTop: "0" }}>
@@ -1708,35 +1673,14 @@ export default function ProductsPage() {
             {/* Description Settings */}
             {bulkContentTypes.includes("description") && (
               <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text as="h3" variant="headingSm" fontWeight="semibold">Description</Text>
-                  {useCustomInstructions && (
-                    <button onClick={() => openProductTemplateLib("description", "descriptionPromptTemplate")} style={btnStyle}>Browse Templates</button>
-                  )}
-                </InlineStack>
+                <Text as="h3" variant="headingSm" fontWeight="semibold">Description</Text>
                 <div style={{ marginTop: "8px" }}>
-                  <Checkbox
-                    label={<span style={{ fontSize: "13px", color: "#374151" }}>Use custom instructions <span style={{ fontSize: "13px" }}>✨</span></span>}
-                    checked={useCustomInstructions}
-                    onChange={setUseCustomInstructions}
+                  <Select
+                    label="Template" labelHidden
+                    options={[{ label: "— Default (no template) —", value: "" }, ...PRODUCT_DESCRIPTION_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))]}
+                    value={selectedDescTemplateId}
+                    onChange={(id) => { setSelectedDescTemplateId(id); setBulkDescTemplate(PRODUCT_DESCRIPTION_TEMPLATES.find((t) => t.id === id)?.template || ""); }}
                   />
-                  {useCustomInstructions && (
-                    <div style={{ marginTop: "8px" }}>
-                      <TextField
-                        label="Custom Prompt" labelHidden
-                        value={bulkDescTemplate}
-                        onChange={setBulkDescTemplate}
-                        multiline={3}
-                        placeholder="Enter custom instructions for description generation..."
-                        autoComplete="off"
-                      />
-                      {bulkDescTemplate && (
-                        <div style={{ marginTop: "4px" }}>
-                          <button onClick={() => setBulkDescTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -1744,35 +1688,14 @@ export default function ProductsPage() {
             {/* Meta Description Settings */}
             {bulkContentTypes.includes("meta_description") && (
               <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Description</Text>
-                  {useCustomMetaDescInstructions && (
-                    <button onClick={() => openProductTemplateLib("seo-description", "metaDescriptionPromptTemplate")} style={btnStyle}>Browse Templates</button>
-                  )}
-                </InlineStack>
+                <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Description</Text>
                 <div style={{ marginTop: "8px" }}>
-                  <Checkbox
-                    label={<span style={{ fontSize: "13px", color: "#374151" }}>Use custom instructions <span style={{ fontSize: "13px" }}>✨</span></span>}
-                    checked={useCustomMetaDescInstructions}
-                    onChange={setUseCustomMetaDescInstructions}
+                  <Select
+                    label="Template" labelHidden
+                    options={[{ label: "— Default (no template) —", value: "" }, ...PRODUCT_META_DESCRIPTION_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))]}
+                    value={selectedMetaDescTemplateId}
+                    onChange={(id) => { setSelectedMetaDescTemplateId(id); setBulkMetaDescTemplate(PRODUCT_META_DESCRIPTION_TEMPLATES.find((t) => t.id === id)?.template || ""); }}
                   />
-                  {useCustomMetaDescInstructions && (
-                    <div style={{ marginTop: "8px" }}>
-                      <TextField
-                        label="Custom Prompt" labelHidden
-                        value={bulkMetaDescTemplate}
-                        onChange={setBulkMetaDescTemplate}
-                        multiline={3}
-                        placeholder="Enter custom instructions for meta description generation..."
-                        autoComplete="off"
-                      />
-                      {bulkMetaDescTemplate && (
-                        <div style={{ marginTop: "4px" }}>
-                          <button onClick={() => setBulkMetaDescTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -1780,110 +1703,19 @@ export default function ProductsPage() {
             {/* Meta Title Settings */}
             {bulkContentTypes.includes("meta_title") && (
               <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Title</Text>
-                  {useCustomMetaTitleInstructions && (
-                    <button onClick={() => openProductTemplateLib("seo-title", "metaTitlePromptTemplate")} style={btnStyle}>Browse Templates</button>
-                  )}
-                </InlineStack>
+                <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Title</Text>
                 <div style={{ marginTop: "8px" }}>
-                  <Checkbox
-                    label={<span style={{ fontSize: "13px", color: "#374151" }}>Use custom instructions <span style={{ fontSize: "13px" }}>✨</span></span>}
-                    checked={useCustomMetaTitleInstructions}
-                    onChange={setUseCustomMetaTitleInstructions}
+                  <Select
+                    label="Template" labelHidden
+                    options={[{ label: "— Default (no template) —", value: "" }, ...PRODUCT_META_TITLE_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))]}
+                    value={selectedMetaTitleTemplateId}
+                    onChange={(id) => { setSelectedMetaTitleTemplateId(id); setBulkMetaTitleTemplate(PRODUCT_META_TITLE_TEMPLATES.find((t) => t.id === id)?.template || ""); }}
                   />
-                  {useCustomMetaTitleInstructions && (
-                    <div style={{ marginTop: "8px" }}>
-                      <TextField
-                        label="Custom Prompt" labelHidden
-                        value={bulkMetaTitleTemplate}
-                        onChange={setBulkMetaTitleTemplate}
-                        multiline={3}
-                        placeholder="Enter custom instructions for meta title generation..."
-                        autoComplete="off"
-                      />
-                      {bulkMetaTitleTemplate && (
-                        <div style={{ marginTop: "4px" }}>
-                          <button onClick={() => setBulkMetaTitleTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
             )}
 
-            {/* Show Advanced Settings toggle */}
-            <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-              <button
-                onClick={() => setShowAdvancedBulkSettings((v) => !v)}
-                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "13px", color: "#374151", display: "flex", alignItems: "center", gap: "6px", padding: "0", fontWeight: 500 }}
-              >
-                <span>{showAdvancedBulkSettings ? "▲" : "▼"}</span>
-                {showAdvancedBulkSettings ? "Hide" : "Show"} Advanced Settings
-              </button>
-            </div>
 
-            {/* Advanced Settings (collapsed by default) */}
-            {showAdvancedBulkSettings && (
-              <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-                <BlockStack gap="300">
-                  <Select
-                    label="Tone"
-                    options={toneSelectOptions}
-                    value={bulkSettings.tone}
-                    onChange={updateBulkField("tone")}
-                  />
-                  <Select
-                    label="Length"
-                    options={lengthSelectOptions}
-                    value={bulkSettings.length}
-                    onChange={updateBulkField("length")}
-                  />
-                  <BlockStack gap="200">
-                    <Autocomplete
-                      allowMultiple
-                      options={bulkKeywordOptions}
-                      selected={bulkSelectedKeywords}
-                      textField={bulkKeywordTextField}
-                      onSelect={handleBulkKeywordSelect}
-                    />
-                    <InlineStack gap="200" blockAlign="end">
-                      <div style={{ flex: 1 }}>
-                        <TextField
-                          label="Custom keyword"
-                          labelHidden
-                          value={bulkCustomKeywordInput}
-                          onChange={setBulkCustomKeywordInput}
-                          placeholder="Add custom keyword"
-                          autoComplete="off"
-                        />
-                      </div>
-                      <Button onClick={handleAddBulkCustomKeyword} disabled={!bulkCustomKeywordInput.trim()}>Add</Button>
-                    </InlineStack>
-                    {bulkKeywordTags.length > 0 && (
-                      <InlineStack gap="200" wrap>
-                        {bulkKeywordTags.map((keyword) => (
-                          <Tag key={keyword} onRemove={() => handleRemoveBulkKeyword(keyword)}>{keyword}</Tag>
-                        ))}
-                      </InlineStack>
-                    )}
-                  </BlockStack>
-
-                  <Select
-                    label="AI Provider"
-                    options={[
-                      { label: "Auto", value: "auto" },
-                      { label: "OpenAI", value: "openai" },
-                      { label: "Anthropic", value: "anthropic" },
-                      { label: "Ollama", value: "ollama" },
-                    ]}
-                    value={bulkSettings.aiProvider}
-                    onChange={updateBulkField("aiProvider")}
-                  />
-                </BlockStack>
-              </div>
-            )}
 
             {/* Bulk result badge */}
             {bulkResult && (
@@ -1974,16 +1806,6 @@ export default function ProductsPage() {
         </div>
       )}
 
-      {/* Template Library Popup */}
-      <TemplateLibraryModal
-        key={templateLib.tab}
-        open={templateLib.open}
-        onClose={() => setTemplateLib((s) => ({ ...s, open: false }))}
-        tabs={productTemplateTabs}
-        initialTab={templateLib.tab}
-        templatesByTab={productTemplatesByTab}
-        onUseTemplate={handleProductUseTemplate}
-      />
     </Page>
   );
 }

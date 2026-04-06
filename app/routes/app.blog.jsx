@@ -5,13 +5,13 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { buildBlogContentPrompt } from "../lib/contentPromptTemplates";
+import { readGlobalSettings } from "../lib/globalSettings";
 import {
   readStoredBlogPromptTemplateSelection,
   BLOG_BODY_TEMPLATES,
   BLOG_META_DESCRIPTION_TEMPLATES,
   BLOG_META_TITLE_TEMPLATES,
 } from "../lib/blogPromptTemplateLibrary";
-import { TemplateLibraryModal } from "../components/TemplateLibraryModal";
 import {
   Page,
   Card,
@@ -19,11 +19,9 @@ import {
   InlineStack,
   Text,
   Button,
-  TextField,
   Select,
   Banner,
   Badge,
-  Checkbox,
   IndexTable,
   useIndexResourceState,
 } from "@shopify/polaris";
@@ -415,60 +413,30 @@ export default function BlogPage() {
   const isBulkGenerating = bulkFetcher.state !== "idle";
 
   const shopify = useAppBridge();
-  const [templateLib, setTemplateLib] = useState({ open: false, tab: "description", target: "articleBodyPromptTemplate" });
 
   // ── Bulk state ──────────────────────────────────────────────────────────────
   const [bulkContentTypes, setBulkContentTypes] = useState(["body", "meta_description", "meta_title"]);
-  const [bulkSettings, setBulkSettings] = useState({
-    language: "en",
-    tone: "professional",
-    length: "medium (around 600 words)",
-    format: "headings and paragraphs",
-    articleType: "How-To Guide",
-    aiProvider: defaultAiProvider || "auto",
+  const [bulkSettings, setBulkSettings] = useState(() => {
+    const gs = readGlobalSettings();
+    return {
+      language: "English",
+      tone: gs.tone || "professional",
+      length: gs.length || "medium",
+      format: "headings and paragraphs",
+      articleType: "How-To Guide",
+      aiProvider: gs.aiProvider || "auto",
+    };
   });
-  const [useCustomBodyInstructions, setUseCustomBodyInstructions] = useState(false);
-  const [useCustomMetaDescInstructions, setUseCustomMetaDescInstructions] = useState(false);
-  const [useCustomMetaTitleInstructions, setUseCustomMetaTitleInstructions] = useState(false);
+  const [selectedBodyTemplateId, setSelectedBodyTemplateId] = useState("");
+  const [selectedMetaDescTemplateId, setSelectedMetaDescTemplateId] = useState("");
+  const [selectedMetaTitleTemplateId, setSelectedMetaTitleTemplateId] = useState("");
   const [bulkBodyPromptTemplate, setBulkBodyPromptTemplate] = useState("");
   const [bulkMetaDescPromptTemplate, setBulkMetaDescPromptTemplate] = useState("");
   const [bulkMetaTitlePromptTemplate, setBulkMetaTitlePromptTemplate] = useState("");
   const [bulkValidationMessage, setBulkValidationMessage] = useState(null);
   const [bulkResult, setBulkResult] = useState(null);
-  const [showAdvancedBulk, setShowAdvancedBulk] = useState(false);
-
-  const blogTemplatesByTab = {
-    description: BLOG_BODY_TEMPLATES,
-    "seo-description": BLOG_META_DESCRIPTION_TEMPLATES,
-    "seo-title": BLOG_META_TITLE_TEMPLATES,
-  };
-  const blogTemplateTabs = [
-    { id: "description", label: "Body" },
-    { id: "seo-description", label: "Meta Description" },
-    { id: "seo-title", label: "Meta Title" },
-  ];
-  function openBlogTemplateLib(tab, target) {
-    setTemplateLib({ open: true, tab, target });
-  }
-  function handleBlogUseTemplate(templateText) {
-    const target = templateLib.target;
-    if (target === "bulk_body") {
-      setBulkBodyPromptTemplate(templateText);
-      setUseCustomBodyInstructions(true);
-    } else if (target === "bulk_meta_desc") {
-      setBulkMetaDescPromptTemplate(templateText);
-      setUseCustomMetaDescInstructions(true);
-    } else if (target === "bulk_meta_title") {
-      setBulkMetaTitlePromptTemplate(templateText);
-      setUseCustomMetaTitleInstructions(true);
-    }
-    setTemplateLib((s) => ({ ...s, open: false }));
-  }
 
   const [filterBlogId, setFilterBlogId] = useState("all");
-
-  const btnStyle = { padding: "5px 12px", borderRadius: "6px", border: "1px solid #1a1a1a", background: "#1a1a1a", color: "#fff", cursor: "pointer", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap" };
-  const resetBtnStyle = { padding: "4px 10px", borderRadius: "5px", border: "1px solid #d1d5db", background: "#f9fafb", color: "#374151", cursor: "pointer", fontSize: "12px", fontWeight: 500 };
 
   const blogFilterOptions = [
     { label: "All Blogs", value: "all" },
@@ -515,6 +483,7 @@ export default function BlogPage() {
     payload.append("bodyPromptTemplate", bulkBodyPromptTemplate);
     payload.append("metaTitlePromptTemplate", bulkMetaTitlePromptTemplate);
     payload.append("metaDescriptionPromptTemplate", bulkMetaDescPromptTemplate);
+    payload.append("contextKeywords", readGlobalSettings().contextKeywords || "");
     bulkFetcher.submit(payload, { method: "post" });
   }
 
@@ -702,34 +671,14 @@ export default function BlogPage() {
             {/* Body Template Section */}
             {bulkContentTypes.includes("body") && (
               <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text as="h3" variant="headingSm" fontWeight="semibold">Body</Text>
-                  {useCustomBodyInstructions && (
-                    <button onClick={() => openBlogTemplateLib("description", "bulk_body")} style={btnStyle}>Browse Templates</button>
-                  )}
-                </InlineStack>
+                <Text as="h3" variant="headingSm" fontWeight="semibold">Body</Text>
                 <div style={{ marginTop: "8px" }}>
-                  <Checkbox
-                    label={<span style={{ fontSize: "13px", color: "#374151" }}>Use custom instructions <span style={{ fontSize: "13px" }}>✨</span></span>}
-                    checked={useCustomBodyInstructions}
-                    onChange={setUseCustomBodyInstructions}
+                  <Select
+                    label="Template" labelHidden
+                    options={[{ label: "— Default (no template) —", value: "" }, ...BLOG_BODY_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))]}
+                    value={selectedBodyTemplateId}
+                    onChange={(id) => { setSelectedBodyTemplateId(id); setBulkBodyPromptTemplate(BLOG_BODY_TEMPLATES.find((t) => t.id === id)?.template || ""); }}
                   />
-                  {useCustomBodyInstructions && (
-                    <div style={{ marginTop: "8px" }}>
-                      <TextField
-                        label="Body custom prompt" labelHidden
-                        value={bulkBodyPromptTemplate}
-                        onChange={setBulkBodyPromptTemplate}
-                        multiline={3} autoComplete="off"
-                        placeholder="Enter custom instructions for body generation..."
-                      />
-                      {bulkBodyPromptTemplate && (
-                        <div style={{ marginTop: "4px" }}>
-                          <button onClick={() => setBulkBodyPromptTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -737,34 +686,14 @@ export default function BlogPage() {
             {/* Meta Description Template Section */}
             {bulkContentTypes.includes("meta_description") && (
               <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Description</Text>
-                  {useCustomMetaDescInstructions && (
-                    <button onClick={() => openBlogTemplateLib("seo-description", "bulk_meta_desc")} style={btnStyle}>Browse Templates</button>
-                  )}
-                </InlineStack>
+                <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Description</Text>
                 <div style={{ marginTop: "8px" }}>
-                  <Checkbox
-                    label={<span style={{ fontSize: "13px", color: "#374151" }}>Use custom instructions <span style={{ fontSize: "13px" }}>✨</span></span>}
-                    checked={useCustomMetaDescInstructions}
-                    onChange={setUseCustomMetaDescInstructions}
+                  <Select
+                    label="Template" labelHidden
+                    options={[{ label: "— Default (no template) —", value: "" }, ...BLOG_META_DESCRIPTION_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))]}
+                    value={selectedMetaDescTemplateId}
+                    onChange={(id) => { setSelectedMetaDescTemplateId(id); setBulkMetaDescPromptTemplate(BLOG_META_DESCRIPTION_TEMPLATES.find((t) => t.id === id)?.template || ""); }}
                   />
-                  {useCustomMetaDescInstructions && (
-                    <div style={{ marginTop: "8px" }}>
-                      <TextField
-                        label="Meta description custom prompt" labelHidden
-                        value={bulkMetaDescPromptTemplate}
-                        onChange={setBulkMetaDescPromptTemplate}
-                        multiline={3} autoComplete="off"
-                        placeholder="Enter custom instructions for meta description generation..."
-                      />
-                      {bulkMetaDescPromptTemplate && (
-                        <div style={{ marginTop: "4px" }}>
-                          <button onClick={() => setBulkMetaDescPromptTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -772,84 +701,27 @@ export default function BlogPage() {
             {/* Meta Title Template Section */}
             {bulkContentTypes.includes("meta_title") && (
               <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Title</Text>
-                  {useCustomMetaTitleInstructions && (
-                    <button onClick={() => openBlogTemplateLib("seo-title", "bulk_meta_title")} style={btnStyle}>Browse Templates</button>
-                  )}
-                </InlineStack>
+                <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Title</Text>
                 <div style={{ marginTop: "8px" }}>
-                  <Checkbox
-                    label={<span style={{ fontSize: "13px", color: "#374151" }}>Use custom instructions <span style={{ fontSize: "13px" }}>✨</span></span>}
-                    checked={useCustomMetaTitleInstructions}
-                    onChange={setUseCustomMetaTitleInstructions}
+                  <Select
+                    label="Template" labelHidden
+                    options={[{ label: "— Default (no template) —", value: "" }, ...BLOG_META_TITLE_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))]}
+                    value={selectedMetaTitleTemplateId}
+                    onChange={(id) => { setSelectedMetaTitleTemplateId(id); setBulkMetaTitlePromptTemplate(BLOG_META_TITLE_TEMPLATES.find((t) => t.id === id)?.template || ""); }}
                   />
-                  {useCustomMetaTitleInstructions && (
-                    <div style={{ marginTop: "8px" }}>
-                      <TextField
-                        label="Meta title custom prompt" labelHidden
-                        value={bulkMetaTitlePromptTemplate}
-                        onChange={setBulkMetaTitlePromptTemplate}
-                        multiline={3} autoComplete="off"
-                        placeholder="Enter custom instructions for meta title generation..."
-                      />
-                      {bulkMetaTitlePromptTemplate && (
-                        <div style={{ marginTop: "4px" }}>
-                          <button onClick={() => setBulkMetaTitlePromptTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
             )}
 
-            {/* Advanced Settings Toggle */}
-            <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-              <button
-                onClick={() => setShowAdvancedBulk((v) => !v)}
-                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "13px", color: "#374151", display: "flex", alignItems: "center", gap: "6px", padding: "0", fontWeight: 500 }}
-              >
-                <span>{showAdvancedBulk ? "▲" : "▼"}</span>
-                {showAdvancedBulk ? "Hide" : "Show"} Advanced Settings
-              </button>
+            {/* Article Type */}
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+              <Select
+                label="Article Type"
+                options={ARTICLE_TYPE_OPTIONS}
+                value={bulkSettings.articleType}
+                onChange={(v) => setBulkSettings((s) => ({ ...s, articleType: v }))}
+              />
             </div>
-
-            {showAdvancedBulk && (
-              <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-                <BlockStack gap="300">
-                  <Select
-                    label="Article Type"
-                    options={ARTICLE_TYPE_OPTIONS}
-                    value={bulkSettings.articleType}
-                    onChange={(v) => setBulkSettings((s) => ({ ...s, articleType: v }))}
-                  />
-                  <Select
-                    label="Tone"
-                    options={TONE_OPTIONS}
-                    value={bulkSettings.tone}
-                    onChange={(v) => setBulkSettings((s) => ({ ...s, tone: v }))}
-                  />
-                  <Select
-                    label="Length"
-                    options={LENGTH_OPTIONS}
-                    value={bulkSettings.length}
-                    onChange={(v) => setBulkSettings((s) => ({ ...s, length: v }))}
-                  />
-                  <Select
-                    label="AI Provider"
-                    options={[
-                      { label: "Auto", value: "auto" },
-                      { label: "OpenAI", value: "openai" },
-                      { label: "Anthropic", value: "anthropic" },
-                    ]}
-                    value={bulkSettings.aiProvider}
-                    onChange={(v) => setBulkSettings((s) => ({ ...s, aiProvider: v }))}
-                  />
-
-                </BlockStack>
-              </div>
-            )}
 
             {/* Validation / Result */}
             {bulkValidationMessage && (
@@ -932,16 +804,6 @@ export default function BlogPage() {
         </div>
       )}
 
-      {/* Template Library Popup */}
-      <TemplateLibraryModal
-        key={templateLib.tab}
-        open={templateLib.open}
-        onClose={() => setTemplateLib((s) => ({ ...s, open: false }))}
-        tabs={blogTemplateTabs}
-        initialTab={templateLib.tab}
-        templatesByTab={blogTemplatesByTab}
-        onUseTemplate={handleBlogUseTemplate}
-      />
     </Page>
   );
 }

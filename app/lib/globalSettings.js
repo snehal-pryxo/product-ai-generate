@@ -14,6 +14,10 @@ const DEFAULTS = {
   blogContentWords: "600",
   blogMetaTitleWords: "60",
   blogMetaDescWords: "160",
+  tone: "professional",
+  length: "medium",
+  aiProvider: "auto",
+  contextKeywords: "",
   // Template IDs
   productDescTemplateId: "",
   productMetaTitleTemplateId: "",

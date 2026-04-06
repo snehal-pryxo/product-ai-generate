@@ -13,26 +13,6 @@ import {
   Box,
 } from "@shopify/polaris";
 import { readGlobalSettings, writeGlobalSettings } from "../lib/globalSettings";
-import {
-  PRODUCT_DESCRIPTION_TEMPLATES,
-  PRODUCT_META_TITLE_TEMPLATES,
-  PRODUCT_META_DESCRIPTION_TEMPLATES,
-} from "../lib/productPromptTemplateLibrary";
-import {
-  COLLECTION_DESCRIPTION_TEMPLATES,
-  COLLECTION_META_TITLE_TEMPLATES,
-  COLLECTION_META_DESCRIPTION_TEMPLATES,
-} from "../lib/collectionPromptTemplateLibrary";
-import {
-  PAGE_BODY_TEMPLATES,
-  PAGE_META_TITLE_TEMPLATES,
-  PAGE_META_DESCRIPTION_TEMPLATES,
-} from "../lib/pagePromptTemplateLibrary";
-import {
-  BLOG_BODY_TEMPLATES,
-  BLOG_META_TITLE_TEMPLATES,
-  BLOG_META_DESCRIPTION_TEMPLATES,
-} from "../lib/blogPromptTemplateLibrary";
 
 const LANGUAGE_OPTIONS = [
   "English", "English (British)", "English (US)", "Arabic", "Bengali", "Bulgarian",
@@ -43,12 +23,6 @@ const LANGUAGE_OPTIONS = [
   "Telugu", "Thai", "Turkish", "Ukrainian", "Urdu", "Vietnamese",
 ].map((l) => ({ label: l, value: l }));
 
-function templateOptions(templates) {
-  return [
-    { label: "— Default (no template) —", value: "" },
-    ...templates.map((t) => ({ label: t.name, value: t.id })),
-  ];
-}
 
 function SectionLabel({ children }) {
   return (
@@ -95,6 +69,61 @@ export default function SettingsPage() {
               value={settings.language}
               onChange={update("language")}
               helpText="Default language used for all AI-generated content."
+            />
+          </BlockStack>
+        </Card>
+
+        {/* Generation Settings */}
+        <Card>
+          <BlockStack gap="400">
+            <SectionLabel>Generation Settings</SectionLabel>
+            <Text as="p" variant="bodySm" tone="subdued">
+              These defaults are applied across all pages. Individual pages use these values automatically.
+            </Text>
+            <Select
+              label="Tone"
+              options={[
+                { label: "Professional", value: "professional" },
+                { label: "Casual", value: "casual" },
+                { label: "Friendly", value: "friendly" },
+                { label: "Persuasive", value: "persuasive" },
+                { label: "Informative", value: "informative" },
+                { label: "Luxury", value: "luxury" },
+                { label: "Playful", value: "playful" },
+                { label: "Urgent", value: "urgent" },
+              ]}
+              value={settings.tone}
+              onChange={update("tone")}
+            />
+            <Select
+              label="Length"
+              options={[
+                { label: "Short (50 - 100 words)", value: "short (50 - 100 words)" },
+                { label: "Medium (100 - 200 words)", value: "medium (100 - 200 words)" },
+                { label: "Long (200 - 300 words)", value: "long (200 - 300 words)" },
+                { label: "Extra Long (300 - 500 words)", value: "extra long (300 - 500 words)" },
+              ]}
+              value={settings.length}
+              onChange={update("length")}
+            />
+            <Select
+              label="AI Provider"
+              options={[
+                { label: "Auto (recommended)", value: "auto" },
+                { label: "OpenAI", value: "openai" },
+                { label: "Anthropic", value: "anthropic" },
+                { label: "Ollama", value: "ollama" },
+              ]}
+              value={settings.aiProvider}
+              onChange={update("aiProvider")}
+            />
+            <TextField
+              label="Context Keywords"
+              value={settings.contextKeywords}
+              onChange={update("contextKeywords")}
+              placeholder="e.g. eco-friendly, premium, handmade (comma separated)"
+              helpText="Keywords sent to the AI as context for all content generation."
+              autoComplete="off"
             />
           </BlockStack>
         </Card>
@@ -150,62 +179,6 @@ export default function SettingsPage() {
                 <TextField label="Content words" type="number" value={settings.blogContentWords} onChange={update("blogContentWords")} autoComplete="off" />
                 <TextField label="Meta Title words" type="number" value={settings.blogMetaTitleWords} onChange={update("blogMetaTitleWords")} autoComplete="off" />
                 <TextField label="Meta Description words" type="number" value={settings.blogMetaDescWords} onChange={update("blogMetaDescWords")} autoComplete="off" />
-              </div>
-            </BlockStack>
-          </BlockStack>
-        </Card>
-
-        {/* Template Selections */}
-        <Card>
-          <BlockStack gap="500">
-            <SectionLabel>Default Templates</SectionLabel>
-            <Text as="p" variant="bodySm" tone="subdued">
-              Select a default prompt template for each content type. These are used when "Use custom instructions" is unchecked on each page.
-            </Text>
-
-            {/* Product Templates */}
-            <BlockStack gap="300">
-              <Text as="p" variant="bodyMd" fontWeight="semibold">Product</Text>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
-                <Select label="Description template" options={templateOptions(PRODUCT_DESCRIPTION_TEMPLATES)} value={settings.productDescTemplateId} onChange={update("productDescTemplateId")} />
-                <Select label="Meta Title template" options={templateOptions(PRODUCT_META_TITLE_TEMPLATES)} value={settings.productMetaTitleTemplateId} onChange={update("productMetaTitleTemplateId")} />
-                <Select label="Meta Description template" options={templateOptions(PRODUCT_META_DESCRIPTION_TEMPLATES)} value={settings.productMetaDescTemplateId} onChange={update("productMetaDescTemplateId")} />
-              </div>
-            </BlockStack>
-
-            <Divider />
-
-            {/* Collection Templates */}
-            <BlockStack gap="300">
-              <Text as="p" variant="bodyMd" fontWeight="semibold">Collections</Text>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
-                <Select label="Description template" options={templateOptions(COLLECTION_DESCRIPTION_TEMPLATES)} value={settings.collectionDescTemplateId} onChange={update("collectionDescTemplateId")} />
-                <Select label="Meta Title template" options={templateOptions(COLLECTION_META_TITLE_TEMPLATES)} value={settings.collectionMetaTitleTemplateId} onChange={update("collectionMetaTitleTemplateId")} />
-                <Select label="Meta Description template" options={templateOptions(COLLECTION_META_DESCRIPTION_TEMPLATES)} value={settings.collectionMetaDescTemplateId} onChange={update("collectionMetaDescTemplateId")} />
-              </div>
-            </BlockStack>
-
-            <Divider />
-
-            {/* Pages Templates */}
-            <BlockStack gap="300">
-              <Text as="p" variant="bodyMd" fontWeight="semibold">Pages</Text>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
-                <Select label="Body template" options={templateOptions(PAGE_BODY_TEMPLATES)} value={settings.pageBodyTemplateId} onChange={update("pageBodyTemplateId")} />
-                <Select label="Meta Title template" options={templateOptions(PAGE_META_TITLE_TEMPLATES)} value={settings.pageMetaTitleTemplateId} onChange={update("pageMetaTitleTemplateId")} />
-                <Select label="Meta Description template" options={templateOptions(PAGE_META_DESCRIPTION_TEMPLATES)} value={settings.pageMetaDescTemplateId} onChange={update("pageMetaDescTemplateId")} />
-              </div>
-            </BlockStack>
-
-            <Divider />
-
-            {/* Blog Templates */}
-            <BlockStack gap="300">
-              <Text as="p" variant="bodyMd" fontWeight="semibold">Blog</Text>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
-                <Select label="Body template" options={templateOptions(BLOG_BODY_TEMPLATES)} value={settings.blogBodyTemplateId} onChange={update("blogBodyTemplateId")} />
-                <Select label="Meta Title template" options={templateOptions(BLOG_META_TITLE_TEMPLATES)} value={settings.blogMetaTitleTemplateId} onChange={update("blogMetaTitleTemplateId")} />
-                <Select label="Meta Description template" options={templateOptions(BLOG_META_DESCRIPTION_TEMPLATES)} value={settings.blogMetaDescTemplateId} onChange={update("blogMetaDescTemplateId")} />
               </div>
             </BlockStack>
           </BlockStack>

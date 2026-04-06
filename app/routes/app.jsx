@@ -20,7 +20,6 @@ export default function App() {
       <ShopifyAppProvider embedded apiKey={apiKey}>
         <s-app-nav>
           <s-link href="/app/products">Products</s-link>
-          <s-link href="/app/collections">Collections</s-link>
           <s-link href="/app/pages">Pages</s-link>
           <s-link href="/app/blog">Blog</s-link>
           <s-link href="/app/template">Template</s-link>
