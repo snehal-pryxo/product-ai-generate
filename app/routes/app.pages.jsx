@@ -5,7 +5,13 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { buildPageContentPrompt } from "../lib/contentPromptTemplates";
-import { readStoredPagePromptTemplateSelection } from "../lib/pagePromptTemplateLibrary";
+import {
+  readStoredPagePromptTemplateSelection,
+  PAGE_BODY_TEMPLATES,
+  PAGE_META_DESCRIPTION_TEMPLATES,
+  PAGE_META_TITLE_TEMPLATES,
+} from "../lib/pagePromptTemplateLibrary";
+import { TemplateLibraryModal } from "../components/TemplateLibraryModal";
 import {
   Page,
   Card,
@@ -448,6 +454,25 @@ export default function PagesPage() {
   const [editModal, setEditModal] = useState(false);
   const [editState, setEditState] = useState(editInitialState);
   const [generationError, setGenerationError] = useState(null);
+  const [templateLib, setTemplateLib] = useState({ open: false, tab: "description", target: "pageBodyPromptTemplate" });
+
+  const pageTemplatesByTab = {
+    description: PAGE_BODY_TEMPLATES,
+    "seo-description": PAGE_META_DESCRIPTION_TEMPLATES,
+    "seo-title": PAGE_META_TITLE_TEMPLATES,
+  };
+  const pageTemplateTabs = [
+    { id: "description", label: "Body" },
+    { id: "seo-description", label: "Meta Description" },
+    { id: "seo-title", label: "Meta Title" },
+  ];
+  function openPageTemplateLib(tab, target) {
+    setTemplateLib({ open: true, tab, target });
+  }
+  function handlePageUseTemplate(templateText) {
+    setEditState((s) => ({ ...s, [templateLib.target]: templateText }));
+    setTemplateLib((s) => ({ ...s, open: false }));
+  }
 
   const { selectedResources, allResourcesSelected, handleSelectionChange } =
     useIndexResourceState(pages);
@@ -791,32 +816,68 @@ export default function PagesPage() {
 
                 <Divider />
 
-                <BlockStack gap="200">
+                <BlockStack gap="300">
                   <Text variant="headingSm" as="h4">Page Prompt Templates</Text>
-                  <TextField
-                    label="Body Prompt Template"
-                    value={editState.pageBodyPromptTemplate}
-                    onChange={setField("pageBodyPromptTemplate")}
-                    multiline={3}
-                    autoComplete="off"
-                    placeholder="No template selected from Template page"
-                  />
-                  <TextField
-                    label="Meta Title Prompt Template"
-                    value={editState.pageMetaTitlePromptTemplate}
-                    onChange={setField("pageMetaTitlePromptTemplate")}
-                    multiline={2}
-                    autoComplete="off"
-                    placeholder="No template selected from Template page"
-                  />
-                  <TextField
-                    label="Meta Description Prompt Template"
-                    value={editState.pageMetaDescriptionPromptTemplate}
-                    onChange={setField("pageMetaDescriptionPromptTemplate")}
-                    multiline={2}
-                    autoComplete="off"
-                    placeholder="No template selected from Template page"
-                  />
+
+                  {/* Body */}
+                  <BlockStack gap="100">
+                    <InlineStack align="space-between" blockAlign="center">
+                      <Text variant="bodySm" fontWeight="semibold" as="span">Body</Text>
+                      <Button size="micro" onClick={() => openPageTemplateLib("description", "pageBodyPromptTemplate")}>Browse Templates</Button>
+                    </InlineStack>
+                    <TextField
+                      label="Body Prompt Template"
+                      labelHidden
+                      value={editState.pageBodyPromptTemplate}
+                      onChange={setField("pageBodyPromptTemplate")}
+                      multiline={3}
+                      autoComplete="off"
+                      placeholder="No template selected — click Browse Templates"
+                    />
+                    {editState.pageBodyPromptTemplate && (
+                      <Button size="micro" onClick={() => setEditState((s) => ({ ...s, pageBodyPromptTemplate: "" }))}>Reset to Default</Button>
+                    )}
+                  </BlockStack>
+
+                  {/* Meta Title */}
+                  <BlockStack gap="100">
+                    <InlineStack align="space-between" blockAlign="center">
+                      <Text variant="bodySm" fontWeight="semibold" as="span">Meta Title</Text>
+                      <Button size="micro" onClick={() => openPageTemplateLib("seo-title", "pageMetaTitlePromptTemplate")}>Browse Templates</Button>
+                    </InlineStack>
+                    <TextField
+                      label="Meta Title Prompt Template"
+                      labelHidden
+                      value={editState.pageMetaTitlePromptTemplate}
+                      onChange={setField("pageMetaTitlePromptTemplate")}
+                      multiline={2}
+                      autoComplete="off"
+                      placeholder="No template selected — click Browse Templates"
+                    />
+                    {editState.pageMetaTitlePromptTemplate && (
+                      <Button size="micro" onClick={() => setEditState((s) => ({ ...s, pageMetaTitlePromptTemplate: "" }))}>Reset to Default</Button>
+                    )}
+                  </BlockStack>
+
+                  {/* Meta Description */}
+                  <BlockStack gap="100">
+                    <InlineStack align="space-between" blockAlign="center">
+                      <Text variant="bodySm" fontWeight="semibold" as="span">Meta Description</Text>
+                      <Button size="micro" onClick={() => openPageTemplateLib("seo-description", "pageMetaDescriptionPromptTemplate")}>Browse Templates</Button>
+                    </InlineStack>
+                    <TextField
+                      label="Meta Description Prompt Template"
+                      labelHidden
+                      value={editState.pageMetaDescriptionPromptTemplate}
+                      onChange={setField("pageMetaDescriptionPromptTemplate")}
+                      multiline={2}
+                      autoComplete="off"
+                      placeholder="No template selected — click Browse Templates"
+                    />
+                    {editState.pageMetaDescriptionPromptTemplate && (
+                      <Button size="micro" onClick={() => setEditState((s) => ({ ...s, pageMetaDescriptionPromptTemplate: "" }))}>Reset to Default</Button>
+                    )}
+                  </BlockStack>
                 </BlockStack>
 
                 <Divider />
@@ -839,6 +900,17 @@ export default function PagesPage() {
       </Modal>
 
       <Box paddingBlockEnd="800" />
+
+      {/* Template Library Popup */}
+      <TemplateLibraryModal
+        key={templateLib.tab}
+        open={templateLib.open}
+        onClose={() => setTemplateLib((s) => ({ ...s, open: false }))}
+        tabs={pageTemplateTabs}
+        initialTab={templateLib.tab}
+        templatesByTab={pageTemplatesByTab}
+        onUseTemplate={handlePageUseTemplate}
+      />
     </Page>
   );
 }

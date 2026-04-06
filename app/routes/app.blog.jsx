@@ -5,7 +5,13 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { buildBlogContentPrompt } from "../lib/contentPromptTemplates";
-import { readStoredBlogPromptTemplateSelection } from "../lib/blogPromptTemplateLibrary";
+import {
+  readStoredBlogPromptTemplateSelection,
+  BLOG_BODY_TEMPLATES,
+  BLOG_META_DESCRIPTION_TEMPLATES,
+  BLOG_META_TITLE_TEMPLATES,
+} from "../lib/blogPromptTemplateLibrary";
+import { TemplateLibraryModal } from "../components/TemplateLibraryModal";
 import {
   Page,
   Card,
@@ -698,6 +704,25 @@ export default function BlogPage() {
   const [isCreateMode, setIsCreateMode] = useState(false);
   const [editState, setEditState] = useState(editInitialState);
   const [generationError, setGenerationError] = useState(null);
+  const [templateLib, setTemplateLib] = useState({ open: false, tab: "description", target: "articleBodyPromptTemplate" });
+
+  const blogTemplatesByTab = {
+    description: BLOG_BODY_TEMPLATES,
+    "seo-description": BLOG_META_DESCRIPTION_TEMPLATES,
+    "seo-title": BLOG_META_TITLE_TEMPLATES,
+  };
+  const blogTemplateTabs = [
+    { id: "description", label: "Body" },
+    { id: "seo-description", label: "Meta Description" },
+    { id: "seo-title", label: "Meta Title" },
+  ];
+  function openBlogTemplateLib(tab, target) {
+    setTemplateLib({ open: true, tab, target });
+  }
+  function handleBlogUseTemplate(templateText) {
+    setEditState((s) => ({ ...s, [templateLib.target]: templateText }));
+    setTemplateLib((s) => ({ ...s, open: false }));
+  }
   const [filterBlogId, setFilterBlogId] = useState("all");
   const [uploadedImages, setUploadedImages] = useState([]);
   const imageFetcher = useFetcher();
@@ -1277,32 +1302,68 @@ export default function BlogPage() {
 
                 <Divider />
 
-                <BlockStack gap="200">
+                <BlockStack gap="300">
                   <Text variant="headingSm" as="h4">Blog Prompt Templates</Text>
-                  <TextField
-                    label="Article Body Prompt Template"
-                    value={editState.articleBodyPromptTemplate}
-                    onChange={setField("articleBodyPromptTemplate")}
-                    multiline={3}
-                    autoComplete="off"
-                    placeholder="No template selected from Template page"
-                  />
-                  <TextField
-                    label="Meta Title Prompt Template"
-                    value={editState.articleMetaTitlePromptTemplate}
-                    onChange={setField("articleMetaTitlePromptTemplate")}
-                    multiline={2}
-                    autoComplete="off"
-                    placeholder="No template selected from Template page"
-                  />
-                  <TextField
-                    label="Meta Description Prompt Template"
-                    value={editState.articleMetaDescriptionPromptTemplate}
-                    onChange={setField("articleMetaDescriptionPromptTemplate")}
-                    multiline={2}
-                    autoComplete="off"
-                    placeholder="No template selected from Template page"
-                  />
+
+                  {/* Body */}
+                  <BlockStack gap="100">
+                    <InlineStack align="space-between" blockAlign="center">
+                      <Text variant="bodySm" fontWeight="semibold" as="span">Body</Text>
+                      <Button size="micro" onClick={() => openBlogTemplateLib("description", "articleBodyPromptTemplate")}>Browse Templates</Button>
+                    </InlineStack>
+                    <TextField
+                      label="Article Body Prompt Template"
+                      labelHidden
+                      value={editState.articleBodyPromptTemplate}
+                      onChange={setField("articleBodyPromptTemplate")}
+                      multiline={3}
+                      autoComplete="off"
+                      placeholder="No template selected — click Browse Templates"
+                    />
+                    {editState.articleBodyPromptTemplate && (
+                      <Button size="micro" onClick={() => setEditState((s) => ({ ...s, articleBodyPromptTemplate: "" }))}>Reset to Default</Button>
+                    )}
+                  </BlockStack>
+
+                  {/* Meta Title */}
+                  <BlockStack gap="100">
+                    <InlineStack align="space-between" blockAlign="center">
+                      <Text variant="bodySm" fontWeight="semibold" as="span">Meta Title</Text>
+                      <Button size="micro" onClick={() => openBlogTemplateLib("seo-title", "articleMetaTitlePromptTemplate")}>Browse Templates</Button>
+                    </InlineStack>
+                    <TextField
+                      label="Meta Title Prompt Template"
+                      labelHidden
+                      value={editState.articleMetaTitlePromptTemplate}
+                      onChange={setField("articleMetaTitlePromptTemplate")}
+                      multiline={2}
+                      autoComplete="off"
+                      placeholder="No template selected — click Browse Templates"
+                    />
+                    {editState.articleMetaTitlePromptTemplate && (
+                      <Button size="micro" onClick={() => setEditState((s) => ({ ...s, articleMetaTitlePromptTemplate: "" }))}>Reset to Default</Button>
+                    )}
+                  </BlockStack>
+
+                  {/* Meta Description */}
+                  <BlockStack gap="100">
+                    <InlineStack align="space-between" blockAlign="center">
+                      <Text variant="bodySm" fontWeight="semibold" as="span">Meta Description</Text>
+                      <Button size="micro" onClick={() => openBlogTemplateLib("seo-description", "articleMetaDescriptionPromptTemplate")}>Browse Templates</Button>
+                    </InlineStack>
+                    <TextField
+                      label="Meta Description Prompt Template"
+                      labelHidden
+                      value={editState.articleMetaDescriptionPromptTemplate}
+                      onChange={setField("articleMetaDescriptionPromptTemplate")}
+                      multiline={2}
+                      autoComplete="off"
+                      placeholder="No template selected — click Browse Templates"
+                    />
+                    {editState.articleMetaDescriptionPromptTemplate && (
+                      <Button size="micro" onClick={() => setEditState((s) => ({ ...s, articleMetaDescriptionPromptTemplate: "" }))}>Reset to Default</Button>
+                    )}
+                  </BlockStack>
                 </BlockStack>
 
                 <Divider />
@@ -1322,6 +1383,17 @@ export default function BlogPage() {
       </Modal>
 
       <Box paddingBlockEnd="800" />
+
+      {/* Template Library Popup */}
+      <TemplateLibraryModal
+        key={templateLib.tab}
+        open={templateLib.open}
+        onClose={() => setTemplateLib((s) => ({ ...s, open: false }))}
+        tabs={blogTemplateTabs}
+        initialTab={templateLib.tab}
+        templatesByTab={blogTemplatesByTab}
+        onUseTemplate={handleBlogUseTemplate}
+      />
     </Page>
   );
 }

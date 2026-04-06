@@ -36,7 +36,13 @@ import { ViewIcon, UndoIcon } from "@shopify/polaris-icons";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import { buildCollectionContentPrompt } from "../lib/contentPromptTemplates";
-import { readStoredCollectionPromptTemplateSelection } from "../lib/collectionPromptTemplateLibrary";
+import {
+  readStoredCollectionPromptTemplateSelection,
+  COLLECTION_DESCRIPTION_TEMPLATES,
+  COLLECTION_META_DESCRIPTION_TEMPLATES,
+  COLLECTION_META_TITLE_TEMPLATES,
+} from "../lib/collectionPromptTemplateLibrary";
+import { TemplateLibraryModal } from "../components/TemplateLibraryModal";
 /* global process */
 
 const FETCH_BATCH_SIZE = 250;
@@ -1473,8 +1479,29 @@ export default function CollectionsPage() {
   const [bulkValidationMessage, setBulkValidationMessage] = useState(null);
   const [bulkContentTypes, setBulkContentTypes] = useState(["description"]);
   const [useCustomInstructions, setUseCustomInstructions] = useState(false);
+  const [useCustomMetaDescInstructions, setUseCustomMetaDescInstructions] = useState(false);
+  const [useCustomMetaTitleInstructions, setUseCustomMetaTitleInstructions] = useState(false);
+  const [templateLib, setTemplateLib] = useState({ open: false, tab: "description", target: "descriptionPromptTemplate" });
   const [showAdvancedBulkSettings, setShowAdvancedBulkSettings] = useState(false);
   const bulkResultHandledRef = useRef(false);
+
+  const collectionTemplatesByTab = {
+    description: COLLECTION_DESCRIPTION_TEMPLATES,
+    "seo-description": COLLECTION_META_DESCRIPTION_TEMPLATES,
+    "seo-title": COLLECTION_META_TITLE_TEMPLATES,
+  };
+  const collectionTemplateTabs = [
+    { id: "description", label: "Description" },
+    { id: "seo-description", label: "Meta Description" },
+    { id: "seo-title", label: "Meta Title" },
+  ];
+  function openCollectionTemplateLib(tab, target) {
+    setTemplateLib({ open: true, tab, target });
+  }
+  function handleCollectionUseTemplate(templateText) {
+    updateEditField(templateLib.target, templateText);
+    setTemplateLib((s) => ({ ...s, open: false }));
+  }
 
   useEffect(() => {
     const templateSelection = readStoredCollectionPromptTemplateSelection();
@@ -2215,19 +2242,96 @@ export default function CollectionsPage() {
                     checked={useCustomInstructions}
                     onChange={setUseCustomInstructions}
                   />
-                  <Button size="slim" onClick={() => navigate("/app/template")}>Browse Templates</Button>
+                  <Button size="slim" onClick={() => openCollectionTemplateLib("description", "descriptionPromptTemplate")}>Browse Templates</Button>
                 </InlineStack>
                 {useCustomInstructions && (
                   <div style={{ marginTop: "10px" }}>
+                    <Text as="p" variant="bodySm" tone="subdued">Custom Prompt</Text>
                     <TextField
-                      label="Custom instructions"
+                      label="Custom Prompt"
                       labelHidden
                       value={editForm.descriptionPromptTemplate}
                       onChange={(v) => updateEditField("descriptionPromptTemplate", v)}
-                      multiline={3}
+                      multiline={4}
                       placeholder="Enter custom instructions for description generation..."
                       autoComplete="off"
                     />
+                    <div style={{ marginTop: "6px" }}>
+                      <InlineStack gap="200" blockAlign="center">
+                        <Button size="micro" onClick={() => openCollectionTemplateLib("description", "descriptionPromptTemplate")}>Browse Templates</Button>
+                        <Button size="micro" onClick={() => updateEditField("descriptionPromptTemplate", "")}>Reset to Default</Button>
+                      </InlineStack>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Meta Description Settings */}
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+              <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Description</Text>
+              <div style={{ marginTop: "10px" }}>
+                <InlineStack align="space-between" blockAlign="center">
+                  <Checkbox
+                    label={<span>Use custom instructions <span style={{ fontSize: "14px" }}>✨</span></span>}
+                    checked={useCustomMetaDescInstructions}
+                    onChange={setUseCustomMetaDescInstructions}
+                  />
+                  <Button size="slim" onClick={() => openCollectionTemplateLib("seo-description", "metaDescriptionPromptTemplate")}>Browse Templates</Button>
+                </InlineStack>
+                {useCustomMetaDescInstructions && (
+                  <div style={{ marginTop: "10px" }}>
+                    <Text as="p" variant="bodySm" tone="subdued">Custom Prompt</Text>
+                    <TextField
+                      label="Custom Prompt"
+                      labelHidden
+                      value={editForm.metaDescriptionPromptTemplate}
+                      onChange={(v) => updateEditField("metaDescriptionPromptTemplate", v)}
+                      multiline={4}
+                      placeholder="Enter custom instructions for meta description generation..."
+                      autoComplete="off"
+                    />
+                    <div style={{ marginTop: "6px" }}>
+                      <InlineStack gap="200" blockAlign="center">
+                        <Button size="micro" onClick={() => openCollectionTemplateLib("seo-description", "metaDescriptionPromptTemplate")}>Browse Templates</Button>
+                        <Button size="micro" onClick={() => updateEditField("metaDescriptionPromptTemplate", "")}>Reset to Default</Button>
+                      </InlineStack>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Meta Title Settings */}
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+              <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Title</Text>
+              <div style={{ marginTop: "10px" }}>
+                <InlineStack align="space-between" blockAlign="center">
+                  <Checkbox
+                    label={<span>Use custom instructions <span style={{ fontSize: "14px" }}>✨</span></span>}
+                    checked={useCustomMetaTitleInstructions}
+                    onChange={setUseCustomMetaTitleInstructions}
+                  />
+                  <Button size="slim" onClick={() => openCollectionTemplateLib("seo-title", "metaTitlePromptTemplate")}>Browse Templates</Button>
+                </InlineStack>
+                {useCustomMetaTitleInstructions && (
+                  <div style={{ marginTop: "10px" }}>
+                    <Text as="p" variant="bodySm" tone="subdued">Custom Prompt</Text>
+                    <TextField
+                      label="Custom Prompt"
+                      labelHidden
+                      value={editForm.metaTitlePromptTemplate}
+                      onChange={(v) => updateEditField("metaTitlePromptTemplate", v)}
+                      multiline={4}
+                      placeholder="Enter custom instructions for meta title generation..."
+                      autoComplete="off"
+                    />
+                    <div style={{ marginTop: "6px" }}>
+                      <InlineStack gap="200" blockAlign="center">
+                        <Button size="micro" onClick={() => openCollectionTemplateLib("seo-title", "metaTitlePromptTemplate")}>Browse Templates</Button>
+                        <Button size="micro" onClick={() => updateEditField("metaTitlePromptTemplate", "")}>Reset to Default</Button>
+                      </InlineStack>
+                    </div>
                   </div>
                 )}
               </div>
@@ -2686,6 +2790,17 @@ export default function CollectionsPage() {
           )}
         </Modal.Section>
       </Modal>
+
+      {/* Template Library Popup */}
+      <TemplateLibraryModal
+        key={templateLib.tab}
+        open={templateLib.open}
+        onClose={() => setTemplateLib((s) => ({ ...s, open: false }))}
+        tabs={collectionTemplateTabs}
+        initialTab={templateLib.tab}
+        templatesByTab={collectionTemplatesByTab}
+        onUseTemplate={handleCollectionUseTemplate}
+      />
     </Page>
   );
 }
