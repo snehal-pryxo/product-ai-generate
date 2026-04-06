@@ -1177,6 +1177,7 @@ export default function ProductsPage() {
   const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [bulkValidationMessage, setBulkValidationMessage] = useState(null);
   const [bulkContentTypes, setBulkContentTypes] = useState(["description"]);
+  const [activeSection, setActiveSection] = useState("description");
   const [useCustomInstructions, setUseCustomInstructions] = useState(false);
   const [useCustomMetaDescInstructions, setUseCustomMetaDescInstructions] = useState(false);
   const [useCustomMetaTitleInstructions, setUseCustomMetaTitleInstructions] = useState(false);
@@ -1621,8 +1622,7 @@ export default function ProductsPage() {
                   itemCount={filteredProducts.length}
                   headings={[
                     { title: "" },
-                    { title: "Product" },
-                    { title: "Short" },
+                    { title: "Title" },
                     { title: "Status" },
                   ]}
                   selectable={false}
@@ -1638,23 +1638,7 @@ export default function ProductsPage() {
                         />
                       </IndexTable.Cell>
                       <IndexTable.Cell>
-                        <InlineStack gap="200" blockAlign="center">
-                          {product.imageUrl ? (
-                            <Thumbnail source={product.imageUrl} alt={product.imageAlt} size="small" />
-                          ) : (
-                            <Thumbnail source="" alt={product.imageAlt} size="small" />
-                          )}
-                          <InlineStack gap="100" blockAlign="center">
-                            <Text variant="bodyMd" fontWeight="medium" as="span" tone="interactive">
-                              {product.title}
-                            </Text>
-                          </InlineStack>
-                        </InlineStack>
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        {product.appStatus?.label === "Generated" || product.appStatus?.label === "Short" ? (
-                          <Badge tone="warning">Short</Badge>
-                        ) : null}
+                        <Text variant="bodyMd" fontWeight="medium" as="span">{product.title}</Text>
                       </IndexTable.Cell>
                       <IndexTable.Cell>
                         {isBulkGenerating && selectedProductIds.includes(product.id) ? (
@@ -1663,9 +1647,7 @@ export default function ProductsPage() {
                             <Text as="span" tone="subdued">Generating...</Text>
                           </InlineStack>
                         ) : (
-                          <Badge tone={toBadgeTone(product.status.tone)}>
-                            {product.status.label}
-                          </Badge>
+                          <Badge tone={toBadgeTone(product.status.tone)}>{product.status.label}</Badge>
                         )}
                       </IndexTable.Cell>
                     </IndexTable.Row>
@@ -1703,7 +1685,8 @@ export default function ProductsPage() {
                   { id: "meta_description", label: "Meta Description" },
                   { id: "meta_title", label: "Meta Title" },
                 ].map((type) => {
-                  const isActive = bulkContentTypes.includes(type.id);
+                  const isSelected = bulkContentTypes.includes(type.id);
+                  const isFocused = activeSection === type.id;
                   return (
                     <button
                       key={type.id}
@@ -1713,26 +1696,32 @@ export default function ProductsPage() {
                             ? prev.length > 1 ? prev.filter((t) => t !== type.id) : prev
                             : [...prev, type.id]
                         );
+                        setActiveSection(type.id);
                       }}
                       style={{
-                        padding: "4px 12px",
-                        borderRadius: "6px",
-                        border: isActive ? "none" : "1px solid #d1d5db",
-                        background: isActive ? "#1a1a1a" : "transparent",
-                        color: isActive ? "#fff" : "#374151",
+                        padding: "5px 14px",
+                        borderRadius: "20px",
+                        border: isSelected ? "2px solid #1a1a1a" : "1px solid #d1d5db",
+                        background: isSelected ? "#1a1a1a" : isFocused ? "#f3f4f6" : "#fff",
+                        color: isSelected ? "#fff" : "#374151",
                         cursor: "pointer",
                         fontSize: "13px",
-                        fontWeight: isActive ? 600 : 400,
+                        fontWeight: isSelected ? 600 : 400,
                         display: "flex",
                         alignItems: "center",
-                        gap: "4px",
+                        gap: "5px",
+                        outline: isFocused && !isSelected ? "2px solid #6366f1" : "none",
+                        outlineOffset: "1px",
                       }}
                     >
-                      {isActive && <span>✓</span>}
+                      {isSelected && <span style={{ fontSize: "11px" }}>✓</span>}
                       {type.label}
                     </button>
                   );
                 })}
+              </div>
+              <div style={{ marginTop: "6px" }}>
+                <Text as="span" variant="bodySm" tone="subdued">Click a type to view its settings below. Selected types will all be generated.</Text>
               </div>
             </div>
 
@@ -1746,8 +1735,8 @@ export default function ProductsPage() {
               />
             </div>
 
-            {/* Description Settings */}
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+            {/* Section Settings — only show for activeSection */}
+            {activeSection === "description" && <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
               <InlineStack align="space-between" blockAlign="center">
                 <Text as="h3" variant="headingSm" fontWeight="semibold">Description</Text>
                 <button onClick={() => openProductTemplateLib("description", "descriptionPromptTemplate")} style={btnStyle}>Browse Templates</button>
@@ -1776,10 +1765,9 @@ export default function ProductsPage() {
                   </div>
                 )}
               </div>
-            </div>
+            </div>}
 
-            {/* Meta Description Settings */}
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+            {activeSection === "meta_description" && <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
               <InlineStack align="space-between" blockAlign="center">
                 <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Description</Text>
                 <button onClick={() => openProductTemplateLib("seo-description", "metaDescriptionPromptTemplate")} style={btnStyle}>Browse Templates</button>
@@ -1808,10 +1796,9 @@ export default function ProductsPage() {
                   </div>
                 )}
               </div>
-            </div>
+            </div>}
 
-            {/* Meta Title Settings */}
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+            {activeSection === "meta_title" && <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
               <InlineStack align="space-between" blockAlign="center">
                 <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Title</Text>
                 <button onClick={() => openProductTemplateLib("seo-title", "metaTitlePromptTemplate")} style={btnStyle}>Browse Templates</button>
@@ -1840,7 +1827,7 @@ export default function ProductsPage() {
                   </div>
                 )}
               </div>
-            </div>
+            </div>}
 
             {/* Show Advanced Settings toggle */}
             <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
@@ -1868,12 +1855,6 @@ export default function ProductsPage() {
                     options={lengthSelectOptions}
                     value={bulkSettings.length}
                     onChange={updateBulkField("length")}
-                  />
-                  <Select
-                    label="Format"
-                    options={formatSelectOptions}
-                    value={bulkSettings.format}
-                    onChange={updateBulkField("format")}
                   />
                   <BlockStack gap="200">
                     <Autocomplete
@@ -1970,7 +1951,12 @@ export default function ProductsPage() {
           <Card padding="0">
             <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
               <InlineStack align="space-between" blockAlign="center">
-                <Text as="h2" variant="headingMd" fontWeight="bold">Generation Results</Text>
+                <BlockStack gap="050">
+                  <Text as="h2" variant="headingMd" fontWeight="bold">Generation Results</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {bulkResult.succeeded} product{bulkResult.succeeded !== 1 ? "s" : ""} updated · {bulkResult.failed > 0 ? `${bulkResult.failed} failed · ` : ""}{bulkResult.total} AI credits used
+                  </Text>
+                </BlockStack>
                 <Badge tone={bulkResult.failed > 0 ? "warning" : "success"}>
                   {bulkResult.succeeded}/{bulkResult.total} succeeded
                 </Badge>
@@ -1981,7 +1967,7 @@ export default function ProductsPage() {
               itemCount={bulkResult.results.length}
               selectable={false}
               headings={[
-                { title: "Product" },
+                { title: "Title" },
                 { title: "Status" },
                 { title: "Meta Title" },
                 { title: "Meta Description" },
@@ -1990,21 +1976,21 @@ export default function ProductsPage() {
               {bulkResult.results.map((r, index) => (
                 <IndexTable.Row id={r.id} key={r.id} position={index}>
                   <IndexTable.Cell>
-                    <Text variant="bodyMd" fontWeight="medium" as="span">{r.title}</Text>
+                    <Text variant="bodyMd" fontWeight="semibold" as="span">{r.title}</Text>
                   </IndexTable.Cell>
                   <IndexTable.Cell>
                     {r.status === "success"
                       ? <Badge tone="success">Updated</Badge>
-                      : <Badge tone="critical">Failed</Badge>}
+                      : <Badge tone="critical" title={r.error || ""}>Failed</Badge>}
                   </IndexTable.Cell>
                   <IndexTable.Cell>
                     <Text as="span" variant="bodySm" tone={r.seoTitle ? undefined : "subdued"}>
-                      {r.seoTitle ? r.seoTitle.slice(0, 60) + (r.seoTitle.length > 60 ? "…" : "") : "—"}
+                      {r.seoTitle ? r.seoTitle.slice(0, 55) + (r.seoTitle.length > 55 ? "…" : "") : "—"}
                     </Text>
                   </IndexTable.Cell>
                   <IndexTable.Cell>
                     <Text as="span" variant="bodySm" tone={r.seoDescription ? undefined : "subdued"}>
-                      {r.seoDescription ? r.seoDescription.slice(0, 80) + (r.seoDescription.length > 80 ? "…" : "") : "—"}
+                      {r.seoDescription ? r.seoDescription.slice(0, 90) + (r.seoDescription.length > 90 ? "…" : "") : "—"}
                     </Text>
                   </IndexTable.Cell>
                 </IndexTable.Row>

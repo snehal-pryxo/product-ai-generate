@@ -420,6 +420,7 @@ export default function BlogPage() {
 
   // ── Bulk state ──────────────────────────────────────────────────────────────
   const [bulkContentTypes, setBulkContentTypes] = useState(["body", "meta_description", "meta_title"]);
+  const [activeSection, setActiveSection] = useState("body");
   const [bulkSettings, setBulkSettings] = useState({
     language: "en",
     tone: "professional",
@@ -548,24 +549,9 @@ export default function BlogPage() {
         <Text variant="bodyMd" fontWeight="bold" as="span">{article.title}</Text>
       </IndexTable.Cell>
       <IndexTable.Cell>
-        <Text variant="bodySm" as="span">{article.blog?.title || "—"}</Text>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
         {article.publishedAt
           ? <Badge tone="success">Published</Badge>
           : <Badge tone="attention">Draft</Badge>}
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        {article.seo?.title
-          ? <Badge tone="success">Set</Badge>
-          : <Badge tone="attention">Missing</Badge>}
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Text variant="bodySm" tone="subdued" as="span">
-          {article.generatedAt
-            ? new Date(article.generatedAt).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
-            : "—"}
-        </Text>
       </IndexTable.Cell>
     </IndexTable.Row>
   ));
@@ -638,10 +624,7 @@ export default function BlogPage() {
               onSelectionChange={handleSelectionChange}
               headings={[
                 { title: "Title" },
-                { title: "Blog" },
                 { title: "Status" },
-                { title: "SEO" },
-                { title: "Generated" },
               ]}
             >
               {rowMarkup}
@@ -677,26 +660,39 @@ export default function BlogPage() {
                   { id: "meta_description", label: "Meta Description" },
                   { id: "meta_title", label: "Meta Title" },
                 ].map((type) => {
-                  const isActive = bulkContentTypes.includes(type.id);
+                  const isSelected = bulkContentTypes.includes(type.id);
+                  const isFocused = activeSection === type.id;
                   return (
                     <button
                       key={type.id}
-                      onClick={() => setBulkContentTypes((prev) =>
-                        prev.includes(type.id) ? prev.filter((t) => t !== type.id) : [...prev, type.id]
-                      )}
+                      onClick={() => {
+                        setBulkContentTypes((prev) =>
+                          prev.includes(type.id) ? prev.filter((t) => t !== type.id) : [...prev, type.id]
+                        );
+                        setActiveSection(type.id);
+                      }}
                       style={{
-                        padding: "6px 14px", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 600,
-                        border: isActive ? "2px solid #1a1a1a" : "1px solid #d1d5db",
-                        background: isActive ? "#1a1a1a" : "#f9fafb",
-                        color: isActive ? "#fff" : "#374151",
-                        display: "flex", alignItems: "center", gap: "6px",
+                        padding: "5px 14px",
+                        borderRadius: "20px",
+                        border: isSelected ? "2px solid #1a1a1a" : "1px solid #d1d5db",
+                        background: isSelected ? "#1a1a1a" : isFocused ? "#f3f4f6" : "#fff",
+                        color: isSelected ? "#fff" : "#374151",
+                        cursor: "pointer",
+                        fontSize: "13px",
+                        fontWeight: isSelected ? 600 : 400,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "5px",
                       }}
                     >
-                      {isActive && <span>✓</span>}
+                      {isSelected && <span style={{ fontSize: "11px" }}>✓</span>}
                       {type.label}
                     </button>
                   );
                 })}
+              </div>
+              <div style={{ marginTop: "6px" }}>
+                <Text as="span" variant="bodySm" tone="subdued">Click a type to view its settings below. Selected types will all be generated.</Text>
               </div>
             </div>
 
@@ -711,7 +707,7 @@ export default function BlogPage() {
             </div>
 
             {/* Body Template Section */}
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+            {activeSection === "body" && <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
               <InlineStack align="space-between" blockAlign="center">
                 <Text as="h3" variant="headingSm" fontWeight="semibold">Body</Text>
                 <button onClick={() => openBlogTemplateLib("description", "bulk_body")} style={btnStyle}>Browse Templates</button>
@@ -739,10 +735,10 @@ export default function BlogPage() {
                   </div>
                 )}
               </div>
-            </div>
+            </div>}
 
             {/* Meta Description Template Section */}
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+            {activeSection === "meta_description" && <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
               <InlineStack align="space-between" blockAlign="center">
                 <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Description</Text>
                 <button onClick={() => openBlogTemplateLib("seo-description", "bulk_meta_desc")} style={btnStyle}>Browse Templates</button>
@@ -770,10 +766,10 @@ export default function BlogPage() {
                   </div>
                 )}
               </div>
-            </div>
+            </div>}
 
             {/* Meta Title Template Section */}
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+            {activeSection === "meta_title" && <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
               <InlineStack align="space-between" blockAlign="center">
                 <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Title</Text>
                 <button onClick={() => openBlogTemplateLib("seo-title", "bulk_meta_title")} style={btnStyle}>Browse Templates</button>
@@ -801,7 +797,7 @@ export default function BlogPage() {
                   </div>
                 )}
               </div>
-            </div>
+            </div>}
 
             {/* Advanced Settings Toggle */}
             <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
@@ -845,6 +841,7 @@ export default function BlogPage() {
                     value={bulkSettings.aiProvider}
                     onChange={(v) => setBulkSettings((s) => ({ ...s, aiProvider: v }))}
                   />
+
                 </BlockStack>
               </div>
             )}
@@ -894,19 +891,19 @@ export default function BlogPage() {
         <div style={{ marginTop: "24px" }}>
           <Card padding="0">
             <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-              <InlineStack align="space-between" blockAlign="center">
+              <BlockStack gap="050">
                 <Text as="h2" variant="headingMd" fontWeight="bold">Generation Results</Text>
-                <Badge tone={bulkResult.failed === 0 ? "success" : "warning"}>
-                  {bulkResult.succeeded}/{bulkResult.total} succeeded
-                </Badge>
-              </InlineStack>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {bulkResult.succeeded} article{bulkResult.succeeded !== 1 ? "s" : ""} updated · {bulkResult.failed > 0 ? `${bulkResult.failed} failed · ` : ""}{bulkResult.total} AI credits used
+                </Text>
+              </BlockStack>
             </div>
             <IndexTable
               resourceName={{ singular: "article", plural: "articles" }}
               itemCount={bulkResult.results.length}
               selectable={false}
               headings={[
-                { title: "Article" },
+                { title: "Title" },
                 { title: "Status" },
                 { title: "Meta Title" },
                 { title: "Meta Description" },

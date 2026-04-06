@@ -1207,6 +1207,7 @@ export default function CollectionsPage() {
   const [selectedCollectionIds, setSelectedCollectionIds] = useState([]);
   const [bulkValidationMessage, setBulkValidationMessage] = useState(null);
   const [bulkContentTypes, setBulkContentTypes] = useState(["description"]);
+  const [activeSection, setActiveSection] = useState("description");
   const [useCustomInstructions, setUseCustomInstructions] = useState(false);
   const [useCustomMetaDescInstructions, setUseCustomMetaDescInstructions] = useState(false);
   const [useCustomMetaTitleInstructions, setUseCustomMetaTitleInstructions] = useState(false);
@@ -1393,13 +1394,9 @@ export default function CollectionsPage() {
   }, [bulkValidationMessage, selectedCollections.length]);
 
   const tableHeadings = [
-    { title: "Select" },
-    { title: "Image" },
+    { title: "" },
     { title: "Title" },
-    { title: "App Status" },
-    { title: "Generated In" },
-    { title: "SEO Title" },
-    { title: "SEO Description" },
+    { title: "Status" },
   ];
 
   const languageSelectOptions = LANGUAGE_OPTIONS.map((lang) => ({ label: lang, value: lang }));
@@ -1496,30 +1493,6 @@ export default function CollectionsPage() {
           onChange={handleToggleCollectionSelection(collection.id)}
         />
       </IndexTable.Cell>
-      <IndexTable.Cell>
-        {collection.imageUrl ? (
-          <Thumbnail
-            source={collection.imageUrl}
-            alt={collection.imageAlt}
-            size="small"
-          />
-        ) : (
-          <Box
-            width="52px"
-            minHeight="52px"
-            borderRadius="150"
-            borderWidth="025"
-            borderColor="border-secondary"
-            background="bg-surface-secondary"
-          >
-            <InlineStack align="center" blockAlign="center">
-              <Text as="span" variant="bodySm" tone="subdued">
-                No img
-              </Text>
-            </InlineStack>
-          </Box>
-        )}
-      </IndexTable.Cell>
 
       <IndexTable.Cell>
         <div className="collections-title-cell">
@@ -1538,20 +1511,6 @@ export default function CollectionsPage() {
         ) : (
           renderBadge(collection.appStatus)
         )}
-      </IndexTable.Cell>
-
-      <IndexTable.Cell>
-        <Text as="span" tone={collection.generatedTime === "Not generated" ? "subdued" : undefined}>
-          {collection.generatedTime}
-        </Text>
-      </IndexTable.Cell>
-
-      <IndexTable.Cell>
-        {renderBadge(collection.seoTitle)}
-      </IndexTable.Cell>
-
-      <IndexTable.Cell>
-        {renderBadge(collection.seoDescription)}
       </IndexTable.Cell>
 
     </IndexTable.Row>
@@ -1714,7 +1673,8 @@ export default function CollectionsPage() {
                   { id: "meta_description", label: "Meta Description" },
                   { id: "meta_title", label: "Meta Title" },
                 ].map((type) => {
-                  const isActive = bulkContentTypes.includes(type.id);
+                  const isSelected = bulkContentTypes.includes(type.id);
+                  const isFocused = activeSection === type.id;
                   return (
                     <button
                       key={type.id}
@@ -1724,26 +1684,30 @@ export default function CollectionsPage() {
                             ? prev.length > 1 ? prev.filter((t) => t !== type.id) : prev
                             : [...prev, type.id]
                         );
+                        setActiveSection(type.id);
                       }}
                       style={{
-                        padding: "4px 12px",
-                        borderRadius: "6px",
-                        border: isActive ? "none" : "1px solid #d1d5db",
-                        background: isActive ? "#1a1a1a" : "transparent",
-                        color: isActive ? "#fff" : "#374151",
+                        padding: "5px 14px",
+                        borderRadius: "20px",
+                        border: isSelected ? "2px solid #1a1a1a" : "1px solid #d1d5db",
+                        background: isSelected ? "#1a1a1a" : isFocused ? "#f3f4f6" : "#fff",
+                        color: isSelected ? "#fff" : "#374151",
                         cursor: "pointer",
                         fontSize: "13px",
-                        fontWeight: isActive ? 600 : 400,
+                        fontWeight: isSelected ? 600 : 400,
                         display: "flex",
                         alignItems: "center",
-                        gap: "4px",
+                        gap: "5px",
                       }}
                     >
-                      {isActive && <span>✓</span>}
+                      {isSelected && <span style={{ fontSize: "11px" }}>✓</span>}
                       {type.label}
                     </button>
                   );
                 })}
+              </div>
+              <div style={{ marginTop: "6px" }}>
+                <Text as="span" variant="bodySm" tone="subdued">Click a type to view its settings below. Selected types will all be generated.</Text>
               </div>
             </div>
 
@@ -1758,7 +1722,7 @@ export default function CollectionsPage() {
             </div>
 
             {/* Description Settings */}
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+            {activeSection === "description" && <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
               <InlineStack align="space-between" blockAlign="center">
                 <Text as="h3" variant="headingSm" fontWeight="semibold">Description</Text>
                 <button onClick={() => openCollectionTemplateLib("description", "descriptionPromptTemplate")} style={btnStyle}>Browse Templates</button>
@@ -1787,10 +1751,10 @@ export default function CollectionsPage() {
                   </div>
                 )}
               </div>
-            </div>
+            </div>}
 
             {/* Meta Description Settings */}
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+            {activeSection === "meta_description" && <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
               <InlineStack align="space-between" blockAlign="center">
                 <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Description</Text>
                 <button onClick={() => openCollectionTemplateLib("seo-description", "metaDescriptionPromptTemplate")} style={btnStyle}>Browse Templates</button>
@@ -1819,10 +1783,10 @@ export default function CollectionsPage() {
                   </div>
                 )}
               </div>
-            </div>
+            </div>}
 
             {/* Meta Title Settings */}
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+            {activeSection === "meta_title" && <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
               <InlineStack align="space-between" blockAlign="center">
                 <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Title</Text>
                 <button onClick={() => openCollectionTemplateLib("seo-title", "metaTitlePromptTemplate")} style={btnStyle}>Browse Templates</button>
@@ -1851,7 +1815,7 @@ export default function CollectionsPage() {
                   </div>
                 )}
               </div>
-            </div>
+            </div>}
 
             {/* Show Advanced Settings toggle */}
             <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
@@ -1879,12 +1843,6 @@ export default function CollectionsPage() {
                     options={lengthSelectOptions}
                     value={bulkSettings.length}
                     onChange={updateBulkField("length")}
-                  />
-                  <Select
-                    label="Format"
-                    options={formatSelectOptions}
-                    value={bulkSettings.format}
-                    onChange={updateBulkField("format")}
                   />
                   <BlockStack gap="200">
                     <Autocomplete
@@ -1999,19 +1957,19 @@ export default function CollectionsPage() {
         <div style={{ marginTop: "24px" }}>
           <Card padding="0">
             <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-              <InlineStack align="space-between" blockAlign="center">
+              <BlockStack gap="050">
                 <Text as="h2" variant="headingMd" fontWeight="bold">Generation Results</Text>
-                <Badge tone={bulkResult.failed > 0 ? "warning" : "success"}>
-                  {bulkResult.succeeded}/{bulkResult.total} succeeded
-                </Badge>
-              </InlineStack>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {bulkResult.succeeded} collection{bulkResult.succeeded !== 1 ? "s" : ""} updated · {bulkResult.failed > 0 ? `${bulkResult.failed} failed · ` : ""}{bulkResult.total} AI credits used
+                </Text>
+              </BlockStack>
             </div>
             <IndexTable
               resourceName={{ singular: "collection", plural: "collections" }}
               itemCount={bulkResult.results.length}
               selectable={false}
               headings={[
-                { title: "Collection" },
+                { title: "Title" },
                 { title: "Status" },
                 { title: "Meta Title" },
                 { title: "Meta Description" },
