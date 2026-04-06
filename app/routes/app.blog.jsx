@@ -430,9 +430,6 @@ export default function BlogPage() {
   const [useCustomBodyInstructions, setUseCustomBodyInstructions] = useState(false);
   const [useCustomMetaDescInstructions, setUseCustomMetaDescInstructions] = useState(false);
   const [useCustomMetaTitleInstructions, setUseCustomMetaTitleInstructions] = useState(false);
-  const [selectedBodyTemplateId, setSelectedBodyTemplateId] = useState(() => BLOG_BODY_TEMPLATES[0]?.id || "");
-  const [selectedMetaDescTemplateId, setSelectedMetaDescTemplateId] = useState(() => BLOG_META_DESCRIPTION_TEMPLATES[0]?.id || "");
-  const [selectedMetaTitleTemplateId, setSelectedMetaTitleTemplateId] = useState(() => BLOG_META_TITLE_TEMPLATES[0]?.id || "");
   const [bulkBodyPromptTemplate, setBulkBodyPromptTemplate] = useState("");
   const [bulkMetaDescPromptTemplate, setBulkMetaDescPromptTemplate] = useState("");
   const [bulkMetaTitlePromptTemplate, setBulkMetaTitlePromptTemplate] = useState("");
@@ -515,18 +512,9 @@ export default function BlogPage() {
     payload.append("format", bulkSettings.format);
     payload.append("articleType", bulkSettings.articleType);
     payload.append("aiProvider", bulkSettings.aiProvider);
-    const effectiveBodyTemplate = useCustomBodyInstructions
-      ? (bulkBodyPromptTemplate || "")
-      : (BLOG_BODY_TEMPLATES.find((t) => t.id === selectedBodyTemplateId)?.template || "");
-    const effectiveMetaDescTemplate = useCustomMetaDescInstructions
-      ? (bulkMetaDescPromptTemplate || "")
-      : (BLOG_META_DESCRIPTION_TEMPLATES.find((t) => t.id === selectedMetaDescTemplateId)?.template || "");
-    const effectiveMetaTitleTemplate = useCustomMetaTitleInstructions
-      ? (bulkMetaTitlePromptTemplate || "")
-      : (BLOG_META_TITLE_TEMPLATES.find((t) => t.id === selectedMetaTitleTemplateId)?.template || "");
-    payload.append("bodyPromptTemplate", effectiveBodyTemplate);
-    payload.append("metaTitlePromptTemplate", effectiveMetaTitleTemplate);
-    payload.append("metaDescriptionPromptTemplate", effectiveMetaDescTemplate);
+    payload.append("bodyPromptTemplate", bulkBodyPromptTemplate);
+    payload.append("metaTitlePromptTemplate", bulkMetaTitlePromptTemplate);
+    payload.append("metaDescriptionPromptTemplate", bulkMetaDescPromptTemplate);
     bulkFetcher.submit(payload, { method: "post" });
   }
 
@@ -726,7 +714,7 @@ export default function BlogPage() {
                     checked={useCustomBodyInstructions}
                     onChange={setUseCustomBodyInstructions}
                   />
-                  {useCustomBodyInstructions ? (
+                  {useCustomBodyInstructions && (
                     <div style={{ marginTop: "8px" }}>
                       <TextField
                         label="Body custom prompt" labelHidden
@@ -740,15 +728,6 @@ export default function BlogPage() {
                           <button onClick={() => setBulkBodyPromptTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
                         </div>
                       )}
-                    </div>
-                  ) : (
-                    <div style={{ marginTop: "8px" }}>
-                      <Select
-                        label="Template" labelHidden
-                        options={BLOG_BODY_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))}
-                        value={selectedBodyTemplateId}
-                        onChange={setSelectedBodyTemplateId}
-                      />
                     </div>
                   )}
                 </div>
@@ -770,7 +749,7 @@ export default function BlogPage() {
                     checked={useCustomMetaDescInstructions}
                     onChange={setUseCustomMetaDescInstructions}
                   />
-                  {useCustomMetaDescInstructions ? (
+                  {useCustomMetaDescInstructions && (
                     <div style={{ marginTop: "8px" }}>
                       <TextField
                         label="Meta description custom prompt" labelHidden
@@ -784,15 +763,6 @@ export default function BlogPage() {
                           <button onClick={() => setBulkMetaDescPromptTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
                         </div>
                       )}
-                    </div>
-                  ) : (
-                    <div style={{ marginTop: "8px" }}>
-                      <Select
-                        label="Template" labelHidden
-                        options={BLOG_META_DESCRIPTION_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))}
-                        value={selectedMetaDescTemplateId}
-                        onChange={setSelectedMetaDescTemplateId}
-                      />
                     </div>
                   )}
                 </div>
@@ -814,7 +784,7 @@ export default function BlogPage() {
                     checked={useCustomMetaTitleInstructions}
                     onChange={setUseCustomMetaTitleInstructions}
                   />
-                  {useCustomMetaTitleInstructions ? (
+                  {useCustomMetaTitleInstructions && (
                     <div style={{ marginTop: "8px" }}>
                       <TextField
                         label="Meta title custom prompt" labelHidden
@@ -828,15 +798,6 @@ export default function BlogPage() {
                           <button onClick={() => setBulkMetaTitlePromptTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
                         </div>
                       )}
-                    </div>
-                  ) : (
-                    <div style={{ marginTop: "8px" }}>
-                      <Select
-                        label="Template" labelHidden
-                        options={BLOG_META_TITLE_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))}
-                        value={selectedMetaTitleTemplateId}
-                        onChange={setSelectedMetaTitleTemplateId}
-                      />
                     </div>
                   )}
                 </div>

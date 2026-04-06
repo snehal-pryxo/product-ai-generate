@@ -25,7 +25,6 @@ import {
   Tag,
   Text,
   TextField,
-  Thumbnail,
 } from "@shopify/polaris";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
@@ -116,10 +115,6 @@ const COLLECTION_LIST_QUERY = `#graphql
           seo {
             title
             description
-          }
-          image {
-            url
-            altText
           }
           productsCount {
             count
@@ -1161,8 +1156,6 @@ export const loader = async ({ request }) => {
       seoDescription: evaluateSeoDescription(node.seo?.description),
       seoTitleValue: node.seo?.title || "",
       seoDescriptionValue: node.seo?.description || "",
-      imageUrl: node.image?.url || null,
-      imageAlt: node.image?.altText || node.title,
       collectionType: toCollectionTypeMeta(node.ruleSet),
       productsCount: node.productsCount?.count || 0,
       updatedAt: formatDate(node.updatedAt),
@@ -1210,9 +1203,6 @@ export default function CollectionsPage() {
   const [useCustomInstructions, setUseCustomInstructions] = useState(false);
   const [useCustomMetaDescInstructions, setUseCustomMetaDescInstructions] = useState(false);
   const [useCustomMetaTitleInstructions, setUseCustomMetaTitleInstructions] = useState(false);
-  const [selectedDescTemplateId, setSelectedDescTemplateId] = useState(() => COLLECTION_DESCRIPTION_TEMPLATES[0]?.id || "");
-  const [selectedMetaDescTemplateId, setSelectedMetaDescTemplateId] = useState(() => COLLECTION_META_DESCRIPTION_TEMPLATES[0]?.id || "");
-  const [selectedMetaTitleTemplateId, setSelectedMetaTitleTemplateId] = useState(() => COLLECTION_META_TITLE_TEMPLATES[0]?.id || "");
   const [templateLib, setTemplateLib] = useState({ open: false, tab: "description", target: "descriptionPromptTemplate" });
   const [showAdvancedBulkSettings, setShowAdvancedBulkSettings] = useState(false);
   const bulkResultHandledRef = useRef(false);
@@ -1340,18 +1330,9 @@ export default function CollectionsPage() {
     payload.append("length", bulkSettings.length);
     payload.append("format", bulkSettings.format);
     payload.append("contextKeywords", contextKeywords);
-    const effectiveDescTemplate = useCustomInstructions
-      ? (bulkDescTemplate || "")
-      : (COLLECTION_DESCRIPTION_TEMPLATES.find((t) => t.id === selectedDescTemplateId)?.template || "");
-    const effectiveMetaDescTemplate = useCustomMetaDescInstructions
-      ? (bulkMetaDescTemplate || "")
-      : (COLLECTION_META_DESCRIPTION_TEMPLATES.find((t) => t.id === selectedMetaDescTemplateId)?.template || "");
-    const effectiveMetaTitleTemplate = useCustomMetaTitleInstructions
-      ? (bulkMetaTitleTemplate || "")
-      : (COLLECTION_META_TITLE_TEMPLATES.find((t) => t.id === selectedMetaTitleTemplateId)?.template || "");
-    payload.append("descriptionPromptTemplate", effectiveDescTemplate);
-    payload.append("metaTitlePromptTemplate", effectiveMetaTitleTemplate);
-    payload.append("metaDescriptionPromptTemplate", effectiveMetaDescTemplate);
+    payload.append("descriptionPromptTemplate", bulkDescTemplate || "");
+    payload.append("metaTitlePromptTemplate", bulkMetaTitleTemplate || "");
+    payload.append("metaDescriptionPromptTemplate", bulkMetaDescTemplate || "");
     payload.append("aiProvider", bulkSettings.aiProvider);
     bulkFetcher.submit(payload, { method: "post" });
   }, [
@@ -1363,12 +1344,6 @@ export default function CollectionsPage() {
     bulkSelectedKeywords,
     bulkSettings,
     selectedCollections,
-    useCustomInstructions,
-    useCustomMetaDescInstructions,
-    useCustomMetaTitleInstructions,
-    selectedDescTemplateId,
-    selectedMetaDescTemplateId,
-    selectedMetaTitleTemplateId,
   ]);
 
   const isBulkGenerating = bulkFetcher.state !== "idle";
@@ -1734,7 +1709,7 @@ export default function CollectionsPage() {
                     checked={useCustomInstructions}
                     onChange={setUseCustomInstructions}
                   />
-                  {useCustomInstructions ? (
+                  {useCustomInstructions && (
                     <div style={{ marginTop: "8px" }}>
                       <TextField
                         label="Custom Prompt" labelHidden
@@ -1749,15 +1724,6 @@ export default function CollectionsPage() {
                           <button onClick={() => setBulkDescTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
                         </div>
                       )}
-                    </div>
-                  ) : (
-                    <div style={{ marginTop: "8px" }}>
-                      <Select
-                        label="Template" labelHidden
-                        options={COLLECTION_DESCRIPTION_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))}
-                        value={selectedDescTemplateId}
-                        onChange={setSelectedDescTemplateId}
-                      />
                     </div>
                   )}
                 </div>
@@ -1779,7 +1745,7 @@ export default function CollectionsPage() {
                     checked={useCustomMetaDescInstructions}
                     onChange={setUseCustomMetaDescInstructions}
                   />
-                  {useCustomMetaDescInstructions ? (
+                  {useCustomMetaDescInstructions && (
                     <div style={{ marginTop: "8px" }}>
                       <TextField
                         label="Custom Prompt" labelHidden
@@ -1794,15 +1760,6 @@ export default function CollectionsPage() {
                           <button onClick={() => setBulkMetaDescTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
                         </div>
                       )}
-                    </div>
-                  ) : (
-                    <div style={{ marginTop: "8px" }}>
-                      <Select
-                        label="Template" labelHidden
-                        options={COLLECTION_META_DESCRIPTION_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))}
-                        value={selectedMetaDescTemplateId}
-                        onChange={setSelectedMetaDescTemplateId}
-                      />
                     </div>
                   )}
                 </div>
@@ -1824,7 +1781,7 @@ export default function CollectionsPage() {
                     checked={useCustomMetaTitleInstructions}
                     onChange={setUseCustomMetaTitleInstructions}
                   />
-                  {useCustomMetaTitleInstructions ? (
+                  {useCustomMetaTitleInstructions && (
                     <div style={{ marginTop: "8px" }}>
                       <TextField
                         label="Custom Prompt" labelHidden
@@ -1839,15 +1796,6 @@ export default function CollectionsPage() {
                           <button onClick={() => setBulkMetaTitleTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
                         </div>
                       )}
-                    </div>
-                  ) : (
-                    <div style={{ marginTop: "8px" }}>
-                      <Select
-                        label="Template" labelHidden
-                        options={COLLECTION_META_TITLE_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))}
-                        value={selectedMetaTitleTemplateId}
-                        onChange={setSelectedMetaTitleTemplateId}
-                      />
                     </div>
                   )}
                 </div>

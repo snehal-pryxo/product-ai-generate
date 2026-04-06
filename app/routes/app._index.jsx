@@ -89,6 +89,16 @@ const ANALYTICS_CARD = {
   tag: "Insights",
 };
 
+const SETTINGS_CARD = {
+  gradient: "linear-gradient(135deg, #6b7280 0%, #374151 100%)",
+  glow: "rgba(107,114,128,0.25)",
+  icon: "⚙️",
+  title: "Settings",
+  desc: "Configure language, word counts and default templates for all content types.",
+  url: "/app/settings",
+  tag: null,
+};
+
 const STATS = [
   { value: "5", label: "Content Types", icon: "✦" },
   { value: "180+", label: "Languages", icon: "🌍" },
@@ -416,8 +426,11 @@ export default function Index() {
             alignItems: "start",
           }}
         >
-          {/* Analytics card fills the left slot */}
-          <FeatureCard {...ANALYTICS_CARD} />
+          {/* Analytics + Settings cards stack in the left slot */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <FeatureCard {...ANALYTICS_CARD} />
+            <FeatureCard {...SETTINGS_CARD} />
+          </div>
 
           {/* AI Model Settings fills the right slot */}
           <div>
