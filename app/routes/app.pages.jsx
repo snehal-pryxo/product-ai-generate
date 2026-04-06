@@ -455,6 +455,7 @@ export default function PagesPage() {
     pageType: "About Us",
     aiProvider: defaultAiProvider || "auto",
   });
+  const [bulkContentTypes, setBulkContentTypes] = useState(["body", "meta_title", "meta_description"]);
   const [bulkResult, setBulkResult] = useState(null);
   const [bulkValidationMessage, setBulkValidationMessage] = useState(null);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
@@ -628,6 +629,45 @@ export default function PagesPage() {
               />
             </div>
 
+            {/* Content Type Pills */}
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                {[
+                  { id: "body", label: "Body" },
+                  { id: "meta_description", label: "Meta Description" },
+                  { id: "meta_title", label: "Meta Title" },
+                ].map((type) => {
+                  const isSelected = bulkContentTypes.includes(type.id);
+                  return (
+                    <button
+                      key={type.id}
+                      onClick={() => {
+                        setBulkContentTypes((prev) =>
+                          prev.includes(type.id) ? prev.filter((t) => t !== type.id) : [...prev, type.id]
+                        );
+                      }}
+                      style={{
+                        padding: "5px 14px",
+                        borderRadius: "20px",
+                        border: isSelected ? "2px solid #1a1a1a" : "1px solid #d1d5db",
+                        background: isSelected ? "#1a1a1a" : "#fff",
+                        color: isSelected ? "#fff" : "#374151",
+                        cursor: "pointer",
+                        fontSize: "13px",
+                        fontWeight: isSelected ? 600 : 400,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "5px",
+                      }}
+                    >
+                      {isSelected && <span style={{ fontSize: "11px" }}>✓</span>}
+                      {type.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Output Language */}
             <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
               <Select
@@ -639,97 +679,103 @@ export default function PagesPage() {
             </div>
 
             {/* Body Template Section */}
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-              <InlineStack align="space-between" blockAlign="center">
-                <Text as="h3" variant="headingSm" fontWeight="semibold">Body</Text>
-                <button onClick={() => openPageTemplateLib("description", "pageBodyPromptTemplate")} style={btnStyle}>Browse Templates</button>
-              </InlineStack>
-              <div style={{ marginTop: "8px" }}>
-                <Checkbox
-                  label={<span style={{ fontSize: "13px", color: "#374151" }}>Use custom instructions <span style={{ fontSize: "13px" }}>✨</span></span>}
-                  checked={useCustomBodyInstructions}
-                  onChange={setUseCustomBodyInstructions}
-                />
-                {useCustomBodyInstructions && (
-                  <div style={{ marginTop: "8px" }}>
-                    <TextField
-                      label="Body custom prompt" labelHidden
-                      value={bulkBodyTemplate}
-                      onChange={setBulkBodyTemplate}
-                      multiline={3} autoComplete="off"
-                      placeholder="Enter custom instructions for body generation..."
-                    />
-                    {bulkBodyTemplate && (
-                      <div style={{ marginTop: "4px" }}>
-                        <button onClick={() => setBulkBodyTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
-                      </div>
-                    )}
-                  </div>
-                )}
+            {bulkContentTypes.includes("body") && (
+              <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+                <InlineStack align="space-between" blockAlign="center">
+                  <Text as="h3" variant="headingSm" fontWeight="semibold">Body</Text>
+                  <button onClick={() => openPageTemplateLib("description", "pageBodyPromptTemplate")} style={btnStyle}>Browse Templates</button>
+                </InlineStack>
+                <div style={{ marginTop: "8px" }}>
+                  <Checkbox
+                    label={<span style={{ fontSize: "13px", color: "#374151" }}>Use custom instructions <span style={{ fontSize: "13px" }}>✨</span></span>}
+                    checked={useCustomBodyInstructions}
+                    onChange={setUseCustomBodyInstructions}
+                  />
+                  {useCustomBodyInstructions && (
+                    <div style={{ marginTop: "8px" }}>
+                      <TextField
+                        label="Body custom prompt" labelHidden
+                        value={bulkBodyTemplate}
+                        onChange={setBulkBodyTemplate}
+                        multiline={3} autoComplete="off"
+                        placeholder="Enter custom instructions for body generation..."
+                      />
+                      {bulkBodyTemplate && (
+                        <div style={{ marginTop: "4px" }}>
+                          <button onClick={() => setBulkBodyTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Meta Title Template Section */}
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-              <InlineStack align="space-between" blockAlign="center">
-                <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Title</Text>
-                <button onClick={() => openPageTemplateLib("seo-title", "pageMetaTitlePromptTemplate")} style={btnStyle}>Browse Templates</button>
-              </InlineStack>
-              <div style={{ marginTop: "8px" }}>
-                <Checkbox
-                  label={<span style={{ fontSize: "13px", color: "#374151" }}>Use custom instructions <span style={{ fontSize: "13px" }}>✨</span></span>}
-                  checked={useCustomMetaTitleInstructions}
-                  onChange={setUseCustomMetaTitleInstructions}
-                />
-                {useCustomMetaTitleInstructions && (
-                  <div style={{ marginTop: "8px" }}>
-                    <TextField
-                      label="Meta title custom prompt" labelHidden
-                      value={bulkMetaTitleTemplate}
-                      onChange={setBulkMetaTitleTemplate}
-                      multiline={3} autoComplete="off"
-                      placeholder="Enter custom instructions for meta title generation..."
-                    />
-                    {bulkMetaTitleTemplate && (
-                      <div style={{ marginTop: "4px" }}>
-                        <button onClick={() => setBulkMetaTitleTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
-                      </div>
-                    )}
-                  </div>
-                )}
+            {bulkContentTypes.includes("meta_title") && (
+              <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+                <InlineStack align="space-between" blockAlign="center">
+                  <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Title</Text>
+                  <button onClick={() => openPageTemplateLib("seo-title", "pageMetaTitlePromptTemplate")} style={btnStyle}>Browse Templates</button>
+                </InlineStack>
+                <div style={{ marginTop: "8px" }}>
+                  <Checkbox
+                    label={<span style={{ fontSize: "13px", color: "#374151" }}>Use custom instructions <span style={{ fontSize: "13px" }}>✨</span></span>}
+                    checked={useCustomMetaTitleInstructions}
+                    onChange={setUseCustomMetaTitleInstructions}
+                  />
+                  {useCustomMetaTitleInstructions && (
+                    <div style={{ marginTop: "8px" }}>
+                      <TextField
+                        label="Meta title custom prompt" labelHidden
+                        value={bulkMetaTitleTemplate}
+                        onChange={setBulkMetaTitleTemplate}
+                        multiline={3} autoComplete="off"
+                        placeholder="Enter custom instructions for meta title generation..."
+                      />
+                      {bulkMetaTitleTemplate && (
+                        <div style={{ marginTop: "4px" }}>
+                          <button onClick={() => setBulkMetaTitleTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Meta Description Template Section */}
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-              <InlineStack align="space-between" blockAlign="center">
-                <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Description</Text>
-                <button onClick={() => openPageTemplateLib("seo-description", "pageMetaDescriptionPromptTemplate")} style={btnStyle}>Browse Templates</button>
-              </InlineStack>
-              <div style={{ marginTop: "8px" }}>
-                <Checkbox
-                  label={<span style={{ fontSize: "13px", color: "#374151" }}>Use custom instructions <span style={{ fontSize: "13px" }}>✨</span></span>}
-                  checked={useCustomMetaDescInstructions}
-                  onChange={setUseCustomMetaDescInstructions}
-                />
-                {useCustomMetaDescInstructions && (
-                  <div style={{ marginTop: "8px" }}>
-                    <TextField
-                      label="Meta description custom prompt" labelHidden
-                      value={bulkMetaDescTemplate}
-                      onChange={setBulkMetaDescTemplate}
-                      multiline={3} autoComplete="off"
-                      placeholder="Enter custom instructions for meta description generation..."
-                    />
-                    {bulkMetaDescTemplate && (
-                      <div style={{ marginTop: "4px" }}>
-                        <button onClick={() => setBulkMetaDescTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
-                      </div>
-                    )}
-                  </div>
-                )}
+            {bulkContentTypes.includes("meta_description") && (
+              <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+                <InlineStack align="space-between" blockAlign="center">
+                  <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Description</Text>
+                  <button onClick={() => openPageTemplateLib("seo-description", "pageMetaDescriptionPromptTemplate")} style={btnStyle}>Browse Templates</button>
+                </InlineStack>
+                <div style={{ marginTop: "8px" }}>
+                  <Checkbox
+                    label={<span style={{ fontSize: "13px", color: "#374151" }}>Use custom instructions <span style={{ fontSize: "13px" }}>✨</span></span>}
+                    checked={useCustomMetaDescInstructions}
+                    onChange={setUseCustomMetaDescInstructions}
+                  />
+                  {useCustomMetaDescInstructions && (
+                    <div style={{ marginTop: "8px" }}>
+                      <TextField
+                        label="Meta description custom prompt" labelHidden
+                        value={bulkMetaDescTemplate}
+                        onChange={setBulkMetaDescTemplate}
+                        multiline={3} autoComplete="off"
+                        placeholder="Enter custom instructions for meta description generation..."
+                      />
+                      {bulkMetaDescTemplate && (
+                        <div style={{ marginTop: "4px" }}>
+                          <button onClick={() => setBulkMetaDescTemplate("")} style={resetBtnStyle}>↺ Reset to Default</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Advanced Settings Toggle */}
             <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--p-color-border)" }}>

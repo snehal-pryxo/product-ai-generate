@@ -365,7 +365,7 @@ export default function Index() {
   );
 
   return (
-    <Page>
+    <Page fullWidth>
       <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
 
         {/* ── Hero ── */}

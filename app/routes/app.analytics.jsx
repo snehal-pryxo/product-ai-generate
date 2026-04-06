@@ -826,7 +826,7 @@ export default function AnalyticsPage() {
   const activeDays   = dailyActivity.filter(d => d.count > 0).length;
 
   return (
-    <Page>
+    <Page fullWidth>
       {/* ── Hero Header ── */}
       <div style={{
         background: "linear-gradient(135deg, #020c1b 0%, #0a2540 45%, #003d2e 100%)",
