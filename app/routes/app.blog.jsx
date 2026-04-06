@@ -946,7 +946,7 @@ export default function BlogPage() {
   ));
 
   return (
-    <Page>
+    <Page fullWidth>
       {/* ── Hero Header ── */}
       <div style={{
         background: "linear-gradient(135deg, #1a001a 0%, #4a0e4e 50%, #1e0a3c 100%)",

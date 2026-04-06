@@ -606,7 +606,7 @@ export default function PagesPage() {
   ));
 
   return (
-    <Page>
+    <Page fullWidth>
       {/* ── Hero Header ── */}
       <div style={{
         background: "linear-gradient(135deg, #00131a 0%, #064e3b 50%, #0c2a4a 100%)",

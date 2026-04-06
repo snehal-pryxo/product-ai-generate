@@ -252,14 +252,24 @@ function FilterBar({ resourceFilter, typeFilter, onResourceChange, onTypeChange 
         {/* Resource pills */}
         <InlineStack gap="150" wrap>
           {RESOURCE_FILTERS.map((f) => (
-            <Button
+            <button
               key={f.id}
-              size="slim"
-              pressed={resourceFilter === f.id}
               onClick={() => onResourceChange(f.id)}
+              style={{
+                padding: "5px 14px",
+                borderRadius: "6px",
+                border: resourceFilter === f.id ? "1.5px solid #1a1a1a" : "1px solid #d1d5db",
+                background: resourceFilter === f.id ? "#1a1a1a" : "#f9fafb",
+                color: resourceFilter === f.id ? "#ffffff" : "#374151",
+                cursor: "pointer",
+                fontSize: "13px",
+                fontWeight: resourceFilter === f.id ? 600 : 400,
+                transition: "all 0.15s ease",
+                lineHeight: "1.4",
+              }}
             >
               {f.label}
-            </Button>
+            </button>
           ))}
         </InlineStack>
 
@@ -517,6 +527,7 @@ export default function TemplatePage() {
 
   return (
     <Page
+      fullWidth
       title="Templates"
       subtitle="Manage prompt templates for AI content generation."
       primaryAction={{

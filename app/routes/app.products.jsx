@@ -1398,6 +1398,9 @@ export default function ProductsPage() {
   const [bulkCustomKeywords, setBulkCustomKeywords] = useState([]);
   const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [bulkValidationMessage, setBulkValidationMessage] = useState(null);
+  const [bulkContentTypes, setBulkContentTypes] = useState(["description"]);
+  const [useCustomInstructions, setUseCustomInstructions] = useState(false);
+  const [showAdvancedBulkSettings, setShowAdvancedBulkSettings] = useState(false);
   const bulkResultHandledRef = useRef(false);
 
   useEffect(() => {
@@ -1930,7 +1933,7 @@ export default function ProductsPage() {
   ));
 
   return (
-    <Page>
+    <Page fullWidth>
       {/* ── Hero Header ── */}
       <div style={{
         background: "linear-gradient(135deg, #1a0533 0%, #2d1b69 50%, #0f3460 100%)",
@@ -1969,158 +1972,43 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      <Layout>
-        <Layout.Section>
-
-          {/* ── Bulk Generate Card ── */}
+      <div style={{ display: "flex", gap: "16px", alignItems: "flex-start", marginTop: "0" }}>
+        {/* ── LEFT: Product List ── */}
+        <div style={{ flex: "1 1 auto", minWidth: 0 }}>
+          {/* Instructions Card */}
           <div style={{ marginBottom: "16px" }}>
             <Card>
-              <BlockStack gap="400">
-                <InlineStack align="space-between" blockAlign="center">
-                  <BlockStack gap="100">
-                    <Text variant="headingMd" as="h2">⚡ Bulk Generate Content</Text>
-                    <Text variant="bodySm" tone="subdued" as="p">
-                      Set AI options and generate descriptions + SEO for selected products.
-                    </Text>
-                  </BlockStack>
-                  {bulkResult && (
-                    <Badge tone={bulkResult.failed > 0 ? "warning" : "success"}>
-                      {bulkResult.succeeded}/{bulkResult.total} updated
-                      {bulkResult.failed > 0 ? ` · ${bulkResult.failed} failed` : ""}
-                    </Badge>
-                  )}
-                </InlineStack>
-
-                <Divider />
-
-                <InlineStack align="space-between" blockAlign="center" wrap gap="200">
-                  <Checkbox
-                    label={`Select all visible products (${filteredProducts.length})`}
-                    checked={allVisibleSelected}
-                    indeterminate={selectionIndeterminate}
-                    onChange={handleToggleSelectAllVisible}
-                  />
-                  <Text as="span" variant="bodySm" tone="subdued">
-                    {selectedProducts.length} selected
-                  </Text>
-                </InlineStack>
-                {bulkValidationMessage && (
-                  <Banner tone="critical">
-                    <p>{bulkValidationMessage}</p>
-                  </Banner>
-                )}
-
-                <Grid>
-                  <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
-                    <Select
-                      label="Language"
-                      options={languageSelectOptions}
-                      value={bulkSettings.language}
-                      onChange={updateBulkField("language")}
-                    />
-                  </Grid.Cell>
-                  <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
-                    <Select
-                      label="Tone"
-                      options={toneSelectOptions}
-                      value={bulkSettings.tone}
-                      onChange={updateBulkField("tone")}
-                    />
-                  </Grid.Cell>
-                  <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
-                    <Select
-                      label="Length"
-                      options={lengthSelectOptions}
-                      value={bulkSettings.length}
-                      onChange={updateBulkField("length")}
-                    />
-                  </Grid.Cell>
-                  <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3, xl: 3 }}>
-                    <Select
-                      label="Format"
-                      options={formatSelectOptions}
-                      value={bulkSettings.format}
-                      onChange={updateBulkField("format")}
-                    />
-                  </Grid.Cell>
-                </Grid>
-
-                <BlockStack gap="200">
-                  <InlineStack gap="200" blockAlign="end" wrap>
-                    <div style={{ minWidth: "280px", flex: 2 }}>
-                      <Autocomplete
-                        allowMultiple
-                        options={bulkKeywordOptions}
-                        selected={bulkSelectedKeywords}
-                        textField={bulkKeywordTextField}
-                        onSelect={handleBulkKeywordSelect}
-                      />
-                    </div>
-                    <div style={{ minWidth: "280px", flex: 1 }}>
-                      <InlineStack gap="200" blockAlign="end">
-                        <div style={{ minWidth: "200px", flex: 1 }}>
-                          <TextField
-                            label="Add custom keyword"
-                            labelHidden
-                            value={bulkCustomKeywordInput}
-                            onChange={setBulkCustomKeywordInput}
-                            placeholder="Add custom keyword or phrase"
-                            autoComplete="off"
-                          />
-                        </div>
-                        <Button
-                          onClick={handleAddBulkCustomKeyword}
-                          disabled={!bulkCustomKeywordInput.trim()}
-                        >
-                          Add
-                        </Button>
-                      </InlineStack>
-                    </div>
-                  </InlineStack>
-                  {bulkKeywordTags.length > 0 ? (
-                    <InlineStack gap="200" wrap>
-                      {bulkKeywordTags.map((keyword) => (
-                        <Tag key={keyword} onRemove={() => handleRemoveBulkKeyword(keyword)}>
-                          {keyword}
-                        </Tag>
-                      ))}
-                    </InlineStack>
-                  ) : (
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      Use the dropdown for preset keywords and Add for custom phrases.
-                    </Text>
-                  )}
-                </BlockStack>
-
-                <BlockStack gap="200">
-                  {isBulkGenerating && (
-                    <InlineStack align="center" blockAlign="center" gap="200">
-                      <Spinner size="small" />
-                      <Text variant="bodySm" tone="subdued">Generating for {selectedProducts.length} products...</Text>
-                    </InlineStack>
-                  )}
-                  <InlineStack align="end" gap="300">
-                    <Button
-                      variant="primary"
-                      onClick={handleBulkGenerate}
-                      disabled={isBulkGenerating || selectedProducts.length === 0 || exceedsBulkLimit}
-                      tone="success"
-                    >
-                      {isBulkGenerating
-                        ? "Generating..."
-                        : `Bulk Generate Selected ${selectedProducts.length} Products`}
-                    </Button>
-                  </InlineStack>
+              <BlockStack gap="300">
+                <Text as="p" variant="bodyMd" fontWeight="semibold">
+                  Choose individual products or an entire collection to generate AI-powered content
+                </Text>
+                <BlockStack gap="100">
+                  <Text as="p" variant="bodySm" tone="subdued">• You can select multiple products (up to {MAX_BULK_ITEMS}) for bulk content generation</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">• You can choose a single collection to generate content for all its products</Text>
                 </BlockStack>
               </BlockStack>
             </Card>
           </div>
 
-          <Card>
-            <BlockStack gap="400">
-              {/* ── Filters row ── */}
-              <InlineStack gap="300" blockAlign="end" wrap>
-                <div style={{ flex: 1, minWidth: "200px" }}>
+          {/* Products/Collections Tab Toggle */}
+          <div style={{ marginBottom: "16px" }}>
+            <InlineStack gap="0" blockAlign="center">
+              <div style={{ display: "flex", border: "1px solid #d1d5db", borderRadius: "6px", overflow: "hidden" }}>
+                <button
+                  onClick={() => {}}
+                  style={{ padding: "6px 16px", background: "#1a1a1a", color: "#fff", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" }}
+                >
+                  ✓ Products
+                </button>
+                <button
+                  onClick={() => navigate("/app/collections")}
+                  style={{ padding: "6px 16px", background: "#fff", color: "#374151", border: "none", borderLeft: "1px solid #d1d5db", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}
+                >
+                  Collections
+                </button>
+              </div>
+              <div style={{ marginLeft: "auto", display: "flex", gap: "8px" }}>
+                <div style={{ position: "relative" }}>
                   <TextField
                     label="Search products"
                     labelHidden
@@ -2131,21 +2019,46 @@ export default function ProductsPage() {
                     prefix={isSearchLoading ? <Spinner size="small" /> : undefined}
                   />
                 </div>
-                <div style={{ minWidth: "200px" }}>
-                  <Select
-                    label="Filter by Collection"
-                    options={collectionOptions}
-                    value={filters.collectionId || ""}
-                    onChange={(val) => navigate(makeUrl({ collectionId: val }))}
-                  />
-                </div>
-              </InlineStack>
+              </div>
+            </InlineStack>
+          </div>
 
-              <Tabs
-                tabs={statusTabs}
-                selected={statusTabIndex}
-                onSelect={handleTabChange}
-              />
+          {/* Collection Filter */}
+          <div style={{ marginBottom: "12px" }}>
+            <Select
+              label="Filter by Collection"
+              labelHidden
+              options={collectionOptions}
+              value={filters.collectionId || ""}
+              onChange={(val) => navigate(makeUrl({ collectionId: val }))}
+            />
+          </div>
+
+          <Card padding="0">
+            <BlockStack gap="0">
+              <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+                <InlineStack align="space-between" blockAlign="center">
+                  <Tabs
+                    tabs={statusTabs}
+                    selected={statusTabIndex}
+                    onSelect={handleTabChange}
+                  />
+                </InlineStack>
+              </div>
+
+              <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+                <InlineStack align="space-between" blockAlign="center">
+                  <Checkbox
+                    label={`Select all visible (${filteredProducts.length})`}
+                    checked={allVisibleSelected}
+                    indeterminate={selectionIndeterminate}
+                    onChange={handleToggleSelectAllVisible}
+                  />
+                  <Text as="span" variant="bodySm" tone="subdued">
+                    {selectedProducts.length} selected
+                  </Text>
+                </InlineStack>
+              </div>
 
               {isSearchLoading ? (
                 <Box padding="400">
@@ -2154,35 +2067,294 @@ export default function ProductsPage() {
                   </InlineStack>
                 </Box>
               ) : filteredProducts.length === 0 ? (
-                <EmptyState
-                  heading="No products found"
-                  image=""
-                >
-                  <Text as="p" tone="subdued">
-                    Try adjusting your search or filter to find what you are looking for.
-                  </Text>
+                <EmptyState heading="No products found" image="">
+                  <Text as="p" tone="subdued">Try adjusting your search or filter.</Text>
                 </EmptyState>
               ) : (
                 <IndexTable
                   resourceName={resourceName}
                   itemCount={filteredProducts.length}
-                  headings={headings}
+                  headings={[
+                    { title: "" },
+                    { title: "Product" },
+                    { title: "Short" },
+                    { title: "Status" },
+                  ]}
                   selectable={false}
                 >
-                  {rowMarkup}
+                  {filteredProducts.map((product, index) => (
+                    <IndexTable.Row id={product.id} key={product.id} position={index}>
+                      <IndexTable.Cell>
+                        <Checkbox
+                          label={`Select ${product.title}`}
+                          labelHidden
+                          checked={selectedProductIds.includes(product.id)}
+                          onChange={handleToggleProductSelection(product.id)}
+                        />
+                      </IndexTable.Cell>
+                      <IndexTable.Cell>
+                        <InlineStack gap="200" blockAlign="center">
+                          {product.imageUrl ? (
+                            <Thumbnail source={product.imageUrl} alt={product.imageAlt} size="small" />
+                          ) : (
+                            <Thumbnail source="" alt={product.imageAlt} size="small" />
+                          )}
+                          <InlineStack gap="100" blockAlign="center">
+                            <Text variant="bodyMd" fontWeight="medium" as="span" tone="interactive">
+                              {product.title}
+                            </Text>
+                          </InlineStack>
+                        </InlineStack>
+                      </IndexTable.Cell>
+                      <IndexTable.Cell>
+                        {product.appStatus?.label === "Generated" || product.appStatus?.label === "Short" ? (
+                          <Badge tone="warning">Short</Badge>
+                        ) : null}
+                      </IndexTable.Cell>
+                      <IndexTable.Cell>
+                        {isBulkGenerating && selectedProductIds.includes(product.id) ? (
+                          <InlineStack gap="100" blockAlign="center">
+                            <Spinner size="small" />
+                            <Text as="span" tone="subdued">Generating...</Text>
+                          </InlineStack>
+                        ) : (
+                          <InlineStack gap="100" blockAlign="center">
+                            <Badge tone={product.status === "ACTIVE" ? "success" : "attention"}>
+                              {product.status === "ACTIVE" ? "ACTIVE" : product.status || "DRAFT"}
+                            </Badge>
+                            <Button size="micro" onClick={() => openEditModal(product)}>Edit</Button>
+                          </InlineStack>
+                        )}
+                      </IndexTable.Cell>
+                    </IndexTable.Row>
+                  ))}
                 </IndexTable>
               )}
 
-              <InlineStack align="start" blockAlign="center">
-                <Text as="span" tone="subdued">
+              <div style={{ padding: "8px 16px", borderTop: "1px solid var(--p-color-border)" }}>
+                <Text as="span" tone="subdued" variant="bodySm">
                   {filteredProducts.length} results{" "}
                   {isLoading && !isSearchLoading ? "(Loading...)" : ""}
                 </Text>
-              </InlineStack>
+              </div>
             </BlockStack>
           </Card>
-        </Layout.Section>
-      </Layout>
+        </div>
+
+        {/* ── RIGHT: Bulk Settings Panel ── */}
+        <div style={{ flex: "0 0 360px", minWidth: "300px" }}>
+          <Card padding="0">
+            <div style={{ padding: "16px", borderBottom: "1px solid var(--p-color-border)" }}>
+              <BlockStack gap="100">
+                <Text as="h2" variant="headingMd" fontWeight="bold">Product Bulk Order Settings</Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Descriptions will be generated for {selectedProducts.length} product{selectedProducts.length !== 1 ? "s" : ""}
+                </Text>
+              </BlockStack>
+            </div>
+
+            {/* Content Type Pills */}
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                {[
+                  { id: "description", label: "Description" },
+                  { id: "product_title", label: "Product Title" },
+                  { id: "meta_description", label: "Meta Description" },
+                  { id: "meta_title", label: "Meta Title" },
+                  { id: "product_tags", label: "Product Tags" },
+                ].map((type) => {
+                  const isActive = bulkContentTypes.includes(type.id);
+                  return (
+                    <button
+                      key={type.id}
+                      onClick={() => {
+                        setBulkContentTypes((prev) =>
+                          prev.includes(type.id)
+                            ? prev.length > 1 ? prev.filter((t) => t !== type.id) : prev
+                            : [...prev, type.id]
+                        );
+                      }}
+                      style={{
+                        padding: "4px 12px",
+                        borderRadius: "6px",
+                        border: isActive ? "none" : "1px solid #d1d5db",
+                        background: isActive ? "#1a1a1a" : "transparent",
+                        color: isActive ? "#fff" : "#374151",
+                        cursor: "pointer",
+                        fontSize: "13px",
+                        fontWeight: isActive ? 600 : 400,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                      }}
+                    >
+                      {isActive && <span>✓</span>}
+                      {type.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Output Language */}
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+              <Select
+                label="Output Language"
+                options={languageSelectOptions}
+                value={bulkSettings.language}
+                onChange={updateBulkField("language")}
+              />
+            </div>
+
+            {/* Description Settings */}
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+              <Text as="h3" variant="headingSm" fontWeight="semibold">Description</Text>
+              <div style={{ marginTop: "10px" }}>
+                <InlineStack align="space-between" blockAlign="center">
+                  <Checkbox
+                    label={<span>Use custom instructions <span style={{ fontSize: "14px" }}>✨</span></span>}
+                    checked={useCustomInstructions}
+                    onChange={setUseCustomInstructions}
+                  />
+                  <Button size="slim" onClick={() => navigate("/app/template")}>Browse Templates</Button>
+                </InlineStack>
+                {useCustomInstructions && (
+                  <div style={{ marginTop: "10px" }}>
+                    <TextField
+                      label="Custom instructions"
+                      labelHidden
+                      value={editForm.descriptionPromptTemplate}
+                      onChange={(v) => updateEditField("descriptionPromptTemplate", v)}
+                      multiline={3}
+                      placeholder="Enter custom instructions for description generation..."
+                      autoComplete="off"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Show Advanced Settings toggle */}
+            <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+              <button
+                onClick={() => setShowAdvancedBulkSettings((v) => !v)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "13px", color: "#374151", display: "flex", alignItems: "center", gap: "6px", padding: "0", fontWeight: 500 }}
+              >
+                <span>{showAdvancedBulkSettings ? "▲" : "▼"}</span>
+                {showAdvancedBulkSettings ? "Hide" : "Show"} Advanced Settings
+              </button>
+            </div>
+
+            {/* Advanced Settings (collapsed by default) */}
+            {showAdvancedBulkSettings && (
+              <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+                <BlockStack gap="300">
+                  <Select
+                    label="Tone"
+                    options={toneSelectOptions}
+                    value={bulkSettings.tone}
+                    onChange={updateBulkField("tone")}
+                  />
+                  <Select
+                    label="Length"
+                    options={lengthSelectOptions}
+                    value={bulkSettings.length}
+                    onChange={updateBulkField("length")}
+                  />
+                  <Select
+                    label="Format"
+                    options={formatSelectOptions}
+                    value={bulkSettings.format}
+                    onChange={updateBulkField("format")}
+                  />
+                  <BlockStack gap="200">
+                    <Autocomplete
+                      allowMultiple
+                      options={bulkKeywordOptions}
+                      selected={bulkSelectedKeywords}
+                      textField={bulkKeywordTextField}
+                      onSelect={handleBulkKeywordSelect}
+                    />
+                    <InlineStack gap="200" blockAlign="end">
+                      <div style={{ flex: 1 }}>
+                        <TextField
+                          label="Custom keyword"
+                          labelHidden
+                          value={bulkCustomKeywordInput}
+                          onChange={setBulkCustomKeywordInput}
+                          placeholder="Add custom keyword"
+                          autoComplete="off"
+                        />
+                      </div>
+                      <Button onClick={handleAddBulkCustomKeyword} disabled={!bulkCustomKeywordInput.trim()}>Add</Button>
+                    </InlineStack>
+                    {bulkKeywordTags.length > 0 && (
+                      <InlineStack gap="200" wrap>
+                        {bulkKeywordTags.map((keyword) => (
+                          <Tag key={keyword} onRemove={() => handleRemoveBulkKeyword(keyword)}>{keyword}</Tag>
+                        ))}
+                      </InlineStack>
+                    )}
+                  </BlockStack>
+
+                  <Select
+                    label="AI Provider"
+                    options={[
+                      { label: "Auto", value: "auto" },
+                      { label: "OpenAI", value: "openai" },
+                      { label: "Anthropic", value: "anthropic" },
+                      { label: "Ollama", value: "ollama" },
+                    ]}
+                    value={bulkSettings.aiProvider}
+                    onChange={updateBulkField("aiProvider")}
+                  />
+                </BlockStack>
+              </div>
+            )}
+
+            {/* Bulk result badge */}
+            {bulkResult && (
+              <div style={{ padding: "8px 16px" }}>
+                <Badge tone={bulkResult.failed > 0 ? "warning" : "success"}>
+                  {bulkResult.succeeded}/{bulkResult.total} updated
+                  {bulkResult.failed > 0 ? ` · ${bulkResult.failed} failed` : ""}
+                </Badge>
+              </div>
+            )}
+
+            {/* Validation error */}
+            {bulkValidationMessage && (
+              <div style={{ padding: "8px 16px" }}>
+                <Banner tone="critical"><p>{bulkValidationMessage}</p></Banner>
+              </div>
+            )}
+
+            {/* Generate Button */}
+            <div style={{ padding: "12px 16px" }}>
+              {isBulkGenerating && (
+                <div style={{ marginBottom: "8px" }}>
+                  <InlineStack align="center" blockAlign="center" gap="200">
+                    <Spinner size="small" />
+                    <Text variant="bodySm" tone="subdued">Generating for {selectedProducts.length} products...</Text>
+                  </InlineStack>
+                </div>
+              )}
+              <Button
+                fullWidth
+                variant="primary"
+                onClick={handleBulkGenerate}
+                disabled={isBulkGenerating || selectedProducts.length === 0 || exceedsBulkLimit}
+                tone="success"
+                icon={<span style={{ fontSize: "14px" }}>✏️</span>}
+              >
+                {isBulkGenerating
+                  ? "Generating..."
+                  : `Generate ${selectedProducts.length} items (${selectedProducts.length} products × ${bulkContentTypes.length} types)`}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      </div>
 
       <style>{`.Polaris-Modal-Dialog__Modal { max-width: 66rem !important; }`}</style>
       <Modal
