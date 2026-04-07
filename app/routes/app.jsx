@@ -140,6 +140,26 @@ export default function App() {
             background: "#f6f6f7",
           }}
         >
+          {/* API Keys button */}
+          <button
+            type="button"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              border: "1px solid #d1d5db",
+              background: "#ffffff",
+              borderRadius: 6,
+              padding: "4px 10px",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "#374151",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              lineHeight: 1,
+            }}
+          >
+            API Keys
+          </button>
           {/* Credits badge */}
           <button
             type="button"
