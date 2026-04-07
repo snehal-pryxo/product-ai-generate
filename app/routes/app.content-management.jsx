@@ -402,7 +402,7 @@ function buildPrompt(contentType, item) {
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const url = new URL(request.url);
-  const tab = url.searchParams.get("tab") || "products";
+  const tab = url.searchParams.get("tab") || "all";
   const filter = url.searchParams.get("filter") || "all";
 
   const shopData = await db.shop.findUnique({
@@ -415,7 +415,123 @@ export const loader = async ({ request }) => {
   let items = [];
 
   try {
-    if (tab === "products") {
+    if (tab === "all") {
+      // Fetch from all content types
+      const allItems = [];
+
+      // Fetch products
+      const productNodes = [];
+      let afterCursor = null;
+      while (true) {
+        const res = await admin.graphql(PRODUCT_LIST_QUERY, {
+          variables: { first: FETCH_BATCH_SIZE, after: afterCursor },
+        });
+        const json = await res.json();
+        const conn = json?.data?.products;
+        if (!conn) break;
+        productNodes.push(...(conn.edges || []).map((e) => ({ ...e.node, contentType: "products" })));
+        if (!conn.pageInfo?.hasNextPage || !conn.pageInfo?.endCursor) break;
+        afterCursor = conn.pageInfo.endCursor;
+      }
+      allItems.push(...productNodes.map((n) => ({
+        id: n.id,
+        title: n.title,
+        handle: n.handle,
+        status: n.status,
+        descriptionHtml: n.descriptionHtml || "",
+        seoTitle: n.seo?.title || "",
+        seoDescription: n.seo?.description || "",
+        imageUrl: n.featuredMedia?.preview?.image?.url || null,
+        imageAlt: n.featuredMedia?.preview?.image?.altText || n.title,
+        updatedAt: n.updatedAt || null,
+        contentType: "products",
+      })));
+
+      // Fetch collections
+      const collectionNodes = [];
+      afterCursor = null;
+      while (true) {
+        const res = await admin.graphql(COLLECTION_LIST_QUERY, {
+          variables: { first: FETCH_BATCH_SIZE, after: afterCursor },
+        });
+        const json = await res.json();
+        const conn = json?.data?.collections;
+        if (!conn) break;
+        collectionNodes.push(...(conn.edges || []).map((e) => ({ ...e.node, contentType: "collections" })));
+        if (!conn.pageInfo?.hasNextPage || !conn.pageInfo?.endCursor) break;
+        afterCursor = conn.pageInfo.endCursor;
+      }
+      allItems.push(...collectionNodes.map((n) => ({
+        id: n.id,
+        title: n.title,
+        handle: n.handle,
+        status: "Active",
+        descriptionHtml: n.descriptionHtml || "",
+        seoTitle: n.seo?.title || "",
+        seoDescription: n.seo?.description || "",
+        imageUrl: n.image?.url || null,
+        imageAlt: n.image?.altText || n.title,
+        updatedAt: n.updatedAt || null,
+        contentType: "collections",
+      })));
+
+      // Fetch pages
+      const pageNodes = [];
+      afterCursor = null;
+      while (true) {
+        const res = await admin.graphql(PAGES_QUERY, {
+          variables: { first: FETCH_BATCH_SIZE, after: afterCursor },
+        });
+        const json = await res.json();
+        const conn = json?.data?.pages;
+        if (!conn) break;
+        pageNodes.push(...(conn.edges || []).map((e) => ({ ...e.node, contentType: "pages" })));
+        if (!conn.pageInfo?.hasNextPage || !conn.pageInfo?.endCursor) break;
+        afterCursor = conn.pageInfo.endCursor;
+      }
+      allItems.push(...pageNodes.map((n) => {
+        const mfMap = {};
+        (n.metafields?.edges || []).forEach(({ node: mf }) => { mfMap[mf.key] = mf.value; });
+        return {
+          id: n.id,
+          title: n.title,
+          handle: n.handle,
+          status: "Active",
+          descriptionHtml: n.body || "",
+          seoTitle: mfMap["title_tag"] || "",
+          seoDescription: mfMap["description_tag"] || "",
+          imageUrl: null,
+          imageAlt: n.title,
+          updatedAt: n.updatedAt || null,
+          contentType: "pages",
+        };
+      }));
+
+      // Fetch blog articles
+      const res = await admin.graphql(ARTICLES_QUERY, { variables: { first: 250 } });
+      const json = await res.json();
+      const edges = json?.data?.articles?.edges || [];
+      allItems.push(...edges.map(({ node: n }) => {
+        const mfMap = {};
+        (n.metafields?.edges || []).forEach(({ node: mf }) => { mfMap[mf.key] = mf.value; });
+        return {
+          id: n.id,
+          title: n.title,
+          handle: n.handle,
+          status: n.publishedAt ? "Active" : "Draft",
+          descriptionHtml: n.body || "",
+          seoTitle: mfMap["title_tag"] || "",
+          seoDescription: mfMap["description_tag"] || "",
+          imageUrl: null,
+          imageAlt: n.title,
+          updatedAt: n.publishedAt || null,
+          contentType: "blog",
+          blogTitle: n.blog?.title || "",
+        };
+      }));
+
+      items = allItems;
+    } else if (tab === "products") {
       const nodes = [];
       let afterCursor;
       while (true) {
@@ -1253,6 +1369,7 @@ export default function ContentManagementPage() {
   }, [saveFetcher.state, saveFetcher.data, shopify]);
 
   const mainTabs = [
+    { id: "all", content: "All" },
     { id: "products", content: "Products" },
     { id: "collections", content: "Collections" },
     { id: "pages", content: "Pages" },

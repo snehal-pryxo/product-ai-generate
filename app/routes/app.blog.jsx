@@ -1336,7 +1336,7 @@ export default function BlogPage() {
                   onChange={setScheduleStartAtLocal}
                   autoComplete="off"
                   disabled={!autoScheduleLive}
-                  helpText={autoScheduleLive ? "Article will go live automatically at this date/time." : "Enable Auto Schedule Live to set start date/time."}
+                  helpText={autoScheduleLive}
                 />
                 <TextField
                   label="End Date"
@@ -1345,7 +1345,7 @@ export default function BlogPage() {
                   onChange={setScheduleEndAtLocal}
                   autoComplete="off"
                   disabled={!autoScheduleLive}
-                  helpText={autoScheduleLive ? "Scheduling range end for this generated article." : "Enable Auto Schedule Live to set end date/time."}
+                  helpText={autoScheduleLive }
                 />
                 <TextField
                   label="Image Alt Text"

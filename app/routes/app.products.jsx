@@ -1364,41 +1364,17 @@ export default function ProductsPage() {
   );
 
   const location = useLocation();
+  const sectionTabs = [
+    { label: "Products", path: "/app/products", icon: ProductIcon },
+    { label: "Collections", path: "/app/collections", icon: CollectionIcon },
+  ];
+  const activeSectionPath = location.pathname?.startsWith("/app/collections")
+    ? "/app/collections"
+    : "/app/products";
 
   return (
     <Page fullWidth>
-      {/* ── Products / Collections Tab Bar ── */}
-      <div style={{ display: "flex", gap: "0", marginBottom: "20px", borderBottom: "2px solid #e4e5e7" }}>
-        {[
-          { label: "Products", icon: ProductIcon, path: "/app/products", active: true },
-          { label: "Collections", icon: CollectionIcon, path: "/app/collections", active: false },
-        ].map((tab) => (
-          <button
-            key={tab.label}
-            type="button"
-            onClick={() => navigate({ pathname: tab.path, search: location.search })}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "10px 20px",
-              border: "none",
-              borderBottom: tab.active ? "2px solid #008060" : "2px solid transparent",
-              marginBottom: "-2px",
-              background: "transparent",
-              color: tab.active ? "#008060" : "#6d7175",
-              fontWeight: tab.active ? 700 : 500,
-              fontSize: "14px",
-              cursor: tab.active ? "default" : "pointer",
-            }}
-          >
-            <Icon source={tab.icon} tone={tab.active ? "success" : "subdued"} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* ── Hero Header ── */}
+          {/* ── Hero Header ── */}
       <div style={{
         background: "linear-gradient(135deg, #1a0533 0%, #2d1b69 50%, #0f3460 100%)",
         borderRadius: "6px",
@@ -1472,8 +1448,36 @@ export default function ProductsPage() {
           </div>
 
           {/* Search & Collection Filter - One Line */}
-          <div style={{ marginBottom: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-            <div style={{ position: "relative" }}>
+          <div style={{ marginBottom: "16px", display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "stretch" }}>
+            <div style={{ display: "flex", border: "1px solid #d1d5db", borderRadius: "10px", overflow: "hidden", background: "#fff", minWidth: "180px" }}>
+              {sectionTabs.map((tab, index) => {
+                const isActive = activeSectionPath === tab.path;
+                return (
+                  <button
+                    key={tab.label}
+                    type="button"
+                    onClick={() => navigate({ pathname: tab.path, search: location.search })}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "6px 14px",
+                      border: "none",
+                      borderRight: index < sectionTabs.length - 1 ? "1px solid #e5e7eb" : "none",
+                      background: isActive ? "#f3f4f6" : "transparent",
+                      color: isActive ? "#111827" : "#6b7280",
+                      fontWeight: isActive ? 600 : 500,
+                      fontSize: "13px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <Icon source={tab.icon} tone={isActive ? "accent" : "subdued"} />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ flex: 1, minWidth: "240px", position: "relative" }}>
               <TextField
                 label="Search products"
                 labelHidden
@@ -1484,13 +1488,15 @@ export default function ProductsPage() {
                 prefix={isSearchLoading ? <Spinner size="small" /> : undefined}
               />
             </div>
-            <Select
-              label="Filter by Collection"
-              labelHidden
-              options={collectionOptions}
-              value={filters.collectionId || ""}
-              onChange={(val) => navigate(makeUrl({ collectionId: val }))}
-            />
+            <div style={{ minWidth: "180px", flex: "0 0 220px" }}>
+              <Select
+                label="Filter by Collection"
+                labelHidden
+                options={collectionOptions}
+                value={filters.collectionId || ""}
+                onChange={(val) => navigate(makeUrl({ collectionId: val }))}
+              />
+            </div>
           </div>
 
           <Card padding="0">
