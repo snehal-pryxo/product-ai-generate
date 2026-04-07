@@ -26,7 +26,7 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
-import { CollectionIcon, ProductIcon } from "@shopify/polaris-icons";
+import { CollectionIcon } from "@shopify/polaris-icons";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import { buildCollectionContentPrompt } from "../lib/contentPromptTemplates";
@@ -1355,50 +1355,6 @@ export default function CollectionsPage() {
 
   return (
     <Page fullWidth>
-      {/* ── Products / Collections Tab Bar with Search ── */}
-      <div style={{ display: "flex", gap: "16px", alignItems: "center", marginBottom: "20px", paddingBlockEnd: "12px", borderBottom: "1px solid #e4e5e7" }}>
-        <div style={{ display: "flex", gap: "0", borderBottom: "2px solid #e4e5e7", marginBlockEnd: "-1px" }}>
-          {[
-            { label: "Products", icon: ProductIcon, path: "/app/products", active: false },
-            { label: "Collections", icon: CollectionIcon, path: "/app/collections", active: true },
-          ].map((tab) => (
-            <button
-              key={tab.label}
-              type="button"
-              onClick={() => navigate({ pathname: tab.path, search: location.search })}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "10px 20px",
-                border: "none",
-                borderBottom: tab.active ? "2px solid #008060" : "2px solid transparent",
-                marginBottom: "-1px",
-                background: "transparent",
-                color: tab.active ? "#008060" : "#6d7175",
-                fontWeight: tab.active ? 700 : 500,
-                fontSize: "14px",
-                cursor: tab.active ? "default" : "pointer",
-              }}
-            >
-              <Icon source={tab.icon} tone={tab.active ? "success" : "subdued"} />
-              {tab.label}
-            </button>
-          ))}
-        </div>
-        <div style={{ flex: 1, minWidth: "250px" }}>
-          <TextField
-            label="Search collections"
-            labelHidden
-            placeholder="Search by collection title..."
-            value={searchValue}
-            onChange={handleSearchInput}
-            autoComplete="off"
-            prefix={isSearchLoading ? <Spinner size="small" /> : undefined}
-          />
-        </div>
-      </div>
-
       {/* ── Hero Header ── */}
       <div style={{
         background: "linear-gradient(135deg, #1c0a00 0%, #431407 50%, #1a2e00 100%)",
@@ -1472,6 +1428,49 @@ export default function CollectionsPage() {
                 </BlockStack>
               </BlockStack>
             </Card>
+          </div>
+
+          {/* ── Products / Collections Tab Bar with Search ── */}
+          <div style={{ display: "flex", gap: "16px", alignItems: "center", marginBottom: "20px", paddingBlockEnd: "12px", borderBottom: "1px solid #e4e5e7" }}>
+            <div style={{ display: "flex", gap: "0", borderBottom: "2px solid #e4e5e7", marginBlockEnd: "-1px" }}>
+              {[
+                { label: "Products", path: "/app/products", active: false },
+                { label: "Collections", path: "/app/collections", active: true },
+              ].map((tab) => (
+                <button
+                  key={tab.label}
+                  type="button"
+                  onClick={() => navigate({ pathname: tab.path, search: location.search })}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "10px 20px",
+                    border: "none",
+                    borderBottom: tab.active ? "2px solid #008060" : "2px solid transparent",
+                    marginBottom: "-1px",
+                    background: "transparent",
+                    color: tab.active ? "#008060" : "#6d7175",
+                    fontWeight: tab.active ? 700 : 500,
+                    fontSize: "14px",
+                    cursor: tab.active ? "default" : "pointer",
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            <div style={{ flex: 1, minWidth: "250px" }}>
+              <TextField
+                label="Search collections"
+                labelHidden
+                placeholder="Search by collection title..."
+                value={searchValue}
+                onChange={handleSearchInput}
+                autoComplete="off"
+                prefix={isSearchLoading ? <Spinner size="small" /> : undefined}
+              />
+            </div>
           </div>
 
           <Card padding="0">
