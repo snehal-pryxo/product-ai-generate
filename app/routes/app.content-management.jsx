@@ -1250,7 +1250,7 @@ export default function ContentManagementPage() {
     { title: "Description" },
     { title: "SEO Description" },
     { title: "Last Updated" },
-    { title: "" },
+    { title: "Specific Generate" },
   ];
 
   const rowMarkup = localItems.map((item, idx) => {
@@ -1363,7 +1363,7 @@ export default function ContentManagementPage() {
             loading={isGenerating}
             disabled={isGenerating || localCredits < CREDITS_PER_GENERATION}
           >
-            Generate
+            Specific Generate
           </Button>
         </IndexTable.Cell>
       </IndexTable.Row>
@@ -1372,6 +1372,7 @@ export default function ContentManagementPage() {
 
   return (
     <Page
+      fullWidth
       title="Content Management"
       subtitle="Manage and generate content with AI to attract more customers"
       primaryAction={
