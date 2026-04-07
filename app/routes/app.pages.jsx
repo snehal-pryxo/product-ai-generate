@@ -23,6 +23,7 @@ import {
   Page,
   Card,
   BlockStack,
+  Icon,
   Text,
   Button,
   Select,
@@ -32,6 +33,7 @@ import {
   IndexTable,
   useIndexResourceState,
 } from "@shopify/polaris";
+import { PageIcon } from "@shopify/polaris-icons";
 
 const PAGE_CONTENT_TYPES = ["body", "meta_title", "meta_description"];
 const DEFAULT_PAGE_CONTENT_TYPES = ["body", "meta_title", "meta_description"];
@@ -670,8 +672,8 @@ export default function PagesPage() {
         <div style={{ position: "absolute", bottom: "-40px", left: "25%", width: "160px", height: "160px", borderRadius: "50%", background: "radial-gradient(circle, rgba(16,185,129,0.2) 0%, transparent 70%)", pointerEvents: "none" }} />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", zIndex: 1, flexWrap: "wrap", gap: "16px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            <div style={{ width: "54px", height: "54px", borderRadius: "6px", background: "rgba(6,182,212,0.2)", border: "1px solid rgba(6,182,212,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px", flexShrink: 0 }}>
-              📄
+            <div style={{ width: "46px", height: "46px", borderRadius: "6px", background: "rgba(6,182,212,0.2)", border: "1px solid rgba(6,182,212,0.4)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Icon source={PageIcon} tone="base" />
             </div>
             <div>
               <div style={{ fontSize: "20px", fontWeight: 800, color: "#ffffff", marginBottom: "3px", letterSpacing: "-0.3px" }}>Storefront Pages</div>
@@ -743,16 +745,6 @@ export default function PagesPage() {
                     : "Select pages from the list to generate content"}
                 </Text>
               </BlockStack>
-            </div>
-
-            {/* Page Type */}
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-              <Select
-                label="Page Type"
-                options={PAGE_TYPE_OPTIONS}
-                value={bulkSettings.pageType}
-                onChange={(v) => setBulkSettings((s) => ({ ...s, pageType: v }))}
-              />
             </div>
 
             {/* Content Type Pills */}

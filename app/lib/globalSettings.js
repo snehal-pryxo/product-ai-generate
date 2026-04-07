@@ -2,13 +2,13 @@ export const GLOBAL_SETTINGS_KEY = "ai_generate_global_settings_v1";
 
 const DEFAULTS = {
   language: "English",
-  productDescWords: "150",
+  productDescWords: "250",
   productMetaTitleWords: "60",
   productMetaDescWords: "160",
-  collectionDescWords: "150",
+  collectionDescWords: "250",
   collectionMetaTitleWords: "60",
   collectionMetaDescWords: "160",
-  pageContentWords: "300",
+  pageContentWords: "450",
   pageMetaTitleWords: "60",
   pageMetaDescWords: "160",
   blogContentWords: "600",

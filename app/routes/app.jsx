@@ -131,11 +131,15 @@ export default function App() {
         <div
           style={{
             position: "fixed",
-            top: 14,
-            right: 18,
+            top: 10,
+            right: 14,
             zIndex: 1000,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
           }}
         >
+          {/* Credits badge */}
           <button
             type="button"
             onClick={handleOpenCredits}
@@ -145,20 +149,64 @@ export default function App() {
               gap: "5px",
               border: "1px solid #d1d5db",
               background: "#ffffff",
-              borderRadius: 7,
-              padding: "4px 7px",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-              fontSize: 10,
-              fontWeight: 700,
+              borderRadius: 20,
+              padding: "4px 10px",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+              fontSize: 12,
+              fontWeight: 600,
               color: "#111827",
               lineHeight: 1,
               whiteSpace: "nowrap",
               cursor: "pointer",
             }}
           >
-            <span>{`Credits: ${credits}`}</span>
-            <span style={{ color: "#9ca3af", fontWeight: 500 }}>|</span>
-            <span style={{ color: "#4b5563", fontWeight: 600 }}>{`Used: ${creditsUsedTotal}`}</span>
+            <svg width="13" height="13" viewBox="0 0 20 20" fill="#f59e0b">
+              <path d="M10 1L12.39 7.26L19 8.27L14.5 12.64L15.78 19.02L10 15.77L4.22 19.02L5.5 12.64L1 8.27L7.61 7.26L10 1Z"/>
+            </svg>
+            <span>{credits} credits.</span>
+            <span style={{ color: "#2563eb" }}>Upgrade</span>
+          </button>
+          {/* Add Credits button */}
+          <button
+            type="button"
+            onClick={handleOpenCredits}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              border: "1px solid #d1d5db",
+              background: "#ffffff",
+              borderRadius: 6,
+              padding: "4px 10px",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "#374151",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              lineHeight: 1,
+            }}
+          >
+            Add Credits
+          </button>
+          {/* Upgrade button */}
+          <button
+            type="button"
+            onClick={handleOpenCredits}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              border: "none",
+              background: "#111827",
+              borderRadius: 6,
+              padding: "5px 10px",
+              fontSize: 11,
+              fontWeight: 700,
+              color: "#ffffff",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              lineHeight: 1,
+            }}
+          >
+            Upgrade
           </button>
         </div>
         {isBusy && (

@@ -6,9 +6,33 @@ import db from "../db.server";
 import {
   Page,
   Banner,
-  Box,
+  Card,
+  Grid,
+  BlockStack,
+  InlineStack,
+  Text,
+  Button,
+  ButtonGroup,
   Select,
+  Divider,
+  Box,
+  Badge,
+  Icon,
 } from "@shopify/polaris";
+import {
+  ProductIcon,
+  CollectionIcon,
+  BlogIcon,
+  PageIcon,
+  ChartVerticalIcon,
+  SettingsIcon,
+  StarFilledIcon,
+  ExternalIcon,
+  EmailIcon,
+  ChatIcon,
+  QuestionCircleIcon,
+  AppsIcon,
+} from "@shopify/polaris-icons";
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
@@ -40,245 +64,6 @@ export const action = async ({ request }) => {
   return { success: false, message: "Unknown action." };
 };
 
-const FEATURE_CARDS = [
-  {
-    gradient: "linear-gradient(135deg, #00b374 0%, #007a50 100%)",
-    glow: "rgba(0,179,116,0.25)",
-    icon: "📦",
-    title: "Products",
-    desc: "SEO titles, meta descriptions & rich product copy — generated instantly.",
-    url: "/app/products",
-    tag: "Most Popular",
-  },
-  {
-    gradient: "linear-gradient(135deg, #3d82f5 0%, #1a5fcc 100%)",
-    glow: "rgba(61,130,245,0.25)",
-    icon: "🗂️",
-    title: "Collections",
-    desc: "Auto-generate rich descriptions for every collection in your store.",
-    url: "/app/collections",
-    tag: null,
-  },
-  {
-    gradient: "linear-gradient(135deg, #f5a623 0%, #d4840a 100%)",
-    glow: "rgba(245,166,35,0.25)",
-    icon: "✍️",
-    title: "Blog Posts",
-    desc: "Full articles in 180+ languages with one click — publish-ready.",
-    url: "/app/blog",
-    tag: "180+ Languages",
-  },
-  {
-    gradient: "linear-gradient(135deg, #9b6bff 0%, #6b3fbf 100%)",
-    glow: "rgba(155,107,255,0.25)",
-    icon: "📄",
-    title: "Pages",
-    desc: "About, FAQ, Contact and landing page content crafted by AI.",
-    url: "/app/pages",
-    tag: null,
-  },
-];
-
-const ANALYTICS_CARD = {
-  gradient: "linear-gradient(135deg, #00c9d4 0%, #0096a0 100%)",
-  glow: "rgba(0,201,212,0.25)",
-  icon: "📊",
-  title: "Analytics",
-  desc: "SEO health scores, coverage charts and generation statistics.",
-  url: "/app/analytics",
-  tag: "Insights",
-};
-
-const SETTINGS_CARD = {
-  gradient: "linear-gradient(135deg, #6b7280 0%, #374151 100%)",
-  glow: "rgba(107,114,128,0.25)",
-  icon: "⚙️",
-  title: "Settings",
-  desc: "Configure language, word counts and default templates for all content types.",
-  url: "/app/settings",
-  tag: null,
-};
-
-const STATS = [
-  { value: "5", label: "Content Types", icon: "✦" },
-  { value: "180+", label: "Languages", icon: "🌍" },
-  { value: "2", label: "AI Providers", icon: "⚡" },
-  { value: "∞", label: "Generations", icon: "🔄" },
-];
-
-function FeatureCard({ gradient, glow, icon, title, desc, url, tag }) {
-  const [hovered, setHovered] = useState(false);
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  const handleNavigate = () => {
-    navigate({ pathname: url, search: location.search });
-  };
-
-  const handleKeyDown = (event) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      handleNavigate();
-    }
-  };
-
-  return (
-    <div
-      role="link"
-      tabIndex={0}
-      style={{ textDecoration: "none" }}
-      onClick={handleNavigate}
-      onKeyDown={handleKeyDown}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <div
-        style={{
-          background: "#ffffff",
-          borderRadius: "6px",
-          padding: "14px",
-          border: `1px solid ${hovered ? "transparent" : "#e8eaed"}`,
-          boxShadow: hovered
-            ? `0 6px 24px ${glow}, 0 2px 6px rgba(0,0,0,0.06)`
-            : "0 1px 3px rgba(0,0,0,0.04)",
-          transition: "all 0.25s cubic-bezier(0.4,0,0.2,1)",
-          transform: hovered ? "translateY(-3px)" : "translateY(0)",
-          cursor: "pointer",
-          height: "100%",
-          boxSizing: "border-box",
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        {/* Top accent bar */}
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: "3px",
-            background: gradient,
-            borderRadius: "16px 16px 0 0",
-          }}
-        />
-
-        {/* Tag */}
-        {tag && (
-          <div
-            style={{
-              position: "absolute",
-              top: "16px",
-              right: "16px",
-              background: gradient,
-              color: "#fff",
-              fontSize: "10px",
-              fontWeight: 700,
-              padding: "3px 8px",
-              borderRadius: "6px",
-              letterSpacing: "0.5px",
-              textTransform: "uppercase",
-            }}
-          >
-            {tag}
-          </div>
-        )}
-
-        {/* Icon */}
-        <div
-          style={{
-            width: "34px",
-            height: "34px",
-            borderRadius: "6px",
-            background: gradient,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "16px",
-            marginBottom: "10px",
-            boxShadow: `0 3px 8px ${glow}`,
-          }}
-        >
-          {icon}
-        </div>
-
-        <div
-          style={{
-            fontSize: "13px",
-            fontWeight: 700,
-            color: "#0d1117",
-            marginBottom: "4px",
-          }}
-        >
-          {title}
-        </div>
-        <div
-          style={{
-            fontSize: "11px",
-            color: "#6b7280",
-            lineHeight: "1.5",
-            marginBottom: "10px",
-          }}
-        >
-          {desc}
-        </div>
-
-        {/* Arrow CTA */}
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "6px",
-            fontSize: "12px",
-            fontWeight: 600,
-            background: gradient,
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
-          }}
-        >
-          Generate now
-          <span style={{ WebkitTextFillColor: "initial", color: "inherit" }}>→</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StatCard({ value, label, icon }) {
-  return (
-    <div
-      style={{
-        flex: 1,
-        background: "rgba(255,255,255,0.1)",
-        backdropFilter: "blur(10px)",
-        borderRadius: "6px",
-        padding: "10px 12px",
-        border: "1px solid rgba(255,255,255,0.2)",
-        textAlign: "center",
-        minWidth: "80px",
-      }}
-    >
-      <div style={{ fontSize: "16px", marginBottom: "2px" }}>{icon}</div>
-      <div
-        style={{
-          fontSize: "20px",
-          fontWeight: 800,
-          color: "#ffffff",
-          lineHeight: 1,
-          marginBottom: "2px",
-        }}
-      >
-        {value}
-      </div>
-      <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.75)", fontWeight: 500 }}>
-        {label}
-      </div>
-    </div>
-  );
-}
-
-
 const AI_MODELS = [
   { label: "Claude Haiku 4.5", value: "claude-haiku-4.5" },
   { label: "Claude Sonnet 4.6", value: "claude-sonnet-4.6" },
@@ -288,10 +73,134 @@ const AI_MODELS = [
   { label: "Cohere Command R+", value: "cohere-command-r-plus" },
 ];
 
+const CONTENT_FEATURES = [
+  {
+    icon: ProductIcon,
+    color: "#008060",
+    bg: "rgba(0,128,96,0.08)",
+    border: "rgba(0,128,96,0.2)",
+    title: "Products",
+    desc: "SEO titles, meta descriptions & rich product copy — generated instantly.",
+    url: "/app/products",
+    badge: "Most Popular",
+    badgeTone: "success",
+  },
+  {
+    icon: CollectionIcon,
+    color: "#2C6ECB",
+    bg: "rgba(44,110,203,0.08)",
+    border: "rgba(44,110,203,0.2)",
+    title: "Collections",
+    desc: "Auto-generate rich descriptions for every collection in your store.",
+    url: "/app/collections",
+    badge: null,
+    badgeTone: null,
+  },
+  {
+    icon: BlogIcon,
+    color: "#E07D10",
+    bg: "rgba(224,125,16,0.08)",
+    border: "rgba(224,125,16,0.2)",
+    title: "Blog Posts",
+    desc: "Full articles in 180+ languages with one click — publish-ready.",
+    url: "/app/blog",
+    badge: "180+ Languages",
+    badgeTone: "warning",
+  },
+  {
+    icon: PageIcon,
+    color: "#8456CD",
+    bg: "rgba(132,86,205,0.08)",
+    border: "rgba(132,86,205,0.2)",
+    title: "Pages",
+    desc: "About, FAQ, Contact and landing page content crafted by AI.",
+    url: "/app/pages",
+    badge: null,
+    badgeTone: null,
+  },
+];
+
+const PARTNER_APPS = [
+  {
+    icon: "🛒",
+    iconBg: "#22c55e",
+    title: "CartLift: Cart Drawer & Upsell",
+    badge: "Upsell",
+    badgeColor: "#e0f2fe",
+    badgeText: "#0369a1",
+    desc: "Grow average order value with cart drawer upsells and smart cart offers.",
+    url: "#",
+  },
+  {
+    icon: "🔔",
+    iconBg: "#a855f7",
+    title: "Fomoify Sales Popup & Proof",
+    badge: "Social Proof",
+    badgeColor: "#f3e8ff",
+    badgeText: "#7c3aed",
+    desc: "Increase trust using real-time sales popups and conversion proof nudges.",
+    url: "#",
+  },
+];
+
+function FeatureCard({ icon, color, bg, border, title, desc, url, badge, badgeTone }) {
+  const [hovered, setHovered] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => navigate({ pathname: url, search: location.search })}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate({ pathname: url, search: location.search }); } }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{ cursor: "pointer", height: "100%" }}
+    >
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: "8px",
+          padding: "16px",
+          border: `1px solid ${hovered ? color : "#e4e5e7"}`,
+          boxShadow: hovered ? `0 4px 16px ${bg}` : "0 1px 3px rgba(0,0,0,0.04)",
+          transition: "all 0.2s ease",
+          transform: hovered ? "translateY(-2px)" : "none",
+          height: "100%",
+          boxSizing: "border-box",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        {/* top accent */}
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "3px", background: color, borderRadius: "8px 8px 0 0" }} />
+        <BlockStack gap="300">
+          <InlineStack align="space-between" blockAlign="start">
+            <div style={{ width: 36, height: 36, borderRadius: 8, background: bg, border: `1px solid ${border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon source={icon} tone="base" />
+            </div>
+            {badge && <Badge tone={badgeTone}>{badge}</Badge>}
+          </InlineStack>
+          <BlockStack gap="100">
+            <Text variant="headingSm" as="h3" fontWeight="bold">{title}</Text>
+            <Text variant="bodySm" tone="subdued">{desc}</Text>
+          </BlockStack>
+          <Text variant="bodySm" fontWeight="semibold" as="span">
+            <span style={{ color }}>Generate now →</span>
+          </Text>
+        </BlockStack>
+      </div>
+    </div>
+  );
+}
+
 export default function Index() {
   const { defaultAiModel } = useLoaderData();
   const actionData = useActionData();
   const navigation = useNavigation();
+  const navigate = useNavigate();
+  const location = useLocation();
   const isSaving = navigation.state === "submitting";
 
   const [selectedModel, setSelectedModel] = useState(
@@ -300,236 +209,333 @@ export default function Index() {
 
   return (
     <Page fullWidth>
-      <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+      <BlockStack gap="600">
 
         {/* ── Hero ── */}
-        <div
-          style={{
-            background: "linear-gradient(135deg, #0a1628 0%, #0d2a4a 40%, #0a3d2e 100%)",
-            borderRadius: "6px",
-            padding: "28px 28px 22px",
-            position: "relative",
-            overflow: "hidden",
-          }}
-        >
-          {/* Decorative circles */}
+        <Card>
           <div
             style={{
-              position: "absolute",
-              top: "-60px",
-              right: "-60px",
-              width: "240px",
-              height: "240px",
-              borderRadius: "50%",
-              background: "radial-gradient(circle, rgba(0,179,116,0.18) 0%, transparent 70%)",
-              pointerEvents: "none",
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              bottom: "-40px",
-              left: "30%",
-              width: "180px",
-              height: "180px",
-              borderRadius: "50%",
-              background: "radial-gradient(circle, rgba(61,130,245,0.15) 0%, transparent 70%)",
-              pointerEvents: "none",
-            }}
-          />
-
-          {/* Badge */}
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              background: "rgba(0,179,116,0.15)",
-              border: "1px solid rgba(0,179,116,0.3)",
-              color: "#4ade80",
-              borderRadius: "6px",
-              padding: "5px 14px",
-              fontSize: "12px",
-              fontWeight: 600,
-              marginBottom: "20px",
-              letterSpacing: "0.5px",
-              textTransform: "uppercase",
+              background: "linear-gradient(135deg, #0a1628 0%, #0d2a4a 40%, #0a3d2e 100%)",
+              borderRadius: "8px",
+              padding: "24px 28px",
+              position: "relative",
+              overflow: "hidden",
             }}
           >
-            <span
-              style={{
-                width: "6px",
-                height: "6px",
-                borderRadius: "50%",
-                background: "#4ade80",
-                display: "inline-block",
-                animation: "pulse 2s infinite",
-              }}
-            />
-            AI-Powered · Shopify Native
-          </div>
+            <div style={{ position: "absolute", top: "-40px", right: "-40px", width: "180px", height: "180px", borderRadius: "50%", background: "radial-gradient(circle, rgba(0,179,116,0.2) 0%, transparent 70%)", pointerEvents: "none" }} />
+            <div style={{ position: "absolute", bottom: "-30px", left: "30%", width: "140px", height: "140px", borderRadius: "50%", background: "radial-gradient(circle, rgba(61,130,245,0.15) 0%, transparent 70%)", pointerEvents: "none" }} />
 
-          <div
-            style={{
-              fontSize: "clamp(16px, 2vw, 22px)",
-              fontWeight: 800,
-              color: "#ffffff",
-              lineHeight: 1.15,
-              marginBottom: "10px",
-              maxWidth: "100%",
-            }}
-          >
-            Generate SEO Content{" "}
-            <span
-              style={{
-                background: "linear-gradient(90deg, #4ade80, #34d399, #06b6d4)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-              }}
-            >
-              Powered by AI
-            </span>
-          </div>
+            <BlockStack gap="400">
+              {/* Badge */}
+              <div style={{ display: "inline-flex" }}>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "rgba(0,179,116,0.15)", border: "1px solid rgba(0,179,116,0.3)", color: "#4ade80", borderRadius: "20px", padding: "4px 12px", fontSize: "11px", fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase" }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", display: "inline-block" }} />
+                  AI-Powered · Shopify Native
+                </div>
+              </div>
 
-          <div
-            style={{
-              fontSize: "12px",
-              color: "rgba(255,255,255,0.65)",
-              marginBottom: "20px",
-              maxWidth: "100%",
-              lineHeight: "1.6",
-            }}
-          >
-            Create product descriptions, blog posts, collection pages and more — optimized for SEO and ready to publish.
-          </div>
+              <Text variant="heading2xl" as="h1">
+                <span style={{ background: "linear-gradient(90deg, #ffffff, #94d2bd)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
+                  Generate SEO Content Powered by AI
+                </span>
+              </Text>
 
-          {/* Stats row */}
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            {STATS.map((s) => (
-              <StatCard key={s.label} {...s} />
+              <Text variant="bodyMd" tone="subdued" as="p">
+                <span style={{ color: "rgba(255,255,255,0.6)" }}>
+                  Create product descriptions, blog posts, collection pages and more — optimized for SEO and ready to publish.
+                </span>
+              </Text>
+
+              {/* Stats strip */}
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                {[
+                  { value: "5", label: "Content Types" },
+                  { value: "180+", label: "Languages" },
+                  { value: "2", label: "AI Providers" },
+                  { value: "∞", label: "Generations" },
+                ].map((s) => (
+                  <div key={s.label} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", padding: "8px 14px", textAlign: "center", minWidth: "70px" }}>
+                    <div style={{ fontSize: "18px", fontWeight: 800, color: "#fff", lineHeight: 1 }}>{s.value}</div>
+                    <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.6)", marginTop: "2px", fontWeight: 500 }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+            </BlockStack>
+          </div>
+        </Card>
+
+        {/* ── Generate Content Cards ── */}
+        <BlockStack gap="300">
+          <BlockStack gap="100">
+            <Text variant="headingMd" as="h2">Generate Content</Text>
+            <Text variant="bodySm" tone="subdued">Pick a content type to get started</Text>
+          </BlockStack>
+          <Grid columns={{ xs: 2, sm: 2, md: 4, lg: 4, xl: 4 }}>
+            {CONTENT_FEATURES.map((card) => (
+              <Grid.Cell key={card.title}>
+                <FeatureCard {...card} />
+              </Grid.Cell>
             ))}
-          </div>
-        </div>
+          </Grid>
+        </BlockStack>
 
-        {/* ── Feature Cards (4 cards, fixed 4-col grid) ── */}
-        <div>
-          <div style={{ marginBottom: "14px" }}>
-            <div style={{ fontSize: "16px", fontWeight: 700, color: "#0d1117", marginBottom: "2px" }}>
-              Generate Content
-            </div>
-            <div style={{ fontSize: "12px", color: "#6b7280" }}>
-              Pick a content type to get started
-            </div>
-          </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
-              gap: "12px",
-            }}
-          >
-            {FEATURE_CARDS.map((card) => (
-              <FeatureCard key={card.title} {...card} />
-            ))}
-          </div>
-        </div>
+        {/* ── Analytics + AI Model ── */}
+        <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
+          <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 1, lg: 1, xl: 1 }}>
+            <BlockStack gap="300">
+              {/* Analytics card */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate({ pathname: "/app/analytics", search: location.search }); } }}
+                style={{ cursor: "pointer" }}
+              >
+                <Card>
+                  <BlockStack gap="200">
+                    <InlineStack align="space-between" blockAlign="center">
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(0,201,212,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Icon source={ChartVerticalIcon} tone="base" />
+                      </div>
+                      <Badge tone="info">Insights</Badge>
+                    </InlineStack>
+                    <Text variant="headingSm" as="h3">Analytics</Text>
+                    <Text variant="bodySm" tone="subdued">SEO health scores, coverage charts and generation statistics.</Text>
+                    <Text variant="bodySm" fontWeight="semibold" as="span"><span style={{ color: "#2C6ECB" }}>View analytics →</span></Text>
+                  </BlockStack>
+                </Card>
+              </div>
+              {/* Settings card */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate({ pathname: "/app/settings", search: location.search })}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate({ pathname: "/app/settings", search: location.search }); } }}
+                style={{ cursor: "pointer" }}
+              >
+                <Card>
+                  <BlockStack gap="200">
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(107,114,128,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Icon source={SettingsIcon} tone="base" />
+                    </div>
+                    <Text variant="headingSm" as="h3">Settings</Text>
+                    <Text variant="bodySm" tone="subdued">Configure language, word counts and default templates.</Text>
+                    <Text variant="bodySm" fontWeight="semibold" as="span"><span style={{ color: "#374151" }}>Open settings →</span></Text>
+                  </BlockStack>
+                </Card>
+              </div>
+            </BlockStack>
+          </Grid.Cell>
 
-        {/* ── Analytics + AI Provider side by side ── */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 2fr",
-            gap: "16px",
-            alignItems: "start",
-          }}
-        >
-          {/* Analytics + Settings cards stack in the left slot */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            <FeatureCard {...ANALYTICS_CARD} />
-            <FeatureCard {...SETTINGS_CARD} />
-          </div>
-
-          {/* AI Model Settings fills the right slot */}
-          <div>
+          <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 2 }}>
             {actionData && (
-              <div style={{ marginBottom: "16px" }}>
+              <Box paddingBlockEnd="300">
                 <Banner
                   tone={actionData.success ? "success" : "critical"}
                   onDismiss={() => {}}
                 >
                   <p>{actionData.message}</p>
                 </Banner>
-              </div>
+              </Box>
             )}
-
-            <Form method="post">
-              <input type="hidden" name="intent" value="save_settings" />
-              <input type="hidden" name="defaultAiModel" value={selectedModel} />
-
-              <div
-                style={{
-                  background: "#ffffff",
-                  borderRadius: "6px",
-                  border: "1px solid #e8eaed",
-                  overflow: "hidden",
-                  boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
-                }}
-              >
-                {/* AI Model Selector */}
-                <div style={{ padding: "16px" }}>
-                  <div
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: 700,
-                      color: "#374151",
-                      marginBottom: "4px",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                    }}
-                  >
-                    Default AI Model
-                  </div>
-                  <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "14px" }}>
+            <Card>
+              <BlockStack gap="400">
+                <BlockStack gap="100">
+                  <Text variant="headingMd" as="h2">Default AI Model</Text>
+                  <Text variant="bodySm" tone="subdued">
                     Choose the AI model used for all content generation across your store.
-                  </div>
-                  <Select
-                    label="AI Model"
-                    labelHidden
-                    options={AI_MODELS}
-                    value={selectedModel}
-                    onChange={setSelectedModel}
-                  />
-                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "20px" }}>
-                    <button
-                      type="submit"
-                      disabled={isSaving}
-                      style={{
-                        background: isSaving
-                          ? "#ccc"
-                          : "linear-gradient(135deg, #00b374 0%, #007a50 100%)",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: "6px",
-                        padding: "10px 24px",
-                        fontSize: "14px",
-                        fontWeight: 700,
-                        cursor: isSaving ? "not-allowed" : "pointer",
-                        boxShadow: isSaving ? "none" : "0 4px 14px rgba(0,128,96,0.35)",
-                        transition: "all 0.2s ease",
-                      }}
-                    >
-                      {isSaving ? "Saving…" : "Save Settings"}
-                    </button>
-                  </div>
-                </div>
+                  </Text>
+                </BlockStack>
+                <Form method="post">
+                  <input type="hidden" name="intent" value="save_settings" />
+                  <input type="hidden" name="defaultAiModel" value={selectedModel} />
+                  <BlockStack gap="300">
+                    <Select
+                      label="AI Model"
+                      labelHidden
+                      options={AI_MODELS}
+                      value={selectedModel}
+                      onChange={setSelectedModel}
+                    />
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
+                      {AI_MODELS.slice(0, 3).map((m) => (
+                        <button
+                          key={m.value}
+                          type="button"
+                          onClick={() => setSelectedModel(m.value)}
+                          style={{
+                            padding: "8px 10px",
+                            borderRadius: "6px",
+                            border: `1px solid ${selectedModel === m.value ? "#008060" : "#e4e5e7"}`,
+                            background: selectedModel === m.value ? "rgba(0,128,96,0.06)" : "#fafafa",
+                            color: selectedModel === m.value ? "#008060" : "#374151",
+                            fontSize: "11px",
+                            fontWeight: selectedModel === m.value ? 700 : 400,
+                            cursor: "pointer",
+                            textAlign: "center",
+                          }}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                    <InlineStack align="end">
+                      <Button
+                        submit
+                        variant="primary"
+                        tone="success"
+                        loading={isSaving}
+                        disabled={isSaving}
+                      >
+                        {isSaving ? "Saving…" : "Save Settings"}
+                      </Button>
+                    </InlineStack>
+                  </BlockStack>
+                </Form>
+              </BlockStack>
+            </Card>
+          </Grid.Cell>
+        </Grid>
+
+        {/* ── App Promotion Section ── */}
+        <Card>
+          <BlockStack gap="400">
+            <InlineStack gap="200" blockAlign="center">
+              <div style={{ width: 32, height: 32, borderRadius: 6, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Icon source={AppsIcon} tone="subdued" />
               </div>
-            </Form>
-          </div>
-        </div>
+              <Text variant="headingMd" as="h2">Boost your store performance with our apps</Text>
+            </InlineStack>
+            <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 2 }}>
+              {PARTNER_APPS.map((app) => (
+                <Grid.Cell key={app.title}>
+                  <div style={{ border: "1px solid #e4e5e7", borderRadius: "8px", padding: "16px" }}>
+                    <BlockStack gap="300">
+                      <InlineStack align="space-between" blockAlign="start">
+                        <InlineStack gap="300" blockAlign="center">
+                          <div style={{ width: 44, height: 44, borderRadius: 10, background: app.iconBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px", flexShrink: 0 }}>
+                            {app.icon}
+                          </div>
+                          <BlockStack gap="050">
+                            <Text variant="headingSm" as="h3" fontWeight="bold">{app.title}</Text>
+                          </BlockStack>
+                        </InlineStack>
+                        <div style={{ background: app.badgeColor, color: app.badgeText, borderRadius: "12px", padding: "3px 10px", fontSize: "11px", fontWeight: 600, whiteSpace: "nowrap" }}>
+                          {app.badge}
+                        </div>
+                      </InlineStack>
+                      <Text variant="bodySm" tone="subdued">{app.desc}</Text>
+                      <Button url="#" variant="primary" icon={ExternalIcon} size="slim">
+                        + Add app
+                      </Button>
+                    </BlockStack>
+                  </div>
+                </Grid.Cell>
+              ))}
+            </Grid>
+          </BlockStack>
+        </Card>
+
+        {/* ── Support & Help Section ── */}
+        <Card>
+          <BlockStack gap="400">
+            <InlineStack gap="200" blockAlign="center">
+              <div style={{ width: 32, height: 32, borderRadius: 6, background: "#eff6ff", border: "1px solid #bfdbfe", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ fontSize: "14px", fontWeight: 700, color: "#2563eb" }}>+</span>
+              </div>
+              <Text variant="headingMd" as="h2">We're Here to Help You Succeed</Text>
+            </InlineStack>
+
+            <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 2 }}>
+              {/* Left: Setup Call + Support */}
+              <Grid.Cell>
+                <BlockStack gap="400">
+                  <Card background="bg-surface-secondary">
+                    <BlockStack gap="300">
+                      <Text variant="headingSm" as="h3" fontWeight="bold">Book a Free 30-Minute Setup Call</Text>
+                      <Text variant="bodySm" tone="subdued">Get personalized guidance to accelerate your growth.</Text>
+                      <InlineStack gap="200">
+                        {["App configuration", "Best practices", "Growth strategy"].map((t) => (
+                          <Text key={t} variant="bodySm" fontWeight="semibold" as="span">{t}</Text>
+                        ))}
+                      </InlineStack>
+                      <InlineStack gap="300" blockAlign="center">
+                        <Button url="#" variant="primary">Schedule Free Call</Button>
+                        <Text variant="bodySm" tone="subdued" as="span">Free | 30 mins | No commitment</Text>
+                      </InlineStack>
+                    </BlockStack>
+                  </Card>
+                  <Card background="bg-surface-secondary">
+                    <BlockStack gap="300">
+                      <Text variant="headingSm" as="h3" fontWeight="bold">Support</Text>
+                      <Grid columns={{ xs: 2, sm: 2, md: 2, lg: 2, xl: 2 }}>
+                        <Grid.Cell>
+                          <div style={{ border: "1px solid #e4e5e7", borderRadius: 6, padding: "12px", textAlign: "center" }}>
+                            <BlockStack gap="100" align="center">
+                              <Icon source={EmailIcon} tone="interactive" />
+                              <Text variant="bodySm" fontWeight="semibold" as="span">
+                                <a href="#" style={{ color: "#2563eb", textDecoration: "none" }}>Support Ticket</a>
+                              </Text>
+                              <Text variant="bodySm" tone="subdued">Support, reply, and assist instantly in office hours.</Text>
+                            </BlockStack>
+                          </div>
+                        </Grid.Cell>
+                        <Grid.Cell>
+                          <div style={{ border: "1px solid #e4e5e7", borderRadius: 6, padding: "12px", textAlign: "center" }}>
+                            <BlockStack gap="100" align="center">
+                              <Icon source={QuestionCircleIcon} tone="interactive" />
+                              <Text variant="bodySm" fontWeight="semibold" as="span">
+                                <a href="#" style={{ color: "#2563eb", textDecoration: "none" }}>Knowledge base</a>
+                              </Text>
+                              <Text variant="bodySm" tone="subdued">Find a solution to your problem with our documents.</Text>
+                            </BlockStack>
+                          </div>
+                        </Grid.Cell>
+                      </Grid>
+                    </BlockStack>
+                  </Card>
+                </BlockStack>
+              </Grid.Cell>
+
+              {/* Right: Quick Help + Review */}
+              <Grid.Cell>
+                <BlockStack gap="400">
+                  <Card background="bg-surface-secondary">
+                    <BlockStack gap="300">
+                      <Text variant="headingSm" as="h3" fontWeight="bold">Need Quick Help?</Text>
+                      <Text variant="bodySm" tone="subdued">Reach out anytime for support, feedback, or just to share your progress.</Text>
+                      <ButtonGroup>
+                        <Button url="#" icon={ChatIcon}>WhatsApp</Button>
+                        <Button url="#" icon={ChatIcon}>Live Chat</Button>
+                      </ButtonGroup>
+                    </BlockStack>
+                  </Card>
+
+                  {/* Review Section */}
+                  <Card background="bg-surface-secondary">
+                    <BlockStack gap="300" align="center">
+                      <InlineStack align="center">
+                        <div style={{ width: 52, height: 52, borderRadius: 12, background: "linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <Icon source={StarFilledIcon} tone="base" />
+                        </div>
+                      </InlineStack>
+                      <Text variant="headingSm" as="h3" fontWeight="bold" alignment="center">
+                        Motivate our team for future app development
+                      </Text>
+                      <ButtonGroup>
+                        <Button url="#" variant="primary">Write a review</Button>
+                        <Button url="#">Report an issue</Button>
+                      </ButtonGroup>
+                    </BlockStack>
+                  </Card>
+                </BlockStack>
+              </Grid.Cell>
+            </Grid>
+          </BlockStack>
+        </Card>
 
         <Box paddingBlockEnd="800" />
-      </div>
+      </BlockStack>
     </Page>
   );
 }

@@ -1185,84 +1185,6 @@ function shortContentBadge(content) {
   return <Badge tone="success">Good</Badge>;
 }
 
-// ─── Credit Breakdown Info ────────────────────────────────────────────────────
-const CREDIT_BREAKDOWN = {
-  products: [
-    { label: "Product Description", cost: 1 },
-    { label: "Meta Title", cost: 1 },
-    { label: "Meta Description", cost: 1 },
-  ],
-  collections: [
-    { label: "Collection Description", cost: 1 },
-    { label: "Meta Title", cost: 1 },
-    { label: "Meta Description", cost: 1 },
-  ],
-  pages: [
-    { label: "Page Content", cost: 1 },
-    { label: "Meta Title", cost: 1 },
-    { label: "Meta Description", cost: 1 },
-  ],
-  blog: [
-    { label: "Blog Content", cost: 1 },
-    { label: "Meta Title", cost: 1 },
-    { label: "Meta Description", cost: 1 },
-  ],
-};
-
-function CreditBreakdownBanner({ tab, availableCredits }) {
-  const items = CREDIT_BREAKDOWN[tab] || CREDIT_BREAKDOWN.products;
-  const total = items.reduce((s, i) => s + i.cost, 0);
-  const canAfford = availableCredits >= total;
-
-  return (
-    <div
-      style={{
-        background: "#f9fafb",
-        border: "1px solid #e4e5e7",
-        borderRadius: "8px",
-        padding: "12px 16px",
-        display: "flex",
-        alignItems: "center",
-        gap: "16px",
-        flexWrap: "wrap",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-        <svg width="14" height="14" viewBox="0 0 20 20" fill={canAfford ? "#108043" : "#b98900"}>
-          <path d="M10 1L12.39 7.26L19 8.27L14.5 12.64L15.78 19.02L10 15.77L4.22 19.02L5.5 12.64L1 8.27L7.61 7.26L10 1Z"/>
-        </svg>
-        <span style={{ fontSize: "12px", fontWeight: 700, color: "#202223" }}>
-          Regenerate All = {total} Credits
-        </span>
-        <span style={{ fontSize: "11px", color: "#6d7175" }}>
-          (You have {availableCredits} credits)
-        </span>
-      </div>
-      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-        {items.map((item) => (
-          <span
-            key={item.label}
-            style={{
-              fontSize: "11px",
-              background: "#ffffff",
-              border: "1px solid #c9cccf",
-              borderRadius: "4px",
-              padding: "2px 8px",
-              color: "#202223",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "4px",
-            }}
-          >
-            {item.label}
-            <span style={{ fontWeight: 700, color: "#2c6ecb" }}>{item.cost} cr</span>
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ContentManagementPage() {
   const { tab, filter, items, credits, defaultAiProvider } = useLoaderData();
@@ -1402,7 +1324,7 @@ export default function ContentManagementPage() {
     { title: "Description" },
     { title: "SEO Description" },
     { title: "Last Updated" },
-    { title: "AI Regenerate" },
+    { title: "Specific Generate" },
   ];
 
   const rowMarkup = localItems.map((item, idx) => {
@@ -1509,8 +1431,6 @@ export default function ContentManagementPage() {
         <IndexTable.Cell>
           <Button
             size="slim"
-            variant="primary"
-            tone="success"
             icon={
               <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M10 1L12.39 7.26L19 8.27L14.5 12.64L15.78 19.02L10 15.77L4.22 19.02L5.5 12.64L1 8.27L7.61 7.26L10 1Z" />
@@ -1520,7 +1440,7 @@ export default function ContentManagementPage() {
             loading={isGenerating}
             disabled={isGenerating || localCredits < CREDITS_PER_GENERATION}
           >
-            Regenerate All ({CREDITS_PER_GENERATION} cr)
+            Specific Generate
           </Button>
         </IndexTable.Cell>
       </IndexTable.Row>
@@ -1554,9 +1474,6 @@ export default function ContentManagementPage() {
       }
     >
       <BlockStack gap="400">
-        {/* Credit breakdown banner */}
-        <CreditBreakdownBanner tab={tab} availableCredits={localCredits} />
-
         {/* Error / Success banners */}
         {errorMessage && (
           <Banner tone="critical" onDismiss={() => setErrorMessage(null)}>
@@ -1572,7 +1489,7 @@ export default function ContentManagementPage() {
         {localCredits < CREDITS_PER_GENERATION && (
           <Banner tone="warning">
             <Text as="p">
-              You have {localCredits} credit{localCredits !== 1 ? "s" : ""} remaining. Each regeneration costs {CREDITS_PER_GENERATION} credits ({CREDIT_BREAKDOWN[tab]?.map(i => `${i.label} (${i.cost} cr)`).join(" + ")}).
+              You have {localCredits} credit{localCredits !== 1 ? "s" : ""} remaining. Each generation costs {CREDITS_PER_GENERATION} credits.
             </Text>
           </Banner>
         )}
@@ -1625,7 +1542,7 @@ export default function ContentManagementPage() {
         {/* Credit info footer */}
         <Box paddingBlockEnd="400">
           <Text variant="bodySm" as="p" tone="subdued" alignment="center">
-            Regenerate All costs {CREDITS_PER_GENERATION} credits: {CREDIT_BREAKDOWN[tab]?.map(i => `${i.label} (${i.cost} cr)`).join(" + ")}. Click any description or SEO cell to open the editor — manual saves are free.
+            Each AI generation costs {CREDITS_PER_GENERATION} credits (description + SEO title + SEO description). Clicking a description or SEO cell opens the editor — saves are free.
           </Text>
         </Box>
       </BlockStack>

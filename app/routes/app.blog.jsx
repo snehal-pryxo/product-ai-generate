@@ -23,6 +23,7 @@ import {
   Page,
   Card,
   BlockStack,
+  Icon,
   InlineStack,
   Text,
   Button,
@@ -34,6 +35,7 @@ import {
   IndexTable,
   useIndexResourceState,
 } from "@shopify/polaris";
+import { BlogIcon } from "@shopify/polaris-icons";
 
 // ─── GraphQL ─────────────────────────────────────────────────────────────────
 
@@ -1181,8 +1183,8 @@ export default function BlogPage() {
         <div style={{ position: "absolute", bottom: "-40px", left: "25%", width: "160px", height: "160px", borderRadius: "50%", background: "radial-gradient(circle, rgba(168,85,247,0.2) 0%, transparent 70%)", pointerEvents: "none" }} />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", zIndex: 1, flexWrap: "wrap", gap: "16px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            <div style={{ width: "54px", height: "54px", borderRadius: "6px", background: "rgba(236,72,153,0.2)", border: "1px solid rgba(236,72,153,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px", flexShrink: 0 }}>
-              ✍️
+            <div style={{ width: "46px", height: "46px", borderRadius: "6px", background: "rgba(236,72,153,0.2)", border: "1px solid rgba(236,72,153,0.4)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Icon source={BlogIcon} tone="base" />
             </div>
             <div>
               <div style={{ fontSize: "20px", fontWeight: 800, color: "#ffffff", marginBottom: "3px", letterSpacing: "-0.3px" }}>Blog Posts</div>

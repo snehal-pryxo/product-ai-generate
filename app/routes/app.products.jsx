@@ -18,6 +18,7 @@ import {
   Checkbox,
   Divider,
   EmptyState,
+  Icon,
   IndexTable,
   InlineStack,
   Page,
@@ -27,6 +28,7 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
+import { ProductIcon } from "@shopify/polaris-icons";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import { buildProductContentPrompt } from "../lib/contentPromptTemplates";
@@ -1356,8 +1358,8 @@ export default function ProductsPage() {
         <div style={{ position: "absolute", bottom: "-40px", left: "25%", width: "160px", height: "160px", borderRadius: "50%", background: "radial-gradient(circle, rgba(59,130,246,0.2) 0%, transparent 70%)", pointerEvents: "none" }} />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", zIndex: 1, flexWrap: "wrap", gap: "16px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            <div style={{ width: "54px", height: "54px", borderRadius: "6px", background: "rgba(139,92,246,0.25)", border: "1px solid rgba(139,92,246,0.45)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px", flexShrink: 0 }}>
-              📦
+            <div style={{ width: "46px", height: "46px", borderRadius: "6px", background: "rgba(139,92,246,0.25)", border: "1px solid rgba(139,92,246,0.45)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Icon source={ProductIcon} tone="base" />
             </div>
             <div>
               <div style={{ fontSize: "20px", fontWeight: 800, color: "#ffffff", marginBottom: "3px", letterSpacing: "-0.3px" }}>Products</div>
@@ -1366,22 +1368,9 @@ export default function ProductsPage() {
           </div>
           <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", "--p-color-text": "#fff", "--p-color-bg-fill": "rgba(255,255,255,0.08)", "--p-color-border": "rgba(255,255,255,0.25)" }}>
             <Button onClick={() => navigate(makeUrl({}))} variant="secondary" size="slim">↺ Refresh</Button>
-            <Button onClick={() => navigate("/app")} variant="secondary" size="slim">← Back</Button>
-            <Button disabled variant="primary" size="slim" tone="critical">⚡ Upgrade Plan</Button>
+            <Button onClick={() => navigate("/app")} variant="secondary" size="slim">← Dashboard</Button>
           </div>
         </div>
-      </div>
-
-      {/* Products / Collections tab bar */}
-      <div style={{ marginBottom: "16px" }}>
-        <Tabs
-          tabs={[
-            { id: "products", content: "Products" },
-            { id: "collections", content: "Collections" },
-          ]}
-          selected={0}
-          onSelect={(index) => { if (index === 1) navigate("/app/collections"); }}
-        />
       </div>
 
       <div style={{ display: "flex", gap: "16px", alignItems: "flex-start", marginTop: "0" }}>
