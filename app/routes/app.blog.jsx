@@ -219,10 +219,20 @@ function parseGeneratedBlogJson(raw) {
   return parsed;
 }
 
-function getDefaultScheduleDateTimeInput() {
-  const oneHourLater = new Date(Date.now() + 60 * 60 * 1000);
-  const timezoneOffsetMs = oneHourLater.getTimezoneOffset() * 60 * 1000;
-  return new Date(oneHourLater.getTime() - timezoneOffsetMs).toISOString().slice(0, 16);
+function toLocalDateTimeInput(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const timezoneOffsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - timezoneOffsetMs).toISOString().slice(0, 16);
+}
+
+function getDefaultScheduleRangeInputs() {
+  const start = new Date(Date.now() + 60 * 60 * 1000);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return {
+    start: toLocalDateTimeInput(start),
+    end: toLocalDateTimeInput(end),
+  };
 }
 
 function buildGenerationPrompt({
@@ -343,23 +353,41 @@ export const action = async ({ request }) => {
     const metaDescriptionPromptTemplate = String(formData.get("metaDescriptionPromptTemplate") || "").trim();
     const aiProvider = String(formData.get("aiProvider") || "auto").trim();
     const autoScheduleLive = String(formData.get("autoScheduleLive") || "false") === "true";
-    const scheduledAtIso = String(formData.get("scheduledAtIso") || "").trim();
+    const scheduleStartAtIso = String(formData.get("scheduleStartAtIso") || formData.get("scheduledAtIso") || "").trim();
+    const scheduleEndAtIso = String(formData.get("scheduleEndAtIso") || "").trim();
     const imageAlt = String(formData.get("imageAlt") || "").trim();
 
     if (!blogId) return { success: false, intent, error: "Select a target blog first." };
     if (!title) return { success: false, intent, error: "Article title is required." };
 
     let scheduledAt = null;
+    let scheduleStartAt = null;
+    let scheduleEndAt = null;
     if (autoScheduleLive) {
-      if (!scheduledAtIso) return { success: false, intent, error: "Select a schedule date and time." };
-      const parsedDate = new Date(scheduledAtIso);
-      if (Number.isNaN(parsedDate.getTime())) {
-        return { success: false, intent, error: "Invalid schedule date/time." };
+      if (!scheduleStartAtIso) return { success: false, intent, error: "Select a start date and time." };
+      if (!scheduleEndAtIso) return { success: false, intent, error: "Select an end date and time." };
+
+      const parsedStartDate = new Date(scheduleStartAtIso);
+      if (Number.isNaN(parsedStartDate.getTime())) {
+        return { success: false, intent, error: "Invalid start date/time." };
       }
-      if (parsedDate.getTime() <= Date.now()) {
-        return { success: false, intent, error: "Schedule time must be in the future." };
+
+      const parsedEndDate = new Date(scheduleEndAtIso);
+      if (Number.isNaN(parsedEndDate.getTime())) {
+        return { success: false, intent, error: "Invalid end date/time." };
       }
-      scheduledAt = parsedDate.toISOString();
+
+      if (parsedStartDate.getTime() <= Date.now()) {
+        return { success: false, intent, error: "Start date/time must be in the future." };
+      }
+
+      if (parsedEndDate.getTime() <= parsedStartDate.getTime()) {
+        return { success: false, intent, error: "End date/time must be after start date/time." };
+      }
+
+      scheduleStartAt = parsedStartDate.toISOString();
+      scheduleEndAt = parsedEndDate.toISOString();
+      scheduledAt = scheduleStartAt;
     }
 
     const imageFile = formData.get("imageFile");
@@ -546,6 +574,8 @@ export const action = async ({ request }) => {
       metaDescriptionPromptTemplate: metaDescriptionPromptTemplate || null,
       scheduleRequested: Boolean(autoScheduleLive),
       scheduledFor: autoScheduleLive && scheduledAt ? new Date(scheduledAt) : null,
+      scheduleStartAt: autoScheduleLive && scheduleStartAt ? new Date(scheduleStartAt) : null,
+      scheduleEndAt: autoScheduleLive && scheduleEndAt ? new Date(scheduleEndAt) : null,
       scheduleStatus: autoScheduleLive ? (scheduleApplied ? "scheduled" : scheduleError ? "failed" : "requested") : "draft",
       imageAltText: imageAlt ? cleanInlineText(imageAlt, 255) : null,
       hasInlineImage: Boolean(inlineImageMarkup),
@@ -742,7 +772,8 @@ export default function BlogPage() {
   const [createImageFile, setCreateImageFile] = useState(null);
   const [createImageAlt, setCreateImageAlt] = useState("");
   const [autoScheduleLive, setAutoScheduleLive] = useState(true);
-  const [scheduleAtLocal, setScheduleAtLocal] = useState(getDefaultScheduleDateTimeInput());
+  const [scheduleStartAtLocal, setScheduleStartAtLocal] = useState(() => getDefaultScheduleRangeInputs().start);
+  const [scheduleEndAtLocal, setScheduleEndAtLocal] = useState(() => getDefaultScheduleRangeInputs().end);
   const [createMessage, setCreateMessage] = useState(null);
 
   // ── Bulk state ──────────────────────────────────────────────────────────────
@@ -816,20 +847,35 @@ export default function BlogPage() {
     payload.append("autoScheduleLive", String(autoScheduleLive));
 
     if (autoScheduleLive) {
-      if (!scheduleAtLocal) {
-        setCreateMessage({ tone: "critical", text: "Please set a schedule date/time." });
+      if (!scheduleStartAtLocal) {
+        setCreateMessage({ tone: "critical", text: "Please set a start date/time." });
         return;
       }
-      const scheduleDate = new Date(scheduleAtLocal);
-      if (Number.isNaN(scheduleDate.getTime())) {
-        setCreateMessage({ tone: "critical", text: "Invalid schedule date/time." });
+      if (!scheduleEndAtLocal) {
+        setCreateMessage({ tone: "critical", text: "Please set an end date/time." });
         return;
       }
-      if (scheduleDate.getTime() <= Date.now()) {
-        setCreateMessage({ tone: "critical", text: "Schedule time must be in the future." });
+      const scheduleStartDate = new Date(scheduleStartAtLocal);
+      if (Number.isNaN(scheduleStartDate.getTime())) {
+        setCreateMessage({ tone: "critical", text: "Invalid start date/time." });
         return;
       }
-      payload.append("scheduledAtIso", scheduleDate.toISOString());
+      const scheduleEndDate = new Date(scheduleEndAtLocal);
+      if (Number.isNaN(scheduleEndDate.getTime())) {
+        setCreateMessage({ tone: "critical", text: "Invalid end date/time." });
+        return;
+      }
+      if (scheduleStartDate.getTime() <= Date.now()) {
+        setCreateMessage({ tone: "critical", text: "Start date/time must be in the future." });
+        return;
+      }
+      if (scheduleEndDate.getTime() <= scheduleStartDate.getTime()) {
+        setCreateMessage({ tone: "critical", text: "End date/time must be after start date/time." });
+        return;
+      }
+      payload.append("scheduleStartAtIso", scheduleStartDate.toISOString());
+      payload.append("scheduleEndAtIso", scheduleEndDate.toISOString());
+      payload.append("scheduledAtIso", scheduleStartDate.toISOString());
     }
 
     if (createImageFile) {
@@ -912,7 +958,9 @@ export default function BlogPage() {
       setCreateImageAlt("");
       setCreateImageFile(null);
       setAutoScheduleLive(true);
-      setScheduleAtLocal(getDefaultScheduleDateTimeInput());
+      const defaults = getDefaultScheduleRangeInputs();
+      setScheduleStartAtLocal(defaults.start);
+      setScheduleEndAtLocal(defaults.end);
       shopify.toast.show("Blog article created.");
     } else {
       setCreateMessage({
@@ -1070,6 +1118,13 @@ export default function BlogPage() {
                 placeholder="e.g. ecommerce SEO, product storytelling, conversions"
                 autoComplete="off"
               />
+              <div style={{ display: "flex", alignItems: "center", paddingTop: "22px" }}>
+                <Checkbox
+                  label="Auto Schedule Live"
+                  checked={autoScheduleLive}
+                  onChange={setAutoScheduleLive}
+                />
+              </div>
               <TextField
                 label="Image Alt Text"
                 value={createImageAlt}
@@ -1090,28 +1145,34 @@ export default function BlogPage() {
               </div>
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gap: "12px",
-                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                alignItems: "end",
-              }}
-            >
-              <Checkbox
-                label="Auto Schedule Live"
-                checked={autoScheduleLive}
-                onChange={setAutoScheduleLive}
-              />
-              <TextField
-                label="Schedule Date & Time"
-                type="datetime-local"
-                value={scheduleAtLocal}
-                onChange={setScheduleAtLocal}
-                disabled={!autoScheduleLive}
-                autoComplete="off"
-                helpText={autoScheduleLive ? "Article will go live automatically at this time." : "Disabled. Article will be created as draft."}
-              />
+            {autoScheduleLive && (
+              <div
+                style={{
+                  display: "grid",
+                  gap: "12px",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                }}
+              >
+                <TextField
+                  label="Start Date"
+                  type="datetime-local"
+                  value={scheduleStartAtLocal}
+                  onChange={setScheduleStartAtLocal}
+                  autoComplete="off"
+                  helpText="Article will go live automatically at this date/time."
+                />
+                <TextField
+                  label="End Date"
+                  type="datetime-local"
+                  value={scheduleEndAtLocal}
+                  onChange={setScheduleEndAtLocal}
+                  autoComplete="off"
+                  helpText="Scheduling range end for this generated article."
+                />
+              </div>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <Button
                 variant="primary"
                 tone="success"

@@ -152,6 +152,8 @@ model BlogArticleGeneratedContent {
   metaDescriptionPromptTemplate String? @db.Text
   scheduleRequested Boolean @default(false)
   scheduledFor      DateTime?
+  scheduleStartAt   DateTime?
+  scheduleEndAt     DateTime?
   scheduleStatus    String? @db.VarChar(64)
   imageAltText      String? @db.VarChar(255)
   hasInlineImage    Boolean @default(false)
