@@ -417,7 +417,7 @@ export default function Index() {
                   <BlockStack gap="300">
                     <InlineStack align="space-between" blockAlign="start">
                       <InlineStack gap="300" blockAlign="center">
-                        <div style={{ width: 44, height: 44, borderRadius: 10, background: "#111827", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <div style={{ width: 44, height: 44, borderRadius: 10, background: app.title.includes("MixBox") ? "transparent" : "#111827", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                           {app.logoSrc ? (
                             <img
                               src={app.logoSrc}
