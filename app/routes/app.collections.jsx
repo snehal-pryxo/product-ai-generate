@@ -1415,17 +1415,7 @@ export default function CollectionsPage() {
         </div>
       </div>
 
-      {/* Products / Collections tab bar */}
-      <div style={{ marginBottom: "16px" }}>
-        <Tabs
-          tabs={[
-            { id: "products", content: "Products" },
-            { id: "collections", content: "Collections" },
-          ]}
-          selected={1}
-          onSelect={(index) => { if (index === 0) navigate("/app/products"); }}
-        />
-      </div>
+
 
       <div style={{ display: "flex", gap: "16px", alignItems: "flex-start", marginTop: "0" }}>
         {/* ── LEFT: Collection List ── */}
@@ -1445,21 +1435,17 @@ export default function CollectionsPage() {
             </Card>
           </div>
 
-          {/* Products/Collections Tab Toggle */}
+          {/* Search Bar */}
           <div style={{ marginBottom: "16px" }}>
-            <InlineStack gap="0" blockAlign="center">
-              <div style={{ marginLeft: "auto" }}>
-                <TextField
-                  label="Search collections"
-                  labelHidden
-                  placeholder="Search by collection title..."
-                  value={searchValue}
-                  onChange={handleSearchInput}
-                  autoComplete="off"
-                  prefix={isSearchLoading ? <Spinner size="small" /> : undefined}
-                />
-              </div>
-            </InlineStack>
+            <TextField
+              label="Search collections"
+              labelHidden
+              placeholder="Search by collection title..."
+              value={searchValue}
+              onChange={handleSearchInput}
+              autoComplete="off"
+              prefix={isSearchLoading ? <Spinner size="small" /> : undefined}
+            />
           </div>
 
           <Card padding="0">
