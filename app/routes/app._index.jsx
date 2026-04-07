@@ -122,16 +122,7 @@ const CONTENT_FEATURES = [
 
 const PARTNER_APPS = [
   {
-    renderIcon: () => (
-      <div style={{ width: 44, height: 44, borderRadius: 10, background: "linear-gradient(135deg, #d946ef 0%, #7c3aed 50%, #3b82f6 100%)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, border: "2px solid rgba(255,255,255,0.25)" }}>
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-          <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" fill="white"/>
-          <circle cx="18" cy="7" r="4" fill="#4c1d95" stroke="white" strokeWidth="1.5"/>
-          <rect x="17.35" y="4.8" width="1.3" height="2.8" rx="0.65" fill="white"/>
-          <circle cx="18" cy="8.8" r="0.65" fill="white"/>
-        </svg>
-      </div>
-    ),
+    logoSrc: "/images/fomoify-logo.png",
     title: "Fomoify Sales Popup & Proof",
     badge: "Social Proof",
     badgeColor: "#f3e8ff",
@@ -140,17 +131,7 @@ const PARTNER_APPS = [
     url: "https://apps.shopify.com/fomoify-sales-popup-proof",
   },
   {
-    renderIcon: () => (
-      <div style={{ width: 44, height: 44, borderRadius: 10, background: "linear-gradient(135deg, #4ade80 0%, #16a34a 100%)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-          <path d="M6 2H3v2h2l2.6 11.59c.18.84.93 1.41 1.76 1.41H18c.84 0 1.58-.58 1.76-1.41L21 6H7L6 2z" fill="white" opacity="0.95"/>
-          <circle cx="9" cy="20" r="2" fill="white" opacity="0.95"/>
-          <circle cx="17" cy="20" r="2" fill="white" opacity="0.95"/>
-          <circle cx="18.5" cy="7.5" r="4.5" fill="white"/>
-          <path d="M16.5 7.5l1.5 1.5 2.5-2.5" stroke="#16a34a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </div>
-    ),
+    logoSrc: "/images/cartlift-logo.png",
     title: "FCartLift: Cart Drawer & Upsell",
     badge: "Upsell",
     badgeColor: "#e0f2fe",
@@ -159,6 +140,7 @@ const PARTNER_APPS = [
     url: "https://apps.shopify.com/cartlift-cart-drawer-upsell",
   },
 ];
+
 
 function FeatureCard({ icon, color, bg, border, title, desc, url, badge, badgeTone }) {
   const [hovered, setHovered] = useState(false);
@@ -426,7 +408,15 @@ export default function Index() {
                   <BlockStack gap="300">
                     <InlineStack align="space-between" blockAlign="start">
                       <InlineStack gap="300" blockAlign="center">
-                        {app.renderIcon()}
+                        <div style={{ width: 44, height: 44, borderRadius: 10, background: "#111827", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          {app.logoSrc ? (
+                            <img
+                              src={app.logoSrc}
+                              alt={`${app.title} logo`}
+                              style={{ maxWidth: "32px", maxHeight: "32px", objectFit: "contain" }}
+                            />
+                          ) : null}
+                        </div>
                         <Text variant="headingSm" as="h3" fontWeight="bold">{app.title}</Text>
                       </InlineStack>
                       <div style={{ background: app.badgeColor, color: app.badgeText, borderRadius: "12px", padding: "3px 10px", fontSize: "11px", fontWeight: 600, whiteSpace: "nowrap" }}>
@@ -454,89 +444,87 @@ export default function Index() {
               <Text variant="headingMd" as="h2">We're Here to Help You Succeed</Text>
             </InlineStack>
 
-            <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 2 }}>
-              {/* Left: Setup Call + Support */}
+            <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 4, xl: 4 }}>
               <Grid.Cell>
-                <BlockStack gap="400">
-                  <Card background="bg-surface-secondary">
-                    <BlockStack gap="300">
-                      <Text variant="headingSm" as="h3" fontWeight="bold">Book a Free 30-Minute Setup Call</Text>
-                      <Text variant="bodySm" tone="subdued">Get personalized guidance to accelerate your growth.</Text>
-                      <InlineStack gap="200">
-                        {["App configuration", "Best practices", "Growth strategy"].map((t) => (
-                          <Text key={t} variant="bodySm" fontWeight="semibold" as="span">{t}</Text>
-                        ))}
-                      </InlineStack>
-                      <InlineStack gap="300" blockAlign="center">
-                        <Button url="https://outlook.office.com/book/ShopifyGrowthConsultationCall@m2webdesigning.com/?ismsaljsauthenabled=true" variant="primary" external>Schedule Free Call</Button>
-                        <Text variant="bodySm" tone="subdued" as="span">Free | 30 mins | No commitment</Text>
-                      </InlineStack>
-                    </BlockStack>
-                  </Card>
-                  <Card background="bg-surface-secondary">
-                    <BlockStack gap="300">
-                      <Text variant="headingSm" as="h3" fontWeight="bold">Support</Text>
-                      <Grid columns={{ xs: 2, sm: 2, md: 2, lg: 2, xl: 2 }}>
-                        <Grid.Cell>
-                          <div style={{ border: "1px solid #e4e5e7", borderRadius: 6, padding: "12px", textAlign: "center" }}>
-                            <BlockStack gap="100" align="center">
-                              <Icon source={EmailIcon} tone="interactive" />
-                              <Text variant="bodySm" fontWeight="semibold" as="span">
-                                <a href="#" style={{ color: "#2563eb", textDecoration: "none" }}>Support Ticket</a>
-                              </Text>
-                              <Text variant="bodySm" tone="subdued">Support, reply, and assist instantly in office hours.</Text>
-                            </BlockStack>
-                          </div>
-                        </Grid.Cell>
-                        <Grid.Cell>
-                          <div style={{ border: "1px solid #e4e5e7", borderRadius: 6, padding: "12px", textAlign: "center" }}>
-                            <BlockStack gap="100" align="center">
-                              <Icon source={QuestionCircleIcon} tone="interactive" />
-                              <Text variant="bodySm" fontWeight="semibold" as="span">
-                                <a href="#" style={{ color: "#2563eb", textDecoration: "none" }}>Knowledge base</a>
-                              </Text>
-                              <Text variant="bodySm" tone="subdued">Find a solution to your problem with our documents.</Text>
-                            </BlockStack>
-                          </div>
-                        </Grid.Cell>
-                      </Grid>
-                    </BlockStack>
-                  </Card>
-                </BlockStack>
+                <Card background="bg-surface-secondary">
+                  <BlockStack gap="300">
+                    <Text variant="headingSm" as="h3" fontWeight="bold">Book a Free 30-Minute Setup Call</Text>
+                    <Text variant="bodySm" tone="subdued">Get personalized guidance to accelerate your growth.</Text>
+                    <InlineStack gap="200">
+                      {["App configuration", "Best practices", "Growth strategy"].map((t) => (
+                        <Text key={t} variant="bodySm" fontWeight="semibold" as="span">{t}</Text>
+                      ))}
+                    </InlineStack>
+                    <InlineStack gap="300" blockAlign="center">
+                      <Button url="https://outlook.office.com/book/ShopifyGrowthConsultationCall@m2webdesigning.com/?ismsaljsauthenabled=true" variant="primary" external>Schedule Free Call</Button>
+                      <Text variant="bodySm" tone="subdued" as="span">Free | 30 mins | No commitment</Text>
+                    </InlineStack>
+                  </BlockStack>
+                </Card>
               </Grid.Cell>
 
-              {/* Right: Quick Help + Review */}
               <Grid.Cell>
-                <BlockStack gap="400">
-                  <Card background="bg-surface-secondary">
-                    <BlockStack gap="300">
-                      <Text variant="headingSm" as="h3" fontWeight="bold">Need Quick Help?</Text>
-                      <Text variant="bodySm" tone="subdued">Reach out anytime for support, feedback, or just to share your progress.</Text>
-                      <ButtonGroup>
-                        <Button url="#" icon={ChatIcon}>WhatsApp</Button>
-                        <Button url="#" icon={ChatIcon}>Live Chat</Button>
-                      </ButtonGroup>
-                    </BlockStack>
-                  </Card>
+                <Card background="bg-surface-secondary">
+                  <BlockStack gap="300">
+                    <Text variant="headingSm" as="h3" fontWeight="bold">Need Quick Help?</Text>
+                    <Text variant="bodySm" tone="subdued">Reach out anytime for support, feedback, or just to share your progress.</Text>
+                    <ButtonGroup>
+                      <Button url="#" icon={ChatIcon}>WhatsApp</Button>
+                      <Button url="#" icon={ChatIcon}>Live Chat</Button>
+                    </ButtonGroup>
+                  </BlockStack>
+                </Card>
+              </Grid.Cell>
 
-                  {/* Review Section */}
-                  <Card background="bg-surface-secondary">
-                    <BlockStack gap="300" align="center">
-                      <InlineStack align="center">
-                        <div style={{ width: 52, height: 52, borderRadius: 12, background: "linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <Icon source={StarFilledIcon} tone="base" />
+              <Grid.Cell>
+                <Card background="bg-surface-secondary">
+                  <BlockStack gap="300">
+                    <Text variant="headingSm" as="h3" fontWeight="bold">Support</Text>
+                    <Grid columns={{ xs: 2, sm: 2, md: 2, lg: 2, xl: 2 }} gap="200">
+                      <Grid.Cell>
+                        <div style={{ border: "1px solid #e4e5e7", borderRadius: 6, padding: "12px", textAlign: "center" }}>
+                          <BlockStack gap="100" align="center">
+                            <Icon source={EmailIcon} tone="interactive" />
+                            <Text variant="bodySm" fontWeight="semibold" as="span">
+                              <a href="#" style={{ color: "#2563eb", textDecoration: "none" }}>Support Ticket</a>
+                            </Text>
+                            <Text variant="bodySm" tone="subdued">Support, reply, and assist instantly in office hours.</Text>
+                          </BlockStack>
                         </div>
-                      </InlineStack>
-                      <Text variant="headingSm" as="h3" fontWeight="bold" alignment="center">
-                        Motivate our team for future app development
-                      </Text>
-                      <ButtonGroup>
-                        <Button url="#" variant="primary">Write a review</Button>
-                        <Button url="#">Report an issue</Button>
-                      </ButtonGroup>
-                    </BlockStack>
-                  </Card>
-                </BlockStack>
+                      </Grid.Cell>
+                      <Grid.Cell>
+                        <div style={{ border: "1px solid #e4e5e7", borderRadius: 6, padding: "12px", textAlign: "center" }}>
+                          <BlockStack gap="100" align="center">
+                            <Icon source={QuestionCircleIcon} tone="interactive" />
+                            <Text variant="bodySm" fontWeight="semibold" as="span">
+                              <a href="#" style={{ color: "#2563eb", textDecoration: "none" }}>Knowledge base</a>
+                            </Text>
+                            <Text variant="bodySm" tone="subdued">Find a solution to your problem with our documents.</Text>
+                          </BlockStack>
+                        </div>
+                      </Grid.Cell>
+                    </Grid>
+                  </BlockStack>
+                </Card>
+              </Grid.Cell>
+
+              <Grid.Cell>
+                <Card background="bg-surface-secondary">
+                  <BlockStack gap="300" align="center">
+                    <InlineStack align="center">
+                      <div style={{ width: 52, height: 52, borderRadius: 12, background: "linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Icon source={StarFilledIcon} tone="base" />
+                      </div>
+                    </InlineStack>
+                    <Text variant="headingSm" as="h3" fontWeight="bold" alignment="center">
+                      Motivate our team for future app development
+                    </Text>
+                    <ButtonGroup>
+                      <Button url="#" variant="primary">Write a review</Button>
+                      <Button url="#">Report an issue</Button>
+                    </ButtonGroup>
+                  </BlockStack>
+                </Card>
               </Grid.Cell>
             </Grid>
           </BlockStack>
