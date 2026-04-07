@@ -82,10 +82,7 @@ input, textarea, select { border-radius: 6px !important; }
   color: #fff !important;
   fill: #fff !important;
 }
-.Polaris-Text--root{
-  background: #fff !important;
-  color: #000 !important;
-}
+
 .Polaris-Button[disabled],
 .Polaris-Button:disabled {
   background: #000 !important;
