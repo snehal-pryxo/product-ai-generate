@@ -771,10 +771,11 @@ export default function BlogPage() {
   const [createMetaDescPromptTemplate, setCreateMetaDescPromptTemplate] = useState("");
   const [createImageFile, setCreateImageFile] = useState(null);
   const [createImageAlt, setCreateImageAlt] = useState("");
-  const [autoScheduleLive, setAutoScheduleLive] = useState(true);
+  const [autoScheduleLive, setAutoScheduleLive] = useState(false);
   const [scheduleStartAtLocal, setScheduleStartAtLocal] = useState(() => getDefaultScheduleRangeInputs().start);
   const [scheduleEndAtLocal, setScheduleEndAtLocal] = useState(() => getDefaultScheduleRangeInputs().end);
   const [createMessage, setCreateMessage] = useState(null);
+  const [isCreateAccordionOpen, setIsCreateAccordionOpen] = useState(true);
 
   // ── Bulk state ──────────────────────────────────────────────────────────────
   const [bulkContentTypes, setBulkContentTypes] = useState(["body", "meta_description", "meta_title"]);
@@ -957,7 +958,7 @@ export default function BlogPage() {
       setCreateKeywords("");
       setCreateImageAlt("");
       setCreateImageFile(null);
-      setAutoScheduleLive(true);
+      setAutoScheduleLive(false);
       const defaults = getDefaultScheduleRangeInputs();
       setScheduleStartAtLocal(defaults.start);
       setScheduleEndAtLocal(defaults.end);
@@ -1026,14 +1027,35 @@ export default function BlogPage() {
 
       <div style={{ marginBottom: "16px" }}>
         <Card>
-          <BlockStack gap="400">
-            <BlockStack gap="100">
-              <Text as="h2" variant="headingMd" fontWeight="bold">New Create Blog</Text>
-              <Text as="p" tone="subdued" variant="bodySm">
-                Generate a new blog article using the 500+ words template, optionally attach an image, and auto schedule it live.
-              </Text>
-            </BlockStack>
+          <BlockStack gap="300">
+            <button
+              type="button"
+              onClick={() => setIsCreateAccordionOpen((prev) => !prev)}
+              aria-expanded={isCreateAccordionOpen}
+              style={{
+                width: "100%",
+                background: "transparent",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+                textAlign: "left",
+              }}
+            >
+              <InlineStack align="space-between" blockAlign="center">
+                <BlockStack gap="100">
+                  <Text as="h2" variant="headingMd" fontWeight="bold">New Create Blog</Text>
+                  <Text as="p" tone="subdued" variant="bodySm">
+                    Generate a new blog article using the 500+ words template, optionally attach an image, and auto schedule it live.
+                  </Text>
+                </BlockStack>
+                <Text as="span" variant="headingMd" fontWeight="bold">
+                  {isCreateAccordionOpen ? "-" : "+"}
+                </Text>
+              </InlineStack>
+            </button>
 
+            {isCreateAccordionOpen && (
+              <>
             {createMessage && (
               <Banner tone={createMessage.tone}>
                 <p>{createMessage.text}</p>
@@ -1118,11 +1140,39 @@ export default function BlogPage() {
                 placeholder="e.g. ecommerce SEO, product storytelling, conversions"
                 autoComplete="off"
               />
-              <div style={{ display: "flex", alignItems: "center", paddingTop: "22px" }}>
-                <Checkbox
-                  label="Auto Schedule Live"
-                  checked={autoScheduleLive}
-                  onChange={setAutoScheduleLive}
+              <div
+                style={{
+                  gridColumn: "1 / -1",
+                  display: "grid",
+                  gap: "12px",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                  alignItems: "end",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", minHeight: "56px" }}>
+                  <Checkbox
+                    label="Auto Schedule Live"
+                    checked={autoScheduleLive}
+                    onChange={setAutoScheduleLive}
+                  />
+                </div>
+                <TextField
+                  label="Start Date"
+                  type="datetime-local"
+                  value={scheduleStartAtLocal}
+                  onChange={setScheduleStartAtLocal}
+                  autoComplete="off"
+                  disabled={!autoScheduleLive}
+                  helpText={autoScheduleLive ? "Article will go live automatically at this date/time." : "Enable Auto Schedule Live to set start date/time."}
+                />
+                <TextField
+                  label="End Date"
+                  type="datetime-local"
+                  value={scheduleEndAtLocal}
+                  onChange={setScheduleEndAtLocal}
+                  autoComplete="off"
+                  disabled={!autoScheduleLive}
+                  helpText={autoScheduleLive ? "Scheduling range end for this generated article." : "Enable Auto Schedule Live to set end date/time."}
                 />
               </div>
               <TextField
@@ -1145,33 +1195,6 @@ export default function BlogPage() {
               </div>
             </div>
 
-            {autoScheduleLive && (
-              <div
-                style={{
-                  display: "grid",
-                  gap: "12px",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                }}
-              >
-                <TextField
-                  label="Start Date"
-                  type="datetime-local"
-                  value={scheduleStartAtLocal}
-                  onChange={setScheduleStartAtLocal}
-                  autoComplete="off"
-                  helpText="Article will go live automatically at this date/time."
-                />
-                <TextField
-                  label="End Date"
-                  type="datetime-local"
-                  value={scheduleEndAtLocal}
-                  onChange={setScheduleEndAtLocal}
-                  autoComplete="off"
-                  helpText="Scheduling range end for this generated article."
-                />
-              </div>
-            )}
-
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <Button
                 variant="primary"
@@ -1183,6 +1206,8 @@ export default function BlogPage() {
                 Create Blog
               </Button>
             </div>
+              </>
+            )}
           </BlockStack>
         </Card>
       </div>
