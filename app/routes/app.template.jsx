@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import { useFetcher, useLoaderData, useNavigate } from "react-router";
+import { useFetcher, useLoaderData } from "react-router";
 import {
   ActionList,
   Badge,
@@ -30,7 +30,6 @@ import {
   COLLECTION_META_DESCRIPTION_TEMPLATES,
   COLLECTION_META_TITLE_TEMPLATES,
   getEmptyCollectionTemplateSelection,
-  clearStoredCollectionPromptTemplateSelection,
   writeStoredCollectionPromptTemplateSelection,
 } from "../lib/collectionPromptTemplateLibrary";
 import {
@@ -38,7 +37,6 @@ import {
   PRODUCT_META_DESCRIPTION_TEMPLATES,
   PRODUCT_META_TITLE_TEMPLATES,
   getEmptyTemplateSelection,
-  clearStoredProductPromptTemplateSelection,
   writeStoredProductPromptTemplateSelection,
 } from "../lib/productPromptTemplateLibrary";
 import {
@@ -46,7 +44,6 @@ import {
   BLOG_META_DESCRIPTION_TEMPLATES,
   BLOG_META_TITLE_TEMPLATES,
   getEmptyBlogTemplateSelection,
-  clearStoredBlogPromptTemplateSelection,
   writeStoredBlogPromptTemplateSelection,
 } from "../lib/blogPromptTemplateLibrary";
 import {
@@ -54,7 +51,6 @@ import {
   PAGE_META_DESCRIPTION_TEMPLATES,
   PAGE_META_TITLE_TEMPLATES,
   getEmptyPageTemplateSelection,
-  clearStoredPagePromptTemplateSelection,
   writeStoredPagePromptTemplateSelection,
 } from "../lib/pagePromptTemplateLibrary";
 
@@ -416,7 +412,6 @@ export default function TemplatePage() {
   const persistFetcher = useFetcher();
   const persistPromiseRef = useRef(null);
   const shopify = useAppBridge();
-  const navigate = useNavigate();
 
   // Main tab: 0 = system, 1 = custom
   const [mainTab, setMainTab] = useState(0);
@@ -630,36 +625,6 @@ export default function TemplatePage() {
     }
   }
 
-  async function clearAllTemplateSelections() {
-    setIsLoading(true);
-    try {
-      const clearedProduct = clearStoredProductPromptTemplateSelection();
-      const clearedCollection = clearStoredCollectionPromptTemplateSelection();
-      const clearedPage = clearStoredPagePromptTemplateSelection();
-      const clearedBlog = clearStoredBlogPromptTemplateSelection();
-
-      setProductSelection(clearedProduct);
-      setCollectionSelection(clearedCollection);
-      setPageSelection(clearedPage);
-      setBlogSelection(clearedBlog);
-
-      await persistTemplateConfiguration(
-        {
-          product: clearedProduct,
-          collection: clearedCollection,
-          page: clearedPage,
-          blog: clearedBlog,
-        },
-        customTemplates,
-      );
-      shopify.toast.show("All template selections have been cleared.");
-    } catch (error) {
-      shopify.toast.show(error?.message || "Failed to clear template selections.");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
   async function copyText(value, label) {
     if (!value) return;
     try {
@@ -820,47 +785,8 @@ export default function TemplatePage() {
       fullWidth
       title="Templates"
       subtitle="Manage prompt templates for AI content generation."
-      primaryAction={{
-        content: "Clear All Selections",
-        onAction: clearAllTemplateSelections,
-        variant: "primary",
-        disabled: isLoading,
-      }}
-      secondaryActions={[
-        { content: "Products", onAction: () => navigate("/app/products"), variant: "secondary", disabled: isLoading },
-        { content: "Collections", onAction: () => navigate("/app/collections"), variant: "secondary", disabled: isLoading },
-        { content: "Pages", onAction: () => navigate("/app/pages"), variant: "secondary", disabled: isLoading },
-        { content: "Blogs", onAction: () => navigate("/app/blog"), variant: "secondary", disabled: isLoading },
-      ]}
     >
       <Layout>
-        {/* Status badges */}
-        <Layout.Section>
-          <Card padding="400" tone="success">
-            <BlockStack gap="300">
-              <Text as="p" variant="bodyMd" fontWeight="semibold">
-                Active selections
-              </Text>
-              <InlineStack gap="200" wrap>
-                <Badge tone={productSelection.descriptionTemplateId ? "success" : "warning"}>
-                  Product:{" "}
-                  {productSelection.descriptionTemplateId ? "Configured" : "Not selected"}
-                </Badge>
-                <Badge tone={collectionSelection.descriptionTemplateId ? "success" : "warning"}>
-                  Collection:{" "}
-                  {collectionSelection.descriptionTemplateId ? "Configured" : "Not selected"}
-                </Badge>
-                <Badge tone={pageSelection.bodyTemplateId ? "success" : "warning"}>
-                  Page: {pageSelection.bodyTemplateId ? "Configured" : "Not selected"}
-                </Badge>
-                <Badge tone={blogSelection.bodyTemplateId ? "success" : "warning"}>
-                  Blog: {blogSelection.bodyTemplateId ? "Configured" : "Not selected"}
-                </Badge>
-              </InlineStack>
-            </BlockStack>
-          </Card>
-        </Layout.Section>
-
         {/* Main tabs */}
         <Layout.Section>
           <Card padding="0">
