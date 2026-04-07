@@ -26,7 +26,7 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
-import { CollectionIcon } from "@shopify/polaris-icons";
+import { CollectionIcon, ProductIcon } from "@shopify/polaris-icons";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import { buildCollectionContentPrompt } from "../lib/contentPromptTemplates";
@@ -1431,11 +1431,11 @@ export default function CollectionsPage() {
           </div>
 
           {/* ── Products / Collections Tab Bar with Search ── */}
-          <div style={{ display: "flex", gap: "16px", alignItems: "center", marginBottom: "20px", paddingBlockEnd: "12px", borderBottom: "1px solid #e4e5e7" }}>
-            <div style={{ display: "flex", gap: "0", borderBottom: "2px solid #e4e5e7", marginBlockEnd: "-1px" }}>
+          <div style={{ display: "flex", gap: "16px", alignItems: "center", marginBottom: "20px" }}>
+            <div style={{ display: "inline-flex", gap: "8px", background: "#f3f3f3", padding: "6px", borderRadius: "8px" }}>
               {[
-                { label: "Products", path: "/app/products", active: false },
-                { label: "Collections", path: "/app/collections", active: true },
+                { label: "Products", icon: ProductIcon, path: "/app/products", active: false },
+                { label: "Collections", icon: CollectionIcon, path: "/app/collections", active: true },
               ].map((tab) => (
                 <button
                   key={tab.label}
@@ -1445,17 +1445,19 @@ export default function CollectionsPage() {
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "6px",
-                    padding: "10px 20px",
+                    padding: "8px 16px",
                     border: "none",
-                    borderBottom: tab.active ? "2px solid #008060" : "2px solid transparent",
-                    marginBottom: "-1px",
-                    background: "transparent",
-                    color: tab.active ? "#008060" : "#6d7175",
-                    fontWeight: tab.active ? 700 : 500,
+                    borderRadius: "6px",
+                    background: tab.active ? "#ffffff" : "transparent",
+                    color: tab.active ? "#1a1a1a" : "#6d7175",
+                    fontWeight: tab.active ? 600 : 500,
                     fontSize: "14px",
-                    cursor: tab.active ? "default" : "pointer",
+                    cursor: "pointer",
+                    boxShadow: tab.active ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                    transition: "all 0.2s ease",
                   }}
                 >
+                  <Icon source={tab.icon} tone={tab.active ? "base" : "subdued"} />
                   {tab.label}
                 </button>
               ))}

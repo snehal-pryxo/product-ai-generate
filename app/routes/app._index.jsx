@@ -139,6 +139,15 @@ const PARTNER_APPS = [
     desc: "Grow average order value with cart drawer upsells and smart cart offers.",
     url: "https://apps.shopify.com/cartlift-cart-drawer-upsell",
   },
+  {
+    logoSrc: "/images/mixbox-logo.png",
+    title: "MixBox – Box & Bundle Builder",
+    badge: "Bundle",
+    badgeColor: "#fee2e2",
+    badgeText: "#dc2626",
+    desc: "Create customizable product boxes and bundles to increase average order value.",
+    url: "https://apps.shopify.com/mixbox-box-bundle-builder",
+  },
 ];
 
 
@@ -445,44 +454,45 @@ export default function Index() {
             </InlineStack>
 
             <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 4, xl: 4 }}>
+              {/* Card 1: Book a Free 30-Minute Setup Call */}
               <Grid.Cell>
-                <Card background="bg-surface-secondary">
+                <div style={{ border: "1px solid #e4e5e7", borderRadius: "8px", padding: "20px", height: "100%", background: "#ffffff" }}>
                   <BlockStack gap="300">
                     <Text variant="headingSm" as="h3" fontWeight="bold">Book a Free 30-Minute Setup Call</Text>
                     <Text variant="bodySm" tone="subdued">Get personalized guidance to accelerate your growth.</Text>
-                    <InlineStack gap="200">
+                    <BlockStack gap="100">
                       {["App configuration", "Best practices", "Growth strategy"].map((t) => (
                         <Text key={t} variant="bodySm" fontWeight="semibold" as="span">{t}</Text>
                       ))}
-                    </InlineStack>
-                    <InlineStack gap="300" blockAlign="center">
-                      <Button url="https://outlook.office.com/book/ShopifyGrowthConsultationCall@m2webdesigning.com/?ismsaljsauthenabled=true" variant="primary" external>Schedule Free Call</Button>
-                      <Text variant="bodySm" tone="subdued" as="span">Free | 30 mins | No commitment</Text>
-                    </InlineStack>
+                    </BlockStack>
+                    <Button url="https://outlook.office.com/book/ShopifyGrowthConsultationCall@m2webdesigning.com/?ismsaljsauthenabled=true" variant="primary" fullWidth external>Schedule Free Call</Button>
+                    <Text variant="bodySm" tone="subdued" as="span" alignment="center">Free | 30 mins | No commitment</Text>
                   </BlockStack>
-                </Card>
+                </div>
               </Grid.Cell>
 
+              {/* Card 2: Need Quick Help? */}
               <Grid.Cell>
-                <Card background="bg-surface-secondary">
+                <div style={{ border: "1px solid #e4e5e7", borderRadius: "8px", padding: "20px", height: "100%", background: "#ffffff" }}>
                   <BlockStack gap="300">
                     <Text variant="headingSm" as="h3" fontWeight="bold">Need Quick Help?</Text>
                     <Text variant="bodySm" tone="subdued">Reach out anytime for support, feedback, or just to share your progress.</Text>
-                    <ButtonGroup>
-                      <Button url="#" icon={ChatIcon}>WhatsApp</Button>
-                      <Button url="#" icon={ChatIcon}>Live Chat</Button>
-                    </ButtonGroup>
+                    <InlineStack gap="200">
+                      <Button url="#" variant="primary" size="slim">WhatsApp</Button>
+                      <Button url="#" variant="primary" size="slim">Live Chat</Button>
+                    </InlineStack>
                   </BlockStack>
-                </Card>
+                </div>
               </Grid.Cell>
 
+              {/* Card 3: Support */}
               <Grid.Cell>
-                <Card background="bg-surface-secondary">
+                <div style={{ border: "1px solid #e4e5e7", borderRadius: "8px", padding: "20px", height: "100%", background: "#ffffff" }}>
                   <BlockStack gap="300">
                     <Text variant="headingSm" as="h3" fontWeight="bold">Support</Text>
                     <Grid columns={{ xs: 2, sm: 2, md: 2, lg: 2, xl: 2 }} gap="200">
                       <Grid.Cell>
-                        <div style={{ border: "1px solid #e4e5e7", borderRadius: 6, padding: "12px", textAlign: "center" }}>
+                        <div style={{ border: "1px solid #e4e5e7", borderRadius: "8px", padding: "16px", textAlign: "center", background: "#fafafa" }}>
                           <BlockStack gap="100" align="center">
                             <Icon source={EmailIcon} tone="interactive" />
                             <Text variant="bodySm" fontWeight="semibold" as="span">
@@ -493,7 +503,7 @@ export default function Index() {
                         </div>
                       </Grid.Cell>
                       <Grid.Cell>
-                        <div style={{ border: "1px solid #e4e5e7", borderRadius: 6, padding: "12px", textAlign: "center" }}>
+                        <div style={{ border: "1px solid #e4e5e7", borderRadius: "8px", padding: "16px", textAlign: "center", background: "#fafafa" }}>
                           <BlockStack gap="100" align="center">
                             <Icon source={QuestionCircleIcon} tone="interactive" />
                             <Text variant="bodySm" fontWeight="semibold" as="span">
@@ -505,26 +515,25 @@ export default function Index() {
                       </Grid.Cell>
                     </Grid>
                   </BlockStack>
-                </Card>
+                </div>
               </Grid.Cell>
 
+              {/* Card 4: Motivate our team */}
               <Grid.Cell>
-                <Card background="bg-surface-secondary">
+                <div style={{ border: "1px solid #e4e5e7", borderRadius: "8px", padding: "20px", height: "100%", background: "#ffffff", textAlign: "center" }}>
                   <BlockStack gap="300" align="center">
-                    <InlineStack align="center">
-                      <div style={{ width: 52, height: 52, borderRadius: 12, background: "linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <Icon source={StarFilledIcon} tone="base" />
-                      </div>
-                    </InlineStack>
+                    <div style={{ width: 60, height: 60, borderRadius: 12, background: "linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto" }}>
+                      <Icon source={StarFilledIcon} tone="base" />
+                    </div>
                     <Text variant="headingSm" as="h3" fontWeight="bold" alignment="center">
                       Motivate our team for future app development
                     </Text>
-                    <ButtonGroup>
-                      <Button url="#" variant="primary">Write a review</Button>
-                      <Button url="#">Report an issue</Button>
-                    </ButtonGroup>
+                    <InlineStack gap="200" distribute="center">
+                      <Button url="#" variant="primary" size="slim">Write a review</Button>
+                      <Button url="#" size="slim">Report an issue</Button>
+                    </InlineStack>
                   </BlockStack>
-                </Card>
+                </div>
               </Grid.Cell>
             </Grid>
           </BlockStack>
