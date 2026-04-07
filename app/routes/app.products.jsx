@@ -1367,37 +1367,6 @@ export default function ProductsPage() {
 
   return (
     <Page fullWidth>
-      {/* ── Products / Collections Tab Bar ── */}
-      <div style={{ display: "flex", gap: "0", marginBottom: "20px", borderBottom: "2px solid #e4e5e7" }}>
-        {[
-          { label: "Products", icon: ProductIcon, path: "/app/products", active: true },
-          { label: "Collections", icon: CollectionIcon, path: "/app/collections", active: false },
-        ].map((tab) => (
-          <button
-            key={tab.label}
-            type="button"
-            onClick={() => navigate({ pathname: tab.path, search: location.search })}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "10px 20px",
-              border: "none",
-              borderBottom: tab.active ? "2px solid #008060" : "2px solid transparent",
-              marginBottom: "-2px",
-              background: "transparent",
-              color: tab.active ? "#008060" : "#6d7175",
-              fontWeight: tab.active ? 700 : 500,
-              fontSize: "14px",
-              cursor: tab.active ? "default" : "pointer",
-            }}
-          >
-            <Icon source={tab.icon} tone={tab.active ? "success" : "subdued"} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
       {/* ── Hero Header ── */}
       <div style={{
         background: "linear-gradient(135deg, #1a0533 0%, #2d1b69 50%, #0f3460 100%)",
