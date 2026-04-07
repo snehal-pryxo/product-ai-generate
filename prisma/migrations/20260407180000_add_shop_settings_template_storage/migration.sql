@@ -1,0 +1,4 @@
+ALTER TABLE `shop`
+    ADD COLUMN IF NOT EXISTS `globalSettingsJson` LONGTEXT NULL,
+    ADD COLUMN IF NOT EXISTS `templateSelectionsJson` LONGTEXT NULL,
+    ADD COLUMN IF NOT EXISTS `customPromptTemplatesJson` LONGTEXT NULL;

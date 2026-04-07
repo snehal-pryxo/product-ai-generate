@@ -54,6 +54,9 @@ model shop {
   defaultAiProvider       String?   @default("auto") @db.VarChar(32)
   defaultAiModel          String?   @default("gpt-4o-mini") @db.VarChar(100)
   credits                 Int       @default(100)
+  globalSettingsJson      String?   @db.LongText
+  templateSelectionsJson  String?   @db.LongText
+  customPromptTemplatesJson String? @db.LongText
 }
 
 model GeneratedContentLog {
@@ -88,6 +91,9 @@ model ProductGeneratedContent {
   lengthOption    String?
   formatOption    String?
   contextKeywords String?  @db.Text
+  descriptionPromptTemplate String? @db.LongText
+  metaTitlePromptTemplate  String? @db.Text
+  metaDescriptionPromptTemplate String? @db.Text
   aiModel         String?
   descriptionHtml String?  @db.LongText
   seoTitle        String?
@@ -112,6 +118,9 @@ model PageGeneratedContent {
   lengthOption    String?
   formatOption    String?
   contextKeywords String?  @db.Text
+  bodyPromptTemplate String? @db.LongText
+  metaTitlePromptTemplate String? @db.Text
+  metaDescriptionPromptTemplate String? @db.Text
   aiModel         String?
   bodyHtml        String?  @db.LongText
   seoTitle        String?
@@ -138,6 +147,14 @@ model BlogArticleGeneratedContent {
   lengthOption     String?
   formatOption     String?
   contextKeywords  String?  @db.Text
+  bodyPromptTemplate String? @db.LongText
+  metaTitlePromptTemplate String? @db.Text
+  metaDescriptionPromptTemplate String? @db.Text
+  scheduleRequested Boolean @default(false)
+  scheduledFor      DateTime?
+  scheduleStatus    String? @db.VarChar(64)
+  imageAltText      String? @db.VarChar(255)
+  hasInlineImage    Boolean @default(false)
   aiModel          String?
   bodyHtml         String?  @db.LongText
   seoTitle         String?
@@ -162,6 +179,9 @@ model CollectionGeneratedContent {
   lengthOption      String?
   formatOption      String?
   contextKeywords   String?  @db.Text
+  descriptionPromptTemplate String? @db.LongText
+  metaTitlePromptTemplate String? @db.Text
+  metaDescriptionPromptTemplate String? @db.Text
   aiModel           String?
   descriptionHtml   String?  @db.LongText
   seoTitle          String?

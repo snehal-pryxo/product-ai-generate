@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import { useNavigate } from "react-router";
+import { useFetcher, useLoaderData, useNavigate } from "react-router";
 import {
   ActionList,
   Badge,
@@ -22,36 +22,39 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
+import { boundary } from "@shopify/shopify-app-react-router/server";
+import { authenticate } from "../shopify.server";
+import db from "../db.server";
 import {
   COLLECTION_DESCRIPTION_TEMPLATES,
   COLLECTION_META_DESCRIPTION_TEMPLATES,
   COLLECTION_META_TITLE_TEMPLATES,
+  getEmptyCollectionTemplateSelection,
   clearStoredCollectionPromptTemplateSelection,
-  readStoredCollectionPromptTemplateSelection,
   writeStoredCollectionPromptTemplateSelection,
 } from "../lib/collectionPromptTemplateLibrary";
 import {
   PRODUCT_DESCRIPTION_TEMPLATES,
   PRODUCT_META_DESCRIPTION_TEMPLATES,
   PRODUCT_META_TITLE_TEMPLATES,
+  getEmptyTemplateSelection,
   clearStoredProductPromptTemplateSelection,
-  readStoredProductPromptTemplateSelection,
   writeStoredProductPromptTemplateSelection,
 } from "../lib/productPromptTemplateLibrary";
 import {
   BLOG_BODY_TEMPLATES,
   BLOG_META_DESCRIPTION_TEMPLATES,
   BLOG_META_TITLE_TEMPLATES,
+  getEmptyBlogTemplateSelection,
   clearStoredBlogPromptTemplateSelection,
-  readStoredBlogPromptTemplateSelection,
   writeStoredBlogPromptTemplateSelection,
 } from "../lib/blogPromptTemplateLibrary";
 import {
   PAGE_BODY_TEMPLATES,
   PAGE_META_DESCRIPTION_TEMPLATES,
   PAGE_META_TITLE_TEMPLATES,
+  getEmptyPageTemplateSelection,
   clearStoredPagePromptTemplateSelection,
-  readStoredPagePromptTemplateSelection,
   writeStoredPagePromptTemplateSelection,
 } from "../lib/pagePromptTemplateLibrary";
 
@@ -91,6 +94,12 @@ const RESOURCE_SELECT_OPTIONS = [
 ];
 
 const CUSTOM_TEMPLATES_KEY = "custom_prompt_templates_v1";
+const TEMPLATE_SELECTIONS_DEFAULT = {
+  product: getEmptyTemplateSelection(),
+  collection: getEmptyCollectionTemplateSelection(),
+  page: getEmptyPageTemplateSelection(),
+  blog: getEmptyBlogTemplateSelection(),
+};
 
 const EMPTY_CUSTOM_FORM = {
   name: "",
@@ -98,6 +107,110 @@ const EMPTY_CUSTOM_FORM = {
   resource: "product",
   type: "description",
   template: "",
+};
+
+function normalizeObjectStringFields(value, fallback) {
+  const input = value && typeof value === "object" ? value : {};
+  return Object.fromEntries(
+    Object.keys(fallback).map((key) => [key, typeof input[key] === "string" ? input[key] : fallback[key]]),
+  );
+}
+
+function normalizeTemplateSelections(value) {
+  const input = value && typeof value === "object" ? value : {};
+  return {
+    product: normalizeObjectStringFields(input.product, TEMPLATE_SELECTIONS_DEFAULT.product),
+    collection: normalizeObjectStringFields(input.collection, TEMPLATE_SELECTIONS_DEFAULT.collection),
+    page: normalizeObjectStringFields(input.page, TEMPLATE_SELECTIONS_DEFAULT.page),
+    blog: normalizeObjectStringFields(input.blog, TEMPLATE_SELECTIONS_DEFAULT.blog),
+  };
+}
+
+function normalizeCustomTemplates(value) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry) => ({
+      id: typeof entry.id === "string" ? entry.id : `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: typeof entry.name === "string" ? entry.name : "",
+      description: typeof entry.description === "string" ? entry.description : "",
+      resource: typeof entry.resource === "string" ? entry.resource : "product",
+      type: typeof entry.type === "string" ? entry.type : "description",
+      template: typeof entry.template === "string" ? entry.template : "",
+      createdAt: typeof entry.createdAt === "number" ? entry.createdAt : Date.now(),
+    }));
+}
+
+export const loader = async ({ request }) => {
+  const { session } = await authenticate.admin(request);
+  const shopData = await db.shop.findUnique({
+    where: { shop: session.shop },
+    select: { templateSelectionsJson: true, customPromptTemplatesJson: true },
+  });
+
+  let parsedSelections = {};
+  let parsedCustomTemplates = [];
+  try {
+    parsedSelections = JSON.parse(shopData?.templateSelectionsJson || "{}");
+  } catch {
+    parsedSelections = {};
+  }
+  try {
+    parsedCustomTemplates = JSON.parse(shopData?.customPromptTemplatesJson || "[]");
+  } catch {
+    parsedCustomTemplates = [];
+  }
+
+  return {
+    initialSelections: normalizeTemplateSelections(parsedSelections),
+    initialCustomTemplates: normalizeCustomTemplates(parsedCustomTemplates),
+  };
+};
+
+export const action = async ({ request }) => {
+  const { session } = await authenticate.admin(request);
+  const formData = await request.formData();
+  const intent = String(formData.get("intent") || "");
+  const requestId = String(formData.get("requestId") || "");
+
+  if (intent !== "save_template_config") {
+    return { success: false, error: "Unknown action.", requestId };
+  }
+
+  let nextSelections = TEMPLATE_SELECTIONS_DEFAULT;
+  let nextCustomTemplates = [];
+  try {
+    nextSelections = normalizeTemplateSelections(JSON.parse(String(formData.get("templateSelectionsJson") || "{}")));
+  } catch {
+    return { success: false, error: "Invalid template selections payload.", requestId };
+  }
+  try {
+    nextCustomTemplates = normalizeCustomTemplates(JSON.parse(String(formData.get("customTemplatesJson") || "[]")));
+  } catch {
+    return { success: false, error: "Invalid custom templates payload.", requestId };
+  }
+
+  await db.shop.upsert({
+    where: { shop: session.shop },
+    update: {
+      templateSelectionsJson: JSON.stringify(nextSelections),
+      customPromptTemplatesJson: JSON.stringify(nextCustomTemplates),
+    },
+    create: {
+      shop: session.shop,
+      installed: true,
+      templateSelectionsJson: JSON.stringify(nextSelections),
+      customPromptTemplatesJson: JSON.stringify(nextCustomTemplates),
+    },
+  });
+
+  return {
+    success: true,
+    selections: nextSelections,
+    customTemplates: nextCustomTemplates,
+    requestId,
+  };
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -147,16 +260,6 @@ function getActiveTemplateId(resourceId, typeId, selectionMap) {
   if (typeId === "seo-description") return sel.metaDescriptionTemplateId;
   if (typeId === "seo-title") return sel.metaTitleTemplateId;
   return "";
-}
-
-function readCustomTemplates() {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(CUSTOM_TEMPLATES_KEY);
-    return Array.isArray(JSON.parse(raw || "null")) ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
 }
 
 function saveCustomTemplates(templates) {
@@ -309,6 +412,9 @@ function FilterBar({ resourceFilter, typeFilter, onResourceChange, onTypeChange 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function TemplatePage() {
+  const { initialSelections, initialCustomTemplates } = useLoaderData();
+  const persistFetcher = useFetcher();
+  const persistPromiseRef = useRef(null);
   const shopify = useAppBridge();
   const navigate = useNavigate();
 
@@ -319,21 +425,17 @@ export default function TemplatePage() {
   const [resourceFilter, setResourceFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("description");
 
-  // Selection state (localStorage)
-  const [productSelection, setProductSelection] = useState(() =>
-    readStoredProductPromptTemplateSelection(),
-  );
-  const [collectionSelection, setCollectionSelection] = useState(() =>
-    readStoredCollectionPromptTemplateSelection(),
-  );
-  const [pageSelection, setPageSelection] = useState(() => readStoredPagePromptTemplateSelection());
-  const [blogSelection, setBlogSelection] = useState(() => readStoredBlogPromptTemplateSelection());
+  // Selection state (DB-backed, mirrored to localStorage for compatibility)
+  const [productSelection, setProductSelection] = useState(() => initialSelections.product);
+  const [collectionSelection, setCollectionSelection] = useState(() => initialSelections.collection);
+  const [pageSelection, setPageSelection] = useState(() => initialSelections.page);
+  const [blogSelection, setBlogSelection] = useState(() => initialSelections.blog);
 
   // Preview modal
   const [previewData, setPreviewData] = useState(null);
 
   // Custom templates
-  const [customTemplates, setCustomTemplates] = useState(readCustomTemplates);
+  const [customTemplates, setCustomTemplates] = useState(() => initialCustomTemplates);
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState(EMPTY_CUSTOM_FORM);
@@ -345,6 +447,15 @@ export default function TemplatePage() {
   // Loading state
   const [isLoading, setIsLoading] = useState(false);
 
+  useEffect(() => {
+    // Keep localStorage in sync so generation pages that still read localStorage continue to work.
+    writeStoredProductPromptTemplateSelection(initialSelections.product);
+    writeStoredCollectionPromptTemplateSelection(initialSelections.collection);
+    writeStoredPagePromptTemplateSelection(initialSelections.page);
+    writeStoredBlogPromptTemplateSelection(initialSelections.blog);
+    saveCustomTemplates(initialCustomTemplates);
+  }, [initialSelections, initialCustomTemplates]);
+
   const selectionMap = useMemo(
     () => ({
       product: productSelection,
@@ -354,6 +465,34 @@ export default function TemplatePage() {
     }),
     [productSelection, collectionSelection, pageSelection, blogSelection],
   );
+
+  useEffect(() => {
+    const pending = persistPromiseRef.current;
+    if (!pending) return;
+    if (persistFetcher.state !== "idle") return;
+    if (!persistFetcher.data || persistFetcher.data.requestId !== pending.requestId) return;
+
+    persistPromiseRef.current = null;
+    if (persistFetcher.data?.success) {
+      pending.resolve(persistFetcher.data);
+      return;
+    }
+
+    pending.reject(new Error(persistFetcher.data?.error || "Failed to persist template configuration."));
+  }, [persistFetcher.state, persistFetcher.data]);
+
+  async function persistTemplateConfiguration(nextSelections, nextCustomTemplates) {
+    return new Promise((resolve, reject) => {
+      const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      persistPromiseRef.current = { resolve, reject, requestId };
+      const payload = new FormData();
+      payload.append("intent", "save_template_config");
+      payload.append("requestId", requestId);
+      payload.append("templateSelectionsJson", JSON.stringify(nextSelections));
+      payload.append("customTemplatesJson", JSON.stringify(nextCustomTemplates));
+      persistFetcher.submit(payload, { method: "post" });
+    });
+  }
 
   // ── Derived data ────────────────────────────────────────────────────────────
 
@@ -389,8 +528,17 @@ export default function TemplatePage() {
           next.metaDescriptionTemplateId = template.id;
           next.metaDescriptionPromptTemplate = template.template;
         }
-        setProductSelection(writeStoredProductPromptTemplateSelection(next));
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        const normalized = writeStoredProductPromptTemplateSelection(next);
+        setProductSelection(normalized);
+        await persistTemplateConfiguration(
+          {
+            product: normalized,
+            collection: collectionSelection,
+            page: pageSelection,
+            blog: blogSelection,
+          },
+          customTemplates,
+        );
         shopify.toast.show(`${template.name} applied to products.`);
         return;
       }
@@ -407,8 +555,17 @@ export default function TemplatePage() {
           next.metaDescriptionTemplateId = template.id;
           next.metaDescriptionPromptTemplate = template.template;
         }
-        setCollectionSelection(writeStoredCollectionPromptTemplateSelection(next));
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        const normalized = writeStoredCollectionPromptTemplateSelection(next);
+        setCollectionSelection(normalized);
+        await persistTemplateConfiguration(
+          {
+            product: productSelection,
+            collection: normalized,
+            page: pageSelection,
+            blog: blogSelection,
+          },
+          customTemplates,
+        );
         shopify.toast.show(`${template.name} applied to collections.`);
         return;
       }
@@ -425,8 +582,17 @@ export default function TemplatePage() {
           next.metaDescriptionTemplateId = template.id;
           next.metaDescriptionPromptTemplate = template.template;
         }
-        setPageSelection(writeStoredPagePromptTemplateSelection(next));
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        const normalized = writeStoredPagePromptTemplateSelection(next);
+        setPageSelection(normalized);
+        await persistTemplateConfiguration(
+          {
+            product: productSelection,
+            collection: collectionSelection,
+            page: normalized,
+            blog: blogSelection,
+          },
+          customTemplates,
+        );
         shopify.toast.show(`${template.name} applied to pages.`);
         return;
       }
@@ -443,11 +609,22 @@ export default function TemplatePage() {
           next.metaDescriptionTemplateId = template.id;
           next.metaDescriptionPromptTemplate = template.template;
         }
-        setBlogSelection(writeStoredBlogPromptTemplateSelection(next));
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        const normalized = writeStoredBlogPromptTemplateSelection(next);
+        setBlogSelection(normalized);
+        await persistTemplateConfiguration(
+          {
+            product: productSelection,
+            collection: collectionSelection,
+            page: pageSelection,
+            blog: normalized,
+          },
+          customTemplates,
+        );
         shopify.toast.show(`${template.name} applied to blog posts.`);
         return;
       }
+    } catch (error) {
+      shopify.toast.show(error?.message || "Failed to apply template.");
     } finally {
       setIsLoading(false);
     }
@@ -456,12 +633,28 @@ export default function TemplatePage() {
   async function clearAllTemplateSelections() {
     setIsLoading(true);
     try {
-      setProductSelection(clearStoredProductPromptTemplateSelection());
-      setCollectionSelection(clearStoredCollectionPromptTemplateSelection());
-      setPageSelection(clearStoredPagePromptTemplateSelection());
-      setBlogSelection(clearStoredBlogPromptTemplateSelection());
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      const clearedProduct = clearStoredProductPromptTemplateSelection();
+      const clearedCollection = clearStoredCollectionPromptTemplateSelection();
+      const clearedPage = clearStoredPagePromptTemplateSelection();
+      const clearedBlog = clearStoredBlogPromptTemplateSelection();
+
+      setProductSelection(clearedProduct);
+      setCollectionSelection(clearedCollection);
+      setPageSelection(clearedPage);
+      setBlogSelection(clearedBlog);
+
+      await persistTemplateConfiguration(
+        {
+          product: clearedProduct,
+          collection: clearedCollection,
+          page: clearedPage,
+          blog: clearedBlog,
+        },
+        customTemplates,
+      );
       shopify.toast.show("All template selections have been cleared.");
+    } catch (error) {
+      shopify.toast.show(error?.message || "Failed to clear template selections.");
     } finally {
       setIsLoading(false);
     }
@@ -521,8 +714,17 @@ export default function TemplatePage() {
         const updated = customTemplates.map((t) =>
           t.id === editingId ? { ...t, ...formData } : t,
         );
-        setCustomTemplates(saveCustomTemplates(updated));
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        const normalized = saveCustomTemplates(updated);
+        setCustomTemplates(normalized);
+        await persistTemplateConfiguration(
+          {
+            product: productSelection,
+            collection: collectionSelection,
+            page: pageSelection,
+            blog: blogSelection,
+          },
+          normalized,
+        );
         shopify.toast.show("Custom template updated.");
       } else {
         const newEntry = {
@@ -531,11 +733,22 @@ export default function TemplatePage() {
           createdAt: Date.now(),
         };
         const updated = [...customTemplates, newEntry];
-        setCustomTemplates(saveCustomTemplates(updated));
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        const normalized = saveCustomTemplates(updated);
+        setCustomTemplates(normalized);
+        await persistTemplateConfiguration(
+          {
+            product: productSelection,
+            collection: collectionSelection,
+            page: pageSelection,
+            blog: blogSelection,
+          },
+          normalized,
+        );
         shopify.toast.show("Custom template created.");
       }
       setShowFormModal(false);
+    } catch (error) {
+      shopify.toast.show(error?.message || "Failed to save custom template.");
     } finally {
       setIsLoading(false);
     }
@@ -545,10 +758,21 @@ export default function TemplatePage() {
     setIsLoading(true);
     try {
       const updated = customTemplates.filter((t) => t.id !== templateId);
-      setCustomTemplates(saveCustomTemplates(updated));
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      const normalized = saveCustomTemplates(updated);
+      setCustomTemplates(normalized);
+      await persistTemplateConfiguration(
+        {
+          product: productSelection,
+          collection: collectionSelection,
+          page: pageSelection,
+          blog: blogSelection,
+        },
+        normalized,
+      );
       setDeleteTargetId(null);
       shopify.toast.show("Custom template deleted.");
+    } catch (error) {
+      shopify.toast.show(error?.message || "Failed to delete custom template.");
     } finally {
       setIsLoading(false);
     }
@@ -867,3 +1091,7 @@ export default function TemplatePage() {
     </>
   );
 }
+
+export const headers = (headersArgs) => {
+  return boundary.headers(headersArgs);
+};

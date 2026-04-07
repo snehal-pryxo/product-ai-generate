@@ -1,6 +1,8 @@
-import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useEffect, useState } from "react";
+import { useFetcher, useLoaderData, useNavigate } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
+import { authenticate } from "../shopify.server";
+import db from "../db.server";
 import {
   Page,
   Card,
@@ -12,7 +14,69 @@ import {
   Divider,
   Box,
 } from "@shopify/polaris";
-import { readGlobalSettings, writeGlobalSettings } from "../lib/globalSettings";
+import {
+  getDefaultGlobalSettings,
+  writeGlobalSettings,
+} from "../lib/globalSettings";
+
+function normalizeGlobalSettings(value) {
+  const defaults = getDefaultGlobalSettings();
+  const input = value && typeof value === "object" ? value : {};
+  const merged = { ...defaults, ...input };
+
+  return Object.fromEntries(
+    Object.entries(merged).map(([key, v]) => [key, typeof v === "string" ? v : String(v ?? "")]),
+  );
+}
+
+export const loader = async ({ request }) => {
+  const { session } = await authenticate.admin(request);
+
+  const shopData = await db.shop.findUnique({
+    where: { shop: session.shop },
+    select: { globalSettingsJson: true },
+  });
+
+  let parsedSettings = {};
+  try {
+    parsedSettings = JSON.parse(shopData?.globalSettingsJson || "{}");
+  } catch {
+    parsedSettings = {};
+  }
+
+  return {
+    initialSettings: normalizeGlobalSettings(parsedSettings),
+  };
+};
+
+export const action = async ({ request }) => {
+  const { session } = await authenticate.admin(request);
+  const formData = await request.formData();
+  const intent = String(formData.get("intent") || "");
+
+  if (intent !== "save_global_settings") {
+    return { success: false, error: "Unknown action." };
+  }
+
+  let nextSettings = {};
+  try {
+    nextSettings = normalizeGlobalSettings(JSON.parse(String(formData.get("settingsJson") || "{}")));
+  } catch {
+    return { success: false, error: "Invalid settings payload." };
+  }
+
+  await db.shop.upsert({
+    where: { shop: session.shop },
+    update: { globalSettingsJson: JSON.stringify(nextSettings) },
+    create: {
+      shop: session.shop,
+      installed: true,
+      globalSettingsJson: JSON.stringify(nextSettings),
+    },
+  });
+
+  return { success: true, settings: nextSettings };
+};
 
 const LANGUAGE_OPTIONS = [
   "English", "English (British)", "English (US)", "Arabic", "Bengali", "Bulgarian",
@@ -33,20 +97,45 @@ function SectionLabel({ children }) {
 }
 
 export default function SettingsPage() {
+  const { initialSettings } = useLoaderData();
+  const saveFetcher = useFetcher();
   const shopify = useAppBridge();
   const navigate = useNavigate();
-  const [settings, setSettings] = useState(() => readGlobalSettings());
+  const [settings, setSettings] = useState(() => normalizeGlobalSettings(initialSettings));
   const [saved, setSaved] = useState(false);
+  const isSaving = saveFetcher.state !== "idle";
+
+  useEffect(() => {
+    // Mirror DB-backed settings to localStorage for existing pages that still read from client storage.
+    writeGlobalSettings(settings);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const data = saveFetcher.data;
+    if (!data || saveFetcher.state !== "idle") return;
+
+    if (data.success) {
+      const normalized = normalizeGlobalSettings(data.settings || settings);
+      setSettings(normalized);
+      writeGlobalSettings(normalized);
+      setSaved(true);
+      shopify.toast.show("Settings saved successfully.");
+      setTimeout(() => setSaved(false), 3000);
+      return;
+    }
+
+    shopify.toast.show(data.error || "Failed to save settings.");
+  }, [saveFetcher.data, saveFetcher.state, settings, shopify]);
 
   function update(key) {
     return (value) => setSettings((s) => ({ ...s, [key]: value }));
   }
 
   function handleSave() {
-    writeGlobalSettings(settings);
-    setSaved(true);
-    shopify.toast.show("Settings saved successfully.");
-    setTimeout(() => setSaved(false), 3000);
+    const payload = new FormData();
+    payload.append("intent", "save_global_settings");
+    payload.append("settingsJson", JSON.stringify(settings));
+    saveFetcher.submit(payload, { method: "post" });
   }
 
   return (
@@ -54,7 +143,11 @@ export default function SettingsPage() {
       fullWidth
       title="Settings"
       subtitle="Configure global defaults for AI content generation."
-      primaryAction={{ content: saved ? "Saved!" : "Save Settings", onAction: handleSave }}
+      primaryAction={{
+        content: isSaving ? "Saving..." : saved ? "Saved!" : "Save Settings",
+        onAction: handleSave,
+        disabled: isSaving,
+      }}
       secondaryActions={[{ content: "Back", onAction: () => navigate("/app") }]}
     >
       <BlockStack gap="600">
