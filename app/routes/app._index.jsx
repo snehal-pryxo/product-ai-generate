@@ -129,7 +129,7 @@ const PARTNER_APPS = [
     badgeColor: "#e0f2fe",
     badgeText: "#0369a1",
     desc: "Grow average order value with cart drawer upsells and smart cart offers.",
-    url: "#",
+    url: "https://apps.shopify.com/cartlift-cart-drawer-upsell",
   },
   {
     icon: "🔔",
@@ -139,7 +139,7 @@ const PARTNER_APPS = [
     badgeColor: "#f3e8ff",
     badgeText: "#7c3aed",
     desc: "Increase trust using real-time sales popups and conversion proof nudges.",
-    url: "#",
+    url: "https://apps.shopify.com/fomoify-sales-popup-proof",
   },
 ];
 
@@ -425,7 +425,7 @@ export default function Index() {
                         </div>
                       </InlineStack>
                       <Text variant="bodySm" tone="subdued">{app.desc}</Text>
-                      <Button url="#" variant="primary" icon={ExternalIcon} size="slim">
+                      <Button url={app.url} variant="primary" icon={ExternalIcon} size="slim" external>
                         + Add app
                       </Button>
                     </BlockStack>
@@ -460,7 +460,7 @@ export default function Index() {
                         ))}
                       </InlineStack>
                       <InlineStack gap="300" blockAlign="center">
-                        <Button url="#" variant="primary">Schedule Free Call</Button>
+                        <Button url="https://outlook.office.com/book/ShopifyGrowthConsultationCall@m2webdesigning.com/?ismsaljsauthenabled=true" variant="primary" external>Schedule Free Call</Button>
                         <Text variant="bodySm" tone="subdued" as="span">Free | 30 mins | No commitment</Text>
                       </InlineStack>
                     </BlockStack>

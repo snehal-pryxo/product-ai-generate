@@ -46,8 +46,8 @@
   background: #000 !important;
   color: #fff !important;
 }
-.Polaris-Tabs__Tab[aria-selected="true"] .Polaris-Text--root,
-.Polaris-Tabs__Tab--active .Polaris-Text--root,
+.Polaris-Tabs__Tab[aria-selected="true"],
+.Polaris-Tabs__Tab--active,
 .Polaris-Tabs__Tab[aria-selected="true"] svg,
 .Polaris-Tabs__Tab--active svg,
 .Polaris-Tabs__Tab[aria-selected="true"] path,
@@ -77,10 +77,14 @@ input, textarea, select { border-radius: 6px !important; }
   border-color: #111 !important;
   color: #fff !important;
 }
-.Polaris-Button .Polaris-Text--root,
+.Polaris-Button,
 .Polaris-Button .Polaris-Icon svg {
   color: #fff !important;
   fill: #fff !important;
+}
+.Polaris-Text--root{
+  background: #fff !important;
+  color: #000 !important;
 }
 .Polaris-Button[disabled],
 .Polaris-Button:disabled {

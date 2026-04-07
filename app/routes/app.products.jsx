@@ -3,6 +3,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import {
   useFetcher,
   useLoaderData,
+  useLocation,
   useNavigate,
   useNavigation,
   useRevalidator,
@@ -13,10 +14,8 @@ import {
   BlockStack,
   Box,
   Button,
-  ButtonGroup,
   Card,
   Checkbox,
-  Divider,
   EmptyState,
   Icon,
   IndexTable,
@@ -28,7 +27,7 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
-import { ProductIcon } from "@shopify/polaris-icons";
+import { ProductIcon, CollectionIcon } from "@shopify/polaris-icons";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import { buildProductContentPrompt } from "../lib/contentPromptTemplates";
@@ -1091,9 +1090,15 @@ export default function ProductsPage() {
   const shopify = useAppBridge();
   const [searchValue, setSearchValue] = useState(filters.search);
   const [fallbackProducts, setFallbackProducts] = useState(products);
-  const [bulkDescTemplate, setBulkDescTemplate] = useState("");
-  const [bulkMetaDescTemplate, setBulkMetaDescTemplate] = useState("");
-  const [bulkMetaTitleTemplate, setBulkMetaTitleTemplate] = useState("");
+  const [bulkDescTemplate, setBulkDescTemplate] = useState(
+    () => PRODUCT_DESCRIPTION_TEMPLATES[0]?.template || ""
+  );
+  const [bulkMetaDescTemplate, setBulkMetaDescTemplate] = useState(
+    () => PRODUCT_META_DESCRIPTION_TEMPLATES[0]?.template || ""
+  );
+  const [bulkMetaTitleTemplate, setBulkMetaTitleTemplate] = useState(
+    () => PRODUCT_META_TITLE_TEMPLATES[0]?.template || ""
+  );
   const [bulkDescKeywords, setBulkDescKeywords] = useState(() => readGlobalSettings().productDescKeywords || "");
   const [bulkMetaTitleKeywords, setBulkMetaTitleKeywords] = useState(() => readGlobalSettings().productMetaTitleKeywords || "");
   const [bulkMetaDescKeywords, setBulkMetaDescKeywords] = useState(() => readGlobalSettings().productMetaDescKeywords || "");
@@ -1110,16 +1115,31 @@ export default function ProductsPage() {
   const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [bulkValidationMessage, setBulkValidationMessage] = useState(null);
   const [bulkContentTypes, setBulkContentTypes] = useState(["description"]);
-  const [selectedDescTemplateId, setSelectedDescTemplateId] = useState("");
-  const [selectedMetaDescTemplateId, setSelectedMetaDescTemplateId] = useState("");
-  const [selectedMetaTitleTemplateId, setSelectedMetaTitleTemplateId] = useState("");
+  const [selectedDescTemplateId, setSelectedDescTemplateId] = useState(
+    () => PRODUCT_DESCRIPTION_TEMPLATES[0]?.id || ""
+  );
+  const [selectedMetaDescTemplateId, setSelectedMetaDescTemplateId] = useState(
+    () => PRODUCT_META_DESCRIPTION_TEMPLATES[0]?.id || ""
+  );
+  const [selectedMetaTitleTemplateId, setSelectedMetaTitleTemplateId] = useState(
+    () => PRODUCT_META_TITLE_TEMPLATES[0]?.id || ""
+  );
   const bulkResultHandledRef = useRef(false);
 
   useEffect(() => {
     const templateSelection = readStoredProductPromptTemplateSelection();
-    if (templateSelection.descriptionPromptTemplate) setBulkDescTemplate(templateSelection.descriptionPromptTemplate);
-    if (templateSelection.metaTitlePromptTemplate) setBulkMetaTitleTemplate(templateSelection.metaTitlePromptTemplate);
-    if (templateSelection.metaDescriptionPromptTemplate) setBulkMetaDescTemplate(templateSelection.metaDescriptionPromptTemplate);
+    if (templateSelection.descriptionPromptTemplate) {
+      setBulkDescTemplate(templateSelection.descriptionPromptTemplate);
+      setSelectedDescTemplateId(templateSelection.descriptionTemplateId || PRODUCT_DESCRIPTION_TEMPLATES[0]?.id || "");
+    }
+    if (templateSelection.metaTitlePromptTemplate) {
+      setBulkMetaTitleTemplate(templateSelection.metaTitlePromptTemplate);
+      setSelectedMetaTitleTemplateId(templateSelection.metaTitleTemplateId || PRODUCT_META_TITLE_TEMPLATES[0]?.id || "");
+    }
+    if (templateSelection.metaDescriptionPromptTemplate) {
+      setBulkMetaDescTemplate(templateSelection.metaDescriptionPromptTemplate);
+      setSelectedMetaDescTemplateId(templateSelection.metaDescriptionTemplateId || PRODUCT_META_DESCRIPTION_TEMPLATES[0]?.id || "");
+    }
   }, []);
 
   useEffect(() => {
@@ -1343,8 +1363,41 @@ export default function ProductsPage() {
     [],
   );
 
+  const location = useLocation();
+
   return (
     <Page fullWidth>
+      {/* ── Products / Collections Tab Bar ── */}
+      <div style={{ display: "flex", gap: "0", marginBottom: "20px", borderBottom: "2px solid #e4e5e7" }}>
+        {[
+          { label: "Products", icon: ProductIcon, path: "/app/products", active: true },
+          { label: "Collections", icon: CollectionIcon, path: "/app/collections", active: false },
+        ].map((tab) => (
+          <button
+            key={tab.label}
+            type="button"
+            onClick={() => navigate({ pathname: tab.path, search: location.search })}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "10px 20px",
+              border: "none",
+              borderBottom: tab.active ? "2px solid #008060" : "2px solid transparent",
+              marginBottom: "-2px",
+              background: "transparent",
+              color: tab.active ? "#008060" : "#6d7175",
+              fontWeight: tab.active ? 700 : 500,
+              fontSize: "14px",
+              cursor: tab.active ? "default" : "pointer",
+            }}
+          >
+            <Icon source={tab.icon} tone={tab.active ? "success" : "subdued"} />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {/* ── Hero Header ── */}
       <div style={{
         background: "linear-gradient(135deg, #1a0533 0%, #2d1b69 50%, #0f3460 100%)",
@@ -1636,6 +1689,83 @@ export default function ProductsPage() {
             )}
 
 
+
+            {/* ── Tone / Length / Format row (3 fields) ── */}
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+              <Text as="h3" variant="headingSm" fontWeight="semibold">Generation Settings</Text>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginTop: "8px" }}>
+                <Select
+                  label="Tone"
+                  labelHidden
+                  options={[
+                    { label: "Professional", value: "professional" },
+                    { label: "Friendly", value: "friendly" },
+                    { label: "Persuasive", value: "persuasive" },
+                    { label: "Neutral", value: "neutral" },
+                    { label: "Playful", value: "playful" },
+                    { label: "Formal", value: "formal" },
+                  ]}
+                  value={bulkSettings.tone}
+                  onChange={(v) => setBulkSettings((s) => ({ ...s, tone: v }))}
+                />
+                <Select
+                  label="Length"
+                  labelHidden
+                  options={[
+                    { label: "Short", value: "short" },
+                    { label: "Medium", value: "medium" },
+                    { label: "Long", value: "long" },
+                  ]}
+                  value={bulkSettings.length}
+                  onChange={(v) => setBulkSettings((s) => ({ ...s, length: v }))}
+                />
+                <Select
+                  label="Format"
+                  labelHidden
+                  options={[
+                    { label: "Paragraph", value: "paragraph" },
+                    { label: "Bullet Points", value: "bullet" },
+                    { label: "Mixed", value: "mixed" },
+                  ]}
+                  value={bulkSettings.format || "paragraph"}
+                  onChange={(v) => setBulkSettings((s) => ({ ...s, format: v }))}
+                />
+              </div>
+            </div>
+
+            {/* ── Language / AI Provider row (2 fields) ── */}
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                <Select
+                  label="Language"
+                  options={[
+                    { label: "English", value: "English" },
+                    { label: "Spanish", value: "Spanish" },
+                    { label: "French", value: "French" },
+                    { label: "German", value: "German" },
+                    { label: "Italian", value: "Italian" },
+                    { label: "Portuguese", value: "Portuguese" },
+                    { label: "Dutch", value: "Dutch" },
+                    { label: "Japanese", value: "Japanese" },
+                    { label: "Chinese", value: "Chinese" },
+                    { label: "Arabic", value: "Arabic" },
+                  ]}
+                  value={bulkSettings.language || "English"}
+                  onChange={(v) => setBulkSettings((s) => ({ ...s, language: v }))}
+                />
+                <Select
+                  label="AI Provider"
+                  options={[
+                    { label: "Auto", value: "auto" },
+                    { label: "OpenAI", value: "openai" },
+                    { label: "Anthropic", value: "anthropic" },
+                    { label: "Ollama", value: "ollama" },
+                  ]}
+                  value={bulkSettings.aiProvider || "auto"}
+                  onChange={(v) => setBulkSettings((s) => ({ ...s, aiProvider: v }))}
+                />
+              </div>
+            </div>
 
             {/* Bulk result badge */}
             {bulkResult && (
