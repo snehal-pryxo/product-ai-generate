@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Outlet, useFetchers, useLoaderData, useNavigate, useNavigation, useRouteError } from "react-router";
+import { Outlet, useFetchers, useLoaderData, useNavigation, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider as ShopifyAppProvider } from "@shopify/shopify-app-react-router/react";
 import { AppProvider as PolarisProvider, Spinner, Text } from "@shopify/polaris";
@@ -94,16 +94,10 @@ export const loader = async ({ request }) => {
 };
 
 export default function App() {
-  const { apiKey, globalSettings, templateSelections, customTemplates, credits, creditsUsedTotal } = useLoaderData();
-  const navigate = useNavigate();
+  const { apiKey, globalSettings, templateSelections, customTemplates } = useLoaderData();
   const navigation = useNavigation();
   const fetchers = useFetchers();
   const isBusy = navigation.state !== "idle" || fetchers.some((fetcher) => fetcher.state !== "idle");
-
-  const handleOpenCredits = () => {
-    const search = typeof window !== "undefined" ? window.location.search : "";
-    navigate({ pathname: "/app/analytics", search });
-  };
 
   useEffect(() => {
     // Keep localStorage mirrored with DB values for client-side pages using local settings utilities.
@@ -129,107 +123,6 @@ export default function App() {
            <s-link href="/app/analytics">Analytics</s-link>
           <s-link href="/app/settings">Settings</s-link>
         </s-app-nav>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "flex-end",
-            gap: "6px",
-            padding: "6px 16px",
-            borderBottom: "1px solid #e4e5e7",
-            background: "#f6f6f7",
-          }}
-        >
-          {/* API Keys button */}
-          <button
-            type="button"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              border: "1px solid #d1d5db",
-              background: "#ffffff",
-              borderRadius: 6,
-              padding: "4px 10px",
-              fontSize: 11,
-              fontWeight: 600,
-              color: "#374151",
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-              lineHeight: 1,
-            }}
-          >
-            API Keys
-          </button>
-          {/* Credits badge */}
-          <button
-            type="button"
-            onClick={handleOpenCredits}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "5px",
-              border: "1px solid #d1d5db",
-              background: "#ffffff",
-              borderRadius: 20,
-              padding: "4px 10px",
-              boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-              fontSize: 12,
-              fontWeight: 600,
-              color: "#111827",
-              lineHeight: 1,
-              whiteSpace: "nowrap",
-              cursor: "pointer",
-            }}
-          >
-            <svg width="13" height="13" viewBox="0 0 20 20" fill="#f59e0b">
-              <path d="M10 1L12.39 7.26L19 8.27L14.5 12.64L15.78 19.02L10 15.77L4.22 19.02L5.5 12.64L1 8.27L7.61 7.26L10 1Z"/>
-            </svg>
-            <span>{credits} credits.</span>
-            <span style={{ color: "#2563eb" }}>Upgrade</span>
-          </button>
-          {/* Add Credits button */}
-          <button
-            type="button"
-            onClick={handleOpenCredits}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              border: "1px solid #d1d5db",
-              background: "#ffffff",
-              borderRadius: 6,
-              padding: "4px 10px",
-              fontSize: 11,
-              fontWeight: 600,
-              color: "#374151",
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-              lineHeight: 1,
-            }}
-          >
-            Add Credits
-          </button>
-          {/* Upgrade button */}
-          <button
-            type="button"
-            onClick={handleOpenCredits}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              border: "none",
-              background: "#111827",
-              borderRadius: 6,
-              padding: "5px 10px",
-              fontSize: 11,
-              fontWeight: 700,
-              color: "#ffffff",
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-              lineHeight: 1,
-            }}
-          >
-            Upgrade
-          </button>
-        </div>
         {isBusy && (
           <div
             style={{

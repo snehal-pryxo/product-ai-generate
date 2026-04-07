@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLoaderData, useActionData, Form, useNavigation, useNavigate, useLocation } from "react-router";
+import { useLoaderData, useActionData, Form, useNavigation, useNavigate, useLocation, useRouteLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
@@ -122,24 +122,41 @@ const CONTENT_FEATURES = [
 
 const PARTNER_APPS = [
   {
-    icon: "🛒",
-    iconBg: "#22c55e",
-    title: "CartLift: Cart Drawer & Upsell",
-    badge: "Upsell",
-    badgeColor: "#e0f2fe",
-    badgeText: "#0369a1",
-    desc: "Grow average order value with cart drawer upsells and smart cart offers.",
-    url: "https://apps.shopify.com/cartlift-cart-drawer-upsell",
-  },
-  {
-    icon: "🔔",
-    iconBg: "#a855f7",
+    renderIcon: () => (
+      <div style={{ width: 44, height: 44, borderRadius: 10, background: "linear-gradient(135deg, #d946ef 0%, #7c3aed 50%, #3b82f6 100%)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, border: "2px solid rgba(255,255,255,0.25)" }}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" fill="white"/>
+          <circle cx="18" cy="7" r="4" fill="#4c1d95" stroke="white" strokeWidth="1.5"/>
+          <rect x="17.35" y="4.8" width="1.3" height="2.8" rx="0.65" fill="white"/>
+          <circle cx="18" cy="8.8" r="0.65" fill="white"/>
+        </svg>
+      </div>
+    ),
     title: "Fomoify Sales Popup & Proof",
     badge: "Social Proof",
     badgeColor: "#f3e8ff",
     badgeText: "#7c3aed",
     desc: "Increase trust using real-time sales popups and conversion proof nudges.",
     url: "https://apps.shopify.com/fomoify-sales-popup-proof",
+  },
+  {
+    renderIcon: () => (
+      <div style={{ width: 44, height: 44, borderRadius: 10, background: "linear-gradient(135deg, #4ade80 0%, #16a34a 100%)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <path d="M6 2H3v2h2l2.6 11.59c.18.84.93 1.41 1.76 1.41H18c.84 0 1.58-.58 1.76-1.41L21 6H7L6 2z" fill="white" opacity="0.95"/>
+          <circle cx="9" cy="20" r="2" fill="white" opacity="0.95"/>
+          <circle cx="17" cy="20" r="2" fill="white" opacity="0.95"/>
+          <circle cx="18.5" cy="7.5" r="4.5" fill="white"/>
+          <path d="M16.5 7.5l1.5 1.5 2.5-2.5" stroke="#16a34a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </div>
+    ),
+    title: "FCartLift: Cart Drawer & Upsell",
+    badge: "Upsell",
+    badgeColor: "#e0f2fe",
+    badgeText: "#0369a1",
+    desc: "Grow average order value with cart drawer upsells and smart cart offers.",
+    url: "https://apps.shopify.com/cartlift-cart-drawer-upsell",
   },
 ];
 
@@ -197,6 +214,8 @@ function FeatureCard({ icon, color, bg, border, title, desc, url, badge, badgeTo
 
 export default function Index() {
   const { defaultAiModel } = useLoaderData();
+  const layoutData = useRouteLoaderData("routes/app");
+  const credits = layoutData?.credits ?? 0;
   const actionData = useActionData();
   const navigation = useNavigation();
   const navigate = useNavigate();
@@ -225,51 +244,99 @@ export default function Index() {
             <div style={{ position: "absolute", top: "-40px", right: "-40px", width: "180px", height: "180px", borderRadius: "50%", background: "radial-gradient(circle, rgba(0,179,116,0.2) 0%, transparent 70%)", pointerEvents: "none" }} />
             <div style={{ position: "absolute", bottom: "-30px", left: "30%", width: "140px", height: "140px", borderRadius: "50%", background: "radial-gradient(circle, rgba(61,130,245,0.15) 0%, transparent 70%)", pointerEvents: "none" }} />
 
-            <BlockStack gap="400">
-              {/* Badge */}
-              <div style={{ display: "inline-flex" }}>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "rgba(0,179,116,0.15)", border: "1px solid rgba(0,179,116,0.3)", color: "#4ade80", borderRadius: "20px", padding: "4px 12px", fontSize: "11px", fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase" }}>
-                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", display: "inline-block" }} />
-                  AI-Powered · Shopify Native
-                </div>
-              </div>
-
-              <Text variant="heading2xl" as="h1">
-                <span style={{ background: "linear-gradient(90deg, #ffffff, #94d2bd)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
-                  Generate SEO Content Powered by AI
-                </span>
-              </Text>
-
-              <Text variant="bodyMd" tone="subdued" as="p">
-                <span style={{ color: "rgba(255,255,255,0.6)" }}>
-                  Create product descriptions, blog posts, collection pages and more — optimized for SEO and ready to publish.
-                </span>
-              </Text>
-
-              {/* Stats strip */}
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                {[
-                  { value: "5", label: "Content Types" },
-                  { value: "180+", label: "Languages" },
-                  { value: "2", label: "AI Providers" },
-                  { value: "∞", label: "Generations" },
-                ].map((s) => (
-                  <div key={s.label} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", padding: "8px 14px", textAlign: "center", minWidth: "70px" }}>
-                    <div style={{ fontSize: "18px", fontWeight: 800, color: "#fff", lineHeight: 1 }}>{s.value}</div>
-                    <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.6)", marginTop: "2px", fontWeight: 500 }}>{s.label}</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px" }}>
+              <BlockStack gap="400">
+                {/* Badge */}
+                <div style={{ display: "inline-flex" }}>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "rgba(0,179,116,0.15)", border: "1px solid rgba(0,179,116,0.3)", color: "#4ade80", borderRadius: "20px", padding: "4px 12px", fontSize: "11px", fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase" }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", display: "inline-block" }} />
+                    AI-Powered · Shopify Native
                   </div>
-                ))}
+                </div>
+
+                <Text variant="heading2xl" as="h1">
+                  <span style={{ background: "linear-gradient(90deg, #ffffff, #94d2bd)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
+                    Generate SEO Content Powered by AI
+                  </span>
+                </Text>
+
+                <Text variant="bodyMd" tone="subdued" as="p">
+                  <span style={{ color: "rgba(255,255,255,0.6)" }}>
+                    Create product descriptions, blog posts, collection pages and more — optimized for SEO and ready to publish.
+                  </span>
+                </Text>
+
+                {/* Stats strip */}
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  {[
+                    { value: "5", label: "Content Types" },
+                    { value: "180+", label: "Languages" },
+                    { value: "2", label: "AI Providers" },
+                    { value: "∞", label: "Generations" },
+                  ].map((s) => (
+                    <div key={s.label} style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", padding: "8px 14px", textAlign: "center", minWidth: "70px" }}>
+                      <div style={{ fontSize: "18px", fontWeight: 800, color: "#fff", lineHeight: 1 }}>{s.value}</div>
+                      <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.6)", marginTop: "2px", fontWeight: 500 }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </BlockStack>
+
+              {/* Right side: Credits & Upgrade */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "flex-end", flexShrink: 0 }}>
+                <button
+                  type="button"
+                  onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}
+                  style={{ display: "inline-flex", alignItems: "center", gap: "5px", background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.25)", borderRadius: 20, padding: "6px 14px", fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer", whiteSpace: "nowrap" }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 20 20" fill="#f59e0b">
+                    <path d="M10 1L12.39 7.26L19 8.27L14.5 12.64L15.78 19.02L10 15.77L4.22 19.02L5.5 12.64L1 8.27L7.61 7.26L10 1Z"/>
+                  </svg>
+                  <span>{credits} Credits</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}
+                  style={{ display: "inline-flex", alignItems: "center", background: "#111827", border: "none", borderRadius: 6, padding: "7px 16px", fontSize: 12, fontWeight: 700, color: "#fff", cursor: "pointer", whiteSpace: "nowrap" }}
+                >
+                  Upgrade
+                </button>
               </div>
-            </BlockStack>
+            </div>
           </div>
         </Card>
 
         {/* ── Generate Content Cards ── */}
         <BlockStack gap="300">
-          <BlockStack gap="100">
-            <Text variant="headingMd" as="h2">Generate Content</Text>
-            <Text variant="bodySm" tone="subdued">Pick a content type to get started</Text>
-          </BlockStack>
+          <InlineStack align="space-between" blockAlign="center">
+            <BlockStack gap="100">
+              <Text variant="headingMd" as="h2">Generate Content</Text>
+              <Text variant="bodySm" tone="subdued">Pick a content type to get started</Text>
+            </BlockStack>
+          </InlineStack>
+          {/* Content type tabs */}
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+            {CONTENT_FEATURES.map((card) => (
+              <button
+                key={card.title}
+                type="button"
+                onClick={() => navigate({ pathname: card.url, search: location.search })}
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 14px", borderRadius: "20px", border: "1px solid #e4e5e7", background: "#fff", fontSize: "12px", fontWeight: 600, color: "#374151", cursor: "pointer", whiteSpace: "nowrap" }}
+              >
+                <div style={{ width: 14, height: 14, borderRadius: 3, background: card.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Icon source={card.icon} tone="base" />
+                </div>
+                {card.title}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => navigate({ pathname: "/app/content-management", search: location.search })}
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 14px", borderRadius: "20px", border: "1px solid #e4e5e7", background: "#fff", fontSize: "12px", fontWeight: 600, color: "#374151", cursor: "pointer", whiteSpace: "nowrap" }}
+            >
+              Content Management
+            </button>
+          </div>
           <Grid columns={{ xs: 2, sm: 2, md: 4, lg: 4, xl: 4 }}>
             {CONTENT_FEATURES.map((card) => (
               <Grid.Cell key={card.title}>
@@ -279,77 +346,74 @@ export default function Index() {
           </Grid>
         </BlockStack>
 
-        {/* ── Analytics + AI Model ── */}
+        {/* ── Analytics + Settings + AI Model (one line) ── */}
+        {actionData && (
+          <Banner tone={actionData.success ? "success" : "critical"} onDismiss={() => {}}>
+            <p>{actionData.message}</p>
+          </Banner>
+        )}
         <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
-          <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 1, lg: 1, xl: 1 }}>
-            <BlockStack gap="300">
-              {/* Analytics card */}
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate({ pathname: "/app/analytics", search: location.search }); } }}
-                style={{ cursor: "pointer" }}
-              >
-                <Card>
-                  <BlockStack gap="200">
-                    <InlineStack align="space-between" blockAlign="center">
-                      <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(0,201,212,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <Icon source={ChartVerticalIcon} tone="base" />
-                      </div>
-                      <Badge tone="info">Insights</Badge>
-                    </InlineStack>
-                    <Text variant="headingSm" as="h3">Analytics</Text>
-                    <Text variant="bodySm" tone="subdued">SEO health scores, coverage charts and generation statistics.</Text>
-                    <Text variant="bodySm" fontWeight="semibold" as="span"><span style={{ color: "#2C6ECB" }}>View analytics →</span></Text>
-                  </BlockStack>
-                </Card>
-              </div>
-              {/* Settings card */}
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => navigate({ pathname: "/app/settings", search: location.search })}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate({ pathname: "/app/settings", search: location.search }); } }}
-                style={{ cursor: "pointer" }}
-              >
-                <Card>
-                  <BlockStack gap="200">
-                    <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(107,114,128,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <Icon source={SettingsIcon} tone="base" />
+          {/* Analytics */}
+          <Grid.Cell>
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate({ pathname: "/app/analytics", search: location.search }); } }}
+              style={{ cursor: "pointer", height: "100%" }}
+            >
+              <Card>
+                <BlockStack gap="200">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(0,201,212,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Icon source={ChartVerticalIcon} tone="base" />
                     </div>
-                    <Text variant="headingSm" as="h3">Settings</Text>
-                    <Text variant="bodySm" tone="subdued">Configure language, word counts and default templates.</Text>
-                    <Text variant="bodySm" fontWeight="semibold" as="span"><span style={{ color: "#374151" }}>Open settings →</span></Text>
-                  </BlockStack>
-                </Card>
-              </div>
-            </BlockStack>
+                    <Badge tone="info">Insights</Badge>
+                  </InlineStack>
+                  <Text variant="headingSm" as="h3">Analytics</Text>
+                  <Text variant="bodySm" tone="subdued">SEO health scores, coverage charts and generation statistics.</Text>
+                  <Text variant="bodySm" fontWeight="semibold" as="span"><span style={{ color: "#2C6ECB" }}>View analytics →</span></Text>
+                </BlockStack>
+              </Card>
+            </div>
           </Grid.Cell>
 
-          <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 2 }}>
-            {actionData && (
-              <Box paddingBlockEnd="300">
-                <Banner
-                  tone={actionData.success ? "success" : "critical"}
-                  onDismiss={() => {}}
-                >
-                  <p>{actionData.message}</p>
-                </Banner>
-              </Box>
-            )}
+          {/* Settings */}
+          <Grid.Cell>
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate({ pathname: "/app/settings", search: location.search })}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate({ pathname: "/app/settings", search: location.search }); } }}
+              style={{ cursor: "pointer", height: "100%" }}
+            >
+              <Card>
+                <BlockStack gap="200">
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(107,114,128,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Icon source={SettingsIcon} tone="base" />
+                  </div>
+                  <Text variant="headingSm" as="h3">Settings</Text>
+                  <Text variant="bodySm" tone="subdued">Configure language, word counts and default templates.</Text>
+                  <Text variant="bodySm" fontWeight="semibold" as="span"><span style={{ color: "#374151" }}>Open settings →</span></Text>
+                </BlockStack>
+              </Card>
+            </div>
+          </Grid.Cell>
+
+          {/* AI Model */}
+          <Grid.Cell>
             <Card>
-              <BlockStack gap="400">
+              <BlockStack gap="300">
                 <BlockStack gap="100">
                   <Text variant="headingMd" as="h2">Default AI Model</Text>
                   <Text variant="bodySm" tone="subdued">
-                    Choose the AI model used for all content generation across your store.
+                    Choose the AI model for all content generation.
                   </Text>
                 </BlockStack>
                 <Form method="post">
                   <input type="hidden" name="intent" value="save_settings" />
                   <input type="hidden" name="defaultAiModel" value={selectedModel} />
-                  <BlockStack gap="300">
+                  <BlockStack gap="200">
                     <Select
                       label="AI Model"
                       labelHidden
@@ -357,37 +421,9 @@ export default function Index() {
                       value={selectedModel}
                       onChange={setSelectedModel}
                     />
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px" }}>
-                      {AI_MODELS.slice(0, 3).map((m) => (
-                        <button
-                          key={m.value}
-                          type="button"
-                          onClick={() => setSelectedModel(m.value)}
-                          style={{
-                            padding: "8px 10px",
-                            borderRadius: "6px",
-                            border: `1px solid ${selectedModel === m.value ? "#008060" : "#e4e5e7"}`,
-                            background: selectedModel === m.value ? "rgba(0,128,96,0.06)" : "#fafafa",
-                            color: selectedModel === m.value ? "#008060" : "#374151",
-                            fontSize: "11px",
-                            fontWeight: selectedModel === m.value ? 700 : 400,
-                            cursor: "pointer",
-                            textAlign: "center",
-                          }}
-                        >
-                          {m.label}
-                        </button>
-                      ))}
-                    </div>
                     <InlineStack align="end">
-                      <Button
-                        submit
-                        variant="primary"
-                        tone="success"
-                        loading={isSaving}
-                        disabled={isSaving}
-                      >
-                        {isSaving ? "Saving…" : "Save Settings"}
+                      <Button submit variant="primary" tone="success" loading={isSaving} disabled={isSaving}>
+                        {isSaving ? "Saving…" : "Save"}
                       </Button>
                     </InlineStack>
                   </BlockStack>
@@ -406,33 +442,27 @@ export default function Index() {
               </div>
               <Text variant="headingMd" as="h2">Boost your store performance with our apps</Text>
             </InlineStack>
-            <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 2 }}>
+            <div style={{ display: "flex", gap: "12px", flexWrap: "nowrap", overflowX: "auto" }}>
               {PARTNER_APPS.map((app) => (
-                <Grid.Cell key={app.title}>
-                  <div style={{ border: "1px solid #e4e5e7", borderRadius: "8px", padding: "16px" }}>
-                    <BlockStack gap="300">
-                      <InlineStack align="space-between" blockAlign="start">
-                        <InlineStack gap="300" blockAlign="center">
-                          <div style={{ width: 44, height: 44, borderRadius: 10, background: app.iconBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px", flexShrink: 0 }}>
-                            {app.icon}
-                          </div>
-                          <BlockStack gap="050">
-                            <Text variant="headingSm" as="h3" fontWeight="bold">{app.title}</Text>
-                          </BlockStack>
-                        </InlineStack>
-                        <div style={{ background: app.badgeColor, color: app.badgeText, borderRadius: "12px", padding: "3px 10px", fontSize: "11px", fontWeight: 600, whiteSpace: "nowrap" }}>
-                          {app.badge}
-                        </div>
+                <div key={app.title} style={{ border: "1px solid #e4e5e7", borderRadius: "8px", padding: "16px", flex: "1 1 0", minWidth: "220px" }}>
+                  <BlockStack gap="300">
+                    <InlineStack align="space-between" blockAlign="start">
+                      <InlineStack gap="300" blockAlign="center">
+                        {app.renderIcon()}
+                        <Text variant="headingSm" as="h3" fontWeight="bold">{app.title}</Text>
                       </InlineStack>
-                      <Text variant="bodySm" tone="subdued">{app.desc}</Text>
-                      <Button url={app.url} variant="primary" icon={ExternalIcon} size="slim" external>
-                        + Add app
-                      </Button>
-                    </BlockStack>
-                  </div>
-                </Grid.Cell>
+                      <div style={{ background: app.badgeColor, color: app.badgeText, borderRadius: "12px", padding: "3px 10px", fontSize: "11px", fontWeight: 600, whiteSpace: "nowrap" }}>
+                        {app.badge}
+                      </div>
+                    </InlineStack>
+                    <Text variant="bodySm" tone="subdued">{app.desc}</Text>
+                    <Button url={app.url} variant="primary" icon={ExternalIcon} size="slim" external>
+                      + Add app
+                    </Button>
+                  </BlockStack>
+                </div>
               ))}
-            </Grid>
+            </div>
           </BlockStack>
         </Card>
 
