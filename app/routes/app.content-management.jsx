@@ -1571,22 +1571,28 @@ export default function ContentManagementPage() {
       subtitle="Manage and generate content with AI to attract more customers"
       primaryAction={
         <InlineStack gap="200" blockAlign="center">
-          <div
+          <button
+            type="button"
+            onClick={() => navigate("/app/analytics")}
             style={{
               padding: "6px 14px",
               borderRadius: "8px",
               background: localCredits < 10 ? "#fef3cd" : "#e3f5e1",
               border: `1px solid ${localCredits < 10 ? "#f5c518" : "#50b83c"}`,
-              display: "flex", alignItems: "center", gap: "6px",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              cursor: "pointer",
             }}
           >
             <svg width="14" height="14" viewBox="0 0 20 20" fill={localCredits < 10 ? "#b98900" : "#108043"}>
               <path d="M10 1L12.39 7.26L19 8.27L14.5 12.64L15.78 19.02L10 15.77L4.22 19.02L5.5 12.64L1 8.27L7.61 7.26L10 1Z"/>
             </svg>
             <Text variant="bodySm" fontWeight="semibold" as="span">
-              {localCredits} Credits
+              {localCredits} Credits.
             </Text>
-          </div>
+            <span style={{ color: "#2563eb", fontWeight: 600 }}>Upgrade</span>
+          </button>
         </InlineStack>
       }
     >

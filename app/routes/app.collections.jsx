@@ -1078,7 +1078,7 @@ const bulkInitialSettings = {
 };
 
 export default function CollectionsPage() {
-  const { filters, collections, defaultAiProvider } = useLoaderData();
+  const { filters, collections, defaultAiProvider, credits } = useLoaderData();
   const navigation = useNavigation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -1355,35 +1355,48 @@ export default function CollectionsPage() {
 
   return (
     <Page fullWidth>
-      {/* ── Products / Collections Tab Bar ── */}
-      <div style={{ display: "flex", gap: "0", marginBottom: "20px", borderBottom: "2px solid #e4e5e7" }}>
-        {[
-          { label: "Products", icon: ProductIcon, path: "/app/products", active: false },
-          { label: "Collections", icon: CollectionIcon, path: "/app/collections", active: true },
-        ].map((tab) => (
-          <button
-            key={tab.label}
-            type="button"
-            onClick={() => navigate({ pathname: tab.path, search: location.search })}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "10px 20px",
-              border: "none",
-              borderBottom: tab.active ? "2px solid #008060" : "2px solid transparent",
-              marginBottom: "-2px",
-              background: "transparent",
-              color: tab.active ? "#008060" : "#6d7175",
-              fontWeight: tab.active ? 700 : 500,
-              fontSize: "14px",
-              cursor: tab.active ? "default" : "pointer",
-            }}
-          >
-            <Icon source={tab.icon} tone={tab.active ? "success" : "subdued"} />
-            {tab.label}
-          </button>
-        ))}
+      {/* ── Products / Collections Tab Bar with Search ── */}
+      <div style={{ display: "flex", gap: "16px", alignItems: "center", marginBottom: "20px", paddingBlockEnd: "12px", borderBottom: "1px solid #e4e5e7" }}>
+        <div style={{ display: "flex", gap: "0", borderBottom: "2px solid #e4e5e7", marginBlockEnd: "-1px" }}>
+          {[
+            { label: "Products", icon: ProductIcon, path: "/app/products", active: false },
+            { label: "Collections", icon: CollectionIcon, path: "/app/collections", active: true },
+          ].map((tab) => (
+            <button
+              key={tab.label}
+              type="button"
+              onClick={() => navigate({ pathname: tab.path, search: location.search })}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "10px 20px",
+                border: "none",
+                borderBottom: tab.active ? "2px solid #008060" : "2px solid transparent",
+                marginBottom: "-1px",
+                background: "transparent",
+                color: tab.active ? "#008060" : "#6d7175",
+                fontWeight: tab.active ? 700 : 500,
+                fontSize: "14px",
+                cursor: tab.active ? "default" : "pointer",
+              }}
+            >
+              <Icon source={tab.icon} tone={tab.active ? "success" : "subdued"} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ flex: 1, minWidth: "250px" }}>
+          <TextField
+            label="Search collections"
+            labelHidden
+            placeholder="Search by collection title..."
+            value={searchValue}
+            onChange={handleSearchInput}
+            autoComplete="off"
+            prefix={isSearchLoading ? <Spinner size="small" /> : undefined}
+          />
+        </div>
       </div>
 
       {/* ── Hero Header ── */}
@@ -1408,9 +1421,35 @@ export default function CollectionsPage() {
             </div>
           </div>
           <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", "--p-color-text": "#fff", "--p-color-bg-fill": "rgba(255,255,255,0.08)", "--p-color-border": "rgba(255,255,255,0.25)" }}>
+            {/* Credits badge */}
+            <button
+              type="button"
+              onClick={() => navigate("/app/analytics")}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                border: "1px solid rgba(255,255,255,0.3)",
+                background: "rgba(255,255,255,0.1)",
+                borderRadius: 20,
+                padding: "4px 10px",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#ffffff",
+                lineHeight: 1,
+                whiteSpace: "nowrap",
+                cursor: "pointer",
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="#f59e0b">
+                <path d="M10 1L12.39 7.26L19 8.27L14.5 12.64L15.78 19.02L10 15.77L4.22 19.02L5.5 12.64L1 8.27L7.61 7.26L10 1Z"/>
+              </svg>
+              <span>{credits} credits.</span>
+              <span style={{ color: "#60d5ff" }}>Upgrade</span>
+            </button>
             <Button onClick={() => navigate(makeUrl({}))} variant="secondary" size="slim">↺ Refresh</Button>
             <Button onClick={() => navigate("/app")} variant="secondary" size="slim">← Back</Button>
-            <Button disabled variant="primary" size="slim" tone="critical">⚡ Upgrade Plan</Button>
           </div>
         </div>
       </div>
@@ -1433,19 +1472,6 @@ export default function CollectionsPage() {
                 </BlockStack>
               </BlockStack>
             </Card>
-          </div>
-
-          {/* Search Bar */}
-          <div style={{ marginBottom: "16px" }}>
-            <TextField
-              label="Search collections"
-              labelHidden
-              placeholder="Search by collection title..."
-              value={searchValue}
-              onChange={handleSearchInput}
-              autoComplete="off"
-              prefix={isSearchLoading ? <Spinner size="small" /> : undefined}
-            />
           </div>
 
           <Card padding="0">

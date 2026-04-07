@@ -890,7 +890,7 @@ const FORMAT_OPTIONS = [
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function BlogPage() {
-  const { blogs, articles, defaultAiProvider } = useLoaderData();
+  const { blogs, articles, defaultAiProvider, credits } = useLoaderData();
   const navigate = useNavigate();
   const createFetcher = useFetcher();
   const bulkFetcher = useFetcher();
@@ -1192,6 +1192,33 @@ export default function BlogPage() {
             </div>
           </div>
           <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", "--p-color-text": "#fff", "--p-color-bg-fill": "rgba(255,255,255,0.08)", "--p-color-border": "rgba(255,255,255,0.25)" }}>
+            {/* Credits badge */}
+            <button
+              type="button"
+              onClick={() => navigate("/app/analytics")}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                border: "1px solid rgba(255,255,255,0.3)",
+                background: "rgba(255,255,255,0.1)",
+                borderRadius: 20,
+                padding: "4px 10px",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#ffffff",
+                lineHeight: 1,
+                whiteSpace: "nowrap",
+                cursor: "pointer",
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 20 20" fill="#f59e0b">
+                <path d="M10 1L12.39 7.26L19 8.27L14.5 12.64L15.78 19.02L10 15.77L4.22 19.02L5.5 12.64L1 8.27L7.61 7.26L10 1Z"/>
+              </svg>
+              <span>{credits} credits.</span>
+              <span style={{ color: "#60d5ff" }}>Upgrade</span>
+            </button>
             <Button onClick={() => navigate("/app/content-management?tab=blog&filter=all")} variant="secondary" size="slim">Open Text Editor</Button>
             <Button onClick={() => navigate("/app")} variant="secondary" size="slim">Back Dashboard</Button>
           </div>
