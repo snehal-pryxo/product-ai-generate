@@ -44,6 +44,17 @@ async function ensureTables() {
   } catch (_) { /* index already exists */ }
 
   try {
+    await prisma.$executeRawUnsafe(
+      "ALTER TABLE `generated_content_logs` ADD COLUMN IF NOT EXISTS `resourceType` VARCHAR(32) NULL"
+    );
+  } catch (_) { /* column already exists */ }
+  try {
+    await prisma.$executeRawUnsafe(
+      "ALTER TABLE `generated_content_logs` ADD COLUMN IF NOT EXISTS `creditsUsed` INT NOT NULL DEFAULT 0"
+    );
+  } catch (_) { /* column already exists */ }
+
+  try {
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS \`collection_generated_contents\` (
         \`id\` BIGINT NOT NULL AUTO_INCREMENT,
@@ -80,6 +91,30 @@ async function ensureTables() {
         ON \`collection_generated_contents\`(\`shop\`, \`updatedAt\`)
     `);
   } catch (_) { /* index already exists */ }
+
+  try {
+    await prisma.$executeRawUnsafe(
+      "ALTER TABLE `collection_generated_contents` ADD COLUMN IF NOT EXISTS `creditsUsed` INT NOT NULL DEFAULT 0"
+    );
+  } catch (_) { /* column already exists */ }
+
+  try {
+    await prisma.$executeRawUnsafe(
+      "ALTER TABLE `product_generated_contents` ADD COLUMN IF NOT EXISTS `creditsUsed` INT NOT NULL DEFAULT 0"
+    );
+  } catch (_) { /* column already exists */ }
+
+  try {
+    await prisma.$executeRawUnsafe(
+      "ALTER TABLE `page_generated_contents` ADD COLUMN IF NOT EXISTS `creditsUsed` INT NOT NULL DEFAULT 0"
+    );
+  } catch (_) { /* column already exists */ }
+
+  try {
+    await prisma.$executeRawUnsafe(
+      "ALTER TABLE `blog_article_generated_contents` ADD COLUMN IF NOT EXISTS `creditsUsed` INT NOT NULL DEFAULT 0"
+    );
+  } catch (_) { /* column already exists */ }
 }
 
 // Ensure defaultAiModel and credits columns exist (migration may not have run yet)
@@ -92,6 +127,11 @@ async function ensureShopColumns() {
   try {
     await prisma.$executeRawUnsafe(
       "ALTER TABLE `shop` ADD COLUMN IF NOT EXISTS `credits` INT NOT NULL DEFAULT 100"
+    );
+  } catch (_) { /* column already exists */ }
+  try {
+    await prisma.$executeRawUnsafe(
+      "ALTER TABLE `shop` ADD COLUMN IF NOT EXISTS `creditsUsedTotal` INT NOT NULL DEFAULT 0"
     );
   } catch (_) { /* column already exists */ }
 }

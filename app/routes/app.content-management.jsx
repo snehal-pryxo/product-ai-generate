@@ -27,6 +27,7 @@ import {
   buildPageContentPrompt,
   buildBlogContentPrompt,
 } from "../lib/contentPromptTemplates";
+import { buildInsufficientCreditsError, deductCredits } from "../lib/credits.server";
 /* global process */
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -398,7 +399,7 @@ export const loader = async ({ request }) => {
 
   const shopData = await db.shop.findUnique({
     where: { shop: session.shop },
-    select: { credits: true, defaultAiProvider: true, openaiApiKey: true, anthropicApiKey: true },
+    select: { credits: true, creditsUsedTotal: true, defaultAiProvider: true, openaiApiKey: true, anthropicApiKey: true },
   });
   const credits = shopData?.credits ?? 100;
   const defaultAiProvider = shopData?.defaultAiProvider || "auto";
@@ -553,7 +554,7 @@ export const action = async ({ request }) => {
       return {
         ok: false,
         intent,
-        error: `Insufficient credits. You need ${CREDITS_PER_GENERATION} credits to generate content. Current balance: ${currentCredits}.`,
+        error: buildInsufficientCreditsError(CREDITS_PER_GENERATION, currentCredits),
       };
     }
 
@@ -611,9 +612,9 @@ export const action = async ({ request }) => {
       }
 
       // Deduct credits
-      await db.shop.update({
-        where: { shop: session.shop },
-        data: { credits: { decrement: CREDITS_PER_GENERATION } },
+      const creditSnapshot = await deductCredits({
+        shopDomain: session.shop,
+        creditsUsed: CREDITS_PER_GENERATION,
       });
 
       // Log generation
@@ -624,12 +625,14 @@ export const action = async ({ request }) => {
             productId: item.id,
             productTitle: item.title || null,
             intent: `content_management_${contentType}`,
+            resourceType: contentType === "blog" ? "blog" : contentType === "pages" ? "page" : contentType === "collections" ? "collection" : "product",
             language: "English",
             tone: "Neutral",
             aiModel: generated.aiModel || null,
             generatedDescription: descHtml || null,
             generatedSeoTitle: seoTitle || null,
             generatedSeoDescription: seoDescription || null,
+            creditsUsed: CREDITS_PER_GENERATION,
             appliedToProduct: true,
           },
         });
@@ -643,7 +646,8 @@ export const action = async ({ request }) => {
         seoTitle,
         seoDescription,
         creditsUsed: CREDITS_PER_GENERATION,
-        newCredits: currentCredits - CREDITS_PER_GENERATION,
+        newCredits: creditSnapshot.credits,
+        creditsUsedTotal: creditSnapshot.creditsUsedTotal,
       };
     } catch (err) {
       console.error("Content generation failed:", err);

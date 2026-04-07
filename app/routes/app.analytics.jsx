@@ -50,6 +50,19 @@ function buildDailyMap(startDate, endDate) {
   return map;
 }
 
+function normalizeResourceType(log) {
+  const resourceType = String(log?.resourceType || "").toLowerCase();
+  if (resourceType === "product" || resourceType === "collection" || resourceType === "page" || resourceType === "blog") {
+    return resourceType;
+  }
+
+  const intent = String(log?.intent || "").toLowerCase();
+  if (intent.includes("collection")) return "collection";
+  if (intent.includes("page")) return "page";
+  if (intent.includes("blog") || intent.includes("article")) return "blog";
+  return "product";
+}
+
 // ─── Loader ───────────────────────────────────────────────────────────────────
 
 export const loader = async ({ request }) => {
@@ -113,36 +126,84 @@ export const loader = async ({ request }) => {
   const totalWithSeo = pw + pwd + cw + cwd + pgw + pgwd + aw + awd;
   const seoScore = totalItems > 0 ? Math.round((totalWithSeo / (totalItems * 2)) * 100) : 0;
 
-  const collectionLogCount = await db.collectionGeneratedContent
-    .count({ where: { shop: session.shop } }).catch(() => 0);
-
-  const [totalProductLogs, rangeLogs, recentLogs] = await Promise.all([
+  const [shopCredits, totalLogs, allLogsAggregate, rangeLogsRaw, recentLogsRaw] = await Promise.all([
+    db.shop.findUnique({
+      where: { shop: session.shop },
+      select: { credits: true, creditsUsedTotal: true },
+    }).catch(() => null),
     db.generatedContentLog.count({ where: { shop: session.shop } }).catch(() => 0),
+    db.generatedContentLog.aggregate({
+      where: { shop: session.shop },
+      _sum: { creditsUsed: true },
+    }).catch(() => ({ _sum: { creditsUsed: 0 } })),
     db.generatedContentLog.findMany({
       where: { shop: session.shop, createdAt: { gte: startDateObj, lte: endDateObj } },
-      select: { createdAt: true, appliedToProduct: true },
+      select: {
+        id: true,
+        productTitle: true,
+        intent: true,
+        aiModel: true,
+        createdAt: true,
+        appliedToProduct: true,
+        language: true,
+        resourceType: true,
+        creditsUsed: true,
+      },
     }).catch(() => []),
     db.generatedContentLog.findMany({
       where: { shop: session.shop, createdAt: { gte: startDateObj, lte: endDateObj } },
-      orderBy: { createdAt: "desc" }, take: 10,
-      select: { id: true, productTitle: true, intent: true, aiModel: true, createdAt: true, appliedToProduct: true, language: true },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        productTitle: true,
+        intent: true,
+        aiModel: true,
+        createdAt: true,
+        appliedToProduct: true,
+        language: true,
+        resourceType: true,
+        creditsUsed: true,
+      },
     }).catch(() => []),
   ]);
 
+  const rangeLogs = rangeLogsRaw.map((log) => ({
+    ...log,
+    resourceType: normalizeResourceType(log),
+    creditsUsed: Number(log.creditsUsed || 0),
+  }));
+  const recentLogs = recentLogsRaw.map((log) => ({
+    ...log,
+    resourceType: normalizeResourceType(log),
+    creditsUsed: Number(log.creditsUsed || 0),
+  }));
+
   const dailyCounts  = buildDailyMap(startDate, endDate);
   const dailyApplied = buildDailyMap(startDate, endDate);
+  const dailyCredits = buildDailyMap(startDate, endDate);
+  const generationByResource = { product: 0, collection: 0, page: 0, blog: 0 };
   for (const log of rangeLogs) {
     const key = toDateStr(new Date(log.createdAt));
     if (key in dailyCounts) {
       dailyCounts[key]++;
+      dailyCredits[key] = (dailyCredits[key] || 0) + Number(log.creditsUsed || 0);
       if (log.appliedToProduct) dailyApplied[key]++;
     }
+    generationByResource[log.resourceType] = (generationByResource[log.resourceType] || 0) + 1;
   }
 
   const dailyActivity = Object.entries(dailyCounts).map(([date, count]) => ({
-    date, count, applied: dailyApplied[date] || 0,
+    date,
+    count,
+    applied: dailyApplied[date] || 0,
+    creditsUsed: dailyCredits[date] || 0,
     label: new Date(date + "T12:00:00").toLocaleDateString("en-GB"),
   }));
+
+  const creditsUsedInRange = rangeLogs.reduce((sum, log) => sum + Number(log.creditsUsed || 0), 0);
+  const creditsUsedAllTime = Number(shopCredits?.creditsUsedTotal ?? allLogsAggregate?._sum?.creditsUsed ?? 0);
+  const creditsBalance = Number(shopCredits?.credits ?? 100);
 
   return {
     products:    { total: products.length,    withSeoTitle: pw,  withSeoDesc: pwd },
@@ -150,8 +211,12 @@ export const loader = async ({ request }) => {
     pages:       { total: pages.length,       withSeoTitle: pgw, withSeoDesc: pgwd },
     articles:    { total: articles.length,    withSeoTitle: aw,  withSeoDesc: awd },
     seoScore,
-    totalGenerations: totalProductLogs + collectionLogCount,
+    totalGenerations: totalLogs,
     rangeGenerations: rangeLogs.length,
+    creditsBalance,
+    creditsUsedAllTime,
+    creditsUsedInRange,
+    generationByResource,
     recentLogs: recentLogs.map(l => ({ ...l, id: l.id.toString(), createdAt: l.createdAt.toISOString() })),
     dailyActivity,
     rangeParam, startDate, endDate, rangeLabel,
@@ -775,7 +840,9 @@ function DayDetailPanel({ date, recentLogs }) {
               <div key={log.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: i % 2 === 0 ? "#FAFAFA" : "white", gap: 10, flexWrap: "wrap" }}>
                 <Text variant="bodySm" fontWeight="semibold" as="span">{log.productTitle || "Untitled"}</Text>
                 <InlineStack gap="100" blockAlign="center">
+                  <Badge tone="info">{log.resourceType}</Badge>
                   <Badge>{log.intent?.replace(/_/g, " ")}</Badge>
+                  <Badge tone="attention">{Number(log.creditsUsed || 0)} credits</Badge>
                   {log.appliedToProduct && <Badge tone="success">Applied</Badge>}
                   <Text variant="bodySm" tone="subdued" as="span">
                     {new Date(log.createdAt).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}
@@ -797,12 +864,18 @@ const INTENT_LABEL = {
   generate_seo_title: "SEO Title",
   generate_seo_description: "SEO Description",
   generate_all: "Full Content",
+  product_bulk_generate: "Product Bulk Generate",
+  collection_bulk_generate: "Collection Bulk Generate",
+  page_bulk_generate: "Page Bulk Generate",
+  blog_bulk_generate: "Blog Bulk Generate",
+  blog_create_article: "Create Blog Article",
 };
 
 export default function AnalyticsPage() {
   const {
     products, collections, pages, articles,
     seoScore, totalGenerations, rangeGenerations,
+    creditsBalance, creditsUsedAllTime, creditsUsedInRange, generationByResource,
     recentLogs, dailyActivity,
     rangeParam, startDate, endDate, rangeLabel,
   } = useLoaderData();
@@ -865,7 +938,7 @@ export default function AnalyticsPage() {
               { label: "Total Content",   value: storeTotal,          icon: "🗃️",  accent: "rgba(59,130,246,0.35)"  },
               { label: "SEO Coverage",    value: seoScore + "%",      icon: "🎯",  accent: "rgba(0,179,116,0.35)",  color: coverageColor },
               { label: "AI Generations",  value: totalGenerations,    icon: "⚡",  accent: "rgba(234,179,8,0.3)"   },
-              { label: "Active Days",     value: activeDays,          icon: "📅",  accent: "rgba(168,85,247,0.3)"  },
+              { label: "Credits Left",    value: creditsBalance,      icon: "💳",  accent: "rgba(168,85,247,0.3)"  },
             ].map(({ label, value, icon, accent, color }) => (
               <div key={label} style={{ flex: "1 1 120px", background: accent, border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px", padding: "12px 16px", backdropFilter: "blur(4px)" }}>
                 <div style={{ fontSize: "18px", marginBottom: "4px" }}>{icon}</div>
@@ -882,10 +955,10 @@ export default function AnalyticsPage() {
         {/* KPI Row */}
         <Grid>
           {[
-            { icon: FolderIcon,      sub: "Items across store",  val: storeTotal,       label: "Total Content"  },
-            { icon: TargetIcon,      sub: "Average coverage",    val: seoScore + "%",   label: "SEO Coverage", color: coverageColor },
-            { icon: AutomationIcon,  sub: "All-time total",      val: totalGenerations, label: "AI Generations" },
-            { icon: CalendarIcon,    sub: rangeLabel,            val: rangeGenerations, label: "In Range"       },
+            { icon: FolderIcon,      sub: "Items across store",  val: storeTotal,         label: "Total Content"  },
+            { icon: TargetIcon,      sub: "Average coverage",    val: seoScore + "%",     label: "SEO Coverage", color: coverageColor },
+            { icon: AutomationIcon,  sub: "All-time total",      val: totalGenerations,   label: "AI Generations" },
+            { icon: CalendarIcon,    sub: rangeLabel,            val: creditsUsedInRange, label: "Credits Used"   },
           ].map(({ icon, sub, val, label, color }) => (
             <Grid.Cell key={label} columnSpan={{ xs: 6, sm: 6, md: 3, lg: 3, xl: 3 }}>
               <Card>
@@ -1025,12 +1098,29 @@ export default function AnalyticsPage() {
                 <BlockStack gap="300">
                   {[
                     { label: rangeLabel,         val: rangeGenerations },
+                    { label: `${rangeLabel} credits`, val: creditsUsedInRange },
+                    { label: "All-time credits", val: creditsUsedAllTime },
+                    { label: "Credits left",     val: creditsBalance },
                     { label: "Best single day",  val: bestDay },
                     { label: "Active days",      val: `${activeDays} / ${dailyActivity.length}` },
                   ].map(({ label, val }) => (
                     <InlineStack key={label} align="space-between">
                       <Text variant="bodySm" as="span">{label}</Text>
                       <Text variant="bodyMd" fontWeight="semibold" as="span">{val}</Text>
+                    </InlineStack>
+                  ))}
+                </BlockStack>
+                <Divider />
+                <BlockStack gap="200">
+                  {[
+                    { label: "Products", val: generationByResource.product || 0 },
+                    { label: "Collections", val: generationByResource.collection || 0 },
+                    { label: "Pages", val: generationByResource.page || 0 },
+                    { label: "Blogs", val: generationByResource.blog || 0 },
+                  ].map(({ label, val }) => (
+                    <InlineStack key={label} align="space-between">
+                      <Text variant="bodySm" tone="subdued" as="span">{label}</Text>
+                      <Text variant="bodySm" fontWeight="semibold" as="span">{val}</Text>
                     </InlineStack>
                   ))}
                 </BlockStack>
@@ -1053,9 +1143,11 @@ export default function AnalyticsPage() {
                       <div key={log.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: i % 2 === 0 ? "#FAFAFA" : "white", gap: 12, flexWrap: "wrap" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
                           <Text variant="bodyMd" fontWeight="semibold" as="span">{log.productTitle || "Untitled"}</Text>
+                          <Badge tone="info">{log.resourceType}</Badge>
                           <Badge>{INTENT_LABEL[log.intent] || log.intent}</Badge>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                          <Badge tone="attention">{Number(log.creditsUsed || 0)} credits</Badge>
                           <Text variant="bodySm" tone="subdued" as="span">
                             {new Date(log.createdAt).toLocaleDateString("en", { month: "short", day: "numeric" })}
                           </Text>

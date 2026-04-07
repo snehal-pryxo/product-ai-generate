@@ -37,6 +37,13 @@ import {
   PRODUCT_META_DESCRIPTION_TEMPLATES,
   PRODUCT_META_TITLE_TEMPLATES,
 } from "../lib/productPromptTemplateLibrary";
+import {
+  buildInsufficientCreditsError,
+  creditsForBatch,
+  creditsForContentTypes,
+  deductCredits,
+  parseSelectedContentTypes,
+} from "../lib/credits.server";
 /* global process */
 
 const FETCH_BATCH_SIZE = 250;
@@ -45,6 +52,8 @@ const BULK_GENERATE_INTENT = "bulk_generate";
 const MAX_BULK_ITEMS = 50;
 const MIN_BULK_PRODUCT_SELECTION_ERROR = "Select at least one product for bulk generation.";
 const MAX_BULK_PRODUCT_SELECTION_ERROR = `You can bulk generate up to ${MAX_BULK_ITEMS} products at a time.`;
+const PRODUCT_CONTENT_TYPES = ["description", "meta_title", "meta_description"];
+const DEFAULT_PRODUCT_CONTENT_TYPES = ["description", "meta_title", "meta_description"];
 const DEFAULT_AI_MODEL = "gpt-4o-mini";
 const DEFAULT_OLLAMA_MODEL = "llama3.2:1b";
 const DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434";
@@ -736,7 +745,7 @@ export const action = async ({ request }) => {
 
   const shopData = await db.shop.findUnique({
     where: { shop: session.shop },
-    select: { openaiApiKey: true, anthropicApiKey: true },
+    select: { openaiApiKey: true, anthropicApiKey: true, credits: true, creditsUsedTotal: true },
   });
 
   try {
@@ -762,6 +771,25 @@ export const action = async ({ request }) => {
       const metaTitlePromptTemplate = readFormString(formData, "metaTitlePromptTemplate");
       const metaDescriptionPromptTemplate = readFormString(formData, "metaDescriptionPromptTemplate");
       const aiProvider = readFormString(formData, "aiProvider") || "auto";
+      const selectedContentTypes = parseSelectedContentTypes(
+        formData.get("contentTypes"),
+        PRODUCT_CONTENT_TYPES,
+        DEFAULT_PRODUCT_CONTENT_TYPES,
+      );
+      const shouldUpdateDescription = selectedContentTypes.includes("description");
+      const shouldUpdateMetaTitle = selectedContentTypes.includes("meta_title");
+      const shouldUpdateMetaDescription = selectedContentTypes.includes("meta_description");
+      const creditsPerItem = creditsForContentTypes(selectedContentTypes);
+      const availableCredits = shopData?.credits ?? 100;
+      const requiredCredits = creditsForBatch(selectedContentTypes, bulkProducts.length);
+
+      if (availableCredits < requiredCredits) {
+        return {
+          ok: false,
+          intent,
+          error: buildInsufficientCreditsError(requiredCredits, availableCredits),
+        };
+      }
 
       const results = await Promise.allSettled(
         bulkProducts.map(async (p) => {
@@ -779,7 +807,11 @@ export const action = async ({ request }) => {
               descriptionPromptTemplate,
               metaTitlePromptTemplate,
               metaDescriptionPromptTemplate,
-              intent: "all",
+              intent: shouldUpdateMetaTitle && !shouldUpdateDescription && !shouldUpdateMetaDescription
+                ? "seo_title"
+                : !shouldUpdateMetaTitle && !shouldUpdateDescription && shouldUpdateMetaDescription
+                  ? "seo_description"
+                  : "all",
             },
             {
               aiProvider,
@@ -788,11 +820,17 @@ export const action = async ({ request }) => {
             },
           );
 
-          const nextDescription = generated.productDescription
-            ? normalizeGeneratedHtml(generated.productDescription)
+          const nextDescription = shouldUpdateDescription
+            ? (generated.productDescription
+              ? normalizeGeneratedHtml(generated.productDescription)
+              : p.descriptionHtml || "")
             : p.descriptionHtml || "";
-          const nextSeoTitle = generated.seoTitle || p.seoTitleValue || "";
-          const nextSeoDescription = generated.seoDescription || p.seoDescriptionValue || "";
+          const nextSeoTitle = shouldUpdateMetaTitle
+            ? (generated.seoTitle || p.seoTitleValue || "")
+            : (p.seoTitleValue || "");
+          const nextSeoDescription = shouldUpdateMetaDescription
+            ? (generated.seoDescription || p.seoDescriptionValue || "")
+            : (p.seoDescriptionValue || "");
 
           const updateRes = await admin.graphql(PRODUCT_UPDATE_MUTATION, {
             variables: {
@@ -811,7 +849,8 @@ export const action = async ({ request }) => {
             shop: session.shop,
             productId: p.id,
             productTitle: p.title || null,
-            intent: BULK_GENERATE_INTENT,
+            intent: "product_bulk_generate",
+            resourceType: "product",
             language: language || null,
             tone: tone || null,
             lengthOption: lengthOption || null,
@@ -821,6 +860,7 @@ export const action = async ({ request }) => {
             generatedDescription: nextDescription || null,
             generatedSeoTitle: nextSeoTitle || null,
             generatedSeoDescription: nextSeoDescription || null,
+            creditsUsed: creditsPerItem,
             appliedToProduct: true,
           });
 
@@ -840,6 +880,7 @@ export const action = async ({ request }) => {
             descriptionHtml: nextDescription || null,
             seoTitle: nextSeoTitle || null,
             seoDescription: nextSeoDescription || null,
+            creditsUsed: creditsPerItem,
             appliedToProduct: true,
           });
 
@@ -849,6 +890,21 @@ export const action = async ({ request }) => {
 
       const succeeded = results.filter((r) => r.status === "fulfilled").length;
       const failed = results.filter((r) => r.status === "rejected").length;
+      const creditsUsed = succeeded * creditsPerItem;
+      let newCredits = availableCredits;
+      let creditsUsedTotal = shopData?.creditsUsedTotal ?? 0;
+      let creditWarning = null;
+
+      if (creditsUsed > 0) {
+        try {
+          const creditSnapshot = await deductCredits({ shopDomain: session.shop, creditsUsed });
+          newCredits = creditSnapshot.credits;
+          creditsUsedTotal = creditSnapshot.creditsUsedTotal;
+        } catch (creditError) {
+          creditWarning = creditError?.message || "Credits could not be updated automatically.";
+        }
+      }
+
       const itemResults = results.map((r, i) => ({
         id: bulkProducts[i].id,
         title: bulkProducts[i].title,
@@ -857,7 +913,20 @@ export const action = async ({ request }) => {
         seoTitle: r.status === "fulfilled" ? r.value.seoTitle : null,
         seoDescription: r.status === "fulfilled" ? r.value.seoDescription : null,
       }));
-      return { ok: true, intent, succeeded, failed, total: bulkProducts.length, results: itemResults };
+      return {
+        ok: true,
+        intent,
+        succeeded,
+        failed,
+        total: bulkProducts.length,
+        results: itemResults,
+        contentTypes: selectedContentTypes,
+        creditsPerItem,
+        creditsUsed,
+        newCredits,
+        creditsUsedTotal,
+        creditWarning,
+      };
     }
 
     return { ok: false, intent, error: "Unsupported action." };
@@ -875,7 +944,7 @@ export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const shopData = await db.shop.findUnique({
     where: { shop: session.shop },
-    select: { openaiApiKey: true, anthropicApiKey: true, defaultAiProvider: true },
+    select: { openaiApiKey: true, anthropicApiKey: true, defaultAiProvider: true, credits: true, creditsUsedTotal: true },
   });
   const url = new URL(request.url);
 
@@ -947,6 +1016,8 @@ export const loader = async ({ request }) => {
       hasOpenaiKey: !!(shopData?.openaiApiKey || process.env.OPENAI_API_KEY),
       hasAnthropicKey: !!(shopData?.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
       defaultAiProvider: shopData?.defaultAiProvider || "auto",
+      credits: shopData?.credits ?? 100,
+      creditsUsedTotal: shopData?.creditsUsedTotal ?? 0,
     };
   }
   const generatedContentByProductId = new Map();
@@ -996,6 +1067,8 @@ export const loader = async ({ request }) => {
     hasOpenaiKey: !!(shopData?.openaiApiKey || process.env.OPENAI_API_KEY),
     hasAnthropicKey: !!(shopData?.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
     defaultAiProvider: shopData?.defaultAiProvider || "auto",
+    credits: shopData?.credits ?? 100,
+    creditsUsedTotal: shopData?.creditsUsedTotal ?? 0,
   };
 };
 
@@ -1151,6 +1224,7 @@ export default function ProductsPage() {
     payload.append("descriptionPromptTemplate", bulkDescTemplate || "");
     payload.append("metaTitlePromptTemplate", bulkMetaTitleTemplate || "");
     payload.append("metaDescriptionPromptTemplate", bulkMetaDescTemplate || "");
+    payload.append("contentTypes", JSON.stringify(bulkContentTypes));
     payload.append("aiProvider", bulkSettings.aiProvider);
     bulkFetcher.submit(payload, { method: "post" });
   }, [
@@ -1160,6 +1234,7 @@ export default function ProductsPage() {
     bulkDescTemplate,
     bulkMetaDescTemplate,
     bulkMetaTitleTemplate,
+    bulkContentTypes,
     bulkFetcher,
     bulkSettings,
     selectedProducts,
@@ -1180,7 +1255,11 @@ export default function ProductsPage() {
     if (response.ok) {
       setBulkValidationMessage(null);
       revalidator.revalidate();
-      shopify.toast.show(`Bulk generate complete: ${response.succeeded}/${response.total} updated.`);
+      const creditsMessage =
+        typeof response.creditsUsed === "number"
+          ? ` ${response.creditsUsed} credits used${typeof response.newCredits === "number" ? `. Remaining: ${response.newCredits}` : ""}.`
+          : "";
+      shopify.toast.show(`Bulk generate complete: ${response.succeeded}/${response.total} updated.${creditsMessage}`);
       return;
     }
     setBulkValidationMessage(response.error || "Bulk generation failed.");
@@ -1612,7 +1691,7 @@ export default function ProductsPage() {
                 <BlockStack gap="050">
                   <Text as="h2" variant="headingMd" fontWeight="bold">Generation Results</Text>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    {bulkResult.succeeded} product{bulkResult.succeeded !== 1 ? "s" : ""} updated · {bulkResult.failed > 0 ? `${bulkResult.failed} failed · ` : ""}{bulkResult.total} AI credits used
+                    {bulkResult.succeeded} product{bulkResult.succeeded !== 1 ? "s" : ""} updated · {bulkResult.failed > 0 ? `${bulkResult.failed} failed · ` : ""}{bulkResult.creditsUsed ?? 0} AI credits used
                   </Text>
                 </BlockStack>
                 <Badge tone={bulkResult.failed > 0 ? "warning" : "success"}>

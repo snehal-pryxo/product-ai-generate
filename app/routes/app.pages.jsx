@@ -13,6 +13,13 @@ import {
   PAGE_META_TITLE_TEMPLATES,
 } from "../lib/pagePromptTemplateLibrary";
 import {
+  buildInsufficientCreditsError,
+  creditsForBatch,
+  creditsForContentTypes,
+  deductCredits,
+  parseSelectedContentTypes,
+} from "../lib/credits.server";
+import {
   Page,
   Card,
   BlockStack,
@@ -25,6 +32,9 @@ import {
   IndexTable,
   useIndexResourceState,
 } from "@shopify/polaris";
+
+const PAGE_CONTENT_TYPES = ["body", "meta_title", "meta_description"];
+const DEFAULT_PAGE_CONTENT_TYPES = ["body", "meta_title", "meta_description"];
 
 // ─── GraphQL ────────────────────────────────────────────────────────────────
 
@@ -217,6 +227,14 @@ async function upsertPageContent(data) {
   }
 }
 
+async function writeGenerationLog(data) {
+  try {
+    await db.generatedContentLog.create({ data });
+  } catch (error) {
+    console.error("Failed to store page generation log", error);
+  }
+}
+
 // ─── Loader ──────────────────────────────────────────────────────────────────
 
 export const loader = async ({ request }) => {
@@ -253,7 +271,7 @@ export const loader = async ({ request }) => {
   // Fetch shop API keys
   const shopData = await db.shop.findUnique({
     where: { shop: session.shop },
-    select: { openaiApiKey: true, anthropicApiKey: true, defaultAiProvider: true },
+    select: { openaiApiKey: true, anthropicApiKey: true, defaultAiProvider: true, credits: true, creditsUsedTotal: true },
   });
 
   return {
@@ -261,6 +279,8 @@ export const loader = async ({ request }) => {
     hasOpenaiKey: !!shopData?.openaiApiKey,
     hasAnthropicKey: !!shopData?.anthropicApiKey,
     defaultAiProvider: shopData?.defaultAiProvider || "auto",
+    credits: shopData?.credits ?? 100,
+    creditsUsedTotal: shopData?.creditsUsedTotal ?? 0,
   };
 };
 
@@ -284,11 +304,29 @@ export const action = async ({ request }) => {
     const metaTitlePromptTemplate = formData.get("metaTitlePromptTemplate") || "";
     const metaDescriptionPromptTemplate = formData.get("metaDescriptionPromptTemplate") || "";
     const aiProvider = formData.get("aiProvider") || "auto";
+    const selectedContentTypes = parseSelectedContentTypes(
+      formData.get("contentTypes"),
+      PAGE_CONTENT_TYPES,
+      DEFAULT_PAGE_CONTENT_TYPES,
+    );
+    const shouldUpdateBody = selectedContentTypes.includes("body");
+    const shouldUpdateMetaTitle = selectedContentTypes.includes("meta_title");
+    const shouldUpdateMetaDescription = selectedContentTypes.includes("meta_description");
+    const creditsPerItem = creditsForContentTypes(selectedContentTypes);
 
     const shopData = await db.shop.findUnique({
       where: { shop: session.shop },
-      select: { openaiApiKey: true, anthropicApiKey: true },
+      select: { openaiApiKey: true, anthropicApiKey: true, credits: true, creditsUsedTotal: true },
     });
+    const availableCredits = shopData?.credits ?? 100;
+    const requiredCredits = creditsForBatch(selectedContentTypes, bulkPages.length);
+    if (availableCredits < requiredCredits) {
+      return {
+        success: false,
+        intent,
+        error: buildInsufficientCreditsError(requiredCredits, availableCredits),
+      };
+    }
 
     const results = await Promise.allSettled(
       bulkPages.map(async (p) => {
@@ -316,7 +354,15 @@ export const action = async ({ request }) => {
           const match = raw.match(/\{[\s\S]*\}/);
           if (match) parsed = JSON.parse(match[0]);
         } catch { parsed.pageBody = raw; }
-        const nextBody = normalizeGeneratedHtml(parsed.pageBody || p.body || "");
+        const nextBody = shouldUpdateBody
+          ? normalizeGeneratedHtml(parsed.pageBody || p.body || "")
+          : p.body || "";
+        const nextSeoTitle = shouldUpdateMetaTitle
+          ? String(parsed.seoTitle || "").trim()
+          : String(p.seoTitleValue || "").trim();
+        const nextSeoDescription = shouldUpdateMetaDescription
+          ? String(parsed.seoDescription || "").trim()
+          : String(p.seoDescriptionValue || "").trim();
 
         const response = await admin.graphql(PAGE_UPDATE_MUTATION, {
           variables: {
@@ -324,8 +370,8 @@ export const action = async ({ request }) => {
             page: {
               body: nextBody,
               metafields: [
-                { namespace: "global", key: "title_tag", value: parsed.seoTitle || "", type: "single_line_text_field" },
-                { namespace: "global", key: "description_tag", value: parsed.seoDescription || "", type: "single_line_text_field" },
+                { namespace: "global", key: "title_tag", value: nextSeoTitle, type: "single_line_text_field" },
+                { namespace: "global", key: "description_tag", value: nextSeoDescription, type: "single_line_text_field" },
               ],
             },
           },
@@ -349,17 +395,52 @@ export const action = async ({ request }) => {
           metaDescriptionPromptTemplate: metaDescriptionPromptTemplate || null,
           aiModel: aiProvider || null,
           bodyHtml: nextBody || null,
-          seoTitle: parsed.seoTitle || null,
-          seoDescription: parsed.seoDescription || null,
+          seoTitle: nextSeoTitle || null,
+          seoDescription: nextSeoDescription || null,
+          creditsUsed: creditsPerItem,
           appliedToPage: true,
         });
 
-        return { id: p.id, title: p.title, seoTitle: parsed.seoTitle, seoDescription: parsed.seoDescription };
+        await writeGenerationLog({
+          shop: session.shop,
+          productId: p.id,
+          productTitle: p.title || null,
+          intent: "page_bulk_generate",
+          resourceType: "page",
+          language: language || null,
+          tone: tone || null,
+          lengthOption: length || null,
+          formatOption: format || null,
+          contextKeywords: contextKeywords || null,
+          aiModel: aiProvider || null,
+          generatedDescription: nextBody || null,
+          generatedSeoTitle: nextSeoTitle || null,
+          generatedSeoDescription: nextSeoDescription || null,
+          creditsUsed: creditsPerItem,
+          appliedToProduct: true,
+        });
+
+        return { id: p.id, title: p.title, seoTitle: nextSeoTitle, seoDescription: nextSeoDescription };
       })
     );
 
     const succeeded = results.filter((r) => r.status === "fulfilled").length;
     const failed = results.filter((r) => r.status === "rejected").length;
+    const creditsUsed = succeeded * creditsPerItem;
+    let newCredits = availableCredits;
+    let creditsUsedTotal = shopData?.creditsUsedTotal ?? 0;
+    let creditWarning = null;
+
+    if (creditsUsed > 0) {
+      try {
+        const creditSnapshot = await deductCredits({ shopDomain: session.shop, creditsUsed });
+        newCredits = creditSnapshot.credits;
+        creditsUsedTotal = creditSnapshot.creditsUsedTotal;
+      } catch (creditError) {
+        creditWarning = creditError?.message || "Credits could not be updated automatically.";
+      }
+    }
+
     const itemResults = results.map((r, i) => ({
       id: bulkPages[i].id,
       title: bulkPages[i].title,
@@ -368,7 +449,20 @@ export const action = async ({ request }) => {
       seoTitle: r.status === "fulfilled" ? r.value.seoTitle : null,
       seoDescription: r.status === "fulfilled" ? r.value.seoDescription : null,
     }));
-    return { success: true, intent, succeeded, failed, total: bulkPages.length, results: itemResults };
+    return {
+      success: true,
+      intent,
+      succeeded,
+      failed,
+      total: bulkPages.length,
+      results: itemResults,
+      contentTypes: selectedContentTypes,
+      creditsPerItem,
+      creditsUsed,
+      newCredits,
+      creditsUsedTotal,
+      creditWarning,
+    };
   }
 
   if (intent === "update_page") {
@@ -487,9 +581,10 @@ export default function PagesPage() {
       length: gs.length || "medium",
       format: "paragraphs",
       pageType: "About Us",
+      aiProvider: gs.aiProvider || defaultAiProvider || "auto",
     };
   });
-  const [bulkContentTypes, setBulkContentTypes] = useState(["body", "meta_title", "meta_description"]);
+  const [bulkContentTypes, setBulkContentTypes] = useState(["body"]);
   const [bulkResult, setBulkResult] = useState(null);
   const [bulkValidationMessage, setBulkValidationMessage] = useState(null);
   const [bulkBodyTemplate, setBulkBodyTemplate] = useState("");
@@ -522,7 +617,13 @@ export default function PagesPage() {
     const selectedPages = pages.filter((p) => selectedResources.includes(p.id));
     const fd = new FormData();
     fd.append("intent", "bulk_generate_pages");
-    fd.append("pages", JSON.stringify(selectedPages.map((p) => ({ id: p.id, title: p.title, body: p.body || "" }))));
+    fd.append("pages", JSON.stringify(selectedPages.map((p) => ({
+      id: p.id,
+      title: p.title,
+      body: p.body || "",
+      seoTitleValue: p.seo?.title || "",
+      seoDescriptionValue: p.seo?.description || "",
+    }))));
     fd.append("language", readGlobalSettings().language || "English");
     fd.append("tone", bulkSettings.tone);
     fd.append("length", bulkSettings.length);
@@ -535,6 +636,8 @@ export default function PagesPage() {
     fd.append("bodyPromptTemplate", bulkBodyTemplate || "");
     fd.append("metaTitlePromptTemplate", bulkMetaTitleTemplate || "");
     fd.append("metaDescriptionPromptTemplate", bulkMetaDescTemplate || "");
+    fd.append("contentTypes", JSON.stringify(bulkContentTypes));
+    fd.append("aiProvider", bulkSettings.aiProvider || defaultAiProvider || "auto");
     bulkFetcher.submit(fd, { method: "post" });
   }
 
@@ -543,7 +646,11 @@ export default function PagesPage() {
     if (!data || bulkFetcher.state !== "idle") return;
     if (data.success) {
       setBulkResult(data);
-      shopify.toast.show(`Generated ${data.succeeded}/${data.total} pages successfully.`);
+      const creditsMessage =
+        typeof data.creditsUsed === "number"
+          ? ` ${data.creditsUsed} credits used${typeof data.newCredits === "number" ? `. Remaining: ${data.newCredits}` : ""}.`
+          : "";
+      shopify.toast.show(`Generated ${data.succeeded}/${data.total} pages successfully.${creditsMessage}`);
     } else {
       setBulkValidationMessage(data.error || "Bulk generation failed.");
     }
@@ -801,7 +908,7 @@ export default function PagesPage() {
               <BlockStack gap="050">
                 <Text as="h2" variant="headingMd" fontWeight="bold">Generation Results</Text>
                 <Text as="p" variant="bodySm" tone="subdued">
-                  {bulkResult.succeeded} page{bulkResult.succeeded !== 1 ? "s" : ""} updated · {bulkResult.failed > 0 ? `${bulkResult.failed} failed · ` : ""}{bulkResult.total} AI credits used
+                  {bulkResult.succeeded} page{bulkResult.succeeded !== 1 ? "s" : ""} updated · {bulkResult.failed > 0 ? `${bulkResult.failed} failed · ` : ""}{bulkResult.creditsUsed ?? 0} AI credits used
                 </Text>
               </BlockStack>
             </div>

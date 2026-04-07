@@ -1,0 +1,103 @@
+import db from "../db.server";
+
+export const DEFAULT_FREE_CREDITS = 100;
+export const CREDITS_PER_CONTENT_FIELD = 1;
+export const FULL_CONTENT_TYPES = ["description", "meta_title", "meta_description"];
+
+function unique(values) {
+  return Array.from(new Set(values));
+}
+
+export function parseSelectedContentTypes(rawValue, allowedTypes, fallbackTypes) {
+  let parsed = [];
+  if (typeof rawValue === "string" && rawValue.trim()) {
+    try {
+      const input = JSON.parse(rawValue);
+      if (Array.isArray(input)) {
+        parsed = input;
+      }
+    } catch {
+      parsed = [];
+    }
+  }
+
+  const allowed = new Set(allowedTypes);
+  const normalized = unique(
+    parsed
+      .map((value) => String(value || "").trim().toLowerCase())
+      .filter((value) => allowed.has(value)),
+  );
+
+  if (normalized.length > 0) {
+    return normalized;
+  }
+  return [...fallbackTypes];
+}
+
+export function creditsForContentTypes(contentTypes) {
+  return (contentTypes?.length || 0) * CREDITS_PER_CONTENT_FIELD;
+}
+
+export function creditsForBatch(contentTypes, itemsCount) {
+  if (!itemsCount || itemsCount < 1) return 0;
+  return creditsForContentTypes(contentTypes) * itemsCount;
+}
+
+export async function getOrCreateShopCredits(shopDomain) {
+  const row = await db.shop.upsert({
+    where: { shop: shopDomain },
+    update: {},
+    create: {
+      shop: shopDomain,
+      credits: DEFAULT_FREE_CREDITS,
+      creditsUsedTotal: 0,
+    },
+    select: {
+      credits: true,
+      creditsUsedTotal: true,
+    },
+  });
+
+  return {
+    credits: row?.credits ?? DEFAULT_FREE_CREDITS,
+    creditsUsedTotal: row?.creditsUsedTotal ?? 0,
+  };
+}
+
+export function buildInsufficientCreditsError(requiredCredits, currentCredits) {
+  return `Insufficient credits. You need ${requiredCredits} credits. Current balance: ${currentCredits}.`;
+}
+
+export async function deductCredits({ shopDomain, creditsUsed }) {
+  if (!creditsUsed || creditsUsed <= 0) {
+    return getOrCreateShopCredits(shopDomain);
+  }
+
+  await getOrCreateShopCredits(shopDomain);
+
+  const updated = await db.shop.updateMany({
+    where: {
+      shop: shopDomain,
+      credits: { gte: creditsUsed },
+    },
+    data: {
+      credits: { decrement: creditsUsed },
+      creditsUsedTotal: { increment: creditsUsed },
+    },
+  });
+
+  if (updated.count === 0) {
+    const snapshot = await getOrCreateShopCredits(shopDomain);
+    throw new Error(buildInsufficientCreditsError(creditsUsed, snapshot.credits));
+  }
+
+  const snapshot = await db.shop.findUnique({
+    where: { shop: shopDomain },
+    select: { credits: true, creditsUsedTotal: true },
+  });
+
+  return {
+    credits: snapshot?.credits ?? 0,
+    creditsUsedTotal: snapshot?.creditsUsedTotal ?? 0,
+  };
+}

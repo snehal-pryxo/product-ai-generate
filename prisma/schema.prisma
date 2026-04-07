@@ -54,6 +54,7 @@ model shop {
   defaultAiProvider       String?   @default("auto") @db.VarChar(32)
   defaultAiModel          String?   @default("gpt-4o-mini") @db.VarChar(100)
   credits                 Int       @default(100)
+  creditsUsedTotal        Int       @default(0)
   globalSettingsJson      String?   @db.LongText
   templateSelectionsJson  String?   @db.LongText
   customPromptTemplatesJson String? @db.LongText
@@ -65,6 +66,7 @@ model GeneratedContentLog {
   productId              String
   productTitle           String?
   intent                 String
+  resourceType           String?   @db.VarChar(32)
   language               String?
   tone                   String?
   lengthOption           String?
@@ -74,6 +76,7 @@ model GeneratedContentLog {
   generatedDescription   String?   @db.LongText
   generatedSeoTitle      String?
   generatedSeoDescription String?  @db.Text
+  creditsUsed            Int       @default(0)
   appliedToProduct       Boolean   @default(false)
   createdAt              DateTime  @default(now())
 
@@ -98,6 +101,7 @@ model ProductGeneratedContent {
   descriptionHtml String?  @db.LongText
   seoTitle        String?
   seoDescription  String?  @db.Text
+  creditsUsed     Int      @default(0)
   appliedToProduct Boolean @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -125,6 +129,7 @@ model PageGeneratedContent {
   bodyHtml        String?  @db.LongText
   seoTitle        String?
   seoDescription  String?  @db.Text
+  creditsUsed     Int      @default(0)
   appliedToPage   Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -161,6 +166,7 @@ model BlogArticleGeneratedContent {
   bodyHtml         String?  @db.LongText
   seoTitle         String?
   seoDescription   String?  @db.Text
+  creditsUsed      Int      @default(0)
   isPublished      Boolean  @default(false)
   appliedToShopify Boolean  @default(false)
   createdAt        DateTime @default(now())
@@ -188,6 +194,7 @@ model CollectionGeneratedContent {
   descriptionHtml   String?  @db.LongText
   seoTitle          String?
   seoDescription    String?  @db.Text
+  creditsUsed       Int      @default(0)
   appliedToCollection Boolean @default(false)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

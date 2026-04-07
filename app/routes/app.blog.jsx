@@ -13,6 +13,13 @@ import {
   BLOG_META_TITLE_TEMPLATES,
 } from "../lib/blogPromptTemplateLibrary";
 import {
+  buildInsufficientCreditsError,
+  creditsForBatch,
+  creditsForContentTypes,
+  deductCredits,
+  parseSelectedContentTypes,
+} from "../lib/credits.server";
+import {
   Page,
   Card,
   BlockStack,
@@ -104,6 +111,9 @@ const ARTICLE_CREATE_MUTATION = `#graphql
 `;
 
 const MAX_INLINE_IMAGE_SIZE_BYTES = 2 * 1024 * 1024;
+const BLOG_CONTENT_TYPES = ["body", "meta_title", "meta_description"];
+const DEFAULT_BLOG_CONTENT_TYPES = ["body", "meta_title", "meta_description"];
+const BLOG_CREATE_CREDITS = 3;
 
 // ─── AI helpers ───────────────────────────────────────────────────────────────
 
@@ -287,6 +297,14 @@ async function upsertBlogArticleContent(data) {
   }
 }
 
+async function writeGenerationLog(data) {
+  try {
+    await db.generatedContentLog.create({ data });
+  } catch (error) {
+    console.error("Failed to store blog generation log", error);
+  }
+}
+
 // ─── Loader ───────────────────────────────────────────────────────────────────
 
 export const loader = async ({ request }) => {
@@ -330,7 +348,7 @@ export const loader = async ({ request }) => {
 
   const shopData = await db.shop.findUnique({
     where: { shop: session.shop },
-    select: { openaiApiKey: true, anthropicApiKey: true, defaultAiProvider: true },
+    select: { openaiApiKey: true, anthropicApiKey: true, defaultAiProvider: true, credits: true, creditsUsedTotal: true },
   });
 
   return {
@@ -339,6 +357,8 @@ export const loader = async ({ request }) => {
     hasOpenaiKey: !!shopData?.openaiApiKey,
     hasAnthropicKey: !!shopData?.anthropicApiKey,
     defaultAiProvider: shopData?.defaultAiProvider || "auto",
+    credits: shopData?.credits ?? 100,
+    creditsUsedTotal: shopData?.creditsUsedTotal ?? 0,
   };
 };
 
@@ -427,8 +447,16 @@ export const action = async ({ request }) => {
 
     const shopData = await db.shop.findUnique({
       where: { shop: session.shop },
-      select: { openaiApiKey: true, anthropicApiKey: true },
+      select: { openaiApiKey: true, anthropicApiKey: true, credits: true, creditsUsedTotal: true },
     });
+    const availableCredits = shopData?.credits ?? 100;
+    if (availableCredits < BLOG_CREATE_CREDITS) {
+      return {
+        success: false,
+        intent,
+        error: buildInsufficientCreditsError(BLOG_CREATE_CREDITS, availableCredits),
+      };
+    }
 
     const input = buildGenerationPrompt({
       articleType,
@@ -593,9 +621,43 @@ export const action = async ({ request }) => {
       bodyHtml: mergedBody || null,
       seoTitle: nextSeoTitle || null,
       seoDescription: nextSeoDescription || null,
+      creditsUsed: BLOG_CREATE_CREDITS,
       isPublished: Boolean(scheduleApplied || createdArticle?.publishedAt),
       appliedToShopify: true,
     });
+
+    await writeGenerationLog({
+      shop: session.shop,
+      productId: createdArticle.id,
+      productTitle: nextTitle || null,
+      intent: "blog_create_article",
+      resourceType: "blog",
+      language: language || null,
+      tone: tone || null,
+      lengthOption: length || null,
+      formatOption: format || null,
+      contextKeywords: contextKeywords || null,
+      aiModel: aiProvider || null,
+      generatedDescription: mergedBody || null,
+      generatedSeoTitle: nextSeoTitle || null,
+      generatedSeoDescription: nextSeoDescription || null,
+      creditsUsed: BLOG_CREATE_CREDITS,
+      appliedToProduct: true,
+    });
+
+    let newCredits = availableCredits;
+    let creditsUsedTotal = shopData?.creditsUsedTotal ?? 0;
+    let creditWarning = null;
+    try {
+      const creditSnapshot = await deductCredits({
+        shopDomain: session.shop,
+        creditsUsed: BLOG_CREATE_CREDITS,
+      });
+      newCredits = creditSnapshot.credits;
+      creditsUsedTotal = creditSnapshot.creditsUsedTotal;
+    } catch (creditError) {
+      creditWarning = creditError?.message || "Credits could not be updated automatically.";
+    }
 
     return {
       success: true,
@@ -605,6 +667,10 @@ export const action = async ({ request }) => {
       publishedAt: scheduleApplied ? scheduledAt : createdArticle.publishedAt || null,
       scheduleApplied,
       scheduleError,
+      creditsUsed: BLOG_CREATE_CREDITS,
+      newCredits,
+      creditsUsedTotal,
+      creditWarning,
     };
   }
 
@@ -628,10 +694,28 @@ export const action = async ({ request }) => {
     const metaDescriptionPromptTemplate = formData.get("metaDescriptionPromptTemplate") || "";
     const contextKeywords = formData.get("contextKeywords") || "";
     const aiProvider = formData.get("aiProvider") || "auto";
+    const selectedContentTypes = parseSelectedContentTypes(
+      formData.get("contentTypes"),
+      BLOG_CONTENT_TYPES,
+      DEFAULT_BLOG_CONTENT_TYPES,
+    );
+    const shouldUpdateBody = selectedContentTypes.includes("body");
+    const shouldUpdateMetaTitle = selectedContentTypes.includes("meta_title");
+    const shouldUpdateMetaDescription = selectedContentTypes.includes("meta_description");
+    const creditsPerItem = creditsForContentTypes(selectedContentTypes);
     const shopData = await db.shop.findUnique({
       where: { shop: session.shop },
-      select: { openaiApiKey: true, anthropicApiKey: true },
+      select: { openaiApiKey: true, anthropicApiKey: true, credits: true, creditsUsedTotal: true },
     });
+    const availableCredits = shopData?.credits ?? 100;
+    const requiredCredits = creditsForBatch(selectedContentTypes, bulkArticles.length);
+    if (availableCredits < requiredCredits) {
+      return {
+        success: false,
+        intent,
+        error: buildInsufficientCreditsError(requiredCredits, availableCredits),
+      };
+    }
 
     const results = await Promise.allSettled(
       bulkArticles.map(async (a) => {
@@ -654,9 +738,15 @@ export const action = async ({ request }) => {
           shopAnthropicKey: shopData?.anthropicApiKey,
         });
         const parsed = parseGeneratedBlogJson(raw);
-        const nextBody = normalizeGeneratedHtml(parsed.articleBody || a.body || "");
-        const nextSeoTitle = cleanInlineText(parsed.seoTitle || "", 70);
-        const nextSeoDescription = cleanInlineText(parsed.seoDescription || "", 160);
+        const nextBody = shouldUpdateBody
+          ? normalizeGeneratedHtml(parsed.articleBody || a.body || "")
+          : a.body || "";
+        const nextSeoTitle = shouldUpdateMetaTitle
+          ? cleanInlineText(parsed.seoTitle || "", 70)
+          : cleanInlineText(a.seoTitleValue || "", 70);
+        const nextSeoDescription = shouldUpdateMetaDescription
+          ? cleanInlineText(parsed.seoDescription || "", 160)
+          : cleanInlineText(a.seoDescriptionValue || "", 160);
 
         if (a.id) {
           const metafields = [];
@@ -683,8 +773,28 @@ export const action = async ({ request }) => {
             bodyHtml: nextBody || null,
             seoTitle: nextSeoTitle || null,
             seoDescription: nextSeoDescription || null,
+            creditsUsed: creditsPerItem,
             isPublished: false,
             appliedToShopify: true,
+          });
+
+          await writeGenerationLog({
+            shop: session.shop,
+            productId: a.id,
+            productTitle: a.title || null,
+            intent: "blog_bulk_generate",
+            resourceType: "blog",
+            language: language || null,
+            tone: tone || null,
+            lengthOption: length || null,
+            formatOption: format || null,
+            contextKeywords: contextKeywords || null,
+            aiModel: aiProvider || null,
+            generatedDescription: nextBody || null,
+            generatedSeoTitle: nextSeoTitle || null,
+            generatedSeoDescription: nextSeoDescription || null,
+            creditsUsed: creditsPerItem,
+            appliedToProduct: true,
           });
         }
         return { id: a.id, title: a.title, seoTitle: nextSeoTitle, seoDescription: nextSeoDescription };
@@ -693,6 +803,21 @@ export const action = async ({ request }) => {
 
     const succeeded = results.filter((r) => r.status === "fulfilled").length;
     const failed = results.filter((r) => r.status === "rejected").length;
+    const creditsUsed = succeeded * creditsPerItem;
+    let newCredits = availableCredits;
+    let creditsUsedTotal = shopData?.creditsUsedTotal ?? 0;
+    let creditWarning = null;
+
+    if (creditsUsed > 0) {
+      try {
+        const creditSnapshot = await deductCredits({ shopDomain: session.shop, creditsUsed });
+        newCredits = creditSnapshot.credits;
+        creditsUsedTotal = creditSnapshot.creditsUsedTotal;
+      } catch (creditError) {
+        creditWarning = creditError?.message || "Credits could not be updated automatically.";
+      }
+    }
+
     const itemResults = results.map((r, i) => ({
       id: bulkArticles[i].id,
       title: bulkArticles[i].title,
@@ -701,7 +826,20 @@ export const action = async ({ request }) => {
       seoTitle: r.status === "fulfilled" ? r.value.seoTitle : null,
       seoDescription: r.status === "fulfilled" ? r.value.seoDescription : null,
     }));
-    return { success: true, intent, succeeded, failed, total: bulkArticles.length, results: itemResults };
+    return {
+      success: true,
+      intent,
+      succeeded,
+      failed,
+      total: bulkArticles.length,
+      results: itemResults,
+      contentTypes: selectedContentTypes,
+      creditsPerItem,
+      creditsUsed,
+      newCredits,
+      creditsUsedTotal,
+      creditWarning,
+    };
   }
 
   return { success: false, error: "Unknown action." };
@@ -785,10 +923,10 @@ export default function BlogPage() {
   const [scheduleStartAtLocal, setScheduleStartAtLocal] = useState(() => getDefaultScheduleRangeInputs().start);
   const [scheduleEndAtLocal, setScheduleEndAtLocal] = useState(() => getDefaultScheduleRangeInputs().end);
   const [createMessage, setCreateMessage] = useState(null);
-  const [isCreateAccordionOpen, setIsCreateAccordionOpen] = useState(true);
+  const [isCreateAccordionOpen, setIsCreateAccordionOpen] = useState(false);
 
   // ── Bulk state ──────────────────────────────────────────────────────────────
-  const [bulkContentTypes, setBulkContentTypes] = useState(["body", "meta_description", "meta_title"]);
+  const [bulkContentTypes, setBulkContentTypes] = useState(["body"]);
   const [bulkSettings, setBulkSettings] = useState(() => {
     const gs = readGlobalSettings();
     return {
@@ -796,6 +934,7 @@ export default function BlogPage() {
       length: gs.length || "medium",
       format: "headings and paragraphs",
       articleType: "How-To Guide",
+      aiProvider: gs.aiProvider || defaultAiProvider || "auto",
     };
   });
   const [selectedBodyTemplateId, setSelectedBodyTemplateId] = useState("");
@@ -916,6 +1055,8 @@ export default function BlogPage() {
         blogId: a.blog?.id || "",
         title: a.title || "",
         body: a.body || "",
+        seoTitleValue: a.seo?.title || "",
+        seoDescriptionValue: a.seo?.description || "",
       }))
     ));
     payload.append("language", readGlobalSettings().language || "English");
@@ -930,6 +1071,8 @@ export default function BlogPage() {
     payload.append("bodyPromptTemplate", bulkBodyPromptTemplate);
     payload.append("metaTitlePromptTemplate", bulkMetaTitlePromptTemplate);
     payload.append("metaDescriptionPromptTemplate", bulkMetaDescPromptTemplate);
+    payload.append("contentTypes", JSON.stringify(bulkContentTypes));
+    payload.append("aiProvider", bulkSettings.aiProvider || defaultAiProvider || "auto");
     bulkFetcher.submit(payload, { method: "post" });
   }
 
@@ -938,7 +1081,11 @@ export default function BlogPage() {
     if (!data || bulkFetcher.state !== "idle") return;
     if (data.success) {
       setBulkResult(data);
-      shopify.toast.show(`Generated ${data.succeeded}/${data.total} articles successfully.`);
+      const creditsMessage =
+        typeof data.creditsUsed === "number"
+          ? ` ${data.creditsUsed} credits used${typeof data.newCredits === "number" ? `. Remaining: ${data.newCredits}` : ""}.`
+          : "";
+      shopify.toast.show(`Generated ${data.succeeded}/${data.total} articles successfully.${creditsMessage}`);
     } else {
       setBulkValidationMessage(data.error || "Bulk generation failed.");
     }
@@ -957,12 +1104,19 @@ export default function BlogPage() {
 
     if (data.success) {
       const scheduleLabel = data.publishedAt ? ` Scheduled/published at ${new Date(data.publishedAt).toLocaleString()}.` : "";
-      const hasScheduleWarning = Boolean(data.scheduleError);
+      const warningMessages = [
+        data.scheduleError ? `Scheduling was not applied: ${data.scheduleError}` : null,
+        data.creditWarning ? `Credit update warning: ${data.creditWarning}` : null,
+      ].filter(Boolean);
+      const creditLabel =
+        typeof data.creditsUsed === "number"
+          ? ` ${data.creditsUsed} credits used${typeof data.newCredits === "number" ? `. Remaining: ${data.newCredits}` : ""}.`
+          : "";
       setCreateMessage({
-        tone: hasScheduleWarning ? "warning" : "success",
-        text: hasScheduleWarning
-          ? `Blog article "${data.title}" created, but scheduling was not applied: ${data.scheduleError}`
-          : `Blog article "${data.title}" created successfully.${scheduleLabel}`,
+        tone: warningMessages.length > 0 ? "warning" : "success",
+        text: warningMessages.length > 0
+          ? `Blog article "${data.title}" created. ${warningMessages.join(" ")}${creditLabel}`
+          : `Blog article "${data.title}" created successfully.${scheduleLabel}${creditLabel}`,
       });
       setCreateTitle("");
       setCreateKeywords("");
@@ -972,7 +1126,7 @@ export default function BlogPage() {
       const defaults = getDefaultScheduleRangeInputs();
       setScheduleStartAtLocal(defaults.start);
       setScheduleEndAtLocal(defaults.end);
-      shopify.toast.show("Blog article created.");
+      shopify.toast.show(`Blog article created.${creditLabel}`);
     } else {
       setCreateMessage({
         tone: "critical",
@@ -1458,7 +1612,7 @@ export default function BlogPage() {
               <BlockStack gap="050">
                 <Text as="h2" variant="headingMd" fontWeight="bold">Generation Results</Text>
                 <Text as="p" variant="bodySm" tone="subdued">
-                  {bulkResult.succeeded} article{bulkResult.succeeded !== 1 ? "s" : ""} updated · {bulkResult.failed > 0 ? `${bulkResult.failed} failed · ` : ""}{bulkResult.total} AI credits used
+                  {bulkResult.succeeded} article{bulkResult.succeeded !== 1 ? "s" : ""} updated · {bulkResult.failed > 0 ? `${bulkResult.failed} failed · ` : ""}{bulkResult.creditsUsed ?? 0} AI credits used
                 </Text>
               </BlockStack>
             </div>

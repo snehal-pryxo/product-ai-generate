@@ -58,6 +58,8 @@ export const loader = async ({ request }) => {
       globalSettingsJson: true,
       templateSelectionsJson: true,
       customPromptTemplatesJson: true,
+      credits: true,
+      creditsUsedTotal: true,
     },
   });
 
@@ -86,11 +88,13 @@ export const loader = async ({ request }) => {
     globalSettings: normalizeGlobalSettings(parsedGlobalSettings),
     templateSelections: normalizeTemplateSelections(parsedTemplateSelections),
     customTemplates: normalizeCustomTemplates(parsedCustomTemplates),
+    credits: shopData?.credits ?? 100,
+    creditsUsedTotal: shopData?.creditsUsedTotal ?? 0,
   };
 };
 
 export default function App() {
-  const { apiKey, globalSettings, templateSelections, customTemplates } = useLoaderData();
+  const { apiKey, globalSettings, templateSelections, customTemplates, credits, creditsUsedTotal } = useLoaderData();
   const navigation = useNavigation();
   const fetchers = useFetchers();
   const isBusy = navigation.state !== "idle" || fetchers.some((fetcher) => fetcher.state !== "idle");
@@ -119,6 +123,24 @@ export default function App() {
            <s-link href="/app/analytics">Analytics</s-link>
           <s-link href="/app/settings">Settings</s-link>
         </s-app-nav>
+        <div
+          style={{
+            position: "fixed",
+            top: 14,
+            right: 18,
+            zIndex: 1000,
+            border: "1px solid #d1d5db",
+            background: "#ffffff",
+            borderRadius: 8,
+            padding: "8px 10px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+            fontSize: 12,
+            lineHeight: 1.3,
+          }}
+        >
+          <div style={{ fontWeight: 700, color: "#111827" }}>Credits: {credits}</div>
+          <div style={{ color: "#4b5563" }}>Used: {creditsUsedTotal}</div>
+        </div>
         {isBusy && (
           <div
             style={{
