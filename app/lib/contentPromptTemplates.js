@@ -21,6 +21,21 @@ function parseLengthRange(lengthOption) {
   };
 }
 
+function parseMinimumWordTarget(lengthOption) {
+  const raw = String(lengthOption || "");
+
+  const plusMatch = /(\d+)\s*\+\s*words?/i.exec(raw);
+  if (plusMatch) return Number(plusMatch[1]);
+
+  const aroundMatch = /around\s*(\d+)/i.exec(raw);
+  if (aroundMatch) return Number(aroundMatch[1]);
+
+  const rangeMatch = /(\d+)\s*-\s*(\d+)/.exec(raw);
+  if (rangeMatch) return Number(rangeMatch[1]);
+
+  return null;
+}
+
 function toFocusLabel(intent) {
   if (intent === "seo_title") return "Primary focus: generate only meta title with supporting improvements.";
   if (intent === "seo_description") {
@@ -86,12 +101,14 @@ export function buildProductContentPrompt({
       : []),
     "",
     "Output (return valid JSON only, no markdown, no backticks):",
-    '{ "productDescription": "...", "seoTitle": "...", "seoDescription": "..." }',
+    '{ "productDescription": "<HTML>", "seoTitle": "...", "seoDescription": "..." }',
     "",
     "Rules:",
+    '- "productDescription" must be valid Shopify-safe HTML (use <h2>, <p>, and <ul>/<li> where helpful).',
     `- "seoTitle" must be <= ${META_TITLE_MAX} characters.`,
     `- "seoDescription" must be <= ${META_DESCRIPTION_MAX} characters.`,
     "- Make productDescription persuasive, specific, and readable for storefront buyers.",
+    "- Do not return markdown. Return HTML only for the description.",
     "- Do not include unsupported claims, fake guarantees, or placeholder text.",
   ].join("\n");
 }
@@ -153,12 +170,14 @@ export function buildCollectionContentPrompt({
       : []),
     "",
     "Output (return valid JSON only, no markdown, no backticks):",
-    '{ "collectionDescription": "...", "seoTitle": "...", "seoDescription": "..." }',
+    '{ "collectionDescription": "<HTML>", "seoTitle": "...", "seoDescription": "..." }',
     "",
     "Rules:",
+    '- "collectionDescription" must be valid Shopify-safe HTML (use <h2>, <p>, and <ul>/<li> where helpful).',
     `- "seoTitle" must be <= ${META_TITLE_MAX} characters.`,
     `- "seoDescription" must be <= ${META_DESCRIPTION_MAX} characters.`,
     "- Make collectionDescription clear, category-focused, and useful for product discovery.",
+    "- Do not return markdown. Return HTML only for the description.",
     "- Avoid keyword stuffing and generic filler copy.",
   ].join("\n");
 }
@@ -176,6 +195,7 @@ export function buildPageContentPrompt({
   metaTitlePromptTemplate,
   metaDescriptionPromptTemplate,
 }) {
+  const minimumWords = parseMinimumWordTarget(length);
   const pageBodyTemplate = normalizeText(bodyPromptTemplate, "");
   const seoTitleTemplate = normalizeText(metaTitlePromptTemplate, "");
   const seoDescriptionTemplate = normalizeText(metaDescriptionPromptTemplate, "");
@@ -217,8 +237,10 @@ export function buildPageContentPrompt({
     "",
     "Rules:",
     '- "pageBody" must be clean Shopify-safe HTML using headings, paragraphs, and lists where useful.',
+    ...(minimumWords ? [`- "pageBody" should be at least ${minimumWords} words unless input constraints make that impossible.`] : []),
     `- "seoTitle" must be <= ${META_TITLE_MAX} characters.`,
     `- "seoDescription" must be <= ${META_DESCRIPTION_MAX} characters.`,
+    "- Do not return markdown. Return HTML only for pageBody.",
     "- Keep language clear, trust-building, and aligned to the page type.",
   ].join("\n");
 }
@@ -236,6 +258,7 @@ export function buildBlogContentPrompt({
   metaTitlePromptTemplate,
   metaDescriptionPromptTemplate,
 }) {
+  const minimumWords = parseMinimumWordTarget(length);
   const articleBodyTemplate = normalizeText(bodyPromptTemplate, "");
   const seoTitleTemplate = normalizeText(metaTitlePromptTemplate, "");
   const seoDescriptionTemplate = normalizeText(metaDescriptionPromptTemplate, "");
@@ -276,10 +299,12 @@ export function buildBlogContentPrompt({
     '{ "articleTitle": "...", "articleBody": "<HTML>", "excerpt": "...", "seoTitle": "...", "seoDescription": "..." }',
     "",
     "Rules:",
-    '- "articleBody" must be structured HTML with useful headings and scannable sections.',
+    '- "articleBody" must be structured Shopify-safe HTML with useful headings and scannable sections.',
+    ...(minimumWords ? [`- "articleBody" should be at least ${minimumWords} words unless input constraints make that impossible.`] : []),
     '- "excerpt" should be 1-2 concise sentences for listings and previews.',
     `- "seoTitle" must be <= ${META_TITLE_MAX} characters.`,
     `- "seoDescription" must be <= ${META_DESCRIPTION_MAX} characters.`,
+    "- Do not return markdown. Return HTML only for articleBody.",
     "- Keep claims realistic and useful for readers at each stage of intent.",
   ].join("\n");
 }

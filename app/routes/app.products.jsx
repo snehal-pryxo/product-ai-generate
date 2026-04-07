@@ -329,6 +329,10 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+function looksLikeHtml(value) {
+  return /<\/?[a-z][\s\S]*>/i.test(value || "");
+}
+
 function toParagraphHtml(value) {
   const plainText = (value || "").trim();
   if (!plainText) return "";
@@ -339,6 +343,13 @@ function toParagraphHtml(value) {
     .filter(Boolean)
     .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br />")}</p>`)
     .join("");
+}
+
+function normalizeGeneratedHtml(value) {
+  const text = (value || "").trim();
+  if (!text) return "";
+  if (looksLikeHtml(text)) return text;
+  return toParagraphHtml(text);
 }
 
 function buildGenerationPrompt({
@@ -771,7 +782,7 @@ export const action = async ({ request }) => {
           );
 
           const nextDescription = generated.productDescription
-            ? toParagraphHtml(generated.productDescription)
+            ? normalizeGeneratedHtml(generated.productDescription)
             : p.descriptionHtml || "";
           const nextSeoTitle = generated.seoTitle || p.seoTitleValue || "";
           const nextSeoDescription = generated.seoDescription || p.seoDescriptionValue || "";

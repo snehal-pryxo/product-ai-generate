@@ -21,6 +21,7 @@ import {
   Button,
   Select,
   TextField,
+  Checkbox,
   Banner,
   Badge,
   IndexTable,
@@ -86,6 +87,24 @@ const ARTICLE_UPDATE_MUTATION = `#graphql
   }
 `;
 
+const ARTICLE_CREATE_MUTATION = `#graphql
+  mutation ArticleCreate($blogId: ID!, $article: ArticleCreateInput!) {
+    articleCreate(blogId: $blogId, article: $article) {
+      article {
+        id
+        title
+        publishedAt
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const MAX_INLINE_IMAGE_SIZE_BYTES = 2 * 1024 * 1024;
+
 // ─── AI helpers ───────────────────────────────────────────────────────────────
 
 async function generateContentWithAnthropic(input, apiKey) {
@@ -147,6 +166,63 @@ async function generateContent(input, { aiProvider, shopOpenaiKey, shopAnthropic
 
   if (provider === "openai") return generateContentWithOpenAI(input, shopOpenaiKey);
   return generateContentWithAnthropic(input, shopAnthropicKey);
+}
+
+function cleanInlineText(value, maxLength) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength);
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function looksLikeHtml(value) {
+  return /<\/?[a-z][\s\S]*>/i.test(value || "");
+}
+
+function toParagraphHtml(value) {
+  const plainText = String(value || "").trim();
+  if (!plainText) return "";
+
+  return plainText
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br />")}</p>`)
+    .join("");
+}
+
+function normalizeGeneratedHtml(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (looksLikeHtml(text)) return text;
+  return toParagraphHtml(text);
+}
+
+function parseGeneratedBlogJson(raw) {
+  let parsed = { articleTitle: "", articleBody: "", excerpt: "", seoTitle: "", seoDescription: "" };
+  try {
+    const match = raw?.match(/\{[\s\S]*\}/);
+    if (match) parsed = JSON.parse(match[0]);
+    else parsed.articleBody = raw || "";
+  } catch {
+    parsed.articleBody = raw || "";
+  }
+  return parsed;
+}
+
+function getDefaultScheduleDateTimeInput() {
+  const oneHourLater = new Date(Date.now() + 60 * 60 * 1000);
+  const timezoneOffsetMs = oneHourLater.getTimezoneOffset() * 60 * 1000;
+  return new Date(oneHourLater.getTime() - timezoneOffsetMs).toISOString().slice(0, 16);
 }
 
 function buildGenerationPrompt({
@@ -253,6 +329,237 @@ export const action = async ({ request }) => {
   const formData = await request.formData();
   const intent = formData.get("intent");
 
+  if (intent === "create_blog_article") {
+    const blogId = String(formData.get("blogId") || "").trim();
+    const title = String(formData.get("title") || "").trim();
+    const articleType = String(formData.get("articleType") || "How-To Guide").trim();
+    const language = String(formData.get("language") || "English").trim();
+    const tone = String(formData.get("tone") || "professional").trim();
+    const length = String(formData.get("length") || "500+ words").trim();
+    const format = String(formData.get("format") || "headings and paragraphs").trim();
+    const contextKeywords = String(formData.get("contextKeywords") || "").trim();
+    const bodyPromptTemplate = String(formData.get("bodyPromptTemplate") || "").trim();
+    const metaTitlePromptTemplate = String(formData.get("metaTitlePromptTemplate") || "").trim();
+    const metaDescriptionPromptTemplate = String(formData.get("metaDescriptionPromptTemplate") || "").trim();
+    const aiProvider = String(formData.get("aiProvider") || "auto").trim();
+    const autoScheduleLive = String(formData.get("autoScheduleLive") || "false") === "true";
+    const scheduledAtIso = String(formData.get("scheduledAtIso") || "").trim();
+    const imageAlt = String(formData.get("imageAlt") || "").trim();
+
+    if (!blogId) return { success: false, intent, error: "Select a target blog first." };
+    if (!title) return { success: false, intent, error: "Article title is required." };
+
+    let scheduledAt = null;
+    if (autoScheduleLive) {
+      if (!scheduledAtIso) return { success: false, intent, error: "Select a schedule date and time." };
+      const parsedDate = new Date(scheduledAtIso);
+      if (Number.isNaN(parsedDate.getTime())) {
+        return { success: false, intent, error: "Invalid schedule date/time." };
+      }
+      if (parsedDate.getTime() <= Date.now()) {
+        return { success: false, intent, error: "Schedule time must be in the future." };
+      }
+      scheduledAt = parsedDate.toISOString();
+    }
+
+    const imageFile = formData.get("imageFile");
+    let inlineImageMarkup = "";
+    if (imageFile && typeof imageFile !== "string" && imageFile.size > 0) {
+      if (!String(imageFile.type || "").startsWith("image/")) {
+        return { success: false, intent, error: "Only image files are allowed." };
+      }
+      if (imageFile.size > MAX_INLINE_IMAGE_SIZE_BYTES) {
+        return {
+          success: false,
+          intent,
+          error: "Image is too large. Maximum allowed size is 2MB.",
+        };
+      }
+
+      const bufferApi = globalThis.Buffer;
+      if (!bufferApi) {
+        return { success: false, intent, error: "Image processing is unavailable in this runtime." };
+      }
+      const buffer = bufferApi.from(await imageFile.arrayBuffer());
+      const base64 = buffer.toString("base64");
+      const resolvedAlt = cleanInlineText(imageAlt || title, 120);
+      inlineImageMarkup =
+        `<figure><img src="data:${imageFile.type};base64,${base64}" alt="${escapeHtml(resolvedAlt)}" loading="lazy" /></figure>`;
+    }
+
+    const shopData = await db.shop.findUnique({
+      where: { shop: session.shop },
+      select: { openaiApiKey: true, anthropicApiKey: true },
+    });
+
+    const input = buildGenerationPrompt({
+      articleType,
+      title,
+      body: "",
+      language,
+      tone,
+      length,
+      format,
+      contextKeywords,
+      bodyPromptTemplate,
+      metaTitlePromptTemplate,
+      metaDescriptionPromptTemplate,
+    });
+
+    const raw = await generateContent(input, {
+      aiProvider,
+      shopOpenaiKey: shopData?.openaiApiKey,
+      shopAnthropicKey: shopData?.anthropicApiKey,
+    });
+
+    const parsed = parseGeneratedBlogJson(raw);
+    const nextTitle = cleanInlineText(parsed.articleTitle || title, 255);
+    const nextBody = normalizeGeneratedHtml(parsed.articleBody || "");
+    const mergedBody = [inlineImageMarkup, nextBody].filter(Boolean).join("");
+    if (!mergedBody) {
+      return { success: false, intent, error: "Generated body was empty. Please try again." };
+    }
+
+    const nextExcerpt = cleanInlineText(parsed.excerpt || "", 255);
+    const nextSeoTitle = cleanInlineText(parsed.seoTitle || "", 70);
+    const nextSeoDescription = cleanInlineText(parsed.seoDescription || "", 160);
+
+    const createArticleInput = {
+      title: nextTitle,
+      body: mergedBody,
+      excerpt: nextExcerpt || undefined,
+    };
+
+    const createResponse = await admin.graphql(ARTICLE_CREATE_MUTATION, {
+      variables: {
+        blogId,
+        article: createArticleInput,
+      },
+    });
+    const createJson = await createResponse.json();
+    const createGraphQLErrors = createJson?.errors || [];
+    if (createGraphQLErrors.length > 0) {
+      return {
+        success: false,
+        intent,
+        error: createGraphQLErrors.map((err) => err.message).join(", "),
+      };
+    }
+    const createErrors = createJson?.data?.articleCreate?.userErrors || [];
+    if (createErrors.length > 0) {
+      return {
+        success: false,
+        intent,
+        error: createErrors.map((err) => err.message).join(", "),
+      };
+    }
+
+    const createdArticle = createJson?.data?.articleCreate?.article;
+    if (!createdArticle?.id) {
+      return { success: false, intent, error: "Article was not created. Please try again." };
+    }
+
+    let scheduleApplied = false;
+    let scheduleError = null;
+    if (autoScheduleLive && scheduledAt) {
+      const scheduleResponse = await admin.graphql(ARTICLE_UPDATE_MUTATION, {
+        variables: {
+          id: createdArticle.id,
+          article: {
+            isPublished: true,
+            publishedAt: scheduledAt,
+          },
+        },
+      });
+      const scheduleJson = await scheduleResponse.json();
+      const scheduleGraphQLErrors = scheduleJson?.errors || [];
+      const scheduleUserErrors = scheduleJson?.data?.articleUpdate?.userErrors || [];
+
+      if (scheduleGraphQLErrors.length > 0) {
+        scheduleError = scheduleGraphQLErrors.map((err) => err.message).join(", ");
+      } else if (scheduleUserErrors.length > 0) {
+        scheduleError = scheduleUserErrors.map((err) => err.message).join(", ");
+      } else {
+        scheduleApplied = true;
+      }
+    }
+
+    if (nextSeoTitle || nextSeoDescription) {
+      const metafields = [];
+      if (nextSeoTitle) {
+        metafields.push({
+          namespace: "global",
+          key: "title_tag",
+          value: nextSeoTitle,
+          type: "single_line_text_field",
+        });
+      }
+      if (nextSeoDescription) {
+        metafields.push({
+          namespace: "global",
+          key: "description_tag",
+          value: nextSeoDescription,
+          type: "single_line_text_field",
+        });
+      }
+
+      if (metafields.length > 0) {
+        const updateResponse = await admin.graphql(ARTICLE_UPDATE_MUTATION, {
+          variables: {
+            id: createdArticle.id,
+            article: { metafields },
+          },
+        });
+        const updateJson = await updateResponse.json();
+        const updateGraphQLErrors = updateJson?.errors || [];
+        if (updateGraphQLErrors.length > 0) {
+          return {
+            success: false,
+            intent,
+            error: updateGraphQLErrors.map((err) => err.message).join(", "),
+          };
+        }
+        const updateErrors = updateJson?.data?.articleUpdate?.userErrors || [];
+        if (updateErrors.length > 0) {
+          return {
+            success: false,
+            intent,
+            error: updateErrors.map((err) => err.message).join(", "),
+          };
+        }
+      }
+    }
+
+    await upsertBlogArticleContent({
+      shop: session.shop,
+      articleId: createdArticle.id,
+      blogId,
+      articleTitle: nextTitle || null,
+      articleType: articleType || null,
+      language: language || null,
+      tone: tone || null,
+      lengthOption: length || null,
+      formatOption: format || null,
+      contextKeywords: contextKeywords || null,
+      aiModel: aiProvider || null,
+      bodyHtml: mergedBody || null,
+      seoTitle: nextSeoTitle || null,
+      seoDescription: nextSeoDescription || null,
+      isPublished: Boolean(scheduleApplied || createdArticle?.publishedAt),
+      appliedToShopify: true,
+    });
+
+    return {
+      success: true,
+      intent,
+      articleId: createdArticle.id,
+      title: createdArticle.title || nextTitle,
+      publishedAt: scheduleApplied ? scheduledAt : createdArticle.publishedAt || null,
+      scheduleApplied,
+      scheduleError,
+    };
+  }
+
   if (intent === "bulk_generate_blog") {
     let bulkArticles;
     try {
@@ -271,6 +578,7 @@ export const action = async ({ request }) => {
     const bodyPromptTemplate = formData.get("bodyPromptTemplate") || "";
     const metaTitlePromptTemplate = formData.get("metaTitlePromptTemplate") || "";
     const metaDescriptionPromptTemplate = formData.get("metaDescriptionPromptTemplate") || "";
+    const contextKeywords = formData.get("contextKeywords") || "";
     const aiProvider = formData.get("aiProvider") || "auto";
     const shopData = await db.shop.findUnique({
       where: { shop: session.shop },
@@ -287,7 +595,7 @@ export const action = async ({ request }) => {
           tone,
           length,
           format,
-          contextKeywords: "",
+          contextKeywords,
           bodyPromptTemplate,
           metaTitlePromptTemplate,
           metaDescriptionPromptTemplate,
@@ -297,15 +605,10 @@ export const action = async ({ request }) => {
           shopOpenaiKey: shopData?.openaiApiKey,
           shopAnthropicKey: shopData?.anthropicApiKey,
         });
-        let parsed = { articleTitle: "", articleBody: "", seoTitle: "", seoDescription: "" };
-        try {
-          const match = raw.match(/\{[\s\S]*\}/);
-          if (match) parsed = JSON.parse(match[0]);
-        } catch { parsed.articleBody = raw; }
-
-        const nextBody = parsed.articleBody || a.body || "";
-        const nextSeoTitle = parsed.seoTitle || "";
-        const nextSeoDescription = parsed.seoDescription || "";
+        const parsed = parseGeneratedBlogJson(raw);
+        const nextBody = normalizeGeneratedHtml(parsed.articleBody || a.body || "");
+        const nextSeoTitle = cleanInlineText(parsed.seoTitle || "", 70);
+        const nextSeoDescription = cleanInlineText(parsed.seoDescription || "", 160);
 
         if (a.id) {
           const metafields = [];
@@ -324,7 +627,7 @@ export const action = async ({ request }) => {
             tone: tone || null,
             lengthOption: length || null,
             formatOption: format || null,
-            contextKeywords: null,
+            contextKeywords: contextKeywords || null,
             aiModel: aiProvider || null,
             bodyHtml: nextBody || null,
             seoTitle: nextSeoTitle || null,
@@ -378,6 +681,7 @@ const TONE_OPTIONS = [
 ];
 
 const LENGTH_OPTIONS = [
+  { label: "500+ words", value: "500+ words" },
   { label: "Short (~300 words)", value: "short (around 300 words)" },
   { label: "Medium (~600 words)", value: "medium (around 600 words)" },
   { label: "Long (~1000 words)", value: "long (around 1000 words)" },
@@ -397,10 +701,38 @@ const FORMAT_OPTIONS = [
 export default function BlogPage() {
   const { blogs, articles, defaultAiProvider } = useLoaderData();
   const navigate = useNavigate();
+  const createFetcher = useFetcher();
   const bulkFetcher = useFetcher();
+  const isCreatingArticle = createFetcher.state !== "idle";
   const isBulkGenerating = bulkFetcher.state !== "idle";
 
   const shopify = useAppBridge();
+
+  const preferredCreateTemplateId = "blog-body-500-plus";
+  const preferredCreateTemplate =
+    BLOG_BODY_TEMPLATES.find((template) => template.id === preferredCreateTemplateId)?.template ||
+    BLOG_BODY_TEMPLATES[0]?.template ||
+    "";
+
+  // —— Create article state ——————————————————————————————————————————————
+  const [createBlogId, setCreateBlogId] = useState(blogs?.[0]?.id || "");
+  const [createTitle, setCreateTitle] = useState("");
+  const [createArticleType, setCreateArticleType] = useState("How-To Guide");
+  const [createTone, setCreateTone] = useState(readGlobalSettings().tone || "professional");
+  const [createLength, setCreateLength] = useState("500+ words");
+  const [createFormat, setCreateFormat] = useState("headings and paragraphs");
+  const [createKeywords, setCreateKeywords] = useState("");
+  const [createBodyTemplateId, setCreateBodyTemplateId] = useState(preferredCreateTemplateId);
+  const [createBodyPromptTemplate, setCreateBodyPromptTemplate] = useState(preferredCreateTemplate);
+  const [createMetaTitleTemplateId, setCreateMetaTitleTemplateId] = useState("");
+  const [createMetaTitlePromptTemplate, setCreateMetaTitlePromptTemplate] = useState("");
+  const [createMetaDescTemplateId, setCreateMetaDescTemplateId] = useState("");
+  const [createMetaDescPromptTemplate, setCreateMetaDescPromptTemplate] = useState("");
+  const [createImageFile, setCreateImageFile] = useState(null);
+  const [createImageAlt, setCreateImageAlt] = useState("");
+  const [autoScheduleLive, setAutoScheduleLive] = useState(true);
+  const [scheduleAtLocal, setScheduleAtLocal] = useState(getDefaultScheduleDateTimeInput());
+  const [createMessage, setCreateMessage] = useState(null);
 
   // ── Bulk state ──────────────────────────────────────────────────────────────
   const [bulkContentTypes, setBulkContentTypes] = useState(["body", "meta_description", "meta_title"]);
@@ -431,6 +763,9 @@ export default function BlogPage() {
     { label: "All Blogs", value: "all" },
     ...blogs.map((b) => ({ label: b.title, value: b.id })),
   ];
+  const createBlogOptions = blogs.length > 0
+    ? blogs.map((b) => ({ label: b.title, value: b.id }))
+    : [{ label: "No blogs found", value: "" }];
 
   const filteredArticles =
     filterBlogId === "all"
@@ -441,6 +776,58 @@ export default function BlogPage() {
     useIndexResourceState(filteredArticles);
 
   const selectedArticles = filteredArticles.filter((a) => selectedResources.includes(a.id));
+
+  function handleCreateArticle() {
+    if (!createBlogId) {
+      setCreateMessage({ tone: "critical", text: "Please select a blog." });
+      return;
+    }
+    if (!createTitle.trim()) {
+      setCreateMessage({ tone: "critical", text: "Please enter a blog title." });
+      return;
+    }
+
+    const payload = new FormData();
+    payload.append("intent", "create_blog_article");
+    payload.append("blogId", createBlogId);
+    payload.append("title", createTitle.trim());
+    payload.append("articleType", createArticleType);
+    payload.append("language", readGlobalSettings().language || "English");
+    payload.append("tone", createTone);
+    payload.append("length", createLength);
+    payload.append("format", createFormat);
+    payload.append("contextKeywords", createKeywords || "");
+    payload.append("bodyPromptTemplate", createBodyPromptTemplate || "");
+    payload.append("metaTitlePromptTemplate", createMetaTitlePromptTemplate || "");
+    payload.append("metaDescriptionPromptTemplate", createMetaDescPromptTemplate || "");
+    payload.append("aiProvider", defaultAiProvider || "auto");
+    payload.append("imageAlt", createImageAlt || "");
+    payload.append("autoScheduleLive", String(autoScheduleLive));
+
+    if (autoScheduleLive) {
+      if (!scheduleAtLocal) {
+        setCreateMessage({ tone: "critical", text: "Please set a schedule date/time." });
+        return;
+      }
+      const scheduleDate = new Date(scheduleAtLocal);
+      if (Number.isNaN(scheduleDate.getTime())) {
+        setCreateMessage({ tone: "critical", text: "Invalid schedule date/time." });
+        return;
+      }
+      if (scheduleDate.getTime() <= Date.now()) {
+        setCreateMessage({ tone: "critical", text: "Schedule time must be in the future." });
+        return;
+      }
+      payload.append("scheduledAtIso", scheduleDate.toISOString());
+    }
+
+    if (createImageFile) {
+      payload.append("imageFile", createImageFile);
+    }
+
+    setCreateMessage(null);
+    createFetcher.submit(payload, { method: "post", encType: "multipart/form-data" });
+  }
 
   function handleBulkGenerate() {
     if (selectedArticles.length === 0) {
@@ -490,6 +877,41 @@ export default function BlogPage() {
   }, [bulkFetcher.data, bulkFetcher.state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    if (!createBlogId && blogs.length > 0) {
+      setCreateBlogId(blogs[0].id);
+    }
+  }, [blogs, createBlogId]);
+
+  useEffect(() => {
+    const data = createFetcher.data;
+    if (!data || createFetcher.state !== "idle") return;
+    if (data.intent !== "create_blog_article") return;
+
+    if (data.success) {
+      const scheduleLabel = data.publishedAt ? ` Scheduled/published at ${new Date(data.publishedAt).toLocaleString()}.` : "";
+      const hasScheduleWarning = Boolean(data.scheduleError);
+      setCreateMessage({
+        tone: hasScheduleWarning ? "warning" : "success",
+        text: hasScheduleWarning
+          ? `Blog article "${data.title}" created, but scheduling was not applied: ${data.scheduleError}`
+          : `Blog article "${data.title}" created successfully.${scheduleLabel}`,
+      });
+      setCreateTitle("");
+      setCreateKeywords("");
+      setCreateImageAlt("");
+      setCreateImageFile(null);
+      setAutoScheduleLive(true);
+      setScheduleAtLocal(getDefaultScheduleDateTimeInput());
+      shopify.toast.show("Blog article created.");
+    } else {
+      setCreateMessage({
+        tone: "critical",
+        text: data.error || "Failed to create blog article.",
+      });
+    }
+  }, [createFetcher.data, createFetcher.state, shopify]);
+
+  useEffect(() => {
     const templateSelection = readStoredBlogPromptTemplateSelection();
     if (templateSelection.bodyPromptTemplate) setBulkBodyPromptTemplate(templateSelection.bodyPromptTemplate);
     if (templateSelection.metaTitlePromptTemplate) setBulkMetaTitlePromptTemplate(templateSelection.metaTitlePromptTemplate);
@@ -537,9 +959,160 @@ export default function BlogPage() {
             </div>
           </div>
           <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", "--p-color-text": "#fff", "--p-color-bg-fill": "rgba(255,255,255,0.08)", "--p-color-border": "rgba(255,255,255,0.25)" }}>
-            <Button onClick={() => navigate("/app")} variant="secondary" size="slim">← Dashboard</Button>
+            <Button onClick={() => navigate("/app/content-management?tab=blog&filter=all")} variant="secondary" size="slim">Open Text Editor</Button>
+            <Button onClick={() => navigate("/app")} variant="secondary" size="slim">Back Dashboard</Button>
           </div>
         </div>
+      </div>
+
+      <div style={{ marginBottom: "16px" }}>
+        <Card>
+          <BlockStack gap="400">
+            <BlockStack gap="100">
+              <Text as="h2" variant="headingMd" fontWeight="bold">New Create Blog</Text>
+              <Text as="p" tone="subdued" variant="bodySm">
+                Generate a new blog article using the 500+ words template, optionally attach an image, and auto schedule it live.
+              </Text>
+            </BlockStack>
+
+            {createMessage && (
+              <Banner tone={createMessage.tone}>
+                <p>{createMessage.text}</p>
+              </Banner>
+            )}
+
+            <div
+              style={{
+                display: "grid",
+                gap: "12px",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              }}
+            >
+              <TextField
+                label="Blog Title"
+                value={createTitle}
+                onChange={setCreateTitle}
+                placeholder="e.g. 10 Ways to Improve Product Descriptions"
+                autoComplete="off"
+              />
+              <Select
+                label="Target Blog"
+                options={createBlogOptions}
+                value={createBlogId}
+                onChange={setCreateBlogId}
+              />
+              <Select
+                label="Article Type"
+                options={ARTICLE_TYPE_OPTIONS}
+                value={createArticleType}
+                onChange={setCreateArticleType}
+              />
+              <Select
+                label="Tone"
+                options={TONE_OPTIONS}
+                value={createTone}
+                onChange={setCreateTone}
+              />
+              <Select
+                label="Length"
+                options={LENGTH_OPTIONS}
+                value={createLength}
+                onChange={setCreateLength}
+              />
+              <Select
+                label="Format"
+                options={FORMAT_OPTIONS}
+                value={createFormat}
+                onChange={setCreateFormat}
+              />
+              <Select
+                label="Body Prompt Template"
+                options={BLOG_BODY_TEMPLATES.map((template) => ({ label: template.name, value: template.id }))}
+                value={createBodyTemplateId}
+                onChange={(id) => {
+                  setCreateBodyTemplateId(id);
+                  setCreateBodyPromptTemplate(BLOG_BODY_TEMPLATES.find((template) => template.id === id)?.template || "");
+                }}
+              />
+              <Select
+                label="Meta Title Template"
+                options={[{ label: "— Default (no template) —", value: "" }, ...BLOG_META_TITLE_TEMPLATES.map((template) => ({ label: template.name, value: template.id }))]}
+                value={createMetaTitleTemplateId}
+                onChange={(id) => {
+                  setCreateMetaTitleTemplateId(id);
+                  setCreateMetaTitlePromptTemplate(BLOG_META_TITLE_TEMPLATES.find((template) => template.id === id)?.template || "");
+                }}
+              />
+              <Select
+                label="Meta Description Template"
+                options={[{ label: "— Default (no template) —", value: "" }, ...BLOG_META_DESCRIPTION_TEMPLATES.map((template) => ({ label: template.name, value: template.id }))]}
+                value={createMetaDescTemplateId}
+                onChange={(id) => {
+                  setCreateMetaDescTemplateId(id);
+                  setCreateMetaDescPromptTemplate(BLOG_META_DESCRIPTION_TEMPLATES.find((template) => template.id === id)?.template || "");
+                }}
+              />
+              <TextField
+                label="Context Keywords"
+                value={createKeywords}
+                onChange={setCreateKeywords}
+                placeholder="e.g. ecommerce SEO, product storytelling, conversions"
+                autoComplete="off"
+              />
+              <TextField
+                label="Image Alt Text"
+                value={createImageAlt}
+                onChange={setCreateImageAlt}
+                placeholder="Describe uploaded image"
+                autoComplete="off"
+              />
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px", justifyContent: "center" }}>
+                <Text as="span" variant="bodySm" fontWeight="medium">Image Upload</Text>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => setCreateImageFile(event.target.files?.[0] || null)}
+                />
+                <Text as="span" variant="bodySm" tone="subdued">
+                  {createImageFile ? `${createImageFile.name} (${Math.round(createImageFile.size / 1024)} KB)` : "Optional. Max 2MB."}
+                </Text>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gap: "12px",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                alignItems: "end",
+              }}
+            >
+              <Checkbox
+                label="Auto Schedule Live"
+                checked={autoScheduleLive}
+                onChange={setAutoScheduleLive}
+              />
+              <TextField
+                label="Schedule Date & Time"
+                type="datetime-local"
+                value={scheduleAtLocal}
+                onChange={setScheduleAtLocal}
+                disabled={!autoScheduleLive}
+                autoComplete="off"
+                helpText={autoScheduleLive ? "Article will go live automatically at this time." : "Disabled. Article will be created as draft."}
+              />
+              <Button
+                variant="primary"
+                tone="success"
+                loading={isCreatingArticle}
+                disabled={isCreatingArticle || blogs.length === 0}
+                onClick={handleCreateArticle}
+              >
+                Create Blog
+              </Button>
+            </div>
+          </BlockStack>
+        </Card>
       </div>
 
       <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
@@ -819,3 +1392,4 @@ export default function BlogPage() {
 export const headers = (headersArgs) => {
   return boundary.headers(headersArgs);
 };
+

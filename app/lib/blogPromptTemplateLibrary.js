@@ -58,6 +58,13 @@ export function clearStoredBlogPromptTemplateSelection() {
 
 export const BLOG_BODY_TEMPLATES = [
   {
+    id: "blog-body-500-plus",
+    name: "Long Form 500+ Words",
+    description: "Structured long-form template targeting at least 500 words.",
+    template:
+      "[Compelling intro with reader pain-point and promise]\n[Section 1: core concept explained clearly]\n[Section 2: practical framework or method]\n[Section 3: actionable tips with examples]\n[Section 4: mistakes to avoid and fixes]\n[Section 5: checklist or implementation steps]\n[Conclusion with summary and CTA]\n[Ensure total article length is 500+ words]",
+  },
+  {
     id: "blog-body-how-to",
     name: "How-To Guide",
     description: "Step-based instructional article format.",

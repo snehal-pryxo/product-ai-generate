@@ -169,6 +169,17 @@ function toParagraphHtml(value) {
     .join("");
 }
 
+function looksLikeHtml(value) {
+  return /<\/?[a-z][\s\S]*>/i.test(value || "");
+}
+
+function normalizeGeneratedHtml(value) {
+  const text = (value || "").trim();
+  if (!text) return "";
+  if (looksLikeHtml(text)) return text;
+  return toParagraphHtml(text);
+}
+
 function canUseOllamaFallback() {
   const baseUrl = (process.env.OLLAMA_BASE_URL || "").trim();
   const enabledValue = (process.env.ENABLE_OLLAMA_FALLBACK || "").trim();
@@ -561,7 +572,7 @@ export const action = async ({ request }) => {
       });
 
       const descHtml = generated.description
-        ? toParagraphHtml(generated.description)
+        ? normalizeGeneratedHtml(generated.description)
         : item.descriptionHtml || "";
       const seoTitle = generated.seoTitle || item.seoTitle || "";
       const seoDescription = generated.seoDescription || item.seoDescription || "";

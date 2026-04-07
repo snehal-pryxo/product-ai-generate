@@ -133,6 +133,38 @@ async function generateContent(input, { aiProvider, shopOpenaiKey, shopAnthropic
   return generateContentWithAnthropic(input, shopAnthropicKey);
 }
 
+function looksLikeHtml(value) {
+  return /<\/?[a-z][\s\S]*>/i.test(value || "");
+}
+
+function escapeHtml(value) {
+  return (value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function toParagraphHtml(value) {
+  const plainText = (value || "").trim();
+  if (!plainText) return "";
+
+  return plainText
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br />")}</p>`)
+    .join("");
+}
+
+function normalizeGeneratedHtml(value) {
+  const text = (value || "").trim();
+  if (!text) return "";
+  if (looksLikeHtml(text)) return text;
+  return toParagraphHtml(text);
+}
+
 function buildGenerationPrompt({
   pageTitle,
   pageType,
@@ -274,12 +306,13 @@ export const action = async ({ request }) => {
           const match = raw.match(/\{[\s\S]*\}/);
           if (match) parsed = JSON.parse(match[0]);
         } catch { parsed.pageBody = raw; }
+        const nextBody = normalizeGeneratedHtml(parsed.pageBody || p.body || "");
 
         const response = await admin.graphql(PAGE_UPDATE_MUTATION, {
           variables: {
             id: p.id,
             page: {
-              body: parsed.pageBody || p.body || "",
+              body: nextBody,
               metafields: [
                 { namespace: "global", key: "title_tag", value: parsed.seoTitle || "", type: "single_line_text_field" },
                 { namespace: "global", key: "description_tag", value: parsed.seoDescription || "", type: "single_line_text_field" },
@@ -302,7 +335,7 @@ export const action = async ({ request }) => {
           formatOption: format || null,
           contextKeywords: contextKeywords || null,
           aiModel: aiProvider || null,
-          bodyHtml: parsed.pageBody || null,
+          bodyHtml: nextBody || null,
           seoTitle: parsed.seoTitle || null,
           seoDescription: parsed.seoDescription || null,
           appliedToPage: true,
