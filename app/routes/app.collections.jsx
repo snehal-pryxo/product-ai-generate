@@ -8,7 +8,6 @@ import {
   useRevalidator,
 } from "react-router";
 import {
-  Autocomplete,
   Badge,
   Banner,
   BlockStack,
@@ -21,7 +20,6 @@ import {
   Page,
   Select,
   Spinner,
-  Tag,
   Tabs,
   Text,
   TextField,
@@ -1105,13 +1103,9 @@ export default function CollectionsPage() {
   const [selectedMetaDescTemplateId, setSelectedMetaDescTemplateId] = useState("");
   const [selectedMetaTitleTemplateId, setSelectedMetaTitleTemplateId] = useState("");
   const bulkResultHandledRef = useRef(false);
-  const [showAdvancedBulkSettings, setShowAdvancedBulkSettings] = useState(false);
   const [bulkDescKeywords, setBulkDescKeywords] = useState(() => readGlobalSettings().collectionDescKeywords || "");
   const [bulkMetaTitleKeywords, setBulkMetaTitleKeywords] = useState(() => readGlobalSettings().collectionMetaTitleKeywords || "");
   const [bulkMetaDescKeywords, setBulkMetaDescKeywords] = useState(() => readGlobalSettings().collectionMetaDescKeywords || "");
-  const [bulkSelectedKeywords, setBulkSelectedKeywords] = useState([]);
-  const [bulkCustomKeywordInput, setBulkCustomKeywordInput] = useState("");
-  const [bulkKeywordTags, setBulkKeywordTags] = useState([]);
 
   useEffect(() => {
     const templateSelection = readStoredCollectionPromptTemplateSelection();
@@ -1290,62 +1284,6 @@ export default function CollectionsPage() {
 
   const updateBulkField = (field) => (value) =>
     setBulkSettings((prev) => ({ ...prev, [field]: value }));
-
-  const bulkKeywordOptions = useMemo(() => {
-    return [
-      { label: "Product Description", value: "product-description" },
-      { label: "Meta Title", value: "meta-title" },
-      { label: "Meta Description", value: "meta-description" },
-      { label: "SEO Keywords", value: "seo-keywords" },
-      { label: "Category", value: "category" },
-    ].filter(
-      (option) =>
-        !bulkSelectedKeywords.includes(option.value) &&
-        !bulkKeywordTags.includes(option.label)
-    );
-  }, [bulkSelectedKeywords, bulkKeywordTags]);
-
-  const bulkKeywordTextField = useMemo(
-    () => ({
-      onChange: (value) => setBulkCustomKeywordInput(value),
-      label: "Search keywords",
-      placeholder: "Search keywords",
-      value: bulkCustomKeywordInput,
-      autoComplete: "off",
-    }),
-    [bulkCustomKeywordInput]
-  );
-
-  const handleBulkKeywordSelect = useCallback(
-    (selected) => {
-      setBulkSelectedKeywords(selected);
-      const selectedLabels = selected
-        .map((val) => TONE_OPTIONS.find((opt) => opt.value === val)?.label || val)
-        .concat(
-          bulkKeywordOptions
-            .filter((opt) => selected.includes(opt.value))
-            .map((opt) => opt.label)
-        );
-      setBulkKeywordTags([...new Set([...bulkKeywordTags, ...selectedLabels])]);
-    },
-    [bulkKeywordTags, bulkKeywordOptions]
-  );
-
-  const handleAddBulkCustomKeyword = useCallback(() => {
-    const trimmed = bulkCustomKeywordInput.trim();
-    if (trimmed && !bulkKeywordTags.includes(trimmed)) {
-      setBulkKeywordTags((prev) => [...prev, trimmed]);
-      setBulkCustomKeywordInput("");
-    }
-  }, [bulkCustomKeywordInput, bulkKeywordTags]);
-
-  const handleRemoveBulkKeyword = useCallback((keyword) => {
-    setBulkKeywordTags((prev) => prev.filter((k) => k !== keyword));
-    const foundOption = bulkKeywordOptions.find((opt) => opt.label === keyword);
-    if (foundOption) {
-      setBulkSelectedKeywords((prev) => prev.filter((k) => k !== foundOption.value));
-    }
-  }, [bulkKeywordOptions]);
 
 
   const allVisibleSelected =
@@ -1662,67 +1600,6 @@ export default function CollectionsPage() {
                     autoComplete="off"
                   />
                 </div>
-              </div>
-            )}
-
-            {/* Show Advanced Settings toggle */}
-            <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-              <Button
-                variant="plain"
-                onClick={() => setShowAdvancedBulkSettings((v) => !v)}
-                icon={showAdvancedBulkSettings ? "▲" : "▼"}
-              >
-                {showAdvancedBulkSettings ? "Hide" : "Show"} Advanced Settings
-              </Button>
-            </div>
-
-            {/* Advanced Settings (collapsed by default) */}
-            {showAdvancedBulkSettings && (
-              <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-                <BlockStack gap="300">
-                  <Select
-                    label="Tone"
-                    options={TONE_OPTIONS}
-                    value={bulkSettings.tone}
-                    onChange={updateBulkField("tone")}
-                  />
-                  <Select
-                    label="Length"
-                    options={LENGTH_OPTIONS}
-                    value={bulkSettings.length}
-                    onChange={updateBulkField("length")}
-                  />
-                  <BlockStack gap="200">
-                    <Autocomplete
-                      allowMultiple
-                      options={bulkKeywordOptions}
-                      selected={bulkSelectedKeywords}
-                      textField={bulkKeywordTextField}
-                      onSelect={handleBulkKeywordSelect}
-                    />
-                    <InlineStack gap="200" blockAlign="end">
-                      <div style={{ flex: 1 }}>
-                        <TextField
-                          label="Custom keyword"
-                          labelHidden
-                          value={bulkCustomKeywordInput}
-                          onChange={setBulkCustomKeywordInput}
-                          placeholder="Add custom keyword"
-                          autoComplete="off"
-                        />
-                      </div>
-                      <Button onClick={handleAddBulkCustomKeyword} disabled={!bulkCustomKeywordInput.trim()}>Add</Button>
-                    </InlineStack>
-                    {bulkKeywordTags.length > 0 && (
-                      <InlineStack gap="200" wrap>
-                        {bulkKeywordTags.map((keyword) => (
-                          <Tag key={keyword} onRemove={() => handleRemoveBulkKeyword(keyword)}>{keyword}</Tag>
-                        ))}
-                      </InlineStack>
-                    )}
-                  </BlockStack>
-
-                </BlockStack>
               </div>
             )}
 
