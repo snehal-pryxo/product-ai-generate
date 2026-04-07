@@ -282,11 +282,11 @@ function ResourceBadge({ resource }) {
 function TemplateCard({ template, active, showResource, isCustom, isLoading, onPreview, onEdit, onDelete }) {
   return (
     <Card padding="0">
-      <div style={{ display: "flex", flexDirection: "column", minHeight: 340 }}>
+      <div style={{ display: "flex", flexDirection: "column" }}>
         {/* Preview area */}
         <div
           style={{
-            height: 180,
+            maxHeight: 180,
             overflowY: "auto",
             padding: "12px 14px",
             borderBottom: "1px solid var(--p-color-border)",
@@ -301,7 +301,6 @@ function TemplateCard({ template, active, showResource, isCustom, isLoading, onP
           style={{
             padding: "12px 14px",
             background: "var(--p-color-bg-surface-secondary)",
-            flex: 1,
             display: "flex",
             flexDirection: "column",
             gap: 8,
