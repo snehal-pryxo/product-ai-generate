@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Outlet, useFetchers, useLoaderData, useNavigation, useRouteError } from "react-router";
+import { Outlet, useFetchers, useLoaderData, useNavigate, useNavigation, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider as ShopifyAppProvider } from "@shopify/shopify-app-react-router/react";
 import { AppProvider as PolarisProvider, Spinner, Text } from "@shopify/polaris";
@@ -95,9 +95,15 @@ export const loader = async ({ request }) => {
 
 export default function App() {
   const { apiKey, globalSettings, templateSelections, customTemplates, credits, creditsUsedTotal } = useLoaderData();
+  const navigate = useNavigate();
   const navigation = useNavigation();
   const fetchers = useFetchers();
   const isBusy = navigation.state !== "idle" || fetchers.some((fetcher) => fetcher.state !== "idle");
+
+  const handleOpenCredits = () => {
+    const search = typeof window !== "undefined" ? window.location.search : "";
+    navigate({ pathname: "/app/analytics", search });
+  };
 
   useEffect(() => {
     // Keep localStorage mirrored with DB values for client-side pages using local settings utilities.
@@ -129,17 +135,32 @@ export default function App() {
             top: 14,
             right: 18,
             zIndex: 1000,
-            border: "1px solid #d1d5db",
-            background: "#ffffff",
-            borderRadius: 8,
-            padding: "8px 10px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-            fontSize: 12,
-            lineHeight: 1.3,
           }}
         >
-          <div style={{ fontWeight: 700, color: "#111827" }}>Credits: {credits}</div>
-          <div style={{ color: "#4b5563" }}>Used: {creditsUsedTotal}</div>
+          <button
+            type="button"
+            onClick={handleOpenCredits}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "5px",
+              border: "1px solid #d1d5db",
+              background: "#ffffff",
+              borderRadius: 7,
+              padding: "4px 7px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+              fontSize: 10,
+              fontWeight: 700,
+              color: "#111827",
+              lineHeight: 1,
+              whiteSpace: "nowrap",
+              cursor: "pointer",
+            }}
+          >
+            <span>{`Credits: ${credits}`}</span>
+            <span style={{ color: "#9ca3af", fontWeight: 500 }}>|</span>
+            <span style={{ color: "#4b5563", fontWeight: 600 }}>{`Used: ${creditsUsedTotal}`}</span>
+          </button>
         </div>
         {isBusy && (
           <div

@@ -1316,7 +1316,7 @@ export default function BlogPage() {
                   gridColumn: "1 / -1",
                   display: "grid",
                   gap: "12px",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                  gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
                   alignItems: "end",
                 }}
               >
@@ -1345,24 +1345,24 @@ export default function BlogPage() {
                   disabled={!autoScheduleLive}
                   helpText={autoScheduleLive ? "Scheduling range end for this generated article." : "Enable Auto Schedule Live to set end date/time."}
                 />
-              </div>
-              <TextField
-                label="Image Alt Text"
-                value={createImageAlt}
-                onChange={setCreateImageAlt}
-                placeholder="Describe uploaded image"
-                autoComplete="off"
-              />
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px", justifyContent: "center" }}>
-                <Text as="span" variant="bodySm" fontWeight="medium">Image Upload</Text>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) => setCreateImageFile(event.target.files?.[0] || null)}
+                <TextField
+                  label="Image Alt Text"
+                  value={createImageAlt}
+                  onChange={setCreateImageAlt}
+                  placeholder="Describe uploaded image"
+                  autoComplete="off"
                 />
-                <Text as="span" variant="bodySm" tone="subdued">
-                  {createImageFile ? `${createImageFile.name} (${Math.round(createImageFile.size / 1024)} KB)` : "Optional. Max 2MB."}
-                </Text>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px", justifyContent: "center" }}>
+                  <Text as="span" variant="bodySm" fontWeight="medium">Image Upload</Text>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => setCreateImageFile(event.target.files?.[0] || null)}
+                  />
+                  <Text as="span" variant="bodySm" tone="subdued">
+                    {createImageFile ? `${createImageFile.name} (${Math.round(createImageFile.size / 1024)} KB)` : "Optional. Max 2MB."}
+                  </Text>
+                </div>
               </div>
             </div>
 

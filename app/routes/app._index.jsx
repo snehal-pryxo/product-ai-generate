@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLoaderData, useActionData, Form, useNavigation } from "react-router";
+import { useLoaderData, useActionData, Form, useNavigation, useNavigate, useLocation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
@@ -108,10 +108,27 @@ const STATS = [
 
 function FeatureCard({ gradient, glow, icon, title, desc, url, tag }) {
   const [hovered, setHovered] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const handleNavigate = () => {
+    navigate({ pathname: url, search: location.search });
+  };
+
+  const handleKeyDown = (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handleNavigate();
+    }
+  };
+
   return (
-    <a
-      href={url}
+    <div
+      role="link"
+      tabIndex={0}
       style={{ textDecoration: "none" }}
+      onClick={handleNavigate}
+      onKeyDown={handleKeyDown}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -119,7 +136,7 @@ function FeatureCard({ gradient, glow, icon, title, desc, url, tag }) {
         style={{
           background: "#ffffff",
           borderRadius: "6px",
-          padding: "24px",
+          padding: "18px",
           border: `1px solid ${hovered ? "transparent" : "#e8eaed"}`,
           boxShadow: hovered
             ? `0 8px 32px ${glow}, 0 2px 8px rgba(0,0,0,0.08)`
@@ -170,15 +187,15 @@ function FeatureCard({ gradient, glow, icon, title, desc, url, tag }) {
         {/* Icon */}
         <div
           style={{
-            width: "52px",
-            height: "52px",
+            width: "42px",
+            height: "42px",
             borderRadius: "6px",
             background: gradient,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: "24px",
-            marginBottom: "16px",
+            fontSize: "20px",
+            marginBottom: "12px",
             boxShadow: `0 4px 12px ${glow}`,
           }}
         >
@@ -187,20 +204,20 @@ function FeatureCard({ gradient, glow, icon, title, desc, url, tag }) {
 
         <div
           style={{
-            fontSize: "16px",
+            fontSize: "15px",
             fontWeight: 700,
             color: "#0d1117",
-            marginBottom: "8px",
+            marginBottom: "6px",
           }}
         >
           {title}
         </div>
         <div
           style={{
-            fontSize: "13px",
+            fontSize: "12px",
             color: "#6b7280",
             lineHeight: "1.5",
-            marginBottom: "20px",
+            marginBottom: "14px",
           }}
         >
           {desc}
@@ -212,7 +229,7 @@ function FeatureCard({ gradient, glow, icon, title, desc, url, tag }) {
             display: "inline-flex",
             alignItems: "center",
             gap: "6px",
-            fontSize: "13px",
+            fontSize: "12px",
             fontWeight: 600,
             background: gradient,
             WebkitBackgroundClip: "text",
@@ -224,7 +241,7 @@ function FeatureCard({ gradient, glow, icon, title, desc, url, tag }) {
           <span style={{ WebkitTextFillColor: "initial", color: "inherit" }}>→</span>
         </div>
       </div>
-    </a>
+    </div>
   );
 }
 
