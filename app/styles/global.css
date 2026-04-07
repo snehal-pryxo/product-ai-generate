@@ -38,11 +38,22 @@
 
 /* Polaris Tabs */
 .Polaris-Tabs__Tab { border-radius: 6px !important; }
-.Polaris-Tabs__Tab[aria-selected="true"] {
+.Polaris-Tabs__Tab[aria-selected="true"],
+.Polaris-Tabs__Tab--active,
+.Polaris-Tabs__Tab--active:not([aria-disabled="true"]):hover,
+.Polaris-Tabs__Tab--active:not([aria-disabled="true"]):focus,
+.Polaris-Tabs__Tab--active:not([aria-disabled="true"]):active {
   background: #000 !important;
-}
-.Polaris-Tabs__Tab[aria-selected="true"] .Polaris-Tabs__Title {
   color: #fff !important;
+}
+.Polaris-Tabs__Tab[aria-selected="true"] .Polaris-Text--root,
+.Polaris-Tabs__Tab--active .Polaris-Text--root,
+.Polaris-Tabs__Tab[aria-selected="true"] svg,
+.Polaris-Tabs__Tab--active svg,
+.Polaris-Tabs__Tab[aria-selected="true"] path,
+.Polaris-Tabs__Tab--active path {
+  color: #fff !important;
+  fill: #fff !important;
 }
 
 /* Polaris IndexTable */

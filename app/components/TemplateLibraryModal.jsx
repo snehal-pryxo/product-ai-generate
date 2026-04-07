@@ -226,14 +226,15 @@ export function TemplateLibraryModal({ open, onClose, tabs, initialTab, template
                 style={{
                   padding: "10px 18px",
                   border: "none",
-                  background: "none",
+                  background: activeTab === tab.id ? "#000" : "none",
                   cursor: "pointer",
                   fontSize: "13px",
                   fontWeight: activeTab === tab.id ? 600 : 400,
-                  color: activeTab === tab.id ? "#111" : "#6b7280",
+                  color: activeTab === tab.id ? "#fff" : "#6b7280",
+                  borderRadius: "6px 6px 0 0",
                   borderBottom: activeTab === tab.id ? "2px solid #1a1a1a" : "2px solid transparent",
                   whiteSpace: "nowrap",
-                  transition: "color 0.15s",
+                  transition: "color 0.15s, background 0.15s",
                 }}
               >
                 {activeTab === tab.id && <span style={{ marginRight: "6px" }}>✓</span>}
