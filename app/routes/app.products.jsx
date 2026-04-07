@@ -1367,6 +1367,37 @@ export default function ProductsPage() {
 
   return (
     <Page fullWidth>
+      {/* ── Products / Collections Tab Bar ── */}
+      <div style={{ display: "flex", gap: "0", marginBottom: "20px", borderBottom: "2px solid #e4e5e7" }}>
+        {[
+          { label: "Products", icon: ProductIcon, path: "/app/products", active: true },
+          { label: "Collections", icon: CollectionIcon, path: "/app/collections", active: false },
+        ].map((tab) => (
+          <button
+            key={tab.label}
+            type="button"
+            onClick={() => navigate({ pathname: tab.path, search: location.search })}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "10px 20px",
+              border: "none",
+              borderBottom: tab.active ? "2px solid #008060" : "2px solid transparent",
+              marginBottom: "-2px",
+              background: "transparent",
+              color: tab.active ? "#008060" : "#6d7175",
+              fontWeight: tab.active ? 700 : 500,
+              fontSize: "14px",
+              cursor: tab.active ? "default" : "pointer",
+            }}
+          >
+            <Icon source={tab.icon} tone={tab.active ? "success" : "subdued"} />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {/* ── Hero Header ── */}
       <div style={{
         background: "linear-gradient(135deg, #1a0533 0%, #2d1b69 50%, #0f3460 100%)",
@@ -1413,27 +1444,19 @@ export default function ProductsPage() {
             </Card>
           </div>
 
-          {/* Products/Collections Tab Toggle */}
-          <div style={{ marginBottom: "16px" }}>
-            <InlineStack gap="0" blockAlign="center">
-              <div style={{ marginLeft: "auto", display: "flex", gap: "8px" }}>
-                <div style={{ position: "relative" }}>
-                  <TextField
-                    label="Search products"
-                    labelHidden
-                    placeholder="Search by product title..."
-                    value={searchValue}
-                    onChange={handleSearchInput}
-                    autoComplete="off"
-                    prefix={isSearchLoading ? <Spinner size="small" /> : undefined}
-                  />
-                </div>
-              </div>
-            </InlineStack>
-          </div>
-
-          {/* Collection Filter */}
-          <div style={{ marginBottom: "12px" }}>
+          {/* Search & Collection Filter - One Line */}
+          <div style={{ marginBottom: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <div style={{ position: "relative" }}>
+              <TextField
+                label="Search products"
+                labelHidden
+                placeholder="Search by product title..."
+                value={searchValue}
+                onChange={handleSearchInput}
+                autoComplete="off"
+                prefix={isSearchLoading ? <Spinner size="small" /> : undefined}
+              />
+            </div>
             <Select
               label="Filter by Collection"
               labelHidden
@@ -1659,82 +1682,7 @@ export default function ProductsPage() {
 
 
 
-            {/* ── Tone / Length / Format row (3 fields) ── */}
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-              <Text as="h3" variant="headingSm" fontWeight="semibold">Generation Settings</Text>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginTop: "8px" }}>
-                <Select
-                  label="Tone"
-                  labelHidden
-                  options={[
-                    { label: "Professional", value: "professional" },
-                    { label: "Friendly", value: "friendly" },
-                    { label: "Persuasive", value: "persuasive" },
-                    { label: "Neutral", value: "neutral" },
-                    { label: "Playful", value: "playful" },
-                    { label: "Formal", value: "formal" },
-                  ]}
-                  value={bulkSettings.tone}
-                  onChange={(v) => setBulkSettings((s) => ({ ...s, tone: v }))}
-                />
-                <Select
-                  label="Length"
-                  labelHidden
-                  options={[
-                    { label: "Short", value: "short" },
-                    { label: "Medium", value: "medium" },
-                    { label: "Long", value: "long" },
-                  ]}
-                  value={bulkSettings.length}
-                  onChange={(v) => setBulkSettings((s) => ({ ...s, length: v }))}
-                />
-                <Select
-                  label="Format"
-                  labelHidden
-                  options={[
-                    { label: "Paragraph", value: "paragraph" },
-                    { label: "Bullet Points", value: "bullet" },
-                    { label: "Mixed", value: "mixed" },
-                  ]}
-                  value={bulkSettings.format || "paragraph"}
-                  onChange={(v) => setBulkSettings((s) => ({ ...s, format: v }))}
-                />
-              </div>
-            </div>
 
-            {/* ── Language / AI Provider row (2 fields) ── */}
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                <Select
-                  label="Language"
-                  options={[
-                    { label: "English", value: "English" },
-                    { label: "Spanish", value: "Spanish" },
-                    { label: "French", value: "French" },
-                    { label: "German", value: "German" },
-                    { label: "Italian", value: "Italian" },
-                    { label: "Portuguese", value: "Portuguese" },
-                    { label: "Dutch", value: "Dutch" },
-                    { label: "Japanese", value: "Japanese" },
-                    { label: "Chinese", value: "Chinese" },
-                    { label: "Arabic", value: "Arabic" },
-                  ]}
-                  value={bulkSettings.language || "English"}
-                  onChange={(v) => setBulkSettings((s) => ({ ...s, language: v }))}
-                />
-                <Select
-                  label="AI Provider"
-                  options={[
-                    { label: "Auto", value: "auto" },
-                    { label: "OpenAI", value: "openai" },
-                    { label: "Anthropic", value: "anthropic" },
-                    { label: "Ollama", value: "ollama" },
-                  ]}
-                  value={bulkSettings.aiProvider || "auto"}
-                  onChange={(v) => setBulkSettings((s) => ({ ...s, aiProvider: v }))}
-                />
-              </div>
-            </div>
 
             {/* Bulk result badge */}
             {bulkResult && (

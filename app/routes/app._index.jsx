@@ -315,28 +315,6 @@ export default function Index() {
             </BlockStack>
           </InlineStack>
           {/* Content type tabs */}
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-            {CONTENT_FEATURES.map((card) => (
-              <button
-                key={card.title}
-                type="button"
-                onClick={() => navigate({ pathname: card.url, search: location.search })}
-                style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 14px", borderRadius: "20px", border: "1px solid #e4e5e7", background: "#fff", fontSize: "12px", fontWeight: 600, color: "#374151", cursor: "pointer", whiteSpace: "nowrap" }}
-              >
-                <div style={{ width: 14, height: 14, borderRadius: 3, background: card.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Icon source={card.icon} tone="base" />
-                </div>
-                {card.title}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => navigate({ pathname: "/app/content-management", search: location.search })}
-              style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 14px", borderRadius: "20px", border: "1px solid #e4e5e7", background: "#fff", fontSize: "12px", fontWeight: 600, color: "#374151", cursor: "pointer", whiteSpace: "nowrap" }}
-            >
-              Content Management
-            </button>
-          </div>
           <Grid columns={{ xs: 2, sm: 2, md: 4, lg: 4, xl: 4 }}>
             {CONTENT_FEATURES.map((card) => (
               <Grid.Cell key={card.title}>
