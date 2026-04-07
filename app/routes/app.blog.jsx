@@ -207,6 +207,16 @@ function normalizeGeneratedHtml(value) {
   return toParagraphHtml(text);
 }
 
+function stripHtml(value) {
+  return String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function evaluateContentShortStatus(content) {
+  if (!content || !content.trim()) return { label: "Missing", tone: "critical" };
+  if (content.trim().length < 80) return { label: "Short", tone: "warning" };
+  return { label: "Good", tone: "success" };
+}
+
 function parseGeneratedBlogJson(raw) {
   let parsed = { articleTitle: "", articleBody: "", excerpt: "", seoTitle: "", seoDescription: "" };
   try {
@@ -978,23 +988,30 @@ export default function BlogPage() {
     if (templateSelection.metaDescriptionPromptTemplate) setBulkMetaDescPromptTemplate(templateSelection.metaDescriptionPromptTemplate);
   }, []);
 
-  const rowMarkup = filteredArticles.map((article, index) => (
-    <IndexTable.Row
-      id={article.id}
-      key={article.id}
-      selected={selectedResources.includes(article.id)}
-      position={index}
-    >
-      <IndexTable.Cell>
-        <Text variant="bodyMd" fontWeight="bold" as="span">{article.title}</Text>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        {article.publishedAt
-          ? <Badge tone="success">Published</Badge>
-          : <Badge tone="attention">Draft</Badge>}
-      </IndexTable.Cell>
-    </IndexTable.Row>
-  ));
+  const rowMarkup = filteredArticles.map((article, index) => {
+    const shortStatus = evaluateContentShortStatus(stripHtml(article.body || ""));
+
+    return (
+      <IndexTable.Row
+        id={article.id}
+        key={article.id}
+        selected={selectedResources.includes(article.id)}
+        position={index}
+      >
+        <IndexTable.Cell>
+          <Text variant="bodyMd" fontWeight="bold" as="span">{article.title}</Text>
+        </IndexTable.Cell>
+        <IndexTable.Cell>
+          <Badge tone={shortStatus.tone}>{shortStatus.label}</Badge>
+        </IndexTable.Cell>
+        <IndexTable.Cell>
+          {article.publishedAt
+            ? <Badge tone="success">Published</Badge>
+            : <Badge tone="attention">Draft</Badge>}
+        </IndexTable.Cell>
+      </IndexTable.Row>
+    );
+  });
 
   return (
     <Page fullWidth>
@@ -1249,6 +1266,7 @@ export default function BlogPage() {
               onSelectionChange={handleSelectionChange}
               headings={[
                 { title: "Title" },
+                { title: "Short" },
                 { title: "Status" },
               ]}
             >

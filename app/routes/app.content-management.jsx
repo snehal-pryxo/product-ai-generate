@@ -1122,6 +1122,13 @@ function statusBadge(status) {
   return <Badge>{status || "—"}</Badge>;
 }
 
+function shortContentBadge(content) {
+  const plain = (content || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  if (!plain) return <Badge tone="critical">Missing</Badge>;
+  if (plain.length < 80) return <Badge tone="warning">Short</Badge>;
+  return <Badge tone="success">Good</Badge>;
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ContentManagementPage() {
   const { tab, filter, items, credits, defaultAiProvider } = useLoaderData();
@@ -1257,6 +1264,7 @@ export default function ContentManagementPage() {
   const headings = [
     { title: "" },
     { title: singularLabel },
+    { title: "Short" },
     { title: "Status" },
     { title: "Description" },
     { title: "SEO Description" },
@@ -1294,6 +1302,9 @@ export default function ContentManagementPage() {
         <IndexTable.Cell>
           <Text variant="bodyMd" fontWeight="semibold" as="span">{item.title}</Text>
         </IndexTable.Cell>
+
+        {/* Short */}
+        <IndexTable.Cell>{shortContentBadge(item.descriptionHtml)}</IndexTable.Cell>
 
         {/* Status */}
         <IndexTable.Cell>{statusBadge(item.status)}</IndexTable.Cell>

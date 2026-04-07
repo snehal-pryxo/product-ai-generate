@@ -4,6 +4,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import {
+  Banner,
   Page,
   Card,
   BlockStack,
@@ -103,6 +104,7 @@ export default function SettingsPage() {
   const navigate = useNavigate();
   const [settings, setSettings] = useState(() => normalizeGlobalSettings(initialSettings));
   const [saved, setSaved] = useState(false);
+  const [saveMessage, setSaveMessage] = useState(null);
   const isSaving = saveFetcher.state !== "idle";
 
   useEffect(() => {
@@ -119,11 +121,14 @@ export default function SettingsPage() {
       setSettings(normalized);
       writeGlobalSettings(normalized);
       setSaved(true);
+      setSaveMessage({ tone: "success", text: "Configuration saved successfully." });
       shopify.toast.show("Settings saved successfully.");
       setTimeout(() => setSaved(false), 3000);
+      setTimeout(() => setSaveMessage(null), 3000);
       return;
     }
 
+    setSaveMessage({ tone: "critical", text: data.error || "Failed to save configuration." });
     shopify.toast.show(data.error || "Failed to save settings.");
   }, [saveFetcher.data, saveFetcher.state, settings, shopify]);
 
@@ -151,6 +156,11 @@ export default function SettingsPage() {
       secondaryActions={[{ content: "Back", onAction: () => navigate("/app") }]}
     >
       <BlockStack gap="600">
+        {saveMessage && (
+          <Banner tone={saveMessage.tone}>
+            <Text as="p">{saveMessage.text}</Text>
+          </Banner>
+        )}
 
         {/* Generation Settings */}
         <Card>

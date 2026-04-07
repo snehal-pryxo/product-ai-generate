@@ -177,6 +177,13 @@ function toSearchQuery({ search, status }) {
   return filters.join(" ");
 }
 
+function evaluateDescription(description) {
+  if (!description || !description.trim()) return { label: "Missing", tone: "critical" };
+  const length = description.trim().length;
+  if (length < 80) return { label: "Short", tone: "warning" };
+  return { label: "Good", tone: "success" };
+}
+
 function evaluateSeoTitle(title) {
   if (!title || !title.trim()) return { label: "Missing", tone: "critical" };
   const length = title.trim().length;
@@ -971,6 +978,7 @@ export const loader = async ({ request }) => {
       handle: node.handle,
       descriptionHtml: node.descriptionHtml || "",
       descriptionText: stripHtml(node.descriptionHtml),
+      descriptionStatus: evaluateDescription(stripHtml(node.descriptionHtml)),
       status: toStatusMeta(node.status),
       appStatus: toAppGenerationStatusMeta(generatedContent),
       generatedTime: formatRelativeGenerationTime(generatedContent?.updatedAt),
@@ -1357,20 +1365,6 @@ export default function ProductsPage() {
                 </InlineStack>
               </div>
 
-              <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-                <InlineStack align="space-between" blockAlign="center">
-                  <Checkbox
-                    label={`Select all visible (${filteredProducts.length})`}
-                    checked={allVisibleSelected}
-                    indeterminate={selectionIndeterminate}
-                    onChange={handleToggleSelectAllVisible}
-                  />
-                  <Text as="span" variant="bodySm" tone="subdued">
-                    {selectedProducts.length} selected
-                  </Text>
-                </InlineStack>
-              </div>
-
               {isSearchLoading ? (
                 <Box padding="400">
                   <InlineStack align="center">
@@ -1386,8 +1380,19 @@ export default function ProductsPage() {
                   resourceName={resourceName}
                   itemCount={filteredProducts.length}
                   headings={[
-                    { title: "" },
+                    {
+                      title: (
+                        <Checkbox
+                          label="Select all visible products"
+                          labelHidden
+                          checked={allVisibleSelected}
+                          indeterminate={selectionIndeterminate}
+                          onChange={handleToggleSelectAllVisible}
+                        />
+                      ),
+                    },
                     { title: "Title" },
+                    { title: "Short" },
                     { title: "Status" },
                   ]}
                   selectable={false}
@@ -1405,6 +1410,7 @@ export default function ProductsPage() {
                       <IndexTable.Cell>
                         <Text variant="bodyMd" fontWeight="medium" as="span">{product.title}</Text>
                       </IndexTable.Cell>
+                      <IndexTable.Cell>{renderBadge(product.descriptionStatus)}</IndexTable.Cell>
                       <IndexTable.Cell>
                         {isBulkGenerating && selectedProductIds.includes(product.id) ? (
                           <InlineStack gap="100" blockAlign="center">

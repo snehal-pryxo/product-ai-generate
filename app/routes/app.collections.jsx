@@ -144,7 +144,7 @@ function toSearchQuery(search) {
 function evaluateDescription(description) {
   if (!description || !description.trim()) return { label: "Missing", tone: "critical" };
   const length = description.trim().length;
-  if (length < 80) return { label: "Too short", tone: "warning" };
+  if (length < 80) return { label: "Short", tone: "warning" };
   return { label: "Good", tone: "success" };
 }
 
@@ -1178,6 +1178,7 @@ export default function CollectionsPage() {
   const tableHeadings = [
     { title: "" },
     { title: "Title" },
+    { title: "Short" },
     { title: "Status" },
   ];
 
@@ -1232,6 +1233,8 @@ export default function CollectionsPage() {
           </Text>
         </div>
       </IndexTable.Cell>
+
+      <IndexTable.Cell>{renderBadge(collection.descriptionStatus)}</IndexTable.Cell>
 
       <IndexTable.Cell>
         {isBulkGenerating && selectedCollectionIds.includes(collection.id) ? (

@@ -165,6 +165,16 @@ function normalizeGeneratedHtml(value) {
   return toParagraphHtml(text);
 }
 
+function stripHtml(value) {
+  return (value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function evaluateContentShortStatus(content) {
+  if (!content || !content.trim()) return { label: "Missing", tone: "critical" };
+  if (content.trim().length < 80) return { label: "Short", tone: "warning" };
+  return { label: "Good", tone: "success" };
+}
+
 function buildGenerationPrompt({
   pageTitle,
   pageType,
@@ -583,26 +593,33 @@ export default function PagesPage() {
               onSelectionChange={handleSelectionChange}
               headings={[
                 { title: "Title" },
+                { title: "Short" },
                 { title: "Status" },
               ]}
             >
-              {pages.map((page, index) => (
-                <IndexTable.Row
-                  id={page.id}
-                  key={page.id}
-                  selected={selectedResources.includes(page.id)}
-                  position={index}
-                >
-                  <IndexTable.Cell>
-                    <Text variant="bodyMd" fontWeight="bold" as="span">{page.title}</Text>
-                  </IndexTable.Cell>
-                  <IndexTable.Cell>
-                    {page.seo?.title
-                      ? <Badge tone="success">Set</Badge>
-                      : <Badge tone="attention">Missing</Badge>}
-                  </IndexTable.Cell>
-                </IndexTable.Row>
-              ))}
+              {pages.map((page, index) => {
+                const shortStatus = evaluateContentShortStatus(stripHtml(page.body || page.bodySummary || ""));
+                return (
+                  <IndexTable.Row
+                    id={page.id}
+                    key={page.id}
+                    selected={selectedResources.includes(page.id)}
+                    position={index}
+                  >
+                    <IndexTable.Cell>
+                      <Text variant="bodyMd" fontWeight="bold" as="span">{page.title}</Text>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <Badge tone={shortStatus.tone}>{shortStatus.label}</Badge>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      {page.seo?.title
+                        ? <Badge tone="success">Set</Badge>
+                        : <Badge tone="attention">Missing</Badge>}
+                    </IndexTable.Cell>
+                  </IndexTable.Row>
+                );
+              })}
             </IndexTable>
           </Card>
         </div>

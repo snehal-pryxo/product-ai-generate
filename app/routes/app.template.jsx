@@ -3,6 +3,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { useFetcher, useLoaderData } from "react-router";
 import {
   ActionList,
+  Banner,
   Badge,
   BlockStack,
   Box,
@@ -440,6 +441,17 @@ export default function TemplatePage() {
 
   // Loading state
   const [isLoading, setIsLoading] = useState(false);
+  const [configMessage, setConfigMessage] = useState(null);
+
+  function showConfigSavedMessage(text = "Configuration saved successfully.") {
+    setConfigMessage({ tone: "success", text });
+    setTimeout(() => setConfigMessage(null), 3000);
+  }
+
+  function showConfigErrorMessage(text = "Failed to save configuration.") {
+    setConfigMessage({ tone: "critical", text });
+    setTimeout(() => setConfigMessage(null), 4000);
+  }
 
   useEffect(() => {
     // Keep localStorage in sync so generation pages that still read localStorage continue to work.
@@ -533,6 +545,7 @@ export default function TemplatePage() {
           },
           customTemplates,
         );
+        showConfigSavedMessage();
         shopify.toast.show(`${template.name} applied to products.`);
         return;
       }
@@ -560,6 +573,7 @@ export default function TemplatePage() {
           },
           customTemplates,
         );
+        showConfigSavedMessage();
         shopify.toast.show(`${template.name} applied to collections.`);
         return;
       }
@@ -587,6 +601,7 @@ export default function TemplatePage() {
           },
           customTemplates,
         );
+        showConfigSavedMessage();
         shopify.toast.show(`${template.name} applied to pages.`);
         return;
       }
@@ -614,10 +629,12 @@ export default function TemplatePage() {
           },
           customTemplates,
         );
+        showConfigSavedMessage();
         shopify.toast.show(`${template.name} applied to blog posts.`);
         return;
       }
     } catch (error) {
+      showConfigErrorMessage(error?.message || "Failed to save configuration.");
       shopify.toast.show(error?.message || "Failed to apply template.");
     } finally {
       setIsLoading(false);
@@ -689,6 +706,7 @@ export default function TemplatePage() {
           },
           normalized,
         );
+        showConfigSavedMessage();
         shopify.toast.show("Custom template updated.");
       } else {
         const newEntry = {
@@ -708,10 +726,12 @@ export default function TemplatePage() {
           },
           normalized,
         );
+        showConfigSavedMessage();
         shopify.toast.show("Custom template created.");
       }
       setShowFormModal(false);
     } catch (error) {
+      showConfigErrorMessage(error?.message || "Failed to save configuration.");
       shopify.toast.show(error?.message || "Failed to save custom template.");
     } finally {
       setIsLoading(false);
@@ -733,9 +753,11 @@ export default function TemplatePage() {
         },
         normalized,
       );
+      showConfigSavedMessage();
       setDeleteTargetId(null);
       shopify.toast.show("Custom template deleted.");
     } catch (error) {
+      showConfigErrorMessage(error?.message || "Failed to save configuration.");
       shopify.toast.show(error?.message || "Failed to delete custom template.");
     } finally {
       setIsLoading(false);
@@ -785,6 +807,13 @@ export default function TemplatePage() {
       title="Templates"
       subtitle="Manage prompt templates for AI content generation."
     >
+      {configMessage && (
+        <div style={{ marginBottom: "16px" }}>
+          <Banner tone={configMessage.tone}>
+            <Text as="p">{configMessage.text}</Text>
+          </Banner>
+        </div>
+      )}
       <Layout>
         {/* Main tabs */}
         <Layout.Section>

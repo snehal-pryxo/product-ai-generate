@@ -1,8 +1,8 @@
 import { useEffect } from "react";
-import { Outlet, useLoaderData, useRouteError } from "react-router";
+import { Outlet, useFetchers, useLoaderData, useNavigation, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider as ShopifyAppProvider } from "@shopify/shopify-app-react-router/react";
-import { AppProvider as PolarisProvider } from "@shopify/polaris";
+import { AppProvider as PolarisProvider, Spinner, Text } from "@shopify/polaris";
 import enTranslations from "@shopify/polaris/locales/en.json";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
@@ -91,6 +91,9 @@ export const loader = async ({ request }) => {
 
 export default function App() {
   const { apiKey, globalSettings, templateSelections, customTemplates } = useLoaderData();
+  const navigation = useNavigation();
+  const fetchers = useFetchers();
+  const isBusy = navigation.state !== "idle" || fetchers.some((fetcher) => fetcher.state !== "idle");
 
   useEffect(() => {
     // Keep localStorage mirrored with DB values for client-side pages using local settings utilities.
@@ -116,6 +119,35 @@ export default function App() {
            <s-link href="/app/analytics">Analytics</s-link>
           <s-link href="/app/settings">Settings</s-link>
         </s-app-nav>
+        {isBusy && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0, 0, 0, 0.28)",
+              zIndex: 99999,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              pointerEvents: "all",
+            }}
+          >
+            <div
+              style={{
+                background: "#ffffff",
+                border: "1px solid var(--p-color-border)",
+                borderRadius: 8,
+                padding: "14px 18px",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+              }}
+            >
+              <Spinner accessibilityLabel="Loading" size="small" />
+              <Text as="span" variant="bodySm">Processing...</Text>
+            </div>
+          </div>
+        )}
         <Outlet />
       </ShopifyAppProvider>
     </PolarisProvider>
