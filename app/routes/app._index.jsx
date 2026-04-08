@@ -453,8 +453,8 @@ export default function Index() {
               <Text variant="headingMd" as="h2">We're Here to Help You Succeed</Text>
             </InlineStack>
 
-            <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 2 }}>
-              {/* Row 1: Setup Call & Quick Help */}
+            <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
+              {/* Box 1: Setup Call */}
               <Grid.Cell>
                 <div style={{ border: "1px solid #e4e5e7", borderRadius: "8px", padding: "20px", height: "100%", background: "#ffffff" }}>
                   <BlockStack gap="300">
@@ -471,22 +471,9 @@ export default function Index() {
                 </div>
               </Grid.Cell>
 
+              {/* Box 2: Support & Quick Help Combined */}
               <Grid.Cell>
                 <div style={{ border: "1px solid #e4e5e7", borderRadius: "8px", padding: "20px", height: "100%", background: "#ffffff" }}>
-                  <BlockStack gap="300">
-                    <Text variant="headingSm" as="h3" fontWeight="bold">Need Quick Help?</Text>
-                    <Text variant="bodySm" tone="subdued">Reach out anytime for support, feedback, or just to share your progress.</Text>
-                    <InlineStack gap="200">
-                      <Button url="#" variant="primary" size="slim">WhatsApp</Button>
-                      <Button url="#" variant="primary" size="slim">Live Chat</Button>
-                    </InlineStack>
-                  </BlockStack>
-                </div>
-              </Grid.Cell>
-
-              {/* Row 2: Support (Full Width) */}
-              <Grid.Cell>
-                <div style={{ border: "1px solid #e4e5e7", borderRadius: "8px", padding: "20px", height: "100%", background: "#ffffff", gridColumn: "span 1" }}>
                   <BlockStack gap="300">
                     <Text variant="headingSm" as="h3" fontWeight="bold">Support</Text>
                     <Grid columns={{ xs: 2, sm: 2, md: 2, lg: 2, xl: 2 }} gap="200">
@@ -513,11 +500,19 @@ export default function Index() {
                         </div>
                       </Grid.Cell>
                     </Grid>
+                    <Divider />
+                    <BlockStack gap="200">
+                      <Text variant="bodySm" fontWeight="semibold">Need Quick Help?</Text>
+                      <InlineStack gap="200">
+                        <Button url="#" variant="primary" size="slim">WhatsApp</Button>
+                        <Button url="#" variant="primary" size="slim">Live Chat</Button>
+                      </InlineStack>
+                    </BlockStack>
                   </BlockStack>
                 </div>
               </Grid.Cell>
 
-              {/* Row 3: Motivate our team */}
+              {/* Box 3: Motivate our team */}
               <Grid.Cell>
                 <div style={{ border: "1px solid #e4e5e7", borderRadius: "8px", padding: "20px", height: "100%", background: "#ffffff", textAlign: "center" }}>
                   <BlockStack gap="300" align="center">
