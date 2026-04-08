@@ -1067,37 +1067,50 @@ export default function AnalyticsPage() {
                 <Text variant="headingMd" as="h2">Generation Activity</Text>
                 <Text variant="bodySm" tone="subdued">Click a data point to see day details</Text>
               </BlockStack>
-              <DateRangePicker rangeParam={rangeParam} startDate={startDate} endDate={endDate} containerRef={activityRef} />
             </InlineStack>
 
-            <InlineStack gap="200" wrap>
-              {RESOURCE_TABS.map((tab) => {
-                const isActive = resourceFilter === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => {
-                      setResourceFilter(tab.id);
-                      setSelectedDate(null);
-                    }}
-                    className={`content-mgmt-tab-btn${isActive ? " content-mgmt-tab-btn--active" : ""}`}
-                  >
-                    {tab.content}
-                  </button>
-                );
-              })}
-            </InlineStack>
-
-            <Select
-              label="Specific generate filter"
-              options={generateTypeOptions}
-              value={generateTypeFilter}
-              onChange={(value) => {
-                setGenerateTypeFilter(value);
-                setSelectedDate(null);
+            <div
+              style={{
+                display: "flex",
+                alignItems: "flex-end",
+                justifyContent: "space-between",
+                gap: 12,
+                flexWrap: "wrap",
               }}
-            />
+            >
+              <InlineStack gap="200" wrap>
+                {RESOURCE_TABS.map((tab) => {
+                  const isActive = resourceFilter === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => {
+                        setResourceFilter(tab.id);
+                        setSelectedDate(null);
+                      }}
+                      className={`content-mgmt-tab-btn${isActive ? " content-mgmt-tab-btn--active" : ""}`}
+                    >
+                      {tab.content}
+                    </button>
+                  );
+                })}
+              </InlineStack>
+
+              <div style={{ minWidth: 220, flex: "1 1 260px", maxWidth: 320 }}>
+                <Select
+                  label="Specific generate filter"
+                  options={generateTypeOptions}
+                  value={generateTypeFilter}
+                  onChange={(value) => {
+                    setGenerateTypeFilter(value);
+                    setSelectedDate(null);
+                  }}
+                />
+              </div>
+
+              <DateRangePicker rangeParam={rangeParam} startDate={startDate} endDate={endDate} containerRef={activityRef} />
+            </div>
 
             {/* Chart — always shown with dates, flat line when no activity */}
             <AreaLineChart data={filteredDailyActivity} selectedDate={selectedDate} onDayClick={handleDayClick} />
