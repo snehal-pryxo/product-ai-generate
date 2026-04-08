@@ -512,14 +512,14 @@ function DateRangePicker({ rangeParam, startDate, endDate, containerRef }) {
 
 // ─── Area / Line Chart ────────────────────────────────────────────────────────
 
-const CH = { vw: 800, vh: 240, pL: 44, pR: 20, pT: 20, pB: 44 };
-const Y_TICKS = 5; // always 5 horizontal grid lines like reference
+const CH = { vw: 800, vh: 220, pL: 44, pR: 18, pT: 18, pB: 36 };
+const Y_TICKS = 2;
 
 function AreaLineChart({ data, selectedDate, onDayClick }) {
   const n = data.length;
   const [hoveredIdx, setHoveredIdx] = useState(null);
   const svgRef = useRef(null);
-  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0, flipLeft: false });
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0, flipLeft: false, flipUp: false });
 
   if (!n) return null;
 
@@ -537,7 +537,7 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
   );
 
   // X-axis — show up to 8 labels
-  const xStep = Math.max(1, Math.ceil(n / 8));
+  const xStep = Math.max(1, Math.ceil(n / 7));
 
   const pts1 = data.map((d, i) => `${px(i).toFixed(1)},${py(d.count).toFixed(1)}`).join(" ");
   const pts2 = data.map((d, i) => `${px(i).toFixed(1)},${py(d.applied).toFixed(1)}`).join(" ");
@@ -567,14 +567,7 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
   return (
     <div style={{ position: "relative" }}>
       {/* Chart wrapper — light background like reference */}
-      <div
-        style={{
-          background: "#F9FAFB",
-          border: "1px solid #E4E5E7",
-          borderRadius: 6,
-          position: "relative",
-        }}
-      >
+      <div className="analytics-chart-shell">
         <svg
           ref={svgRef}
           viewBox={`0 0 ${CH.vw} ${CH.vh}`}
@@ -586,7 +579,7 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
             x={CH.pL} y={CH.pT}
             width={CH.vw - CH.pL - CH.pR}
             height={CH.vh - CH.pT - CH.pB}
-            fill="#F0F4FF"
+            fill="rgba(236, 241, 252, 0.78)"
             rx="4"
           />
 
@@ -596,8 +589,8 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
             return (
               <g key={ki}>
                 <line x1={CH.pL} y1={y} x2={CH.vw - CH.pR} y2={y}
-                  stroke={ki === 0 ? "#D1D5DB" : "#E9EBEC"} strokeWidth="1" />
-                <text x={CH.pL - 8} y={y + 4} textAnchor="end" fontSize="11" fill="#9CA3AF">
+                  stroke={ki === 0 ? "var(--p-color-border-secondary)" : "var(--p-color-border)"} strokeWidth="1" />
+                <text x={CH.pL - 8} y={y + 4} textAnchor="end" fontSize="11" fill="var(--p-color-text-secondary)">
                   {v}
                 </text>
               </g>
@@ -633,7 +626,7 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
                 {/* Vertical dashed guideline */}
                 {active && (
                   <line x1={x} y1={CH.pT} x2={x} y2={baseY}
-                    stroke="#C9CCCF" strokeWidth="1" strokeDasharray="4 3" />
+                    stroke="var(--p-color-border-secondary)" strokeWidth="1" strokeDasharray="4 4" />
                 )}
                 {/* Wide invisible hover/click target */}
                 <rect x={x - 22} y={CH.pT} width={44} height={plotH} fill="transparent" />
@@ -653,14 +646,14 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
 
           {/* X-axis baseline */}
           <line x1={CH.pL} y1={baseY} x2={CH.vw - CH.pR} y2={baseY}
-            stroke="#D1D5DB" strokeWidth="1" />
+            stroke="var(--p-color-border-secondary)" strokeWidth="1" />
 
           {/* X-axis date labels */}
           {data.map((d, i) => {
             if (i % xStep !== 0 && i !== n - 1) return null;
             return (
               <text key={d.date} x={px(i)} y={baseY + 16}
-                textAnchor="middle" fontSize="10.5" fill="#9CA3AF">
+                textAnchor="middle" fontSize="10.5" fill="var(--p-color-text-secondary)">
                 {d.label}
               </text>
             );
@@ -670,6 +663,7 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
         {/* Hover tooltip — styled exactly like reference */}
         {hoveredDay && (
           <div
+            className="analytics-chart-tooltip"
             style={{
               position: "absolute",
               ...(tooltipPos.flipUp
@@ -680,66 +674,51 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
                 : { left: tooltipPos.x + 16 }),
               pointerEvents: "none",
               zIndex: 20,
-              background: "white",
-              border: "1px solid #E4E5E7",
-              borderRadius: 6,
-              boxShadow: "0 4px 20px rgba(0,0,0,0.10)",
-              padding: "12px 16px",
               minWidth: 220,
             }}
           >
             {/* Date header */}
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#202223", marginBottom: 4 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--p-color-text)", marginBottom: 4 }}>
               {new Date(hoveredDay.date + "T12:00:00").toLocaleDateString("en-GB", {
                 day: "2-digit", month: "2-digit", year: "numeric",
               })}
             </div>
             {/* Divider */}
-            <div style={{ height: 1, background: "#F1F1F1", margin: "8px 0" }} />
+            <div style={{ height: 1, background: "var(--p-color-border)", margin: "8px 0" }} />
             {/* Series rows */}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div style={{ width: 20, height: 2.5, background: S1_COLOR, borderRadius: 6, flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, color: "#6D7175" }}>AI Generations</span>
+                  <span style={{ fontSize: 12, color: "var(--p-color-text-secondary)" }}>AI Generations</span>
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#202223" }}>{hoveredDay.count}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--p-color-text)" }}>{hoveredDay.count}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div style={{ width: 20, height: 2.5, background: S2_COLOR, borderRadius: 6, flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, color: "#6D7175" }}>Applied to Product</span>
+                  <span style={{ fontSize: 12, color: "var(--p-color-text-secondary)" }}>Applied to Product</span>
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#202223" }}>{hoveredDay.applied}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--p-color-text)" }}>{hoveredDay.applied}</span>
               </div>
             </div>
             {/* Click hint */}
-            <div style={{ fontSize: 11, color: "#B5B9BD", marginTop: 10 }}>
-              Click to see day details ↓
+            <div style={{ fontSize: 11, color: "var(--p-color-text-tertiary)", marginTop: 10 }}>
+              Click to see day details
             </div>
           </div>
         )}
       </div>
 
       {/* Legend — bottom-right, bordered pill style matching reference */}
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}>
+      <div className="analytics-chart-legend">
         {[
           { color: S1_COLOR, label: "AI Generations" },
           { color: S2_COLOR, label: "Applied to Product" },
         ].map(({ color, label }) => (
-          <div
-            key={label}
-            style={{
-              display: "flex", alignItems: "center", gap: 8,
-              padding: "5px 12px",
-              border: "1px solid #E4E5E7",
-              borderRadius: 6,
-              background: "white",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-            }}
-          >
+          <div key={label} className="analytics-chart-legend-item">
             <div style={{ width: 20, height: 2.5, background: color, borderRadius: 6, flexShrink: 0 }} />
-            <span style={{ fontSize: 12, color: "#6D7175", whiteSpace: "nowrap" }}>{label}</span>
+            <span style={{ fontSize: 12, color: "var(--p-color-text-secondary)", whiteSpace: "nowrap" }}>{label}</span>
           </div>
         ))}
       </div>
@@ -1273,3 +1252,4 @@ export default function AnalyticsPage() {
 }
 
 export const headers = (headersArgs) => boundary.headers(headersArgs);
+

@@ -418,6 +418,40 @@ canvas {
   }
 }
 
+.analytics-chart-shell {
+  position: relative;
+  background: var(--p-color-bg-surface-secondary);
+  border: 1px solid var(--p-color-border-secondary);
+  border-radius: 12px;
+  padding: 4px;
+}
+
+.analytics-chart-tooltip {
+  background: var(--p-color-bg-surface);
+  border: 1px solid var(--p-color-border-secondary);
+  border-radius: 12px;
+  box-shadow: var(--p-shadow-300);
+  padding: 12px 16px;
+}
+
+.analytics-chart-legend {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.analytics-chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border: 1px solid var(--p-color-border-secondary);
+  border-radius: 8px;
+  background: var(--p-color-bg-surface);
+}
+
 @media (max-width: 767px) {
   .content-mgmt-title-cell {
     font-size: 12px;
