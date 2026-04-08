@@ -468,8 +468,12 @@ function getGenerateTemplateConfig(contentType) {
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const url = new URL(request.url);
-  const tab = url.searchParams.get("tab") || "all";
-  const filter = url.searchParams.get("filter") || "all";
+  const requestedTab = (url.searchParams.get("tab") || "all").toLowerCase();
+  const requestedFilter = (url.searchParams.get("filter") || "all").toLowerCase();
+  const validTabs = new Set(["all", "products", "collections", "pages", "blog"]);
+  const validFilters = new Set(["all", "unoptimized", "empty"]);
+  const tab = validTabs.has(requestedTab) ? requestedTab : "all";
+  const filter = validFilters.has(requestedFilter) ? requestedFilter : "all";
 
   const shopData = await db.shop.findUnique({
     where: { shop: session.shop },
@@ -1716,7 +1720,7 @@ export default function ContentManagementPage() {
 
   const isSaving = saveFetcher.state !== "idle";
 
-  const tabLabel = mainTabs[mainTabIndex]?.id || "products";
+  const tabLabel = mainTabs[mainTabIndex]?.id || "all";
   const singularLabel = { products: "Product", collections: "Collection", pages: "Page", blog: "Blog" }[tabLabel] || "Item";
 
   const headings = [
@@ -1913,6 +1917,7 @@ export default function ContentManagementPage() {
             tabs={mainTabs}
             selected={mainTabIndex < 0 ? 0 : mainTabIndex}
             onSelect={handleMainTabChange}
+            fitted
           >
             {/* Filter sub-tabs */}
             <Box paddingBlockStart="0">
@@ -1921,6 +1926,7 @@ export default function ContentManagementPage() {
                   tabs={filterTabs}
                   selected={filterTabIndex < 0 ? 0 : filterTabIndex}
                   onSelect={handleFilterTabChange}
+                  fitted
                 />
               </div>
 
