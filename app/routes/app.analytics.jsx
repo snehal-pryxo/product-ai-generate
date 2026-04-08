@@ -1091,20 +1091,6 @@ export default function AnalyticsPage() {
               }}
             />
 
-            {/* Quick day buttons */}
-            <InlineStack gap="200" wrap>
-              {["7", "14", "30"].map((days) => (
-                <Button
-                  key={days}
-                  size="slim"
-                  variant={rangeParam === days ? "primary" : "secondary"}
-                  url={`?range=${days}`}
-                >
-                  {days}d
-                </Button>
-              ))}
-            </InlineStack>
-
             {/* Chart — always shown with dates, flat line when no activity */}
             <AreaLineChart data={filteredDailyActivity} selectedDate={selectedDate} onDayClick={handleDayClick} />
 
