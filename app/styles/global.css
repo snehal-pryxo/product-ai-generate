@@ -375,7 +375,7 @@ canvas {
   }
 
   .support-help-box--large {
-    min-height: 300px !important;
+    min-height: auto !important;
   }
 }
 

@@ -502,7 +502,12 @@ export default function Index() {
                         <BlockStack gap="100" align="center">
                           <Icon source={EmailIcon} tone="interactive" />
                           <Text variant="bodySm" fontWeight="semibold" as="span">
-                            <a href="#" style={{ color: "#2563eb", textDecoration: "none" }}>Support Ticket</a>
+                            <button
+                              type="button"
+                              style={{ color: "#2563eb", textDecoration: "none", background: "none", border: "none", padding: 0, cursor: "default" }}
+                            >
+                              Support Ticket
+                            </button>
                           </Text>
                           <Text variant="bodySm" tone="subdued">Support, reply, and assist instantly in office hours.</Text>
                         </BlockStack>
@@ -513,7 +518,12 @@ export default function Index() {
                         <BlockStack gap="100" align="center">
                           <Icon source={QuestionCircleIcon} tone="interactive" />
                           <Text variant="bodySm" fontWeight="semibold" as="span">
-                            <a href="#" style={{ color: "#2563eb", textDecoration: "none" }}>Knowledge base</a>
+                            <button
+                              type="button"
+                              style={{ color: "#2563eb", textDecoration: "none", background: "none", border: "none", padding: 0, cursor: "default" }}
+                            >
+                              Knowledge base
+                            </button>
                           </Text>
                           <Text variant="bodySm" tone="subdued">Find a solution to your problem with our documents.</Text>
                         </BlockStack>
@@ -524,7 +534,7 @@ export default function Index() {
                         <BlockStack gap="100" align="center">
                           <Text variant="bodySm" fontWeight="semibold" as="span">Need Quick Help?</Text>
                           <InlineStack gap="200" distribute="center">
-                            <Button url="#" variant="primary" size="slim">WhatsApp</Button>
+                            <Button variant="primary" size="slim" onClick={() => {}}>WhatsApp</Button>
                           </InlineStack>
                           <Text variant="bodySm" tone="subdued">Quick connect with our support team.</Text>
                         </BlockStack>
@@ -544,8 +554,8 @@ export default function Index() {
                     Motivate our team for future app development
                   </Text>
                   <InlineStack gap="200" distribute="center">
-                    <Button url="#" variant="primary" size="slim">Write a review</Button>
-                    <Button url="#" size="slim">Report an issue</Button>
+                    <Button variant="primary" size="slim" onClick={() => {}}>Write a review</Button>
+                    <Button size="slim" onClick={() => {}}>Report an issue</Button>
                   </InlineStack>
                 </BlockStack>
               </div>
