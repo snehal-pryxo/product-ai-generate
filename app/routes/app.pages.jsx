@@ -158,23 +158,82 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
-function toParagraphHtml(value) {
+function toStructuredHtml(value) {
   const plainText = (value || "").trim();
   if (!plainText) return "";
 
-  return plainText
-    .split(/\n{2,}/)
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean)
-    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br />")}</p>`)
-    .join("");
+  const lines = plainText.replace(/\r\n/g, "\n").split("\n");
+  const html = [];
+  let paragraphLines = [];
+  let listType = null;
+  let listItems = [];
+  let firstHeadingUsed = false;
+
+  const flushParagraph = () => {
+    if (!paragraphLines.length) return;
+    html.push(`<p>${escapeHtml(paragraphLines.join(" "))}</p>`);
+    paragraphLines = [];
+  };
+
+  const flushList = () => {
+    if (!listType || listItems.length === 0) return;
+    html.push(`<${listType}>${listItems.map((item) => `<li>${item}</li>`).join("")}</${listType}>`);
+    listType = null;
+    listItems = [];
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+
+    const bulletMatch = line.match(/^[-*]\s+(.+)/) || line.match(/^\u2022\s+(.+)/);
+    const orderedMatch = line.match(/^\d+[.)]\s+(.+)/);
+    if (bulletMatch || orderedMatch) {
+      flushParagraph();
+      const nextListType = bulletMatch ? "ul" : "ol";
+      if (listType && listType !== nextListType) flushList();
+      listType = nextListType;
+      listItems.push(escapeHtml((bulletMatch?.[1] || orderedMatch?.[1] || "").trim()));
+      continue;
+    }
+
+    flushList();
+    const plainLine = line.replace(/:$/, "");
+    const isHeadingCandidate =
+      line.endsWith(":") ||
+      (line.length <= 80 &&
+        !/[.!?]$/.test(line) &&
+        plainLine.split(/\s+/).length <= 12 &&
+        /^[A-Z0-9]/.test(plainLine));
+
+    if (isHeadingCandidate) {
+      flushParagraph();
+      if (!firstHeadingUsed) {
+        html.push(`<h2>${escapeHtml(plainLine)}</h2>`);
+        firstHeadingUsed = true;
+      } else {
+        html.push(`<h3>${escapeHtml(plainLine)}</h3>`);
+      }
+      continue;
+    }
+
+    paragraphLines.push(line);
+  }
+
+  flushParagraph();
+  flushList();
+  return html.join("");
 }
 
 function normalizeGeneratedHtml(value) {
   const text = (value || "").trim();
   if (!text) return "";
   if (looksLikeHtml(text)) return text;
-  return toParagraphHtml(text);
+  return toStructuredHtml(text);
 }
 
 function stripHtml(value) {

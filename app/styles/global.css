@@ -518,6 +518,33 @@ canvas {
   background: #ffffff;
 }
 
+.content-mgmt-rich-editor h1,
+.content-mgmt-rich-editor h2,
+.content-mgmt-rich-editor h3,
+.content-mgmt-rich-editor h4 {
+  margin: 0.8rem 0 0.45rem;
+  line-height: 1.3;
+}
+
+.content-mgmt-rich-editor h1 { font-size: 1.45rem; }
+.content-mgmt-rich-editor h2 { font-size: 1.3rem; }
+.content-mgmt-rich-editor h3 { font-size: 1.15rem; }
+.content-mgmt-rich-editor h4 { font-size: 1.05rem; }
+
+.content-mgmt-rich-editor p {
+  margin: 0.55rem 0;
+}
+
+.content-mgmt-rich-editor ul,
+.content-mgmt-rich-editor ol {
+  margin: 0.6rem 0;
+  padding-left: 1.5rem;
+}
+
+.content-mgmt-rich-editor li {
+  margin: 0.25rem 0;
+}
+
 @media (max-width: 767px) {
   .content-mgmt-generate-modal .Polaris-Modal-Dialog__Modal {
     width: 100vw !important;

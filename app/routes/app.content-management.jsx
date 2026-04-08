@@ -310,15 +310,81 @@ function cleanInlineText(value, maxLength) {
   return (value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
-function toParagraphHtml(value) {
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function toStructuredHtml(value) {
   const text = (value || "").trim();
   if (!text) return "";
-  return text
-    .split(/\n{2,}/)
-    .map((p) => p.trim())
-    .filter(Boolean)
-    .map((p) => `<p>${p.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br />")}</p>`)
-    .join("");
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const html = [];
+  let paragraphLines = [];
+  let listType = null;
+  let listItems = [];
+  let firstHeadingUsed = false;
+
+  const flushParagraph = () => {
+    if (!paragraphLines.length) return;
+    html.push(`<p>${escapeHtml(paragraphLines.join(" "))}</p>`);
+    paragraphLines = [];
+  };
+
+  const flushList = () => {
+    if (!listType || listItems.length === 0) return;
+    html.push(`<${listType}>${listItems.map((item) => `<li>${item}</li>`).join("")}</${listType}>`);
+    listType = null;
+    listItems = [];
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+
+    const bulletMatch = line.match(/^[-*•]\s+(.+)/);
+    const orderedMatch = line.match(/^\d+[.)]\s+(.+)/);
+    if (bulletMatch || orderedMatch) {
+      flushParagraph();
+      const nextListType = bulletMatch ? "ul" : "ol";
+      if (listType && listType !== nextListType) flushList();
+      listType = nextListType;
+      listItems.push(escapeHtml((bulletMatch?.[1] || orderedMatch?.[1] || "").trim()));
+      continue;
+    }
+
+    flushList();
+    const plainLine = line.replace(/:$/, "");
+    const isHeadingCandidate =
+      line.endsWith(":") ||
+      (line.length <= 80 &&
+        !/[.!?]$/.test(line) &&
+        plainLine.split(/\s+/).length <= 12 &&
+        /^[A-Z0-9]/.test(plainLine));
+
+    if (isHeadingCandidate) {
+      flushParagraph();
+      if (!firstHeadingUsed) {
+        html.push(`<h2>${escapeHtml(plainLine)}</h2>`);
+        firstHeadingUsed = true;
+      } else {
+        html.push(`<h3>${escapeHtml(plainLine)}</h3>`);
+      }
+      continue;
+    }
+
+    paragraphLines.push(line);
+  }
+
+  flushParagraph();
+  flushList();
+  return html.join("");
 }
 
 function looksLikeHtml(value) {
@@ -329,7 +395,7 @@ function normalizeGeneratedHtml(value) {
   const text = (value || "").trim();
   if (!text) return "";
   if (looksLikeHtml(text)) return text;
-  return toParagraphHtml(text);
+  return toStructuredHtml(text);
 }
 
 function canUseOllamaFallback() {
@@ -1442,18 +1508,19 @@ function RichTextEditor({ value, onChange }) {
   // Sync external value into editor on mount / when value prop changes from outside
   const lastValueRef = useRef(value);
   useEffect(() => {
+    const normalizedValue = normalizeGeneratedHtml(value || "");
     if (lastValueRef.current !== value) {
       lastValueRef.current = value;
       if (!showSource && editorRef.current) {
-        editorRef.current.innerHTML = value || "";
+        editorRef.current.innerHTML = normalizedValue;
       }
-      if (showSource) setSourceHtml(value || "");
+      if (showSource) setSourceHtml(normalizedValue);
     }
   }, [value, showSource]);
 
   // Initialise on mount
   useEffect(() => {
-    if (editorRef.current) editorRef.current.innerHTML = value || "";
+    if (editorRef.current) editorRef.current.innerHTML = normalizeGeneratedHtml(value || "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1513,7 +1580,7 @@ function RichTextEditor({ value, onChange }) {
   });
 
   return (
-    <div style={{ border: "1px solid #c9cccf", borderRadius: "8px", overflow: "hidden" }}>
+    <div className="content-mgmt-rich-editor" style={{ border: "1px solid #c9cccf", borderRadius: "8px", overflow: "hidden" }}>
       {/* Toolbar */}
       <div
         style={{
@@ -1824,8 +1891,12 @@ function GenerateTemplateModal({
   onFormChange,
   onClose,
   onGenerate,
+  onSave,
+  isSaving,
   isGenerating,
 }) {
+  const [editablePreviewHtml, setEditablePreviewHtml] = useState("");
+  const [editableMetaText, setEditableMetaText] = useState("");
   if (!open || !item) return null;
 
   const config = getGenerateTemplateConfig(contentType);
@@ -1850,10 +1921,50 @@ function GenerateTemplateModal({
   const scopeLabel = getScopeDisplayLabel(contentType, generateScope);
   const itemTypeLabel = getContentTypeDisplayLabel(contentType);
   const titleScope = scopeLabel === "All" ? "content" : scopeLabel.toLowerCase();
-  const previewHtml = showMain ? previewText : "";
+  useEffect(() => {
+    if (!open || !item) return;
+    if (showMain) {
+      setEditablePreviewHtml(normalizeGeneratedHtml(previewText || item.descriptionHtml || ""));
+      setEditableMetaText("");
+      return;
+    }
+    if (generateScope === "meta_title") {
+      setEditableMetaText(previewText || item.seoTitle || "");
+      setEditablePreviewHtml("");
+      return;
+    }
+    setEditableMetaText(previewText || item.seoDescription || "");
+    setEditablePreviewHtml("");
+  }, [open, item, previewText, showMain, generateScope]);
+
+  const hasSavableContent = showMain
+    ? Boolean(stripHtml(editablePreviewHtml))
+    : Boolean(String(editableMetaText || "").trim());
+
+  const handleSavePreview = useCallback(() => {
+    if (!item || !onSave) return;
+    const nextDescriptionHtml = showMain
+      ? normalizeGeneratedHtml(editablePreviewHtml || "")
+      : item.descriptionHtml || "";
+    const nextSeoTitle = generateScope === "meta_title"
+      ? cleanInlineText(editableMetaText || "", 70)
+      : (item.seoTitle || "");
+    const nextSeoDescription = generateScope === "meta_description"
+      ? cleanInlineText(editableMetaText || "", 160)
+      : (item.seoDescription || "");
+
+    onSave({
+      itemId: item.id,
+      contentType,
+      descriptionHtml: nextDescriptionHtml,
+      seoTitle: nextSeoTitle,
+      seoDescription: nextSeoDescription,
+    });
+  }, [contentType, editableMetaText, editablePreviewHtml, generateScope, item, onSave, showMain]);
+
   const previewMetaText =
-    !showMain && previewText
-      ? previewText
+    !showMain && editableMetaText
+      ? editableMetaText
       : !showMain
         ? `Generated ${scopeLabel} will appear here`
         : "";
@@ -1870,7 +1981,14 @@ function GenerateTemplateModal({
         loading: isGenerating,
         disabled: isGenerating,
       }}
-      secondaryActions={[{ content: "Cancel", onAction: onClose, disabled: isGenerating }]}
+      secondaryActions={[
+        {
+          content: isSaving ? "Saving..." : "Save",
+          onAction: handleSavePreview,
+          disabled: isGenerating || isSaving || !hasSavableContent,
+        },
+        { content: "Cancel", onAction: onClose, disabled: isGenerating || isSaving },
+      ]}
     >
       <Modal.Section>
         <BlockStack gap="300" className="content-mgmt-generate-modal__content">
@@ -1961,17 +2079,24 @@ function GenerateTemplateModal({
             <Card>
               <div className="content-mgmt-generate-modal__preview">
                 {showMain ? (
-                  previewHtml ? (
-                    <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
+                  editablePreviewHtml ? (
+                    <RichTextEditor value={editablePreviewHtml} onChange={setEditablePreviewHtml} />
                   ) : (
                     <Text as="p" variant="bodyMd" tone="subdued" alignment="center">
                       Generated content will appear here
                     </Text>
                   )
                 ) : (
-                  <Text as="p" variant="bodyMd" tone={previewText ? "base" : "subdued"} alignment="center">
-                    {previewMetaText}
-                  </Text>
+                  <BlockStack gap="200">
+                    <TextField
+                      label={generateScope === "meta_title" ? "Meta title preview" : "Meta description preview"}
+                      value={editableMetaText}
+                      onChange={setEditableMetaText}
+                      multiline={generateScope === "meta_description" ? 6 : 1}
+                      autoComplete="off"
+                      placeholder={previewMetaText}
+                    />
+                  </BlockStack>
                 )}
               </div>
             </Card>
@@ -2112,12 +2237,17 @@ export default function ContentManagementPage() {
             : it
         )
       );
-      setEditorOpen(false);
+      if (editorOpen) setEditorOpen(false);
+      if (templateModalOpen) {
+        setTemplateModalOpen(false);
+        setPendingGenerateItem(null);
+        setGeneratedPreviewText("");
+      }
       shopify.toast.show("Content saved successfully!");
     } else {
       setErrorMessage(data.error || "Save failed.");
     }
-  }, [saveFetcher.state, saveFetcher.data, shopify]);
+  }, [editorOpen, saveFetcher.state, saveFetcher.data, shopify, templateModalOpen]);
 
   const mainTabs = [
     { id: "all", content: "All" },
@@ -2556,6 +2686,8 @@ export default function ContentManagementPage() {
         onFormChange={updateGenerateFormValues}
         onClose={closeGenerateModal}
         onGenerate={handleConfirmGenerate}
+        onSave={handleSaveContent}
+        isSaving={isSaving}
         isGenerating={generateFetcher.state !== "idle"}
       />
     </Page>
