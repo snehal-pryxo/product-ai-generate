@@ -449,7 +449,14 @@ export const action = async ({ request }) => {
 
     const shopData = await db.shop.findUnique({
       where: { shop: session.shop },
-      select: { openaiApiKey: true, anthropicApiKey: true, credits: true, creditsUsedTotal: true },
+      select: {
+        openaiApiKey: true,
+        anthropicApiKey: true,
+        credits: true,
+        creditsUsedTotal: true,
+        ownerName: true,
+        name: true,
+      },
     });
     const availableCredits = shopData?.credits ?? 100;
     if (availableCredits < BLOG_CREATE_CREDITS) {
@@ -491,12 +498,15 @@ export const action = async ({ request }) => {
     const nextExcerpt = cleanInlineText(parsed.excerpt || "", 255);
     const nextSeoTitle = cleanInlineText(parsed.seoTitle || "", 70);
     const nextSeoDescription = cleanInlineText(parsed.seoDescription || "", 160);
+    const fallbackShopName = session.shop.replace(".myshopify.com", "").replace(/[-_]+/g, " ").trim();
+    const authorName = cleanInlineText(shopData?.ownerName || shopData?.name || fallbackShopName, 255) || "Store Team";
 
     const createArticleInput = {
       blogId,
       title: nextTitle,
       body: mergedBody,
-      excerpt: nextExcerpt || undefined,
+      author: { name: authorName },
+      summary: nextExcerpt || undefined,
     };
 
     const createResponse = await admin.graphql(ARTICLE_CREATE_MUTATION, {
