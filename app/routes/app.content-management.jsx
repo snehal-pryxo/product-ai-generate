@@ -8,11 +8,13 @@ import {
   Box,
   Button,
   Card,
+  ActionList,
   EmptyState,
   IndexTable,
   InlineStack,
   Modal,
   Page,
+  Popover,
   Select,
   Tabs,
   Text,
@@ -63,6 +65,20 @@ const OPENAI_MODEL_ACCESS_ERROR_PATTERN = /does not exist|do not have access|not
 const OPENAI_OLLAMA_FALLBACK_ERROR_PATTERN =
   /quota|billing|insufficient_quota|OPENAI_API_KEY is missing|does not exist|do not have access|rate limit|too many requests|429/i;
 const ENABLED_ENV_VALUE_PATTERN = /^(1|true|yes)$/i;
+
+function creditsForGenerateScope(scope) {
+  return scope === "all" ? CREDITS_PER_GENERATION : 1;
+}
+
+function getGenerateScopeOptions(contentType) {
+  const mainLabel = contentType === "pages" || contentType === "blog" ? "Content" : "Description";
+  return [
+    { value: "all", label: "All" },
+    { value: "main", label: mainLabel },
+    { value: "meta_title", label: "Meta Title" },
+    { value: "meta_description", label: "Meta Description" },
+  ];
+}
 
 // ─── GraphQL ─────────────────────────────────────────────────────────────────
 const PRODUCT_LIST_QUERY = `#graphql
@@ -355,7 +371,13 @@ async function runGeneration(prompt, { aiProvider = "auto", shopOpenaiKey = null
   }
 }
 
-function buildPrompt(contentType, item, templateOverrides = {}) {
+function buildPrompt(contentType, item, templateOverrides = {}, generateScope = "all") {
+  const promptIntent =
+    generateScope === "meta_title"
+      ? "seo_title"
+      : generateScope === "meta_description"
+        ? "seo_description"
+        : "all";
   const base = {
     language: "English",
     tone: "Neutral",
@@ -365,7 +387,7 @@ function buildPrompt(contentType, item, templateOverrides = {}) {
     descriptionPromptTemplate: "",
     metaTitlePromptTemplate: "",
     metaDescriptionPromptTemplate: "",
-    intent: "all",
+    intent: promptIntent,
   };
 
   if (contentType === "products") {
@@ -842,12 +864,14 @@ export const action = async ({ request }) => {
 
   // ── Generate single item ──────────────────────────────────────────────────
   if (intent === "generate_single") {
+    const generateScope = String(formData.get("generateScope") || "all");
+    const creditsToUse = creditsForGenerateScope(generateScope);
     const currentCredits = shopData?.credits ?? 0;
-    if (currentCredits < CREDITS_PER_GENERATION) {
+    if (currentCredits < creditsToUse) {
       return {
         ok: false,
         intent,
-        error: buildInsufficientCreditsError(CREDITS_PER_GENERATION, currentCredits),
+        error: buildInsufficientCreditsError(creditsToUse, currentCredits),
       };
     }
 
@@ -862,20 +886,27 @@ export const action = async ({ request }) => {
       metaTitlePromptTemplate: String(formData.get("metaTitlePromptTemplate") || ""),
       metaDescriptionPromptTemplate: String(formData.get("metaDescriptionPromptTemplate") || ""),
     };
+    const shouldGenerateMain = generateScope === "all" || generateScope === "main";
+    const shouldGenerateMetaTitle = generateScope === "all" || generateScope === "meta_title";
+    const shouldGenerateMetaDescription = generateScope === "all" || generateScope === "meta_description";
 
     try {
-      const prompt = buildPrompt(contentType, item, templateOverrides);
+      const prompt = buildPrompt(contentType, item, templateOverrides, generateScope);
       const generated = await runGeneration(prompt, {
         aiProvider,
         shopOpenaiKey: shopData?.openaiApiKey || null,
         shopAnthropicKey: shopData?.anthropicApiKey || null,
       });
 
-      const descHtml = generated.description
+      const descHtml = shouldGenerateMain && generated.description
         ? normalizeGeneratedHtml(generated.description)
         : item.descriptionHtml || "";
-      const seoTitle = generated.seoTitle || item.seoTitle || "";
-      const seoDescription = generated.seoDescription || item.seoDescription || "";
+      const seoTitle = shouldGenerateMetaTitle
+        ? (generated.seoTitle || item.seoTitle || "")
+        : item.seoTitle || "";
+      const seoDescription = shouldGenerateMetaDescription
+        ? (generated.seoDescription || item.seoDescription || "")
+        : item.seoDescription || "";
 
       // Save to Shopify
       if (contentType === "products") {
@@ -937,8 +968,187 @@ export const action = async ({ request }) => {
       // Deduct credits
       const creditSnapshot = await deductCredits({
         shopDomain: session.shop,
-        creditsUsed: CREDITS_PER_GENERATION,
+        creditsUsed: creditsToUse,
       });
+
+      const commonUpsertData = {
+        aiModel: generated.aiModel || null,
+        seoTitle: seoTitle || null,
+        seoDescription: seoDescription || null,
+        creditsUsed: creditsToUse,
+      };
+
+      try {
+        if (contentType === "products") {
+          const createData = {
+            shop: session.shop,
+            productId: item.id,
+            productTitle: item.title || null,
+            language: "English",
+            tone: "Neutral",
+            descriptionPromptTemplate: shouldGenerateMain
+              ? templateOverrides.descriptionPromptTemplate || null
+              : null,
+            metaTitlePromptTemplate: shouldGenerateMetaTitle
+              ? templateOverrides.metaTitlePromptTemplate || null
+              : null,
+            metaDescriptionPromptTemplate: shouldGenerateMetaDescription
+              ? templateOverrides.metaDescriptionPromptTemplate || null
+              : null,
+            descriptionHtml: descHtml || null,
+            ...commonUpsertData,
+            appliedToProduct: true,
+          };
+          const updateData = {
+            ...(shouldGenerateMain
+              ? {
+                  descriptionPromptTemplate: templateOverrides.descriptionPromptTemplate || null,
+                  descriptionHtml: descHtml || null,
+                }
+              : {}),
+            ...(shouldGenerateMetaTitle
+              ? { metaTitlePromptTemplate: templateOverrides.metaTitlePromptTemplate || null }
+              : {}),
+            ...(shouldGenerateMetaDescription
+              ? { metaDescriptionPromptTemplate: templateOverrides.metaDescriptionPromptTemplate || null }
+              : {}),
+            ...commonUpsertData,
+            creditsUsed: { increment: creditsToUse },
+            appliedToProduct: true,
+          };
+          await db.productGeneratedContent.upsert({
+            where: { shop_productId: { shop: session.shop, productId: item.id } },
+            create: createData,
+            update: updateData,
+          });
+        } else if (contentType === "collections") {
+          const createData = {
+            shop: session.shop,
+            collectionId: item.id,
+            collectionTitle: item.title || null,
+            language: "English",
+            tone: "Neutral",
+            descriptionPromptTemplate: shouldGenerateMain
+              ? templateOverrides.descriptionPromptTemplate || null
+              : null,
+            metaTitlePromptTemplate: shouldGenerateMetaTitle
+              ? templateOverrides.metaTitlePromptTemplate || null
+              : null,
+            metaDescriptionPromptTemplate: shouldGenerateMetaDescription
+              ? templateOverrides.metaDescriptionPromptTemplate || null
+              : null,
+            descriptionHtml: descHtml || null,
+            ...commonUpsertData,
+            appliedToCollection: true,
+          };
+          const updateData = {
+            ...(shouldGenerateMain
+              ? {
+                  descriptionPromptTemplate: templateOverrides.descriptionPromptTemplate || null,
+                  descriptionHtml: descHtml || null,
+                }
+              : {}),
+            ...(shouldGenerateMetaTitle
+              ? { metaTitlePromptTemplate: templateOverrides.metaTitlePromptTemplate || null }
+              : {}),
+            ...(shouldGenerateMetaDescription
+              ? { metaDescriptionPromptTemplate: templateOverrides.metaDescriptionPromptTemplate || null }
+              : {}),
+            ...commonUpsertData,
+            creditsUsed: { increment: creditsToUse },
+            appliedToCollection: true,
+          };
+          await db.collectionGeneratedContent.upsert({
+            where: { shop_collectionId: { shop: session.shop, collectionId: item.id } },
+            create: createData,
+            update: updateData,
+          });
+        } else if (contentType === "pages") {
+          const createData = {
+            shop: session.shop,
+            pageId: item.id,
+            pageTitle: item.title || null,
+            pageType: "General",
+            language: "English",
+            tone: "Neutral",
+            bodyPromptTemplate: shouldGenerateMain ? templateOverrides.bodyPromptTemplate || null : null,
+            metaTitlePromptTemplate: shouldGenerateMetaTitle
+              ? templateOverrides.metaTitlePromptTemplate || null
+              : null,
+            metaDescriptionPromptTemplate: shouldGenerateMetaDescription
+              ? templateOverrides.metaDescriptionPromptTemplate || null
+              : null,
+            bodyHtml: descHtml || null,
+            ...commonUpsertData,
+            appliedToPage: true,
+          };
+          const updateData = {
+            ...(shouldGenerateMain
+              ? {
+                  bodyPromptTemplate: templateOverrides.bodyPromptTemplate || null,
+                  bodyHtml: descHtml || null,
+                }
+              : {}),
+            ...(shouldGenerateMetaTitle
+              ? { metaTitlePromptTemplate: templateOverrides.metaTitlePromptTemplate || null }
+              : {}),
+            ...(shouldGenerateMetaDescription
+              ? { metaDescriptionPromptTemplate: templateOverrides.metaDescriptionPromptTemplate || null }
+              : {}),
+            ...commonUpsertData,
+            creditsUsed: { increment: creditsToUse },
+            appliedToPage: true,
+          };
+          await db.pageGeneratedContent.upsert({
+            where: { shop_pageId: { shop: session.shop, pageId: item.id } },
+            create: createData,
+            update: updateData,
+          });
+        } else if (contentType === "blog") {
+          const createData = {
+            shop: session.shop,
+            articleId: item.id,
+            articleTitle: item.title || null,
+            articleType: "General",
+            language: "English",
+            tone: "Neutral",
+            bodyPromptTemplate: shouldGenerateMain ? templateOverrides.bodyPromptTemplate || null : null,
+            metaTitlePromptTemplate: shouldGenerateMetaTitle
+              ? templateOverrides.metaTitlePromptTemplate || null
+              : null,
+            metaDescriptionPromptTemplate: shouldGenerateMetaDescription
+              ? templateOverrides.metaDescriptionPromptTemplate || null
+              : null,
+            bodyHtml: descHtml || null,
+            ...commonUpsertData,
+            appliedToShopify: true,
+          };
+          const updateData = {
+            ...(shouldGenerateMain
+              ? {
+                  bodyPromptTemplate: templateOverrides.bodyPromptTemplate || null,
+                  bodyHtml: descHtml || null,
+                }
+              : {}),
+            ...(shouldGenerateMetaTitle
+              ? { metaTitlePromptTemplate: templateOverrides.metaTitlePromptTemplate || null }
+              : {}),
+            ...(shouldGenerateMetaDescription
+              ? { metaDescriptionPromptTemplate: templateOverrides.metaDescriptionPromptTemplate || null }
+              : {}),
+            ...commonUpsertData,
+            creditsUsed: { increment: creditsToUse },
+            appliedToShopify: true,
+          };
+          await db.blogArticleGeneratedContent.upsert({
+            where: { shop_articleId: { shop: session.shop, articleId: item.id } },
+            create: createData,
+            update: updateData,
+          });
+        }
+      } catch (dbError) {
+        console.error("Failed to persist content management generation configuration:", dbError);
+      }
 
       // Log generation
       try {
@@ -955,7 +1165,7 @@ export const action = async ({ request }) => {
             generatedDescription: descHtml || null,
             generatedSeoTitle: seoTitle || null,
             generatedSeoDescription: seoDescription || null,
-            creditsUsed: CREDITS_PER_GENERATION,
+            creditsUsed: creditsToUse,
             appliedToProduct: true,
           },
         });
@@ -968,7 +1178,7 @@ export const action = async ({ request }) => {
         descriptionHtml: descHtml,
         seoTitle,
         seoDescription,
-        creditsUsed: CREDITS_PER_GENERATION,
+        creditsUsed: creditsToUse,
         newCredits: creditSnapshot.credits,
         creditsUsedTotal: creditSnapshot.creditsUsedTotal,
       };
@@ -1445,6 +1655,7 @@ function GenerateTemplateModal({
   open,
   item,
   contentType,
+  generateScope,
   templateSelection,
   onChange,
   onClose,
@@ -1468,6 +1679,10 @@ function GenerateTemplateModal({
     { label: "Default (Meta Description)", value: "" },
     ...config.metaDescriptionTemplates.map((template) => ({ label: template.name, value: template.id })),
   ];
+  const showMain = generateScope === "all" || generateScope === "main";
+  const showMetaTitle = generateScope === "all" || generateScope === "meta_title";
+  const showMetaDescription = generateScope === "all" || generateScope === "meta_description";
+  const modalCredits = creditsForGenerateScope(generateScope);
 
   return (
     <Modal
@@ -1475,7 +1690,7 @@ function GenerateTemplateModal({
       onClose={onClose}
       title={`Generate: ${item.title}`}
       primaryAction={{
-        content: isGenerating ? "Generating..." : `Generate (${CREDITS_PER_GENERATION} credits)`,
+        content: isGenerating ? "Generating..." : `Generate (${modalCredits} credits)`,
         onAction: onGenerate,
         loading: isGenerating,
         disabled: isGenerating,
@@ -1487,24 +1702,30 @@ function GenerateTemplateModal({
           <Text as="p" variant="bodySm" tone="subdued">
             Select templates for this generation. Credits are deducted only after a successful generation.
           </Text>
-          <Select
-            label={config.mainLabel}
-            options={mainOptions}
-            value={templateSelection.mainTemplateId}
-            onChange={(value) => onChange("mainTemplateId", value)}
-          />
-          <Select
-            label="Meta Title Template"
-            options={metaTitleOptions}
-            value={templateSelection.metaTitleTemplateId}
-            onChange={(value) => onChange("metaTitleTemplateId", value)}
-          />
-          <Select
-            label="Meta Description Template"
-            options={metaDescriptionOptions}
-            value={templateSelection.metaDescriptionTemplateId}
-            onChange={(value) => onChange("metaDescriptionTemplateId", value)}
-          />
+          {showMain ? (
+            <Select
+              label={config.mainLabel}
+              options={mainOptions}
+              value={templateSelection.mainTemplateId}
+              onChange={(value) => onChange("mainTemplateId", value)}
+            />
+          ) : null}
+          {showMetaTitle ? (
+            <Select
+              label="Meta Title Template"
+              options={metaTitleOptions}
+              value={templateSelection.metaTitleTemplateId}
+              onChange={(value) => onChange("metaTitleTemplateId", value)}
+            />
+          ) : null}
+          {showMetaDescription ? (
+            <Select
+              label="Meta Description Template"
+              options={metaDescriptionOptions}
+              value={templateSelection.metaDescriptionTemplateId}
+              onChange={(value) => onChange("metaDescriptionTemplateId", value)}
+            />
+          ) : null}
         </BlockStack>
       </Modal.Section>
     </Modal>
@@ -1556,6 +1777,8 @@ export default function ContentManagementPage() {
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [pendingGenerateItem, setPendingGenerateItem] = useState(null);
   const [pendingGenerateContentType, setPendingGenerateContentType] = useState(tab === "all" ? "products" : tab);
+  const [pendingGenerateScope, setPendingGenerateScope] = useState("all");
+  const [openGeneratePopoverId, setOpenGeneratePopoverId] = useState(null);
   const [generateTemplateSelection, setGenerateTemplateSelection] = useState({
     mainTemplateId: "",
     metaTitleTemplateId: "",
@@ -1589,7 +1812,9 @@ export default function ContentManagementPage() {
             : it
         )
       );
-      setSuccessMessage(`Content generated. ${CREDITS_PER_GENERATION} credits used. Remaining: ${data.newCredits}.`);
+      setSuccessMessage(
+        `Content generated. ${data.creditsUsed || 0} credit${data.creditsUsed === 1 ? "" : "s"} used. Remaining: ${data.newCredits}.`,
+      );
       setTimeout(() => setSuccessMessage(null), 5000);
       shopify.toast.show("Content generated successfully!");
     } else {
@@ -1664,10 +1889,11 @@ export default function ContentManagementPage() {
   );
 
   const handleGenerate = useCallback(
-    (item) => {
+    (item, generateScope = "all") => {
       const effectiveContentType = item.contentType || tab;
       setPendingGenerateItem(item);
       setPendingGenerateContentType(effectiveContentType);
+      setPendingGenerateScope(generateScope);
       setGenerateTemplateSelection({
         mainTemplateId: "",
         metaTitleTemplateId: "",
@@ -1699,6 +1925,7 @@ export default function ContentManagementPage() {
     const fd = new FormData();
     fd.append("intent", "generate_single");
     fd.append("contentType", pendingGenerateContentType);
+    fd.append("generateScope", pendingGenerateScope);
     fd.append("item", JSON.stringify(pendingGenerateItem));
     fd.append("aiProvider", defaultAiProvider || "auto");
     fd.append("metaTitlePromptTemplate", metaTitleTemplate);
@@ -1717,6 +1944,7 @@ export default function ContentManagementPage() {
     generateTemplateSelection.metaTitleTemplateId,
     pendingGenerateContentType,
     pendingGenerateItem,
+    pendingGenerateScope,
   ]);
 
   const isSaving = saveFetcher.state !== "idle";
@@ -1736,6 +1964,9 @@ export default function ContentManagementPage() {
 
   const rowMarkup = localItems.map((item, idx) => {
     const isGenerating = generatingId === item.id;
+    const effectiveContentType = item.contentType || tab;
+    const scopeOptions = getGenerateScopeOptions(effectiveContentType);
+    const isPopoverOpen = openGeneratePopoverId === item.id;
     const descText = truncateText(item.descriptionHtml, 90);
     const seoDescText = truncateText(item.seoDescription, 80);
 
@@ -1830,19 +2061,40 @@ export default function ContentManagementPage() {
 
         {/* Generate button */}
         <IndexTable.Cell>
-          <Button
-            size="slim"
-            icon={
-              <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M10 1L12.39 7.26L19 8.27L14.5 12.64L15.78 19.02L10 15.77L4.22 19.02L5.5 12.64L1 8.27L7.61 7.26L10 1Z" />
-              </svg>
+          <Popover
+            active={isPopoverOpen}
+            activator={
+              <Button
+                size="slim"
+                disclosure
+                icon={
+                  <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10 1L12.39 7.26L19 8.27L14.5 12.64L15.78 19.02L10 15.77L4.22 19.02L5.5 12.64L1 8.27L7.61 7.26L10 1Z" />
+                  </svg>
+                }
+                onClick={() => setOpenGeneratePopoverId((prev) => (prev === item.id ? null : item.id))}
+                loading={isGenerating}
+                disabled={isGenerating || localCredits < 1}
+              >
+                Generate
+              </Button>
             }
-            onClick={() => handleGenerate(item)}
-            loading={isGenerating}
-            disabled={isGenerating || localCredits < CREDITS_PER_GENERATION}
+            onClose={() => setOpenGeneratePopoverId(null)}
           >
-            Generate
-          </Button>
+            <ActionList
+              items={scopeOptions.map((option) => {
+                const optionCredits = creditsForGenerateScope(option.value);
+                return {
+                  content: `${option.label} (${optionCredits} credit${optionCredits === 1 ? "" : "s"})`,
+                  disabled: localCredits < optionCredits,
+                  onAction: () => {
+                    setOpenGeneratePopoverId(null);
+                    handleGenerate(item, option.value);
+                  },
+                };
+              })}
+            />
+          </Popover>
         </IndexTable.Cell>
       </IndexTable.Row>
     );
@@ -1893,10 +2145,10 @@ export default function ContentManagementPage() {
           </Banner>
         )}
 
-        {localCredits < CREDITS_PER_GENERATION && (
+        {localCredits < 1 && (
           <Banner tone="warning">
             <Text as="p">
-              You have {localCredits} credit{localCredits !== 1 ? "s" : ""} remaining. Each generation costs {CREDITS_PER_GENERATION} credits.
+              You have {localCredits} credit{localCredits !== 1 ? "s" : ""} remaining. Generate actions require 1-3 credits based on selected scope.
             </Text>
           </Banner>
         )}
@@ -1968,7 +2220,7 @@ export default function ContentManagementPage() {
         {/* Credit info footer */}
         <Box paddingBlockEnd="400">
           <Text variant="bodySm" as="p" tone="subdued" alignment="center">
-            Each AI generation costs {CREDITS_PER_GENERATION} credits (description + SEO title + SEO description). Clicking a description or SEO cell opens the editor — saves are free.
+            Generate All uses {CREDITS_PER_GENERATION} credits. Description/Content, Meta Title, and Meta Description each use 1 credit. Clicking a description or SEO cell opens the editor and saves are free.
           </Text>
         </Box>
       </BlockStack>
@@ -1987,6 +2239,7 @@ export default function ContentManagementPage() {
         open={templateModalOpen}
         item={pendingGenerateItem}
         contentType={pendingGenerateContentType}
+        generateScope={pendingGenerateScope}
         templateSelection={generateTemplateSelection}
         onChange={updateGenerateTemplateSelection}
         onClose={() => setTemplateModalOpen(false)}
