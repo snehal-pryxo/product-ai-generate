@@ -9,7 +9,9 @@
   --p-border-radius-500: 6px;
   --p-border-radius-750: 6px;
 }
-
+.Polaris-Button--disabled {
+    background: gray !important;
+}
 /* Polaris Button */
 .Polaris-Button { border-radius: 6px !important; }
 
@@ -420,7 +422,7 @@ canvas {
 
 .analytics-chart-shell {
   position: relative;
-  background: var(--p-color-bg-surface-secondary);
+  background: #ffffff;
   border: 1px solid var(--p-color-border-secondary);
   border-radius: 12px;
   padding: 4px;

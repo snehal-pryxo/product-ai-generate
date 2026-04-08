@@ -579,7 +579,7 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
             x={CH.pL} y={CH.pT}
             width={CH.vw - CH.pL - CH.pR}
             height={CH.vh - CH.pT - CH.pB}
-            fill="rgba(236, 241, 252, 0.78)"
+            fill="#ffffff"
             rx="4"
           />
 
@@ -590,7 +590,7 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
               <g key={ki}>
                 <line x1={CH.pL} y1={y} x2={CH.vw - CH.pR} y2={y}
                   stroke={ki === 0 ? "var(--p-color-border-secondary)" : "var(--p-color-border)"} strokeWidth="1" />
-                <text x={CH.pL - 8} y={y + 4} textAnchor="end" fontSize="11" fill="var(--p-color-text-secondary)">
+                <text x={CH.pL - 8} y={y + 5} textAnchor="end" fontSize="14" fontWeight="600" fill="var(--p-color-text-secondary)">
                   {v}
                 </text>
               </g>
@@ -653,7 +653,7 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
             if (i % xStep !== 0 && i !== n - 1) return null;
             return (
               <text key={d.date} x={px(i)} y={baseY + 16}
-                textAnchor="middle" fontSize="10.5" fill="var(--p-color-text-secondary)">
+                textAnchor="middle" fontSize="13" fontWeight="500" fill="var(--p-color-text-secondary)">
                 {d.label}
               </text>
             );
