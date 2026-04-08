@@ -653,10 +653,11 @@ export default function PagesPage() {
           ? ` ${data.creditsUsed} credits used${typeof data.newCredits === "number" ? `. Remaining: ${data.newCredits}` : ""}.`
           : "";
       shopify.toast.show(`Generated ${data.succeeded}/${data.total} pages successfully.${creditsMessage}`);
+      navigate("/app/content-management?tab=pages&filter=all");
     } else {
       setBulkValidationMessage(data.error || "Bulk generation failed.");
     }
-  }, [bulkFetcher.data, bulkFetcher.state]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bulkFetcher.data, bulkFetcher.state, navigate, shopify]);
 
   return (
     <Page fullWidth>

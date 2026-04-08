@@ -85,10 +85,18 @@ input, textarea, select { border-radius: 6px !important; }
 
 .Polaris-Button[disabled],
 .Polaris-Button:disabled {
-  background: #000 !important;
-  border-color: #000 !important;
-  color: #fff !important;
-  opacity: 0.55 !important;
+  background: #d1d5db !important;
+  border-color: #d1d5db !important;
+  color: #6b7280 !important;
+  opacity: 1 !important;
+}
+
+button[disabled],
+button:disabled {
+  background: #d1d5db !important;
+  border-color: #d1d5db !important;
+  color: #6b7280 !important;
+  cursor: not-allowed !important;
 }
 
 /* Mobile-first responsive system */

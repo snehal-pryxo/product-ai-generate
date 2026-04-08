@@ -1282,10 +1282,11 @@ export default function ProductsPage() {
           ? ` ${response.creditsUsed} credits used${typeof response.newCredits === "number" ? `. Remaining: ${response.newCredits}` : ""}.`
           : "";
       shopify.toast.show(`Bulk generate complete: ${response.succeeded}/${response.total} updated.${creditsMessage}`);
+      navigate("/app/content-management?tab=products&filter=all");
       return;
     }
     setBulkValidationMessage(response.error || "Bulk generation failed.");
-  }, [bulkFetcher.state, bulkFetcher.data, revalidator, shopify]);
+  }, [bulkFetcher.state, bulkFetcher.data, navigate, revalidator, shopify]);
 
   useEffect(() => {
     if (selectedProducts.length > MAX_BULK_ITEMS) {
@@ -1447,7 +1448,7 @@ export default function ProductsPage() {
             </Card>
           </div>
 
-          {/* Search & Collection Filter - One Line */}
+          {/* Products / Collections tab + collection filter */}
           <div className="app-toolbar" style={{ marginBottom: "16px", alignItems: "stretch" }}>
             <div className="app-toolbar-fixed" style={{ display: "flex", border: "1px solid #d1d5db", borderRadius: "10px", overflow: "hidden", background: "#fff", minWidth: "180px" }}>
               {sectionTabs.map((tab, index) => {
@@ -1477,17 +1478,6 @@ export default function ProductsPage() {
                 );
               })}
             </div>
-            <div className="app-toolbar-grow" style={{ minWidth: "240px", position: "relative" }}>
-              <TextField
-                label="Search products"
-                labelHidden
-                placeholder="Search by product title..."
-                value={searchValue}
-                onChange={handleSearchInput}
-                autoComplete="off"
-                prefix={isSearchLoading ? <Spinner size="small" /> : undefined}
-              />
-            </div>
             <div className="app-toolbar-fixed" style={{ minWidth: "180px", flex: "0 0 220px" }}>
               <Select
                 label="Filter by Collection"
@@ -1502,12 +1492,23 @@ export default function ProductsPage() {
           <Card padding="0">
             <BlockStack gap="0">
               <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-                <InlineStack align="space-between" blockAlign="center">
+                <InlineStack align="space-between" blockAlign="center" wrap>
                   <Tabs
                     tabs={statusTabs}
                     selected={statusTabIndex}
                     onSelect={handleTabChange}
                   />
+                  <div className="app-toolbar-grow" style={{ minWidth: "240px", maxWidth: "420px" }}>
+                    <TextField
+                      label="Search products"
+                      labelHidden
+                      placeholder="Search by product title..."
+                      value={searchValue}
+                      onChange={handleSearchInput}
+                      autoComplete="off"
+                      prefix={isSearchLoading ? <Spinner size="small" /> : undefined}
+                    />
+                  </div>
                 </InlineStack>
               </div>
 

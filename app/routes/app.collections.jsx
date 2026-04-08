@@ -1255,10 +1255,11 @@ export default function CollectionsPage() {
           ? ` ${response.creditsUsed} credits used${typeof response.newCredits === "number" ? `. Remaining: ${response.newCredits}` : ""}.`
           : "";
       shopify.toast.show(`Bulk generate complete: ${response.succeeded}/${response.total} updated.${creditsMessage}`);
+      navigate("/app/content-management?tab=collections&filter=all");
       return;
     }
     setBulkValidationMessage(response.error || "Bulk generation failed.");
-  }, [bulkFetcher.state, bulkFetcher.data, revalidator, shopify]);
+  }, [bulkFetcher.state, bulkFetcher.data, navigate, revalidator, shopify]);
 
   useEffect(() => {
     if (selectedCollections.length > MAX_BULK_ITEMS) {
@@ -1430,7 +1431,7 @@ export default function CollectionsPage() {
             </Card>
           </div>
 
-          {/* ── Products / Collections Tab Bar with Search ── */}
+          {/* ── Products / Collections tab bar ── */}
           <div className="app-toolbar" style={{ marginBottom: "20px" }}>
             <div className="app-toolbar-fixed" style={{ display: "inline-flex", gap: "8px", background: "#f3f3f3", padding: "6px", borderRadius: "8px" }}>
               {[
@@ -1462,29 +1463,29 @@ export default function CollectionsPage() {
                 </button>
               ))}
             </div>
-            <div className="app-toolbar-grow" style={{ minWidth: "250px" }}>
-              <TextField
-                label="Search collections"
-                labelHidden
-                placeholder="Search by collection title..."
-                value={searchValue}
-                onChange={handleSearchInput}
-                autoComplete="off"
-                prefix={isSearchLoading ? <Spinner size="small" /> : undefined}
-              />
-            </div>
           </div>
 
           <Card padding="0">
             <BlockStack gap="0">
               <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-                <InlineStack align="space-between" blockAlign="center">
+                <InlineStack align="space-between" blockAlign="center" wrap>
                   <Checkbox
                     label={`Select all visible (${filteredCollections.length})`}
                     checked={allVisibleSelected}
                     indeterminate={selectionIndeterminate}
                     onChange={handleToggleSelectAllVisible}
                   />
+                  <div className="app-toolbar-grow" style={{ minWidth: "240px", maxWidth: "420px" }}>
+                    <TextField
+                      label="Search collections"
+                      labelHidden
+                      placeholder="Search by collection title..."
+                      value={searchValue}
+                      onChange={handleSearchInput}
+                      autoComplete="off"
+                      prefix={isSearchLoading ? <Spinner size="small" /> : undefined}
+                    />
+                  </div>
                   <Text as="span" variant="bodySm" tone="subdued">
                     {selectedCollections.length} selected
                   </Text>

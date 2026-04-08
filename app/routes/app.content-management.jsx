@@ -412,6 +412,92 @@ export const loader = async ({ request }) => {
   const credits = shopData?.credits ?? 100;
   const defaultAiProvider = shopData?.defaultAiProvider || "auto";
 
+  const shouldLoadProducts = tab === "all" || tab === "products";
+  const shouldLoadCollections = tab === "all" || tab === "collections";
+  const shouldLoadPages = tab === "all" || tab === "pages";
+  const shouldLoadBlog = tab === "all" || tab === "blog";
+
+  const [
+    productGeneratedRows,
+    collectionGeneratedRows,
+    pageGeneratedRows,
+    blogGeneratedRows,
+    logRows,
+  ] = await Promise.all([
+    shouldLoadProducts
+      ? db.productGeneratedContent.findMany({
+          where: { shop: session.shop },
+          select: { productId: true, creditsUsed: true },
+        })
+      : Promise.resolve([]),
+    shouldLoadCollections
+      ? db.collectionGeneratedContent.findMany({
+          where: { shop: session.shop },
+          select: { collectionId: true, creditsUsed: true },
+        })
+      : Promise.resolve([]),
+    shouldLoadPages
+      ? db.pageGeneratedContent.findMany({
+          where: { shop: session.shop },
+          select: { pageId: true, creditsUsed: true },
+        })
+      : Promise.resolve([]),
+    shouldLoadBlog
+      ? db.blogArticleGeneratedContent.findMany({
+          where: { shop: session.shop },
+          select: { articleId: true, creditsUsed: true },
+        })
+      : Promise.resolve([]),
+    db.generatedContentLog.findMany({
+      where: { shop: session.shop },
+      select: { productId: true, resourceType: true, creditsUsed: true },
+    }),
+  ]);
+
+  const productCreditsMap = new Map(productGeneratedRows.map((row) => [row.productId, row.creditsUsed ?? 0]));
+  const collectionCreditsMap = new Map(collectionGeneratedRows.map((row) => [row.collectionId, row.creditsUsed ?? 0]));
+  const pageCreditsMap = new Map(pageGeneratedRows.map((row) => [row.pageId, row.creditsUsed ?? 0]));
+  const blogCreditsMap = new Map(blogGeneratedRows.map((row) => [row.articleId, row.creditsUsed ?? 0]));
+
+  const logCreditsMapByType = {
+    products: new Map(),
+    collections: new Map(),
+    pages: new Map(),
+    blog: new Map(),
+  };
+
+  for (const row of logRows) {
+    const itemId = row.productId;
+    const creditsUsed = row.creditsUsed ?? 0;
+    const type =
+      row.resourceType === "collection"
+        ? "collections"
+        : row.resourceType === "page"
+          ? "pages"
+          : row.resourceType === "blog"
+            ? "blog"
+            : "products";
+    if (!itemId) continue;
+    logCreditsMapByType[type].set(itemId, (logCreditsMapByType[type].get(itemId) || 0) + creditsUsed);
+  }
+
+  const resolveCreditsUsed = (contentType, itemId) => {
+    if (!itemId) return 0;
+    if (contentType === "products") {
+      return productCreditsMap.get(itemId) ?? logCreditsMapByType.products.get(itemId) ?? 0;
+    }
+    if (contentType === "collections") {
+      return collectionCreditsMap.get(itemId) ?? logCreditsMapByType.collections.get(itemId) ?? 0;
+    }
+    if (contentType === "pages") {
+      return pageCreditsMap.get(itemId) ?? logCreditsMapByType.pages.get(itemId) ?? 0;
+    }
+    if (contentType === "blog") {
+      return blogCreditsMap.get(itemId) ?? logCreditsMapByType.blog.get(itemId) ?? 0;
+    }
+    return 0;
+  };
+
   let items = [];
 
   try {
@@ -445,6 +531,7 @@ export const loader = async ({ request }) => {
         imageAlt: n.featuredMedia?.preview?.image?.altText || n.title,
         updatedAt: n.updatedAt || null,
         contentType: "products",
+        creditsUsed: resolveCreditsUsed("products", n.id),
       })));
 
       // Fetch collections
@@ -473,6 +560,7 @@ export const loader = async ({ request }) => {
         imageAlt: n.image?.altText || n.title,
         updatedAt: n.updatedAt || null,
         contentType: "collections",
+        creditsUsed: resolveCreditsUsed("collections", n.id),
       })));
 
       // Fetch pages
@@ -504,6 +592,7 @@ export const loader = async ({ request }) => {
           imageAlt: n.title,
           updatedAt: n.updatedAt || null,
           contentType: "pages",
+          creditsUsed: resolveCreditsUsed("pages", n.id),
         };
       }));
 
@@ -527,6 +616,7 @@ export const loader = async ({ request }) => {
           updatedAt: n.publishedAt || null,
           contentType: "blog",
           blogTitle: n.blog?.title || "",
+          creditsUsed: resolveCreditsUsed("blog", n.id),
         };
       }));
 
@@ -556,6 +646,8 @@ export const loader = async ({ request }) => {
         imageUrl: n.featuredMedia?.preview?.image?.url || null,
         imageAlt: n.featuredMedia?.preview?.image?.altText || n.title,
         updatedAt: n.updatedAt || null,
+        contentType: "products",
+        creditsUsed: resolveCreditsUsed("products", n.id),
       }));
     } else if (tab === "collections") {
       const nodes = [];
@@ -582,6 +674,8 @@ export const loader = async ({ request }) => {
         imageUrl: n.image?.url || null,
         imageAlt: n.image?.altText || n.title,
         updatedAt: n.updatedAt || null,
+        contentType: "collections",
+        creditsUsed: resolveCreditsUsed("collections", n.id),
       }));
     } else if (tab === "pages") {
       const nodes = [];
@@ -611,6 +705,8 @@ export const loader = async ({ request }) => {
           imageUrl: null,
           imageAlt: n.title,
           updatedAt: n.updatedAt || null,
+          contentType: "pages",
+          creditsUsed: resolveCreditsUsed("pages", n.id),
         };
       });
     } else if (tab === "blog") {
@@ -632,6 +728,8 @@ export const loader = async ({ request }) => {
           imageAlt: n.title,
           updatedAt: n.publishedAt || null,
           blogTitle: n.blog?.title || "",
+          contentType: "blog",
+          creditsUsed: resolveCreditsUsed("blog", n.id),
         };
       });
     }
@@ -1294,12 +1392,6 @@ function statusBadge(status) {
   return <Badge>{status || "—"}</Badge>;
 }
 
-function shortContentBadge(content) {
-  const plain = (content || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  if (!plain) return <Badge tone="critical">Missing</Badge>;
-  if (plain.length < 80) return <Badge tone="warning">Short</Badge>;
-  return <Badge tone="success">Good</Badge>;
-}
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ContentManagementPage() {
@@ -1436,12 +1528,12 @@ export default function ContentManagementPage() {
   const headings = [
     { title: "" },
     { title: singularLabel },
-    { title: "Short" },
+    { title: "Credits Used" },
     { title: "Status" },
     { title: "Description" },
     { title: "SEO Description" },
     { title: "Last Updated" },
-    { title: "Specific Generate" },
+    { title: "Generate" },
   ];
 
   const rowMarkup = localItems.map((item, idx) => {
@@ -1475,8 +1567,12 @@ export default function ContentManagementPage() {
           <Text variant="bodyMd" fontWeight="semibold" as="span">{item.title}</Text>
         </IndexTable.Cell>
 
-        {/* Short */}
-        <IndexTable.Cell>{shortContentBadge(item.descriptionHtml)}</IndexTable.Cell>
+        {/* Credits used */}
+        <IndexTable.Cell>
+          <Badge tone={(item.creditsUsed || 0) > 0 ? "success" : "info"}>
+            {item.creditsUsed || 0} credits
+          </Badge>
+        </IndexTable.Cell>
 
         {/* Status */}
         <IndexTable.Cell>{statusBadge(item.status)}</IndexTable.Cell>
@@ -1557,7 +1653,7 @@ export default function ContentManagementPage() {
             loading={isGenerating}
             disabled={isGenerating || localCredits < CREDITS_PER_GENERATION}
           >
-            Specific Generate
+            Generate
           </Button>
         </IndexTable.Cell>
       </IndexTable.Row>

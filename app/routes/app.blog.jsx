@@ -1088,10 +1088,11 @@ export default function BlogPage() {
           ? ` ${data.creditsUsed} credits used${typeof data.newCredits === "number" ? `. Remaining: ${data.newCredits}` : ""}.`
           : "";
       shopify.toast.show(`Generated ${data.succeeded}/${data.total} articles successfully.${creditsMessage}`);
+      navigate("/app/content-management?tab=blog&filter=all");
     } else {
       setBulkValidationMessage(data.error || "Bulk generation failed.");
     }
-  }, [bulkFetcher.data, bulkFetcher.state]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bulkFetcher.data, bulkFetcher.state, navigate, shopify]);
 
   useEffect(() => {
     if (!createBlogId && blogs.length > 0) {
