@@ -2144,6 +2144,7 @@ export default function ContentManagementPage() {
   const shopify = useAppBridge();
   const generateFetcher = useFetcher();
   const saveFetcher = useFetcher();
+  const isHydratedRef = useRef(false);
 
   // Editor modal state
   const [editorOpen, setEditorOpen] = useState(false);
@@ -2175,9 +2176,22 @@ export default function ContentManagementPage() {
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
-  // Sync items from loader
-  useEffect(() => { setLocalItems(items); }, [items]);
-  useEffect(() => { setLocalCredits(credits); }, [credits]);
+  // Mark hydration complete after first render
+  useEffect(() => {
+    isHydratedRef.current = true;
+  }, []);
+
+  // Sync items from loader (only after hydration to prevent hydration mismatch)
+  useEffect(() => {
+    if (!isHydratedRef.current) return;
+    setLocalItems(items);
+  }, [items]);
+
+  // Sync credits from loader (only after hydration to prevent hydration mismatch)
+  useEffect(() => {
+    if (!isHydratedRef.current) return;
+    setLocalCredits(credits);
+  }, [credits]);
 
   // Handle generate response
   useEffect(() => {
