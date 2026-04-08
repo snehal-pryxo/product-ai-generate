@@ -406,6 +406,10 @@ canvas {
     max-width: 1240px;
     margin: 0 auto;
   }
+  .content-mgmt-generate-modal .Polaris-Modal-Dialog__Modal {
+  width: 60.75rem !important;
+  max-width: calc(100vw - 24px) !important;
+}
 }
 
 @media (min-width: 1440px) {
