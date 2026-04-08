@@ -498,7 +498,7 @@ export default function Index() {
                   <Text variant="headingSm" as="h3" fontWeight="bold">Support</Text>
                   <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }} gap="200">
                     <Grid.Cell>
-                      <div style={{ border: "1px solid #e4e5e7", borderRadius: "8px", padding: "16px", textAlign: "center", background: "#fafafa" }}>
+                      <div style={{ textAlign: "center"}}>
                         <BlockStack gap="100" align="center">
                           <Icon source={EmailIcon} tone="interactive" />
                           <Text variant="bodySm" fontWeight="semibold" as="span">
