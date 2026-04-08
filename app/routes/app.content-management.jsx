@@ -16,6 +16,7 @@ import {
   Tabs,
   Text,
   TextField,
+  Thumbnail,
 } from "@shopify/polaris";
 import {
   PRODUCT_DESCRIPTION_TEMPLATES,
@@ -1723,7 +1724,7 @@ export default function ContentManagementPage() {
   const singularLabel = { products: "Product", collections: "Collection", pages: "Page", blog: "Blog" }[tabLabel] || "Item";
 
   const headings = [
-    { title: singularLabel },
+    { title: "Item" },
     { title: "Credits Used" },
     { title: "Status" },
     { title: "Description" },
@@ -1741,9 +1742,16 @@ export default function ContentManagementPage() {
       <IndexTable.Row id={item.id} key={item.id} position={idx}>
         {/* Name */}
         <IndexTable.Cell>
-          <div className="content-mgmt-title-cell" title={item.title}>
-            {item.title}
-          </div>
+          <InlineStack gap="200" blockAlign="center" wrap={false}>
+            {item.imageUrl ? (
+              <Thumbnail source={item.imageUrl} alt={item.imageAlt || item.title} size="small" />
+            ) : (
+              <div className="content-mgmt-thumb-placeholder" aria-hidden="true" />
+            )}
+            <div className="content-mgmt-title-cell" title={item.title}>
+              {item.title}
+            </div>
+          </InlineStack>
         </IndexTable.Cell>
 
         {/* Credits used */}
