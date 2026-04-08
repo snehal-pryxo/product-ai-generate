@@ -97,8 +97,8 @@ const ARTICLE_UPDATE_MUTATION = `#graphql
 `;
 
 const ARTICLE_CREATE_MUTATION = `#graphql
-  mutation ArticleCreate($blogId: ID!, $article: ArticleCreateInput!) {
-    articleCreate(blogId: $blogId, article: $article) {
+  mutation ArticleCreate($article: ArticleCreateInput!) {
+    articleCreate(article: $article) {
       article {
         id
         title
@@ -493,6 +493,7 @@ export const action = async ({ request }) => {
     const nextSeoDescription = cleanInlineText(parsed.seoDescription || "", 160);
 
     const createArticleInput = {
+      blogId,
       title: nextTitle,
       body: mergedBody,
       excerpt: nextExcerpt || undefined,
@@ -500,7 +501,6 @@ export const action = async ({ request }) => {
 
     const createResponse = await admin.graphql(ARTICLE_CREATE_MUTATION, {
       variables: {
-        blogId,
         article: createArticleInput,
       },
     });
