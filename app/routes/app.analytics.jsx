@@ -653,7 +653,7 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
             if (i % xStep !== 0 && i !== n - 1) return null;
             return (
               <text key={d.date} x={px(i)} y={baseY + 16}
-                textAnchor="middle" fontSize="13" fontWeight="500" fill="var(--p-color-text-secondary)">
+                textAnchor="middle" fontSize="7" fontWeight="500" fill="var(--p-color-text-secondary)">
                 {d.label}
               </text>
             );
