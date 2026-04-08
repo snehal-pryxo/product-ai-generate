@@ -590,7 +590,7 @@ function AreaLineChart({ data, selectedDate, onDayClick }) {
               <g key={ki}>
                 <line x1={CH.pL} y1={y} x2={CH.vw - CH.pR} y2={y}
                   stroke={ki === 0 ? "var(--p-color-border-secondary)" : "var(--p-color-border)"} strokeWidth="1" />
-                <text x={CH.pL - 8} y={y + 5} textAnchor="end" fontSize="14" fontWeight="600" fill="var(--p-color-text-secondary)">
+                <text x={CH.pL - 8} y={y + 5} textAnchor="end" fontSize="7" fontWeight="600" fill="var(--p-color-text-secondary)">
                   {v}
                 </text>
               </g>
