@@ -1354,6 +1354,14 @@ export default function CollectionsPage() {
     </IndexTable.Row>
   ));
 
+  const sectionTabs = [
+    { label: "Products", path: "/app/products", icon: ProductIcon },
+    { label: "Collections", path: "/app/collections", icon: CollectionIcon },
+  ];
+  const activeSectionPath = location.pathname.startsWith("/app/collections")
+    ? "/app/collections"
+    : "/app/products";
+
   return (
     <Page fullWidth>
       {/* ── Hero Header ── */}
@@ -1433,11 +1441,10 @@ export default function CollectionsPage() {
 
           {/* ── Products / Collections tab bar ── */}
           <div className="app-toolbar" style={{ marginBottom: "20px" }}>
-            <div className="app-toolbar-fixed" style={{ display: "inline-flex", gap: "8px", background: "#f3f3f3", padding: "6px", borderRadius: "8px" }}>
-              {[
-                { label: "Products", icon: ProductIcon, path: "/app/products", active: false },
-                { label: "Collections", icon: CollectionIcon, path: "/app/collections", active: true },
-              ].map((tab) => (
+            <div className="app-toolbar-fixed" style={{ display: "flex", border: "1px solid #d1d5db", borderRadius: "10px", overflow: "hidden", background: "#fff", minWidth: "180px" }}>
+              {sectionTabs.map((tab, index) => {
+                const isActive = activeSectionPath === tab.path;
+                return (
                 <button
                   key={tab.label}
                   type="button"
@@ -1446,22 +1453,21 @@ export default function CollectionsPage() {
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "6px",
-                    padding: "8px 16px",
+                    padding: "6px 14px",
                     border: "none",
-                    borderRadius: "6px",
-                    background: tab.active ? "#ffffff" : "transparent",
-                    color: tab.active ? "#1a1a1a" : "#6d7175",
-                    fontWeight: tab.active ? 600 : 500,
-                    fontSize: "14px",
+                    borderRight: index < sectionTabs.length - 1 ? "1px solid #e5e7eb" : "none",
+                    background: isActive ? "#f3f4f6" : "transparent",
+                    color: isActive ? "#111827" : "#6b7280",
+                    fontWeight: isActive ? 600 : 500,
+                    fontSize: "13px",
                     cursor: "pointer",
-                    boxShadow: tab.active ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
-                    transition: "all 0.2s ease",
                   }}
                 >
-                  <Icon source={tab.icon} tone={tab.active ? "base" : "subdued"} />
+                  <Icon source={tab.icon} tone={isActive ? "accent" : "subdued"} />
                   {tab.label}
                 </button>
-              ))}
+                );
+              })}
             </div>
           </div>
 

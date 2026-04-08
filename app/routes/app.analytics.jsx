@@ -5,7 +5,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import {
-  Page, Card, BlockStack, InlineStack, Text, Badge, Divider, Box, Grid, Button, Layout, Icon, Tabs, Select,
+  Page, Card, BlockStack, InlineStack, Text, Badge, Divider, Box, Grid, Button, Layout, Icon, Select,
 } from "@shopify/polaris";
 import {
   FolderIcon, TargetIcon, AutomationIcon, CalendarIcon,
@@ -954,7 +954,6 @@ export default function AnalyticsPage() {
   const [generateTypeFilter, setGenerateTypeFilter] = useState("all");
   const handleDayClick = useCallback(date => setSelectedDate(p => p === date ? null : date), []);
   const activityRef = useRef(null);
-  const resourceTabIndex = RESOURCE_TABS.findIndex((tab) => tab.id === resourceFilter);
   const generateTypeOptions = useMemo(
     () => GENERATE_TYPE_OPTIONS_BY_RESOURCE[resourceFilter] || GENERATE_TYPE_OPTIONS_BY_RESOURCE.all,
     [resourceFilter],
@@ -1071,15 +1070,24 @@ export default function AnalyticsPage() {
               <DateRangePicker rangeParam={rangeParam} startDate={startDate} endDate={endDate} containerRef={activityRef} />
             </InlineStack>
 
-            <Tabs
-              tabs={RESOURCE_TABS}
-              selected={resourceTabIndex < 0 ? 0 : resourceTabIndex}
-              onSelect={(idx) => {
-                const next = RESOURCE_TABS[idx]?.id || "all";
-                setResourceFilter(next);
-                setSelectedDate(null);
-              }}
-            />
+            <InlineStack gap="200" wrap>
+              {RESOURCE_TABS.map((tab) => {
+                const isActive = resourceFilter === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => {
+                      setResourceFilter(tab.id);
+                      setSelectedDate(null);
+                    }}
+                    className={`content-mgmt-tab-btn${isActive ? " content-mgmt-tab-btn--active" : ""}`}
+                  >
+                    {tab.content}
+                  </button>
+                );
+              })}
+            </InlineStack>
 
             <Select
               label="Specific generate filter"

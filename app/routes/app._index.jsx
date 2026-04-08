@@ -493,50 +493,47 @@ export default function Index() {
               </div>
 
               {/* Box 2: One big support row */}
-              <div className="support-help-box support-help-box--large" style={{ border: "1px solid #e4e5e7", borderRadius: "8px", padding: "20px", minHeight: "300px", background: "#ffffff" }}>
+              <div className="support-help-box support-help-box--large support-contact-card">
                 <BlockStack gap="400">
                   <Text variant="headingSm" as="h3" fontWeight="bold">Support</Text>
                   <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }} gap="200">
                     <Grid.Cell>
-                      <div style={{ textAlign: "center"}}>
+                      <div className="support-contact-item">
                         <BlockStack gap="100" align="center">
                           <Icon source={EmailIcon} tone="interactive" />
-                          <Text variant="bodySm" fontWeight="semibold" as="span">
-                            <button
-                              type="button"
-                              style={{ color: "#2563eb", textDecoration: "none", background: "none", border: "none", padding: 0, cursor: "default" }}
-                            >
-                              Support Ticket
-                            </button>
+                          <Text variant="headingSm" as="span" fontWeight="semibold" tone="interactive">
+                            Support Ticket
                           </Text>
-                          <Text variant="bodySm" tone="subdued">Support, reply, and assist instantly in office hours.</Text>
+                          <Text variant="bodyMd" tone="subdued">Support, reply, and assist instantly in office hours.</Text>
                         </BlockStack>
                       </div>
                     </Grid.Cell>
                     <Grid.Cell>
-                      <div style={{ padding: "6px", textAlign: "center" }}>
+                      <div className="support-contact-item">
                         <BlockStack gap="100" align="center">
                           <Icon source={QuestionCircleIcon} tone="interactive" />
-                          <Text variant="bodySm" fontWeight="semibold" as="span">
-                            <button
-                              type="button"
-                              style={{ color: "#2563eb", textDecoration: "none", background: "none", border: "none", padding: 0, cursor: "default" }}
-                            >
-                              Knowledge base
-                            </button>
+                          <Text variant="headingSm" as="span" fontWeight="semibold" tone="interactive">
+                            Knowledge base
                           </Text>
-                          <Text variant="bodySm" tone="subdued">Find a solution to your problem with our documents.</Text>
+                          <Text variant="bodyMd" tone="subdued">Find a solution to your problem with our documents.</Text>
                         </BlockStack>
                       </div>
                     </Grid.Cell>
                     <Grid.Cell>
-                      <div style={{  textAlign: "center"}}>
+                      <div className="support-contact-item">
                         <BlockStack gap="100" align="center">
-                          <Text variant="bodySm" fontWeight="semibold" as="span">Need Quick Help?</Text>
+                          <Text variant="headingSm" fontWeight="semibold" as="span">Need Quick Help?</Text>
                           <InlineStack gap="200" distribute="center" justifyContent="center">
-                            <Button variant="primary" size="slim" onClick={() => {}}>WhatsApp</Button>
+                            <Button
+                              variant="primary"
+                              size="slim"
+                              url="https://wa.me/918320023122"
+                              external
+                            >
+                              WhatsApp
+                            </Button>
                           </InlineStack>
-                          <Text variant="bodySm" tone="subdued">Quick connect with our support team.</Text>
+                          <Text variant="bodyMd" tone="subdued">Quick connect with our support team.</Text>
                         </BlockStack>
                       </div>
                     </Grid.Cell>
