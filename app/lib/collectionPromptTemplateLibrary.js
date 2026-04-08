@@ -113,6 +113,27 @@ export const COLLECTION_DESCRIPTION_TEMPLATES = [
     template:
       "[Hook: 1-2 confident sentences about performance or competitive superiority]\n[Description: 2-3 sentences explaining how this collection outperforms alternatives]\n[Features/Benefits: 2-3 sentences highlighting verified advantages]\n[Key comparative advantage 1]\n[Key comparative advantage 2]\n[Key comparative advantage 3]\n[Audience/Use Case]\n[Call to Action]",
   },
+  {
+    id: "col-gift-guide",
+    name: "Gift Guide",
+    description: "Positions collection as the go-to destination for gifts and special occasions.",
+    template:
+      "[Hook: 1-2 warm sentences about the gifting occasion or season]\n[Description: 2-3 sentences about why this collection was curated as the perfect gift]\n[Features/Benefits: 2-3 sentences on variety, price range, and recipient fit]\n[Gift category highlight 1]\n[Gift category highlight 2]\n[Gift category highlight 3]\n[Packaging or personalisation note]\n[Call to Action with gifting urgency]",
+  },
+  {
+    id: "col-new-arrivals",
+    name: "New Arrivals / Trending",
+    description: "Creates excitement and freshness for newly launched or trending collections.",
+    template:
+      "[Hook: 1-2 fresh, energetic sentences about what is new or trending]\n[Description: 2-3 sentences about what inspired this latest collection]\n[Features/Benefits: 2-3 sentences on what is new, improved, or exclusive]\n[New feature or design 1]\n[New feature or design 2]\n[New feature or design 3]\n[Who will love this newest arrival]\n[Call to Action: be first to shop]",
+  },
+  {
+    id: "col-bestsellers-curated",
+    name: "Bestsellers / Editor's Picks",
+    description: "Leverages social proof and editorial authority to guide shoppers.",
+    template:
+      "[Hook: 1-2 sentences about popularity or expert curation]\n[Description: 2-3 sentences on why these were selected as bestsellers or picks]\n[Features/Benefits: 2-3 sentences on consistent customer satisfaction and quality]\n[Top pick highlight 1]\n[Top pick highlight 2]\n[Top pick highlight 3]\n[Social proof: sales count, review score, or awards]\n[Call to Action]",
+  },
 ];
 
 export const COLLECTION_META_DESCRIPTION_TEMPLATES = [
@@ -157,6 +178,27 @@ export const COLLECTION_META_DESCRIPTION_TEMPLATES = [
     description: "Creates excitement through collection exploration.",
     template:
       "{discovery_invitation} our {{collection_title}}. {collection_highlight} designed to {customer_outcome}, {curiosity_statement}.",
+  },
+  {
+    id: "col-md-new-arrivals",
+    name: "New Arrivals",
+    description: "Drives clicks for freshly launched or trending collections.",
+    template:
+      "Shop our latest {{collection_title}}. {new_feature_or_style} just arrived. {freshness_statement} — {cta_phrase}.",
+  },
+  {
+    id: "col-md-gift-guide",
+    name: "Gift Guide",
+    description: "Targets gift-intent searches for specific occasions or recipients.",
+    template:
+      "Find the perfect gift with our {{collection_title}}. {occasion_or_recipient_statement}. {variety_or_range_note}. {cta_phrase}.",
+  },
+  {
+    id: "col-md-bestsellers",
+    name: "Bestsellers",
+    description: "Leverages popularity and social proof to encourage clicks.",
+    template:
+      "Shop our top-selling {{collection_title}}, loved by {customer_count_or_segment}. {key_benefit}. {social_proof_signal}.",
   },
 ];
 
@@ -208,5 +250,23 @@ export const COLLECTION_META_TITLE_TEMPLATES = [
     name: "Featured Angle",
     description: "Uses top feature keyword and brand confidence.",
     template: "{collection_title} - {top_feature_keyword} | {brand_name}",
+  },
+  {
+    id: "col-mt-new-arrivals",
+    name: "New Arrivals",
+    description: "Signals freshness and new product availability.",
+    template: "New {collection_title} | {brand_name}",
+  },
+  {
+    id: "col-mt-gift-guide",
+    name: "Gift Guide",
+    description: "Targets gift-intent keyword searches.",
+    template: "{collection_title} Gift Guide | {occasion_keyword}",
+  },
+  {
+    id: "col-mt-bestsellers",
+    name: "Bestsellers",
+    description: "Uses popularity signal to build click trust.",
+    template: "Best-Selling {collection_title} | {brand_name}",
   },
 ];

@@ -106,6 +106,34 @@ export const BLOG_BODY_TEMPLATES = [
     template:
       "[Context and challenge]\n[Initial baseline state]\n[Actions taken]\n[Execution details]\n[Measured results]\n[Key lessons]\n[How readers can apply this]\n[CTA]",
   },
+  {
+    id: "blog-body-expert-interview",
+    name: "Expert Interview",
+    description: "Q&A format featuring insights from an industry expert or brand voice.",
+    template:
+      "[Intro: who the expert is and why their perspective matters]\n[Context setting: the topic being explored]\n[Question 1 + expert answer]\n[Question 2 + expert answer]\n[Question 3 + expert answer]\n[Question 4 + expert answer]\n[Key takeaways from the interview]\n[Conclusion + CTA]",
+  },
+  {
+    id: "blog-body-product-review",
+    name: "Product Review",
+    description: "In-depth review article covering pros, cons, and verdict.",
+    template:
+      "[Intro: product overview and context for review]\n[Who this product is made for]\n[First impressions and packaging]\n[Feature/quality assessment 1]\n[Feature/quality assessment 2]\n[Feature/quality assessment 3]\n[Pros and cons summary]\n[Verdict and recommendation]\n[CTA]",
+  },
+  {
+    id: "blog-body-trend-roundup",
+    name: "Trend / News Roundup",
+    description: "Curates recent developments or trends relevant to the audience.",
+    template:
+      "[Intro: why these trends matter right now]\n[Trend or news item 1 with context]\n[Trend or news item 2 with context]\n[Trend or news item 3 with context]\n[Trend or news item 4 with context]\n[What these trends mean for the reader]\n[How to act on these insights]\n[Conclusion + CTA]",
+  },
+  {
+    id: "blog-body-ultimate-checklist",
+    name: "Ultimate Checklist",
+    description: "Comprehensive checklist format for planning or preparation topics.",
+    template:
+      "[Intro: why this checklist is valuable]\n[Phase 1 heading]\n[Checklist item 1]\n[Checklist item 2]\n[Checklist item 3]\n[Phase 2 heading]\n[Checklist item 4]\n[Checklist item 5]\n[Checklist item 6]\n[Final review section]\n[Download or save CTA]",
+  },
 ];
 
 export const BLOG_META_DESCRIPTION_TEMPLATES = [
@@ -139,6 +167,24 @@ export const BLOG_META_DESCRIPTION_TEMPLATES = [
     description: "Ends with stronger click invitation.",
     template: "{article_topic} made simple: {core_value}. Read now and apply these ideas immediately.",
   },
+  {
+    id: "blog-md-story-hook",
+    name: "Story Hook",
+    description: "Opens with a narrative element to spark curiosity.",
+    template: "{story_opening} about {article_topic}. {narrative_detail} that could change how you {reader_action}.",
+  },
+  {
+    id: "blog-md-curiosity-gap",
+    name: "Curiosity Gap",
+    description: "Withholds key information to drive click-through.",
+    template: "Most people get {article_topic} wrong. Discover {surprising_insight} and what to do instead.",
+  },
+  {
+    id: "blog-md-quick-wins",
+    name: "Quick Wins",
+    description: "Promises immediate, actionable results.",
+    template: "Quick wins for {article_topic}: {core_value}. Apply in minutes and see results today.",
+  },
 ];
 
 export const BLOG_META_TITLE_TEMPLATES = [
@@ -171,5 +217,29 @@ export const BLOG_META_TITLE_TEMPLATES = [
     name: "Best For",
     description: "Commercial intent style title.",
     template: "Best {article_topic} for {target_audience}",
+  },
+  {
+    id: "blog-mt-question-style",
+    name: "Question Style",
+    description: "Directly asks the reader's search question.",
+    template: "{reader_question} | {article_topic}",
+  },
+  {
+    id: "blog-mt-beginner-friendly",
+    name: "Beginner Friendly",
+    description: "Signals accessible, jargon-free content.",
+    template: "{article_topic} for Beginners: {core_promise}",
+  },
+  {
+    id: "blog-mt-year-edition",
+    name: "Year Edition",
+    description: "Adds year for freshness and evergreen SEO updates.",
+    template: "{article_topic} in {year}: {core_promise}",
+  },
+  {
+    id: "blog-mt-case-study",
+    name: "Case Study",
+    description: "Results-driven title for social proof articles.",
+    template: "How {subject} Achieved {result} with {article_topic}",
   },
 ];

@@ -106,6 +106,34 @@ export const PRODUCT_DESCRIPTION_TEMPLATES = [
     template:
       "[Seasonal relevance or limited-time offer]\n[Unique aspects for this edition]\n[Connection to trend, holiday, or occasion]\n[Special feature 1 for this edition]\n[Special feature 2 for this edition]\n[Special feature 3 for this edition]\n[Collectibility or exclusivity factor]\n[Urgency creator: limited availability]\nKey features and benefits: Uniqueness and Timeliness",
   },
+  {
+    id: "storytelling-narrative",
+    name: "Storytelling Narrative",
+    description: "Builds emotional connection through product origin and purpose story.",
+    template:
+      "[Origin story: why this product was created]\n[Problem or inspiration behind it]\n[Journey from concept to finished product]\n[Unique craftsmanship or design detail]\n[How it has helped real customers]\n[Key feature 1 rooted in story]\n[Key feature 2 rooted in story]\n[Invitation to become part of the story]\nKey features and benefits: Story and Connection",
+  },
+  {
+    id: "social-proof-focus",
+    name: "Social Proof Focus",
+    description: "Leads with customer validation, reviews, and community trust signals.",
+    template:
+      "[Opening with customer praise or usage milestone]\n[Key reason customers love this product]\n[Top reviewed feature 1]\n[Top reviewed feature 2]\n[Top reviewed feature 3]\n[Who it is trusted by: audience segment]\n[Rating or award highlight if available]\n[Call to action reinforcing popularity]\nKey features and benefits: Trust and Popularity",
+  },
+  {
+    id: "gift-occasion",
+    name: "Gift & Occasion",
+    description: "Frames product as an ideal gift for specific events and recipients.",
+    template:
+      "[Occasion statement: birthday, anniversary, holiday, etc.]\n[Why this product makes a memorable gift]\n[Who it is perfect for: recipient profile]\n[Giftable feature 1]\n[Giftable feature 2]\n[Packaging or presentation detail]\n[Personalisation or customisation option if available]\n[Urgency: order in time for occasion]\nKey features and benefits: Gifting and Occasion",
+  },
+  {
+    id: "competitive-differentiation",
+    name: "Competitive Differentiation",
+    description: "Clearly positions product advantages over generic alternatives.",
+    template:
+      "[Common frustration with ordinary alternatives]\n[How this product is fundamentally different]\n[Advantage 1 vs. the standard option]\n[Advantage 2 vs. the standard option]\n[Advantage 3 vs. the standard option]\n[Verified proof point or test result]\n[Who makes the switch and why]\n[Call to action: upgrade today]\nKey features and benefits: Differentiation and Value",
+  },
 ];
 
 export const PRODUCT_META_DESCRIPTION_TEMPLATES = [
@@ -193,6 +221,27 @@ export const PRODUCT_META_DESCRIPTION_TEMPLATES = [
     template:
       "{product_title} in {extract_varieties_or_options} for {extract_main_purpose_from_description}. {extract_unique_quality}. Order today!",
   },
+  {
+    id: "md-guarantee-assurance",
+    name: "Guarantee & Assurance",
+    description: "Reduces purchase hesitation with guarantees or risk-free messaging.",
+    template:
+      "{product_title}: {extract_main_benefit_from_description}. {guarantee_or_return_policy}. Risk-free — {trust_signal}. Shop today!",
+  },
+  {
+    id: "md-gift-occasion",
+    name: "Gift Occasion",
+    description: "Targets gifting intent searches for specific events.",
+    template:
+      "The perfect {occasion_keyword} gift: {product_title}. {extract_main_benefit_from_description}. {delivery_or_packaging_note}.",
+  },
+  {
+    id: "md-social-proof",
+    name: "Social Proof",
+    description: "Uses community trust and customer popularity to drive clicks.",
+    template:
+      "Loved by {customer_count_or_segment}: {product_title} delivers {extract_main_benefit_from_description}. {rating_or_review_signal}. Shop now!",
+  },
 ];
 
 export const PRODUCT_META_TITLE_TEMPLATES = [
@@ -243,5 +292,23 @@ export const PRODUCT_META_TITLE_TEMPLATES = [
     name: "Promo Ready",
     description: "Includes time-sensitive offer language when needed.",
     template: "{product_title} | {promo_phrase}",
+  },
+  {
+    id: "mt-review-signal",
+    name: "Review Signal",
+    description: "Incorporates rating or review trust marker.",
+    template: "{product_title} - {rating_or_review_count} | {primary_benefit}",
+  },
+  {
+    id: "mt-best-for-audience",
+    name: "Best For Audience",
+    description: "Targets specific buyer profiles in the title.",
+    template: "Best {product_title} for {target_audience}",
+  },
+  {
+    id: "mt-gift-intent",
+    name: "Gift Intent",
+    description: "Targets gift-search queries for specific occasions.",
+    template: "{product_title} - Perfect Gift for {occasion_or_recipient}",
   },
 ];

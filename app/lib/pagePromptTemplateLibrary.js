@@ -99,6 +99,34 @@ export const PAGE_BODY_TEMPLATES = [
     template:
       "[Intro to comparison intent]\n[Criteria used for comparison]\n[How your brand/page solution performs per criterion]\n[Evidence and proof points]\n[Best-fit customer profile]\n[Conclusion and CTA]",
   },
+  {
+    id: "page-body-team",
+    name: "Team / People",
+    description: "Introduces team members to build credibility and personality.",
+    template:
+      "[Opening statement about the people behind the brand]\n[Company culture and shared values]\n[Team member 1: name, role, short bio]\n[Team member 2: name, role, short bio]\n[Team member 3: name, role, short bio]\n[What drives the team collectively]\n[Invitation to connect or work together]",
+  },
+  {
+    id: "page-body-testimonials",
+    name: "Testimonials / Reviews",
+    description: "Social proof page showcasing customer experiences.",
+    template:
+      "[Intro: why customer voices matter to your brand]\n[Featured testimonial 1 with name and context]\n[Featured testimonial 2 with name and context]\n[Featured testimonial 3 with name and context]\n[Overall rating or review count summary]\n[Common theme across reviews]\n[CTA: join the community or shop now]",
+  },
+  {
+    id: "page-body-press-media",
+    name: "Press / Media",
+    description: "Highlights brand mentions, awards, and media coverage.",
+    template:
+      "[Brand introduction suitable for press]\n[Key media mentions or coverage]\n[Awards or certifications received]\n[Press quote 1 with source]\n[Press quote 2 with source]\n[Brand milestones or stats]\n[Press contact information and invitation]",
+  },
+  {
+    id: "page-body-size-guide",
+    name: "Size Guide",
+    description: "Helps customers find the right fit with clear measurement guidance.",
+    template:
+      "[Intro: why sizing guidance matters for a good experience]\n[How to measure: step-by-step instructions]\n[Size chart with measurements]\n[Product-specific fit notes]\n[International size conversion if applicable]\n[Tips for between sizes]\n[Support CTA for additional help]",
+  },
 ];
 
 export const PAGE_META_DESCRIPTION_TEMPLATES = [
@@ -132,6 +160,24 @@ export const PAGE_META_DESCRIPTION_TEMPLATES = [
     description: "Encourages users to take the next step quickly.",
     template: "{action_lead} with {page_topic}. {benefit_statement}. {cta_phrase}.",
   },
+  {
+    id: "page-md-story-driven",
+    name: "Story-Driven",
+    description: "Uses narrative framing to create an emotional connection.",
+    template: "{story_hook} behind {page_topic}. {narrative_detail}. {invitation_phrase}.",
+  },
+  {
+    id: "page-md-curiosity-hook",
+    name: "Curiosity Hook",
+    description: "Creates intrigue to draw users into the page.",
+    template: "{curiosity_statement} about {page_topic}? {teaser_detail}. {discovery_cta}.",
+  },
+  {
+    id: "page-md-social-proof",
+    name: "Social Proof",
+    description: "Signals credibility through community trust or recognition.",
+    template: "Trusted by {customer_count_or_segment} for {page_topic}. {proof_statement}. {action_phrase}.",
+  },
 ];
 
 export const PAGE_META_TITLE_TEMPLATES = [
@@ -164,5 +210,23 @@ export const PAGE_META_TITLE_TEMPLATES = [
     name: "Trust Focus",
     description: "Emphasizes reliability and clarity.",
     template: "{page_topic} - {trust_signal}",
+  },
+  {
+    id: "page-mt-curiosity",
+    name: "Curiosity Hook",
+    description: "Uses an intrigue-building question or statement.",
+    template: "{curiosity_hook} | {page_topic}",
+  },
+  {
+    id: "page-mt-benefit-clarity",
+    name: "Benefit Clarity",
+    description: "Clearly states the direct benefit the page delivers.",
+    template: "{page_topic}: {key_benefit} | {brand_name}",
+  },
+  {
+    id: "page-mt-guide-style",
+    name: "Guide Style",
+    description: "Positions page as an authoritative resource or guide.",
+    template: "Your {page_topic} Guide | {brand_name}",
   },
 ];
