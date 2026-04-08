@@ -225,6 +225,18 @@ canvas {
   flex-wrap: wrap;
 }
 
+.support-help-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.support-help-box {
+  width: 100%;
+}
+
+.support-help-box--large {
+  min-height: 260px !important;
+}
+
 @media (min-width: 480px) {
   .app-card-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -317,6 +329,14 @@ canvas {
     max-height: none;
     border-right: 1px solid #e5e7eb !important;
     border-bottom: none;
+  }
+
+  .support-help-layout {
+    grid-template-columns: 0.9fr 1.4fr 0.9fr;
+  }
+
+  .support-help-box--large {
+    min-height: 300px !important;
   }
 }
 

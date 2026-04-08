@@ -29,7 +29,6 @@ import {
   StarFilledIcon,
   ExternalIcon,
   EmailIcon,
-  ChatIcon,
   QuestionCircleIcon,
   AppsIcon,
 } from "@shopify/polaris-icons";
@@ -453,10 +452,10 @@ export default function Index() {
               <Text variant="headingMd" as="h2">We're Here to Help You Succeed</Text>
             </InlineStack>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1.3fr 0.8fr 1.3fr", gap: "16px" }}>
-              {/* Box 1: Setup Call */}
-              <div style={{ border: "1px solid #e4e5e7", borderRadius: "8px", padding: "20px", height: "100%", background: "#ffffff" }}>
-                <BlockStack gap="300">
+            <div className="support-help-layout" style={{ display: "grid", gap: "16px" }}>
+              {/* Box 1: Setup Call (small) */}
+              <div className="support-help-box support-help-box--small" style={{ border: "1px solid #e4e5e7", borderRadius: "8px", padding: "16px", background: "#ffffff" }}>
+                <BlockStack gap="200">
                   <Text variant="headingSm" as="h3" fontWeight="bold">Book a Free 30-Minute Setup Call</Text>
                   <Text variant="bodySm" tone="subdued">Get personalized guidance to accelerate your growth.</Text>
                   <BlockStack gap="100">
@@ -469,8 +468,8 @@ export default function Index() {
                 </BlockStack>
               </div>
 
-              {/* Box 2: Support & Quick Help Combined */}
-              <div style={{ border: "1px solid #e4e5e7", borderRadius: "8px", padding: "20px", height: "100%", background: "#ffffff" }}>
+              {/* Box 2: One big support row */}
+              <div className="support-help-box support-help-box--large" style={{ border: "1px solid #e4e5e7", borderRadius: "8px", padding: "20px", minHeight: "300px", background: "#ffffff" }}>
                 <BlockStack gap="400">
                   <Text variant="headingSm" as="h3" fontWeight="bold">Support</Text>
                   <Grid columns={{ xs: 2, sm: 2, md: 2, lg: 2, xl: 2 }} gap="200">
@@ -502,17 +501,15 @@ export default function Index() {
                     <Text variant="bodySm" fontWeight="semibold">Need Quick Help?</Text>
                     <InlineStack gap="200" distribute="center">
                       <Button url="#" variant="primary" size="slim">WhatsApp</Button>
-                      <Button url="#" variant="primary" size="slim">Email</Button>
-                      <Button url="#" variant="primary" size="slim">Phone</Button>
                     </InlineStack>
                   </BlockStack>
                 </BlockStack>
               </div>
 
-              {/* Box 3: Motivate our team */}
-              <div style={{ border: "1px solid #e4e5e7", borderRadius: "8px", padding: "20px", height: "100%", background: "#ffffff", textAlign: "center" }}>
-                <BlockStack gap="300" align="center">
-                  <div style={{ width: 60, height: 60, borderRadius: 12, background: "linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto" }}>
+              {/* Box 3: Review (small) */}
+              <div className="support-help-box support-help-box--small" style={{ border: "1px solid #e4e5e7", borderRadius: "8px", padding: "16px", background: "#ffffff", textAlign: "center" }}>
+                <BlockStack gap="200" align="center">
+                  <div style={{ width: 52, height: 52, borderRadius: 10, background: "linear-gradient(135deg, #f43f5e 0%, #ec4899 100%)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto" }}>
                     <Icon source={StarFilledIcon} tone="base" />
                   </div>
                   <Text variant="headingSm" as="h3" fontWeight="bold" alignment="center">
