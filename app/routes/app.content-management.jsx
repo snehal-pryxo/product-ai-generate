@@ -67,14 +67,12 @@ const OPENAI_OLLAMA_FALLBACK_ERROR_PATTERN =
   /quota|billing|insufficient_quota|OPENAI_API_KEY is missing|does not exist|do not have access|rate limit|too many requests|429/i;
 const ENABLED_ENV_VALUE_PATTERN = /^(1|true|yes)$/i;
 const BASE_AI_MODEL_OPTIONS = [
-  { label: "GPT-4.1 Mini", value: "gpt-4.1-mini" },
-  { label: "GPT-4.1", value: "gpt-4.1" },
+  { label: "Claude Haiku 4.5", value: "claude-haiku-4.5" },
+  { label: "Claude Sonnet 4.6", value: "claude-sonnet-4.6" },
   { label: "GPT-4o Mini", value: "gpt-4o-mini" },
-  { label: "GPT-4o", value: "gpt-4o" },
-  { label: "Claude Haiku 4.5", value: "claude-haiku-4-5-20251001" },
-  { label: "Claude Sonnet 4", value: "claude-sonnet-4-20250514" },
-  { label: "Claude Sonnet 4.6", value: "claude-sonnet-4-6" },
-  { label: "Ollama Llama 3.2 1B", value: "llama3.2:1b" },
+  { label: "Gemini Flash-Lite", value: "gemini-flash-lite" },
+  { label: "DeepSeek V3.2", value: "deepseek-v3.2" },
+  { label: "Cohere Command R+", value: "cohere-command-r-plus" },
 ];
 
 function creditsForGenerateScope(scope) {
@@ -155,6 +153,21 @@ function getAiModelOptions(envModel) {
   if (!model) return BASE_AI_MODEL_OPTIONS;
   if (BASE_AI_MODEL_OPTIONS.some((option) => option.value === model)) return BASE_AI_MODEL_OPTIONS;
   return [{ label: `${toModelLabel(model)} (ENV)`, value: model }, ...BASE_AI_MODEL_OPTIONS];
+}
+
+function mapSelectedModelToRuntime(selectedModel) {
+  const selected = String(selectedModel || "").trim().toLowerCase();
+  if (!selected) return { runtimeModel: null, providerHint: null };
+  if (selected === "claude-haiku-4.5") {
+    return { runtimeModel: "claude-haiku-4-5-20251001", providerHint: "anthropic" };
+  }
+  if (selected === "claude-sonnet-4.6") {
+    return { runtimeModel: "claude-sonnet-4-20250514", providerHint: "anthropic" };
+  }
+  if (selected.startsWith("gpt-")) return { runtimeModel: selectedModel, providerHint: "openai" };
+  if (selected.includes("llama")) return { runtimeModel: selectedModel, providerHint: "ollama" };
+  // Gemini / DeepSeek / Cohere are currently UI options only in this flow.
+  return { runtimeModel: null, providerHint: null };
 }
 
 function getScopeDisplayLabel(contentType, scope) {
@@ -1008,14 +1021,9 @@ export const action = async ({ request }) => {
 
     const aiProvider = formData.get("aiProvider") || shopData?.defaultAiProvider || "auto";
     const preferredModel = String(formData.get("aiModel") || "").trim();
+    const { runtimeModel, providerHint } = mapSelectedModelToRuntime(preferredModel);
     const resolvedAiProvider =
-      preferredModel.startsWith("claude-")
-        ? "anthropic"
-        : preferredModel.startsWith("gpt-")
-          ? "openai"
-          : preferredModel.toLowerCase().includes("llama")
-            ? "ollama"
-          : aiProvider;
+      providerHint || aiProvider;
     const generationLanguage = String(formData.get("language") || "English").trim() || "English";
     const seoKeyword = String(formData.get("seoKeyword") || "").trim();
     const additionalInformation = String(formData.get("additionalInformation") || "").trim();
@@ -1037,7 +1045,7 @@ export const action = async ({ request }) => {
       });
       const generated = await runGeneration(prompt, {
         aiProvider: resolvedAiProvider,
-        preferredModel: preferredModel || null,
+        preferredModel: runtimeModel || null,
         shopOpenaiKey: shopData?.openaiApiKey || null,
         shopAnthropicKey: shopData?.anthropicApiKey || null,
       });
@@ -1856,6 +1864,7 @@ function GenerateTemplateModal({
       onClose={onClose}
       title={`Generate ${itemTypeLabel} ${titleScope}`}
       fullScreen
+      className="content-mgmt-generate-modal"
       primaryAction={{
         content: isGenerating ? "Generating..." : `Generate (${modalCredits} credits)`,
         onAction: onGenerate,

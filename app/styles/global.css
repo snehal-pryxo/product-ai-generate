@@ -417,3 +417,16 @@ canvas {
     overflow-x: hidden;
   }
 }
+/* Content management generate popup should use full available width */
+.content-mgmt-generate-modal .Polaris-Modal-Dialog__Modal {
+  width: calc(100vw - 24px);
+  max-width: calc(100vw - 24px);
+}
+
+@media (max-width: 767px) {
+  .content-mgmt-generate-modal .Polaris-Modal-Dialog__Modal {
+    width: 100vw;
+    max-width: 100vw;
+    border-radius: 0;
+  }
+}
