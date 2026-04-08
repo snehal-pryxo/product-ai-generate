@@ -405,6 +405,7 @@ function DateRangePicker({ rangeParam, startDate, endDate, containerRef }) {
   const dropdown = open ? (
     <div
       ref={dropRef}
+      className="app-modal-dropdown"
       style={{
         position: "absolute",
         top: offset.top,
@@ -415,7 +416,7 @@ function DateRangePicker({ rangeParam, startDate, endDate, containerRef }) {
         borderRadius: 6,
         boxShadow: "0 8px 32px rgba(0,0,0,0.16)",
         padding: 16,
-        minWidth: 580,
+        width: "min(94vw, 580px)",
       }}
       onMouseLeave={() => setHoverDate(null)}
     >
@@ -433,7 +434,7 @@ function DateRangePicker({ rangeParam, startDate, endDate, containerRef }) {
       </select>
 
       {/* Date inputs */}
-      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14 }}>
+      <div className="app-modal-date-range-inputs" style={{ marginBottom: 14 }}>
         <input
           type="date" value={pickerStart}
           onChange={e => { setPickerStart(e.target.value); setPreset("custom"); }}
@@ -448,7 +449,7 @@ function DateRangePicker({ rangeParam, startDate, endDate, containerRef }) {
       </div>
 
       {/* Two-month calendars */}
-      <div style={{ display: "flex", borderTop: "1px solid #E4E5E7", paddingTop: 14 }}>
+      <div className="app-modal-date-range-calendars" style={{ borderTop: "1px solid #E4E5E7", paddingTop: 14 }}>
         <CalendarMonth
           year={calYear} month={calMonth}
           rangeStart={pickerStart} rangeEnd={pickerEnd}
@@ -456,7 +457,7 @@ function DateRangePicker({ rangeParam, startDate, endDate, containerRef }) {
           onDayClick={handleDayClick} onDayHover={setHoverDate}
           showLeft onLeft={goPrev} showRight={false}
         />
-        <div style={{ width: 1, background: "#E4E5E7", margin: "0 16px", flexShrink: 0 }} />
+        <div className="app-modal-calendar-divider" style={{ width: 1, background: "#E4E5E7", margin: "0 16px", flexShrink: 0 }} />
         <CalendarMonth
           year={rightYear} month={rightMonth}
           rangeStart={pickerStart} rangeEnd={pickerEnd}
@@ -467,7 +468,7 @@ function DateRangePicker({ rangeParam, startDate, endDate, containerRef }) {
       </div>
 
       {/* Cancel / Apply */}
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14, borderTop: "1px solid #E4E5E7", paddingTop: 12 }}>
+      <div className="app-modal-date-range-actions" style={{ gap: 8, marginTop: 14, borderTop: "1px solid #E4E5E7", paddingTop: 12 }}>
         <button
           type="button" onClick={() => setOpen(false)}
           style={{ padding: "7px 20px", border: "1px solid #C9CCCF", borderRadius: 6, background: "white", fontSize: 14, cursor: "pointer", color: "#202223", fontWeight: 500 }}

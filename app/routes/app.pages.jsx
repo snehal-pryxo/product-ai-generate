@@ -714,17 +714,18 @@ export default function PagesPage() {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
+      <div className="app-split-layout">
         {/* LEFT: Pages Table */}
-        <div style={{ flex: 7, minWidth: 0 }}>
+        <div className="app-split-main">
           {pages.length === 0 && (
             <Banner tone="info">
               <p>No pages found in your store. Create pages in Shopify Admin first.</p>
             </Banner>
           )}
           <Card padding="0">
-            <IndexTable
-              resourceName={{ singular: "page", plural: "pages" }}
+            <div className="app-table-scroll">
+              <IndexTable
+                resourceName={{ singular: "page", plural: "pages" }}
               itemCount={pages.length}
               selectedItemsCount={allResourcesSelected ? "All" : selectedResources.length}
               onSelectionChange={handleSelectionChange}
@@ -757,12 +758,13 @@ export default function PagesPage() {
                   </IndexTable.Row>
                 );
               })}
-            </IndexTable>
+              </IndexTable>
+            </div>
           </Card>
         </div>
 
         {/* RIGHT: Bulk Settings Panel */}
-        <div style={{ flex: 3, minWidth: 0 }}>
+        <div className="app-split-side">
           <Card padding="0">
             <div style={{ padding: "16px", borderBottom: "1px solid var(--p-color-border)" }}>
               <BlockStack gap="100">
@@ -932,9 +934,10 @@ export default function PagesPage() {
                 </Text>
               </BlockStack>
             </div>
-            <IndexTable
-              resourceName={{ singular: "page", plural: "pages" }}
-              itemCount={bulkResult.results.length}
+            <div className="app-table-scroll">
+              <IndexTable
+                resourceName={{ singular: "page", plural: "pages" }}
+                itemCount={bulkResult.results.length}
               selectable={false}
               headings={[
                 { title: "Title" },
@@ -965,7 +968,8 @@ export default function PagesPage() {
                   </IndexTable.Cell>
                 </IndexTable.Row>
               ))}
-            </IndexTable>
+              </IndexTable>
+            </div>
           </Card>
         </div>
       )}

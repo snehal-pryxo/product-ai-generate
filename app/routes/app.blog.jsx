@@ -1262,13 +1262,7 @@ export default function BlogPage() {
               </Banner>
             )}
 
-            <div
-              style={{
-                display: "grid",
-                gap: "12px",
-                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              }}
-            >
+            <div className="app-form-grid-3" style={{ gap: "12px" }}>
               <TextField
                 label="Blog Title"
                 value={createTitle}
@@ -1340,15 +1334,7 @@ export default function BlogPage() {
                 placeholder="e.g. ecommerce SEO, product storytelling, conversions"
                 autoComplete="off"
               />
-              <div
-                style={{
-                  gridColumn: "1 / -1",
-                  display: "grid",
-                  gap: "12px",
-                  gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-                  alignItems: "end",
-                }}
-              >
+              <div className="app-form-grid-5" style={{ gridColumn: "1 / -1", alignItems: "end" }}>
                 <div style={{ display: "flex", alignItems: "center", minHeight: "56px" }}>
                   <Checkbox
                     label="Auto Schedule Live"
@@ -1412,10 +1398,10 @@ export default function BlogPage() {
         </Card>
       </div>
 
-      <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
+      <div className="app-split-layout">
 
         {/* ── LEFT: Article List ── */}
-        <div style={{ flex: 7, minWidth: 0 }}>
+        <div className="app-split-main">
           {articles.length === 0 && (
             <Banner tone="info">
               <p>
@@ -1426,9 +1412,9 @@ export default function BlogPage() {
 
           {blogs.length > 0 && (
             <div style={{ marginBottom: "12px" }}>
-              <InlineStack gap="300" blockAlign="center">
+              <InlineStack gap="300" blockAlign="center" wrap>
                 <Text variant="bodySm" as="span">Filter:</Text>
-                <div style={{ minWidth: "220px" }}>
+                <div className="app-toolbar-fixed" style={{ minWidth: "220px" }}>
                   <Select
                     label="Filter by blog"
                     labelHidden
@@ -1442,8 +1428,9 @@ export default function BlogPage() {
           )}
 
           <Card padding="0">
-            <IndexTable
-              resourceName={{ singular: "article", plural: "articles" }}
+            <div className="app-table-scroll">
+              <IndexTable
+                resourceName={{ singular: "article", plural: "articles" }}
               itemCount={filteredArticles.length}
               selectedItemsCount={allResourcesSelected ? "All" : selectedResources.length}
               onSelectionChange={handleSelectionChange}
@@ -1454,7 +1441,8 @@ export default function BlogPage() {
               ]}
             >
               {rowMarkup}
-            </IndexTable>
+              </IndexTable>
+            </div>
             <div style={{ padding: "8px 16px", borderTop: "1px solid var(--p-color-border)" }}>
               <Text as="span" tone="subdued" variant="bodySm">
                 {filteredArticles.length} article{filteredArticles.length !== 1 ? "s" : ""}
@@ -1464,7 +1452,7 @@ export default function BlogPage() {
         </div>
 
         {/* ── RIGHT: Bulk Settings Panel ── */}
-        <div style={{ flex: 3, minWidth: 0 }}>
+        <div className="app-split-side">
           <Card padding="0">
             {/* Header */}
             <div style={{ padding: "16px", borderBottom: "1px solid var(--p-color-border)" }}>
@@ -1645,9 +1633,10 @@ export default function BlogPage() {
                 </Text>
               </BlockStack>
             </div>
-            <IndexTable
-              resourceName={{ singular: "article", plural: "articles" }}
-              itemCount={bulkResult.results.length}
+            <div className="app-table-scroll">
+              <IndexTable
+                resourceName={{ singular: "article", plural: "articles" }}
+                itemCount={bulkResult.results.length}
               selectable={false}
               headings={[
                 { title: "Title" },
@@ -1678,7 +1667,8 @@ export default function BlogPage() {
                   </IndexTable.Cell>
                 </IndexTable.Row>
               ))}
-            </IndexTable>
+              </IndexTable>
+            </div>
           </Card>
         </div>
       )}

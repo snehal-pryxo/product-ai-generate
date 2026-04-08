@@ -1412,9 +1412,9 @@ export default function CollectionsPage() {
 
 
 
-      <div style={{ display: "flex", gap: "16px", alignItems: "flex-start", marginTop: "0" }}>
+      <div className="app-split-layout" style={{ marginTop: "0" }}>
         {/* ── LEFT: Collection List ── */}
-        <div style={{ flex: 7, minWidth: 0 }}>
+        <div className="app-split-main">
           {/* Instructions Card */}
           <div style={{ marginBottom: "16px" }}>
             <Card>
@@ -1431,8 +1431,8 @@ export default function CollectionsPage() {
           </div>
 
           {/* ── Products / Collections Tab Bar with Search ── */}
-          <div style={{ display: "flex", gap: "16px", alignItems: "center", marginBottom: "20px" }}>
-            <div style={{ display: "inline-flex", gap: "8px", background: "#f3f3f3", padding: "6px", borderRadius: "8px" }}>
+          <div className="app-toolbar" style={{ marginBottom: "20px" }}>
+            <div className="app-toolbar-fixed" style={{ display: "inline-flex", gap: "8px", background: "#f3f3f3", padding: "6px", borderRadius: "8px" }}>
               {[
                 { label: "Products", icon: ProductIcon, path: "/app/products", active: false },
                 { label: "Collections", icon: CollectionIcon, path: "/app/collections", active: true },
@@ -1462,7 +1462,7 @@ export default function CollectionsPage() {
                 </button>
               ))}
             </div>
-            <div style={{ flex: 1, minWidth: "250px" }}>
+            <div className="app-toolbar-grow" style={{ minWidth: "250px" }}>
               <TextField
                 label="Search collections"
                 labelHidden
@@ -1500,7 +1500,7 @@ export default function CollectionsPage() {
                   </Text>
                 </EmptyState>
               ) : (
-                <div className="collections-table-wrap">
+                <div className="collections-table-wrap app-table-scroll">
                   <IndexTable
                     resourceName={{ singular: "collection", plural: "collections" }}
                     itemCount={filteredCollections.length}
@@ -1524,7 +1524,7 @@ export default function CollectionsPage() {
         </div>
 
         {/* ── RIGHT: Bulk Settings Panel ── */}
-        <div style={{ flex: 3, minWidth: 0 }}>
+        <div className="app-split-side">
           <Card padding="0">
             <div style={{ padding: "16px", borderBottom: "1px solid var(--p-color-border)" }}>
               <BlockStack gap="100">
@@ -1687,7 +1687,7 @@ export default function CollectionsPage() {
 
       <style>{`
         .collections-table-wrap .Polaris-IndexTable__ScrollContainer {
-          overflow-x: hidden !important;
+          overflow-x: auto !important;
         }
         .collections-table-wrap .Polaris-IndexTable__TableCell {
           white-space: nowrap !important;
@@ -1716,8 +1716,9 @@ export default function CollectionsPage() {
                 </Text>
               </BlockStack>
             </div>
-            <IndexTable
-              resourceName={{ singular: "collection", plural: "collections" }}
+            <div className="app-table-scroll">
+              <IndexTable
+                resourceName={{ singular: "collection", plural: "collections" }}
               itemCount={bulkResult.results.length}
               selectable={false}
               headings={[
@@ -1749,7 +1750,8 @@ export default function CollectionsPage() {
                   </IndexTable.Cell>
                 </IndexTable.Row>
               ))}
-            </IndexTable>
+              </IndexTable>
+            </div>
           </Card>
         </div>
       )}

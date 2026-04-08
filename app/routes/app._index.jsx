@@ -235,7 +235,7 @@ export default function Index() {
             <div style={{ position: "absolute", top: "-40px", right: "-40px", width: "180px", height: "180px", borderRadius: "50%", background: "radial-gradient(circle, rgba(0,179,116,0.2) 0%, transparent 70%)", pointerEvents: "none" }} />
             <div style={{ position: "absolute", bottom: "-30px", left: "30%", width: "140px", height: "140px", borderRadius: "50%", background: "radial-gradient(circle, rgba(61,130,245,0.15) 0%, transparent 70%)", pointerEvents: "none" }} />
 
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px" }}>
+            <div className="app-hero-content">
               <BlockStack gap="400">
                 {/* Badge */}
                 <div style={{ display: "inline-flex" }}>
@@ -274,7 +274,7 @@ export default function Index() {
               </BlockStack>
 
               {/* Right side: Credits & Upgrade */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "flex-end", flexShrink: 0 }}>
+              <div className="app-hero-actions" style={{ display: "flex", flexDirection: "column", gap: "8px", flexShrink: 0 }}>
                 <button
                   type="button"
                   onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}
@@ -411,7 +411,7 @@ export default function Index() {
               </div>
               <Text variant="headingMd" as="h2">Boost your store performance with our apps</Text>
             </InlineStack>
-            <div style={{ display: "flex", gap: "12px", flexWrap: "nowrap", overflowX: "auto" }}>
+            <div className="app-card-grid" style={{ gap: "12px" }}>
               {PARTNER_APPS.map((app) => (
                 <div key={app.title} style={{ border: "1px solid #e4e5e7", borderRadius: "8px", padding: "16px", flex: "1 1 0", minWidth: "220px" }}>
                   <BlockStack gap="300">

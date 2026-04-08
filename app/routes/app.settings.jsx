@@ -169,7 +169,7 @@ export default function SettingsPage() {
             <Text as="p" variant="bodySm" tone="subdued">
               These defaults are applied across all pages. Individual pages use these values automatically.
             </Text>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+            <div className="app-form-grid-2" style={{ gap: "16px" }}>
               <Select
                 label="Output Language"
                 options={LANGUAGE_OPTIONS}
@@ -207,7 +207,7 @@ export default function SettingsPage() {
             {/* Product */}
             <BlockStack gap="200">
               <Text as="p" variant="bodyMd" fontWeight="semibold">Product</Text>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
+              <div className="app-form-grid-3" style={{ gap: "12px" }}>
                 <TextField
                   label="Description Keywords"
                   value={settings.productDescKeywords}
@@ -237,7 +237,7 @@ export default function SettingsPage() {
             {/* Collections */}
             <BlockStack gap="200">
               <Text as="p" variant="bodyMd" fontWeight="semibold">Collections</Text>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
+              <div className="app-form-grid-3" style={{ gap: "12px" }}>
                 <TextField
                   label="Description Keywords"
                   value={settings.collectionDescKeywords}
@@ -267,7 +267,7 @@ export default function SettingsPage() {
             {/* Pages */}
             <BlockStack gap="200">
               <Text as="p" variant="bodyMd" fontWeight="semibold">Pages</Text>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
+              <div className="app-form-grid-3" style={{ gap: "12px" }}>
                 <TextField
                   label="Content Keywords"
                   value={settings.pageContentKeywords}
@@ -297,7 +297,7 @@ export default function SettingsPage() {
             {/* Blog */}
             <BlockStack gap="200">
               <Text as="p" variant="bodyMd" fontWeight="semibold">Blog</Text>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
+              <div className="app-form-grid-3" style={{ gap: "12px" }}>
                 <TextField
                   label="Content Keywords"
                   value={settings.blogContentKeywords}
@@ -335,7 +335,7 @@ export default function SettingsPage() {
             {/* Product */}
             <BlockStack gap="300">
               <Text as="p" variant="bodyMd" fontWeight="semibold">Product</Text>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
+              <div className="app-form-grid-3" style={{ gap: "12px" }}>
                 <TextField label="Description words" type="number" value={settings.productDescWords} onChange={update("productDescWords")} autoComplete="off" />
                 <TextField label="Meta Title words" type="number" value={settings.productMetaTitleWords} onChange={update("productMetaTitleWords")} autoComplete="off" />
                 <TextField label="Meta Description words" type="number" value={settings.productMetaDescWords} onChange={update("productMetaDescWords")} autoComplete="off" />
@@ -347,7 +347,7 @@ export default function SettingsPage() {
             {/* Collections */}
             <BlockStack gap="300">
               <Text as="p" variant="bodyMd" fontWeight="semibold">Collections</Text>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
+              <div className="app-form-grid-3" style={{ gap: "12px" }}>
                 <TextField label="Description words" type="number" value={settings.collectionDescWords} onChange={update("collectionDescWords")} autoComplete="off" />
                 <TextField label="Meta Title words" type="number" value={settings.collectionMetaTitleWords} onChange={update("collectionMetaTitleWords")} autoComplete="off" />
                 <TextField label="Meta Description words" type="number" value={settings.collectionMetaDescWords} onChange={update("collectionMetaDescWords")} autoComplete="off" />
@@ -359,7 +359,7 @@ export default function SettingsPage() {
             {/* Pages */}
             <BlockStack gap="300">
               <Text as="p" variant="bodyMd" fontWeight="semibold">Pages</Text>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
+              <div className="app-form-grid-3" style={{ gap: "12px" }}>
                 <TextField label="Content words" type="number" value={settings.pageContentWords} onChange={update("pageContentWords")} autoComplete="off" />
                 <TextField label="Meta Title words" type="number" value={settings.pageMetaTitleWords} onChange={update("pageMetaTitleWords")} autoComplete="off" />
                 <TextField label="Meta Description words" type="number" value={settings.pageMetaDescWords} onChange={update("pageMetaDescWords")} autoComplete="off" />
@@ -371,7 +371,7 @@ export default function SettingsPage() {
             {/* Blog */}
             <BlockStack gap="300">
               <Text as="p" variant="bodyMd" fontWeight="semibold">Blog</Text>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
+              <div className="app-form-grid-3" style={{ gap: "12px" }}>
                 <TextField label="Content words" type="number" value={settings.blogContentWords} onChange={update("blogContentWords")} autoComplete="off" />
                 <TextField label="Meta Title words" type="number" value={settings.blogMetaTitleWords} onChange={update("blogMetaTitleWords")} autoComplete="off" />
                 <TextField label="Meta Description words" type="number" value={settings.blogMetaDescWords} onChange={update("blogMetaDescWords")} autoComplete="off" />

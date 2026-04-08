@@ -1429,9 +1429,9 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: "16px", alignItems: "flex-start", marginTop: "0" }}>
+      <div className="app-split-layout" style={{ marginTop: "0" }}>
         {/* ── LEFT: Product List ── */}
-        <div style={{ flex: 7, minWidth: 0 }}>
+        <div className="app-split-main">
           {/* Instructions Card */}
           <div style={{ marginBottom: "16px" }}>
             <Card>
@@ -1448,8 +1448,8 @@ export default function ProductsPage() {
           </div>
 
           {/* Search & Collection Filter - One Line */}
-          <div style={{ marginBottom: "16px", display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "stretch" }}>
-            <div style={{ display: "flex", border: "1px solid #d1d5db", borderRadius: "10px", overflow: "hidden", background: "#fff", minWidth: "180px" }}>
+          <div className="app-toolbar" style={{ marginBottom: "16px", alignItems: "stretch" }}>
+            <div className="app-toolbar-fixed" style={{ display: "flex", border: "1px solid #d1d5db", borderRadius: "10px", overflow: "hidden", background: "#fff", minWidth: "180px" }}>
               {sectionTabs.map((tab, index) => {
                 const isActive = activeSectionPath === tab.path;
                 return (
@@ -1477,7 +1477,7 @@ export default function ProductsPage() {
                 );
               })}
             </div>
-            <div style={{ flex: 1, minWidth: "240px", position: "relative" }}>
+            <div className="app-toolbar-grow" style={{ minWidth: "240px", position: "relative" }}>
               <TextField
                 label="Search products"
                 labelHidden
@@ -1488,7 +1488,7 @@ export default function ProductsPage() {
                 prefix={isSearchLoading ? <Spinner size="small" /> : undefined}
               />
             </div>
-            <div style={{ minWidth: "180px", flex: "0 0 220px" }}>
+            <div className="app-toolbar-fixed" style={{ minWidth: "180px", flex: "0 0 220px" }}>
               <Select
                 label="Filter by Collection"
                 labelHidden
@@ -1522,7 +1522,8 @@ export default function ProductsPage() {
                   <Text as="p" tone="subdued">Try adjusting your search or filter.</Text>
                 </EmptyState>
               ) : (
-                <IndexTable
+                <div className="app-table-scroll">
+                  <IndexTable
                   resourceName={resourceName}
                   itemCount={filteredProducts.length}
                   headings={[
@@ -1569,7 +1570,8 @@ export default function ProductsPage() {
                       </IndexTable.Cell>
                     </IndexTable.Row>
                   ))}
-                </IndexTable>
+                  </IndexTable>
+                </div>
               )}
 
               <div style={{ padding: "8px 16px", borderTop: "1px solid var(--p-color-border)" }}>
@@ -1583,7 +1585,7 @@ export default function ProductsPage() {
         </div>
 
         {/* ── RIGHT: Bulk Settings Panel ── */}
-        <div style={{ flex: 3, minWidth: 0 }}>
+        <div className="app-split-side">
           <Card padding="0">
             <div style={{ padding: "16px", borderBottom: "1px solid var(--p-color-border)" }}>
               <BlockStack gap="100">
@@ -1768,8 +1770,9 @@ export default function ProductsPage() {
                 </Badge>
               </InlineStack>
             </div>
-            <IndexTable
-              resourceName={{ singular: "product", plural: "products" }}
+            <div className="app-table-scroll">
+              <IndexTable
+                resourceName={{ singular: "product", plural: "products" }}
               itemCount={bulkResult.results.length}
               selectable={false}
               headings={[
@@ -1801,7 +1804,8 @@ export default function ProductsPage() {
                   </IndexTable.Cell>
                 </IndexTable.Row>
               ))}
-            </IndexTable>
+              </IndexTable>
+            </div>
           </Card>
         </div>
       )}

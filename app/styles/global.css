@@ -90,3 +90,259 @@ input, textarea, select { border-radius: 6px !important; }
   color: #fff !important;
   opacity: 0.55 !important;
 }
+
+/* Mobile-first responsive system */
+:root {
+  --app-breakpoint-320: 320px;
+  --app-breakpoint-480: 480px;
+  --app-breakpoint-768: 768px;
+  --app-breakpoint-1024: 1024px;
+  --app-breakpoint-1280: 1280px;
+  --app-breakpoint-1440: 1440px;
+  --app-breakpoint-1920: 1920px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+.app-split-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.app-split-main,
+.app-split-side {
+  width: 100%;
+  min-width: 0;
+}
+
+.app-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.app-toolbar-grow,
+.app-toolbar-fixed {
+  width: 100%;
+  min-width: 0;
+}
+
+.app-form-grid-2,
+.app-form-grid-3,
+.app-form-grid-5 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.app-card-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.app-hero-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.app-hero-actions {
+  width: 100%;
+  align-items: flex-start !important;
+}
+
+.app-table-scroll .Polaris-IndexTable__ScrollContainer {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+.app-table-scroll .Polaris-IndexTable__Table {
+  min-width: 640px;
+}
+
+.app-table-scroll .Polaris-IndexTable__TableCell {
+  white-space: nowrap;
+}
+
+.app-modal-dropdown {
+  width: min(94vw, 580px);
+  max-width: 94vw;
+}
+
+.app-modal-date-range-inputs,
+.app-modal-date-range-calendars,
+.app-modal-date-range-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.app-modal-calendar-divider {
+  display: none;
+}
+
+.template-library-modal__dialog {
+  width: min(96vw, 920px) !important;
+}
+
+.template-library-modal__body {
+  display: flex;
+  flex-direction: column;
+}
+
+.template-library-modal__sidebar {
+  width: 100% !important;
+  max-height: 160px;
+  border-right: none !important;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.template-library-modal__footer-actions {
+  flex-wrap: wrap;
+}
+
+@media (min-width: 480px) {
+  .app-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 768px) {
+  .app-toolbar {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .app-toolbar-grow {
+    flex: 1 1 auto;
+  }
+
+  .app-toolbar-fixed {
+    width: auto;
+    min-width: 180px;
+  }
+
+  .app-form-grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-form-grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-modal-date-range-inputs {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-split-layout {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .app-split-main {
+    flex: 1 1 0;
+  }
+
+  .app-split-side {
+    flex: 0 0 clamp(280px, 30%, 420px);
+  }
+
+  .app-form-grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .app-form-grid-5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .app-hero-content {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  .app-hero-actions {
+    width: auto;
+    align-items: flex-end !important;
+  }
+
+  .app-modal-date-range-calendars {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  .app-modal-calendar-divider {
+    display: block;
+  }
+
+  .app-modal-date-range-actions {
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+  }
+
+  .template-library-modal__body {
+    flex-direction: row;
+  }
+
+  .template-library-modal__sidebar {
+    width: 180px !important;
+    max-height: none;
+    border-right: 1px solid #e5e7eb !important;
+    border-bottom: none;
+  }
+}
+
+@media (min-width: 1280px) {
+  .Polaris-Page {
+    max-width: 1240px;
+    margin: 0 auto;
+  }
+}
+
+@media (min-width: 1440px) {
+  .Polaris-Page {
+    max-width: 1380px;
+  }
+}
+
+@media (min-width: 1920px) {
+  .Polaris-Page {
+    max-width: 1680px;
+  }
+}
+
+@media (max-width: 767px) {
+  .Polaris-Modal-Dialog__Container {
+    padding: 12px !important;
+  }
+
+  .Polaris-Modal-Dialog__Modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: calc(100vh - 24px) !important;
+  }
+
+  .Polaris-Modal-Section {
+    overflow-x: hidden;
+  }
+}

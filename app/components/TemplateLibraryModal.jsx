@@ -104,7 +104,7 @@ function getCategory(templateId) {
 // ─── Preview Modal ────────────────────────────────────────────────────────────
 function PreviewPanel({ template, onClose, onUse }) {
   return (
-    <div style={{
+    <div className="template-library-modal__preview" style={{
       position: "absolute", inset: 0, zIndex: 20,
       background: "rgba(255,255,255,0.98)",
       display: "flex", flexDirection: "column",
@@ -125,7 +125,7 @@ function PreviewPanel({ template, onClose, onUse }) {
           {template.template}
         </div>
       </div>
-      <div style={{ padding: "12px 20px", borderTop: "1px solid #e5e7eb", display: "flex", gap: "10px", justifyContent: "flex-end", flexShrink: 0 }}>
+      <div className="template-library-modal__footer-actions" style={{ padding: "12px 20px", borderTop: "1px solid #e5e7eb", display: "flex", gap: "10px", justifyContent: "flex-end", flexShrink: 0 }}>
         <button onClick={onClose} style={{ padding: "8px 18px", background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}>Back</button>
         <button onClick={onUse} style={{ padding: "8px 18px", background: "#1a1a1a", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>Use Template</button>
       </div>
@@ -182,7 +182,7 @@ export function TemplateLibraryModal({ open, onClose, tabs, initialTab, template
       }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{
+      <div className="template-library-modal__dialog" style={{
         background: "#fff",
         borderRadius: "12px",
         width: "min(94vw, 920px)",
@@ -245,9 +245,9 @@ export function TemplateLibraryModal({ open, onClose, tabs, initialTab, template
         )}
 
         {/* Body */}
-        <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        <div className="template-library-modal__body" style={{ display: "flex", flex: 1, overflow: "hidden" }}>
           {/* Categories sidebar */}
-          <div style={{ width: "180px", borderRight: "1px solid #e5e7eb", overflowY: "auto", padding: "8px 0", flexShrink: 0 }}>
+          <div className="template-library-modal__sidebar" style={{ width: "180px", borderRight: "1px solid #e5e7eb", overflowY: "auto", padding: "8px 0", flexShrink: 0 }}>
             <div style={{ padding: "8px 16px 4px", fontSize: "11px", fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em" }}>
               Categories
             </div>
@@ -288,7 +288,7 @@ export function TemplateLibraryModal({ open, onClose, tabs, initialTab, template
                 No templates in this category.
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "14px" }}>
+              <div className="app-card-grid" style={{ gap: "14px" }}>
                 {filtered.map((t) => (
                   <div
                     key={t.id}
@@ -349,7 +349,7 @@ export function TemplateLibraryModal({ open, onClose, tabs, initialTab, template
         </div>
 
         {/* Footer */}
-        <div style={{ padding: "10px 20px", borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "flex-end", flexShrink: 0 }}>
+        <div className="template-library-modal__footer-actions" style={{ padding: "10px 20px", borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "flex-end", flexShrink: 0 }}>
           <button
             onClick={onClose}
             style={{ padding: "8px 20px", background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}
