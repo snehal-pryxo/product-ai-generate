@@ -15,6 +15,7 @@ import {
   Modal,
   Page,
   Popover,
+  ProgressBar,
   Select,
   Tabs,
   Text,
@@ -78,6 +79,34 @@ function getGenerateScopeOptions(contentType) {
     { value: "meta_title", label: "Meta Title" },
     { value: "meta_description", label: "Meta Description" },
   ];
+}
+
+const LANGUAGE_OPTIONS = [
+  { label: "English (US)", value: "English (US)" },
+  { label: "English (UK)", value: "English (UK)" },
+  { label: "Hindi", value: "Hindi" },
+];
+
+const AI_MODEL_OPTIONS = [
+  { label: "GPT-4.1 Mini", value: "gpt-4.1-mini" },
+  { label: "GPT-4.1", value: "gpt-4.1" },
+  { label: "Claude Sonnet 4", value: "claude-sonnet-4-20250514" },
+];
+
+function getScopeDisplayLabel(contentType, scope) {
+  const mainLabel = contentType === "pages" || contentType === "blog" ? "Content" : "Description";
+  if (scope === "main") return mainLabel;
+  if (scope === "meta_title") return "Meta Title";
+  if (scope === "meta_description") return "Meta Description";
+  return "All";
+}
+
+function getContentTypeDisplayLabel(contentType) {
+  if (contentType === "products") return "product";
+  if (contentType === "collections") return "collection";
+  if (contentType === "pages") return "page";
+  if (contentType === "blog") return "blog";
+  return "item";
 }
 
 // ─── GraphQL ─────────────────────────────────────────────────────────────────
@@ -258,9 +287,9 @@ function parseGenerationContent(rawContent, modelName) {
   };
 }
 
-async function generateContentWithOpenAI(prompt, shopApiKey) {
+async function generateContentWithOpenAI(prompt, shopApiKey, preferredModel = null) {
   const apiKey = shopApiKey || process.env.OPENAI_API_KEY;
-  const configuredModel = process.env.OPENAI_MODEL || DEFAULT_AI_MODEL;
+  const configuredModel = preferredModel || process.env.OPENAI_MODEL || DEFAULT_AI_MODEL;
   if (!apiKey) throw new Error("OpenAI API key is not configured.");
 
   const payload = (model) => ({
@@ -302,14 +331,15 @@ async function generateContentWithOpenAI(prompt, shopApiKey) {
   return send(configuredModel);
 }
 
-async function generateContentWithAnthropic(prompt, apiKey) {
+async function generateContentWithAnthropic(prompt, apiKey, preferredModel = null) {
   const key = apiKey || process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("Anthropic API key is not configured.");
+  const model = preferredModel || "claude-haiku-4-5-20251001";
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
     body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
+      model,
       max_tokens: 1024,
       system: "You are an expert Shopify copywriter. Always return valid JSON with the requested keys. No markdown, no code fences.",
       messages: [{ role: "user", content: prompt }],
@@ -318,7 +348,7 @@ async function generateContentWithAnthropic(prompt, apiKey) {
   let data = null;
   try { data = await res.json(); } catch { data = null; }
   if (!res.ok) throw new Error(data?.error?.message || `Anthropic request failed with status ${res.status}.`);
-  return parseGenerationContent(data?.content?.[0]?.text, data?.model || "claude-haiku");
+  return parseGenerationContent(data?.content?.[0]?.text, data?.model || model);
 }
 
 async function generateContentWithOllama(prompt) {
@@ -341,13 +371,16 @@ async function generateContentWithOllama(prompt) {
   return parseGenerationContent(data?.message?.content, data?.model || model);
 }
 
-async function runGeneration(prompt, { aiProvider = "auto", shopOpenaiKey = null, shopAnthropicKey = null } = {}) {
+async function runGeneration(
+  prompt,
+  { aiProvider = "auto", preferredModel = null, shopOpenaiKey = null, shopAnthropicKey = null } = {},
+) {
   const openaiKey = shopOpenaiKey || process.env.OPENAI_API_KEY;
   const anthropicKey = shopAnthropicKey || process.env.ANTHROPIC_API_KEY;
 
-  if (aiProvider === "anthropic") return generateContentWithAnthropic(prompt, anthropicKey);
+  if (aiProvider === "anthropic") return generateContentWithAnthropic(prompt, anthropicKey, preferredModel);
   if (aiProvider === "openai") {
-    try { return await generateContentWithOpenAI(prompt, openaiKey); }
+    try { return await generateContentWithOpenAI(prompt, openaiKey, preferredModel); }
     catch (err) {
       if (OPENAI_OLLAMA_FALLBACK_ERROR_PATTERN.test(err?.message || "") && canUseOllamaFallback())
         return generateContentWithOllama(prompt);
@@ -360,10 +393,10 @@ async function runGeneration(prompt, { aiProvider = "auto", shopOpenaiKey = null
     try { return await generateContentWithOllama(prompt); }
     catch (err) {
       if (!openaiKey) throw err;
-      return generateContentWithOpenAI(prompt, openaiKey);
+      return generateContentWithOpenAI(prompt, openaiKey, preferredModel);
     }
   }
-  try { return await generateContentWithOpenAI(prompt, openaiKey); }
+  try { return await generateContentWithOpenAI(prompt, openaiKey, preferredModel); }
   catch (err) {
     if (OPENAI_OLLAMA_FALLBACK_ERROR_PATTERN.test(err?.message || "") && canUseOllamaFallback())
       return generateContentWithOllama(prompt);
@@ -371,7 +404,13 @@ async function runGeneration(prompt, { aiProvider = "auto", shopOpenaiKey = null
   }
 }
 
-function buildPrompt(contentType, item, templateOverrides = {}, generateScope = "all") {
+function buildPrompt(
+  contentType,
+  item,
+  templateOverrides = {},
+  generateScope = "all",
+  generationOptions = {},
+) {
   const promptIntent =
     generateScope === "meta_title"
       ? "seo_title"
@@ -379,11 +418,11 @@ function buildPrompt(contentType, item, templateOverrides = {}, generateScope = 
         ? "seo_description"
         : "all";
   const base = {
-    language: "English",
+    language: generationOptions.language || "English",
     tone: "Neutral",
     lengthOption: "150 - 300 words",
     format: "Multiple sections with headings and paragraphs",
-    contextKeywords: "",
+    contextKeywords: generationOptions.contextKeywords || "",
     descriptionPromptTemplate: "",
     metaTitlePromptTemplate: "",
     metaDescriptionPromptTemplate: "",
@@ -419,11 +458,11 @@ function buildPrompt(contentType, item, templateOverrides = {}, generateScope = 
       pageTitle: item.title,
       pageType: "General",
       body: stripHtml(item.descriptionHtml || item.body || ""),
-      language: "English",
+      language: generationOptions.language || "English",
       tone: "Neutral",
       length: "Medium",
       format: "Mixed headings and paragraphs",
-      contextKeywords: "",
+      contextKeywords: generationOptions.contextKeywords || "",
       bodyPromptTemplate: templateOverrides.bodyPromptTemplate || "",
       metaTitlePromptTemplate: templateOverrides.metaTitlePromptTemplate || "",
       metaDescriptionPromptTemplate: templateOverrides.metaDescriptionPromptTemplate || "",
@@ -434,11 +473,11 @@ function buildPrompt(contentType, item, templateOverrides = {}, generateScope = 
       articleType: "General",
       title: item.title,
       body: stripHtml(item.descriptionHtml || item.body || ""),
-      language: "English",
+      language: generationOptions.language || "English",
       tone: "Neutral",
       length: "Medium",
       format: "Mixed headings and paragraphs",
-      contextKeywords: "",
+      contextKeywords: generationOptions.contextKeywords || "",
       bodyPromptTemplate: templateOverrides.bodyPromptTemplate || "",
       metaTitlePromptTemplate: templateOverrides.metaTitlePromptTemplate || "",
       metaDescriptionPromptTemplate: templateOverrides.metaDescriptionPromptTemplate || "",
@@ -880,6 +919,17 @@ export const action = async ({ request }) => {
     try { item = JSON.parse(itemJson || "{}"); } catch { item = {}; }
 
     const aiProvider = formData.get("aiProvider") || shopData?.defaultAiProvider || "auto";
+    const preferredModel = String(formData.get("aiModel") || "").trim();
+    const resolvedAiProvider =
+      preferredModel.startsWith("claude-")
+        ? "anthropic"
+        : preferredModel.startsWith("gpt-")
+          ? "openai"
+          : aiProvider;
+    const generationLanguage = String(formData.get("language") || "English").trim() || "English";
+    const seoKeyword = String(formData.get("seoKeyword") || "").trim();
+    const additionalInformation = String(formData.get("additionalInformation") || "").trim();
+    const contextKeywords = [seoKeyword, additionalInformation].filter(Boolean).join(" | ");
     const templateOverrides = {
       descriptionPromptTemplate: String(formData.get("descriptionPromptTemplate") || ""),
       bodyPromptTemplate: String(formData.get("bodyPromptTemplate") || ""),
@@ -891,9 +941,13 @@ export const action = async ({ request }) => {
     const shouldGenerateMetaDescription = generateScope === "all" || generateScope === "meta_description";
 
     try {
-      const prompt = buildPrompt(contentType, item, templateOverrides, generateScope);
+      const prompt = buildPrompt(contentType, item, templateOverrides, generateScope, {
+        language: generationLanguage,
+        contextKeywords,
+      });
       const generated = await runGeneration(prompt, {
-        aiProvider,
+        aiProvider: resolvedAiProvider,
+        preferredModel: preferredModel || null,
         shopOpenaiKey: shopData?.openaiApiKey || null,
         shopAnthropicKey: shopData?.anthropicApiKey || null,
       });
@@ -972,6 +1026,8 @@ export const action = async ({ request }) => {
       });
 
       const commonUpsertData = {
+        language: generationLanguage,
+        contextKeywords: contextKeywords || null,
         aiModel: generated.aiModel || null,
         seoTitle: seoTitle || null,
         seoDescription: seoDescription || null,
@@ -984,8 +1040,9 @@ export const action = async ({ request }) => {
             shop: session.shop,
             productId: item.id,
             productTitle: item.title || null,
-            language: "English",
+            language: generationLanguage,
             tone: "Neutral",
+            contextKeywords: contextKeywords || null,
             descriptionPromptTemplate: shouldGenerateMain
               ? templateOverrides.descriptionPromptTemplate || null
               : null,
@@ -1026,8 +1083,9 @@ export const action = async ({ request }) => {
             shop: session.shop,
             collectionId: item.id,
             collectionTitle: item.title || null,
-            language: "English",
+            language: generationLanguage,
             tone: "Neutral",
+            contextKeywords: contextKeywords || null,
             descriptionPromptTemplate: shouldGenerateMain
               ? templateOverrides.descriptionPromptTemplate || null
               : null,
@@ -1069,8 +1127,9 @@ export const action = async ({ request }) => {
             pageId: item.id,
             pageTitle: item.title || null,
             pageType: "General",
-            language: "English",
+            language: generationLanguage,
             tone: "Neutral",
+            contextKeywords: contextKeywords || null,
             bodyPromptTemplate: shouldGenerateMain ? templateOverrides.bodyPromptTemplate || null : null,
             metaTitlePromptTemplate: shouldGenerateMetaTitle
               ? templateOverrides.metaTitlePromptTemplate || null
@@ -1110,8 +1169,9 @@ export const action = async ({ request }) => {
             articleId: item.id,
             articleTitle: item.title || null,
             articleType: "General",
-            language: "English",
+            language: generationLanguage,
             tone: "Neutral",
+            contextKeywords: contextKeywords || null,
             bodyPromptTemplate: shouldGenerateMain ? templateOverrides.bodyPromptTemplate || null : null,
             metaTitlePromptTemplate: shouldGenerateMetaTitle
               ? templateOverrides.metaTitlePromptTemplate || null
@@ -1159,8 +1219,9 @@ export const action = async ({ request }) => {
             productTitle: item.title || null,
             intent: `content_management_${contentType}`,
             resourceType: contentType === "blog" ? "blog" : contentType === "pages" ? "page" : contentType === "collections" ? "collection" : "product",
-            language: "English",
+            language: generationLanguage,
             tone: "Neutral",
+            contextKeywords: contextKeywords || null,
             aiModel: generated.aiModel || null,
             generatedDescription: descHtml || null,
             generatedSeoTitle: seoTitle || null,
@@ -1657,7 +1718,11 @@ function GenerateTemplateModal({
   contentType,
   generateScope,
   templateSelection,
+  formValues,
+  previewText,
+  progress,
   onChange,
+  onFormChange,
   onClose,
   onGenerate,
   isGenerating,
@@ -1683,12 +1748,23 @@ function GenerateTemplateModal({
   const showMetaTitle = generateScope === "all" || generateScope === "meta_title";
   const showMetaDescription = generateScope === "all" || generateScope === "meta_description";
   const modalCredits = creditsForGenerateScope(generateScope);
+  const scopeLabel = getScopeDisplayLabel(contentType, generateScope);
+  const itemTypeLabel = getContentTypeDisplayLabel(contentType);
+  const titleScope = scopeLabel === "All" ? "content" : scopeLabel.toLowerCase();
+  const previewHtml = showMain ? previewText : "";
+  const previewMetaText =
+    !showMain && previewText
+      ? previewText
+      : !showMain
+        ? `Generated ${scopeLabel} will appear here`
+        : "";
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title={`Generate: ${item.title}`}
+      title={`Generate ${itemTypeLabel} ${titleScope}`}
+      large
       primaryAction={{
         content: isGenerating ? "Generating..." : `Generate (${modalCredits} credits)`,
         onAction: onGenerate,
@@ -1700,32 +1776,116 @@ function GenerateTemplateModal({
       <Modal.Section>
         <BlockStack gap="300">
           <Text as="p" variant="bodySm" tone="subdued">
-            Select templates for this generation. Credits are deducted only after a successful generation.
+            Select templates and options. Credits are deducted only after successful generation.
           </Text>
-          {showMain ? (
-            <Select
-              label={config.mainLabel}
-              options={mainOptions}
-              value={templateSelection.mainTemplateId}
-              onChange={(value) => onChange("mainTemplateId", value)}
-            />
+
+          {isGenerating ? (
+            <BlockStack gap="150">
+              <Text as="p" variant="bodySm" tone="subdued">Generating content...</Text>
+              <ProgressBar progress={progress} size="small" />
+            </BlockStack>
           ) : null}
-          {showMetaTitle ? (
-            <Select
-              label="Meta Title Template"
-              options={metaTitleOptions}
-              value={templateSelection.metaTitleTemplateId}
-              onChange={(value) => onChange("metaTitleTemplateId", value)}
-            />
-          ) : null}
-          {showMetaDescription ? (
-            <Select
-              label="Meta Description Template"
-              options={metaDescriptionOptions}
-              value={templateSelection.metaDescriptionTemplateId}
-              onChange={(value) => onChange("metaDescriptionTemplateId", value)}
-            />
-          ) : null}
+
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(300px, 1fr) minmax(320px, 2fr)", gap: "16px" }}>
+            <BlockStack gap="300">
+              <Card>
+                <BlockStack gap="200">
+                  <Text as="p" variant="headingSm">{itemTypeLabel[0].toUpperCase() + itemTypeLabel.slice(1)}</Text>
+                  <div style={{ border: "1px solid #e1e3e5", borderRadius: "12px", padding: "12px" }}>
+                    <InlineStack gap="300" blockAlign="center" wrap={false}>
+                      {item.imageUrl ? (
+                        <Thumbnail source={item.imageUrl} alt={item.imageAlt || item.title} size="small" />
+                      ) : (
+                        <div className="content-mgmt-thumb-placeholder" aria-hidden="true" />
+                      )}
+                      <Text as="p" variant="bodyMd">{item.title}</Text>
+                    </InlineStack>
+                  </div>
+                </BlockStack>
+              </Card>
+
+              <TextField
+                label="SEO keyword"
+                value={formValues.seoKeyword}
+                onChange={(value) => onFormChange("seoKeyword", value)}
+                autoComplete="off"
+                placeholder="Keyword"
+              />
+
+              {showMain ? (
+                <Select
+                  label={config.mainLabel}
+                  options={mainOptions}
+                  value={templateSelection.mainTemplateId}
+                  onChange={(value) => onChange("mainTemplateId", value)}
+                />
+              ) : null}
+              {showMetaTitle ? (
+                <Select
+                  label="Meta Title Template"
+                  options={metaTitleOptions}
+                  value={templateSelection.metaTitleTemplateId}
+                  onChange={(value) => onChange("metaTitleTemplateId", value)}
+                />
+              ) : null}
+              {showMetaDescription ? (
+                <Select
+                  label="Meta Description Template"
+                  options={metaDescriptionOptions}
+                  value={templateSelection.metaDescriptionTemplateId}
+                  onChange={(value) => onChange("metaDescriptionTemplateId", value)}
+                />
+              ) : null}
+
+              <TextField
+                label="Additional information"
+                value={formValues.additionalInformation}
+                onChange={(value) => onFormChange("additionalInformation", value)}
+                multiline={4}
+                autoComplete="off"
+                placeholder="Add unique product details, specifications, key selling points, etc."
+              />
+              <Select
+                label="Language"
+                options={LANGUAGE_OPTIONS}
+                value={formValues.language}
+                onChange={(value) => onFormChange("language", value)}
+              />
+              <Select
+                label="AI model"
+                options={AI_MODEL_OPTIONS}
+                value={formValues.aiModel}
+                onChange={(value) => onFormChange("aiModel", value)}
+              />
+            </BlockStack>
+
+            <Card>
+              <div
+                style={{
+                  minHeight: "440px",
+                  border: "1px solid #e1e3e5",
+                  borderRadius: "12px",
+                  padding: "16px",
+                  overflowY: "auto",
+                  background: "#ffffff",
+                }}
+              >
+                {showMain ? (
+                  previewHtml ? (
+                    <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
+                  ) : (
+                    <Text as="p" variant="bodyMd" tone="subdued" alignment="center">
+                      Generated content will appear here
+                    </Text>
+                  )
+                ) : (
+                  <Text as="p" variant="bodyMd" tone={previewText ? "base" : "subdued"} alignment="center">
+                    {previewMetaText}
+                  </Text>
+                )}
+              </div>
+            </Card>
+          </div>
         </BlockStack>
       </Modal.Section>
     </Modal>
@@ -1784,6 +1944,14 @@ export default function ContentManagementPage() {
     metaTitleTemplateId: "",
     metaDescriptionTemplateId: "",
   });
+  const [generateFormValues, setGenerateFormValues] = useState({
+    seoKeyword: "",
+    additionalInformation: "",
+    language: "English (US)",
+    aiModel: "gpt-4.1-mini",
+  });
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [generatedPreviewText, setGeneratedPreviewText] = useState("");
 
   // Track per-row generating state
   const [generatingId, setGeneratingId] = useState(null);
@@ -1802,7 +1970,7 @@ export default function ContentManagementPage() {
     const data = generateFetcher.data;
     if (!data || data.intent !== "generate_single") return;
     setGeneratingId(null);
-    setPendingGenerateItem(null);
+    setGenerationProgress(100);
     if (data.ok) {
       setLocalCredits(data.newCredits);
       setLocalItems((prev) =>
@@ -1812,6 +1980,15 @@ export default function ContentManagementPage() {
             : it
         )
       );
+      if (pendingGenerateScope === "main") {
+        setGeneratedPreviewText(data.descriptionHtml || "");
+      } else if (pendingGenerateScope === "meta_title") {
+        setGeneratedPreviewText(data.seoTitle || "");
+      } else if (pendingGenerateScope === "meta_description") {
+        setGeneratedPreviewText(data.seoDescription || "");
+      } else {
+        setGeneratedPreviewText(data.descriptionHtml || "");
+      }
       setSuccessMessage(
         `Content generated. ${data.creditsUsed || 0} credit${data.creditsUsed === 1 ? "" : "s"} used. Remaining: ${data.newCredits}.`,
       );
@@ -1819,8 +1996,18 @@ export default function ContentManagementPage() {
       shopify.toast.show("Content generated successfully!");
     } else {
       setErrorMessage(data.error || "Generation failed.");
+      setGenerationProgress(0);
     }
-  }, [generateFetcher.state, generateFetcher.data, shopify]);
+  }, [generateFetcher.state, generateFetcher.data, pendingGenerateScope, shopify]);
+
+  useEffect(() => {
+    if (generateFetcher.state === "idle") return undefined;
+    setGenerationProgress(12);
+    const timer = setInterval(() => {
+      setGenerationProgress((prev) => (prev >= 90 ? prev : prev + 8));
+    }, 350);
+    return () => clearInterval(timer);
+  }, [generateFetcher.state]);
 
   // Handle save response
   useEffect(() => {
@@ -1899,6 +2086,14 @@ export default function ContentManagementPage() {
         metaTitleTemplateId: "",
         metaDescriptionTemplateId: "",
       });
+      setGenerateFormValues({
+        seoKeyword: item.title || "",
+        additionalInformation: "",
+        language: "English (US)",
+        aiModel: "gpt-4.1-mini",
+      });
+      setGeneratedPreviewText("");
+      setGenerationProgress(0);
       setTemplateModalOpen(true);
     },
     [tab]
@@ -1907,6 +2102,18 @@ export default function ContentManagementPage() {
   const updateGenerateTemplateSelection = useCallback((field, value) => {
     setGenerateTemplateSelection((prev) => ({ ...prev, [field]: value }));
   }, []);
+
+  const updateGenerateFormValues = useCallback((field, value) => {
+    setGenerateFormValues((prev) => ({ ...prev, [field]: value }));
+  }, []);
+
+  const closeGenerateModal = useCallback(() => {
+    if (generateFetcher.state !== "idle") return;
+    setTemplateModalOpen(false);
+    setPendingGenerateItem(null);
+    setGeneratedPreviewText("");
+    setGenerationProgress(0);
+  }, [generateFetcher.state]);
 
   const handleConfirmGenerate = useCallback(() => {
     if (!pendingGenerateItem) return;
@@ -1920,7 +2127,8 @@ export default function ContentManagementPage() {
 
     setErrorMessage(null);
     setGeneratingId(pendingGenerateItem.id);
-    setTemplateModalOpen(false);
+    setGenerationProgress(6);
+    setGeneratedPreviewText("");
 
     const fd = new FormData();
     fd.append("intent", "generate_single");
@@ -1928,6 +2136,10 @@ export default function ContentManagementPage() {
     fd.append("generateScope", pendingGenerateScope);
     fd.append("item", JSON.stringify(pendingGenerateItem));
     fd.append("aiProvider", defaultAiProvider || "auto");
+    fd.append("seoKeyword", generateFormValues.seoKeyword || "");
+    fd.append("additionalInformation", generateFormValues.additionalInformation || "");
+    fd.append("language", generateFormValues.language || "English (US)");
+    fd.append("aiModel", generateFormValues.aiModel || "");
     fd.append("metaTitlePromptTemplate", metaTitleTemplate);
     fd.append("metaDescriptionPromptTemplate", metaDescriptionTemplate);
     if (config?.mainPromptKey === "bodyPromptTemplate") {
@@ -1942,6 +2154,10 @@ export default function ContentManagementPage() {
     generateTemplateSelection.mainTemplateId,
     generateTemplateSelection.metaDescriptionTemplateId,
     generateTemplateSelection.metaTitleTemplateId,
+    generateFormValues.additionalInformation,
+    generateFormValues.aiModel,
+    generateFormValues.language,
+    generateFormValues.seoKeyword,
     pendingGenerateContentType,
     pendingGenerateItem,
     pendingGenerateScope,
@@ -2241,8 +2457,12 @@ export default function ContentManagementPage() {
         contentType={pendingGenerateContentType}
         generateScope={pendingGenerateScope}
         templateSelection={generateTemplateSelection}
+        formValues={generateFormValues}
+        previewText={generatedPreviewText}
+        progress={generationProgress}
         onChange={updateGenerateTemplateSelection}
-        onClose={() => setTemplateModalOpen(false)}
+        onFormChange={updateGenerateFormValues}
+        onClose={closeGenerateModal}
         onGenerate={handleConfirmGenerate}
         isGenerating={generateFetcher.state !== "idle"}
       />
