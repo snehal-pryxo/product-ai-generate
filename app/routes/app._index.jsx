@@ -523,7 +523,7 @@ export default function Index() {
                       <div className="support-contact-item">
                         <BlockStack gap="100" align="center">
                           <Text variant="headingSm" fontWeight="semibold" as="span">Need Quick Help?</Text>
-                          <InlineStack gap="200" distribute="center" justifyContent="center">
+                          <InlineStack gap="200" distribute="center" style={{ justifyContent: "center" }}>
                             <Button
                               variant="primary"
                               size="slim"
