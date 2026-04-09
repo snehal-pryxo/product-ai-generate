@@ -216,7 +216,7 @@ const PARTNER_APPS = [
   },
   {
     logoSrc: "/images/cartlift-logo.png",
-    title: "FCartLift: Cart Drawer & Upsell",
+    title: "CartLift: Cart Drawer & Upsell",
     badge: "Upsell",
     badgeColor: "#e0f2fe",
     badgeText: "#0369a1",
