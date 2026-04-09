@@ -45,13 +45,12 @@ export const loader = async ({ request }) => {
     select: {
       defaultAiModel: true,
       createdAt: true,
-      onboardedAt: true,
       reviewSubmittedAt: true,
       reviewPromptDismissedAt: true,
     },
   });
 
-  const installDate = shopData?.onboardedAt || shopData?.createdAt;
+  const installDate = shopData?.createdAt;
   const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
   const installAgeMs = installDate ? Date.now() - new Date(installDate).getTime() : 0;
   const shouldShowReviewPopup = Boolean(
@@ -303,7 +302,9 @@ export default function Index() {
     () => (typeof defaultAiModel === "string" && defaultAiModel.trim()) ? defaultAiModel.trim() : "gpt-4o-mini"
   );
   const aiModelOptions = getAiModelOptions(envDefaultAiModel || defaultAiModel);
-  const [isReviewModalOpen, setIsReviewModalOpen] = useState(() => Boolean(shouldShowReviewPopup));
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(
+    () => Boolean(shouldShowReviewPopup) && !Boolean(hasSubmittedReview),
+  );
   const [reviewAlreadySubmitted, setReviewAlreadySubmitted] = useState(() => Boolean(hasSubmittedReview));
   const [reviewRating, setReviewRating] = useState("5");
   const [reviewFeedback, setReviewFeedback] = useState("");
