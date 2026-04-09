@@ -1,0 +1,5 @@
+ALTER TABLE `shop`
+    ADD COLUMN IF NOT EXISTS `reviewSubmittedAt` DATETIME(3) NULL,
+    ADD COLUMN IF NOT EXISTS `reviewPromptDismissedAt` DATETIME(3) NULL,
+    ADD COLUMN IF NOT EXISTS `reviewRating` INT NULL,
+    ADD COLUMN IF NOT EXISTS `reviewFeedback` TEXT NULL;

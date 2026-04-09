@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useLoaderData, useActionData, Form, useNavigation, useNavigate, useLocation, useRouteLoaderData } from "react-router";
+import { useEffect, useState } from "react";
+import { useLoaderData, useActionData, Form, useFetcher, useNavigation, useNavigate, useLocation, useRouteLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
@@ -17,6 +17,8 @@ import {
   Box,
   Badge,
   Icon,
+  Modal,
+  TextField,
 } from "@shopify/polaris";
 import {
   ProductIcon,
@@ -40,11 +42,31 @@ export const loader = async ({ request }) => {
     "gpt-4o-mini";
   const shopData = await db.shop.findUnique({
     where: { shop: session.shop },
-    select: { defaultAiModel: true },
+    select: {
+      defaultAiModel: true,
+      createdAt: true,
+      onboardedAt: true,
+      reviewSubmittedAt: true,
+      reviewPromptDismissedAt: true,
+    },
   });
+
+  const installDate = shopData?.onboardedAt || shopData?.createdAt;
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  const installAgeMs = installDate ? Date.now() - new Date(installDate).getTime() : 0;
+  const shouldShowReviewPopup = Boolean(
+    shopData &&
+    installDate &&
+    installAgeMs >= sevenDaysMs &&
+    !shopData.reviewSubmittedAt &&
+    !shopData.reviewPromptDismissedAt,
+  );
+
   return {
     defaultAiModel: shopData?.defaultAiModel || envDefaultAiModel,
     envDefaultAiModel,
+    shouldShowReviewPopup,
+    hasSubmittedReview: Boolean(shopData?.reviewSubmittedAt),
   };
 };
 
@@ -66,6 +88,47 @@ export const action = async ({ request }) => {
       create: { shop, installed: true, defaultAiModel },
     });
     return { success: true, message: "Settings saved successfully!" };
+  }
+
+  if (intent === "submit_review") {
+    const reviewRating = Number(formData.get("reviewRating"));
+    const reviewFeedbackRaw = String(formData.get("reviewFeedback") || "");
+    const reviewFeedback = reviewFeedbackRaw.trim();
+
+    if (!Number.isInteger(reviewRating) || reviewRating < 1 || reviewRating > 5) {
+      return { success: false, message: "Please select a rating between 1 and 5." };
+    }
+
+    const submittedAt = new Date();
+    await db.shop.upsert({
+      where: { shop },
+      update: {
+        reviewSubmittedAt: submittedAt,
+        reviewRating,
+        reviewFeedback: reviewFeedback || null,
+        reviewPromptDismissedAt: null,
+      },
+      create: {
+        shop,
+        installed: true,
+        reviewSubmittedAt: submittedAt,
+        reviewRating,
+        reviewFeedback: reviewFeedback || null,
+      },
+    });
+
+    return { success: true, message: "Thank you for your review." };
+  }
+
+  if (intent === "dismiss_review") {
+    const dismissedAt = new Date();
+    await db.shop.upsert({
+      where: { shop },
+      update: { reviewPromptDismissedAt: dismissedAt },
+      create: { shop, installed: true, reviewPromptDismissedAt: dismissedAt },
+    });
+
+    return { success: true, message: "Review popup dismissed." };
   }
 
   return { success: false, message: "Unknown action." };
@@ -226,10 +289,11 @@ function FeatureCard({ icon, color, bg, border, title, desc, url, badge, badgeTo
 }
 
 export default function Index() {
-  const { defaultAiModel, envDefaultAiModel } = useLoaderData();
+  const { defaultAiModel, envDefaultAiModel, shouldShowReviewPopup, hasSubmittedReview } = useLoaderData();
   const layoutData = useRouteLoaderData("routes/app");
   const credits = layoutData?.credits ?? 0;
   const actionData = useActionData();
+  const reviewFetcher = useFetcher();
   const navigation = useNavigation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -239,10 +303,84 @@ export default function Index() {
     () => (typeof defaultAiModel === "string" && defaultAiModel.trim()) ? defaultAiModel.trim() : "gpt-4o-mini"
   );
   const aiModelOptions = getAiModelOptions(envDefaultAiModel || defaultAiModel);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(() => Boolean(shouldShowReviewPopup));
+  const [reviewAlreadySubmitted, setReviewAlreadySubmitted] = useState(() => Boolean(hasSubmittedReview));
+  const [reviewRating, setReviewRating] = useState("5");
+  const [reviewFeedback, setReviewFeedback] = useState("");
+  const reviewIntent = String(reviewFetcher.formData?.get("intent") || "");
+  const isSubmittingReview = reviewFetcher.state !== "idle" && reviewIntent === "submit_review";
+  const isDismissingReview = reviewFetcher.state !== "idle" && reviewIntent === "dismiss_review";
+
+  useEffect(() => {
+    setReviewAlreadySubmitted(Boolean(hasSubmittedReview));
+    setIsReviewModalOpen(Boolean(shouldShowReviewPopup) && !Boolean(hasSubmittedReview));
+  }, [shouldShowReviewPopup, hasSubmittedReview]);
+
+  useEffect(() => {
+    if (!reviewFetcher.data?.success) return;
+    if (reviewIntent !== "submit_review" && reviewIntent !== "dismiss_review") return;
+    if (reviewIntent === "submit_review") {
+      setReviewAlreadySubmitted(true);
+    }
+    setIsReviewModalOpen(false);
+  }, [reviewFetcher.data, reviewIntent]);
+
+  function handleDismissReviewPopup() {
+    if (isSubmittingReview || isDismissingReview) return;
+    const payload = new FormData();
+    payload.append("intent", "dismiss_review");
+    reviewFetcher.submit(payload, { method: "post" });
+  }
 
   return (
     <Page fullWidth>
       <BlockStack gap="600">
+        <Modal
+          open={isReviewModalOpen}
+          onClose={handleDismissReviewPopup}
+          title="How is your experience with Product AI?"
+        >
+          <Modal.Section>
+            <reviewFetcher.Form method="post">
+              <input type="hidden" name="intent" value="submit_review" />
+              <input type="hidden" name="reviewRating" value={reviewRating} />
+              <input type="hidden" name="reviewFeedback" value={reviewFeedback} />
+              <BlockStack gap="300">
+                <Text as="p" variant="bodyMd" tone="subdued">
+                  You have used the app for 7 days. Please share a quick review to help us improve.
+                </Text>
+                <Select
+                  label="Rating"
+                  options={[
+                    { label: "5 - Excellent", value: "5" },
+                    { label: "4 - Good", value: "4" },
+                    { label: "3 - Average", value: "3" },
+                    { label: "2 - Poor", value: "2" },
+                    { label: "1 - Very poor", value: "1" },
+                  ]}
+                  value={reviewRating}
+                  onChange={setReviewRating}
+                />
+                <TextField
+                  label="Feedback (optional)"
+                  value={reviewFeedback}
+                  onChange={setReviewFeedback}
+                  multiline={4}
+                  autoComplete="off"
+                  placeholder="Tell us what worked well and what we can improve."
+                />
+                <InlineStack align="end" gap="200">
+                  <Button onClick={handleDismissReviewPopup} disabled={isSubmittingReview || isDismissingReview}>
+                    Not now
+                  </Button>
+                  <Button submit variant="primary" loading={isSubmittingReview} disabled={isSubmittingReview || isDismissingReview}>
+                    Submit review
+                  </Button>
+                </InlineStack>
+              </BlockStack>
+            </reviewFetcher.Form>
+          </Modal.Section>
+        </Modal>
 
         {/* ── Hero ── */}
         <Card>
@@ -551,7 +689,16 @@ export default function Index() {
                     Motivate our team for future app development
                   </Text>
                   <InlineStack gap="200" distribute="center" justifyContent="center">
-                    <Button variant="primary" size="slim" onClick={() => {}}>Write a review</Button>
+                  <Button
+                    variant="primary"
+                    size="slim"
+                    onClick={() => {
+                      if (!reviewAlreadySubmitted) setIsReviewModalOpen(true);
+                    }}
+                    disabled={reviewAlreadySubmitted}
+                  >
+                    {reviewAlreadySubmitted ? "Review submitted" : "Write a review"}
+                  </Button>
                     <Button size="slim" onClick={() => {}}>Report an issue</Button>
                   </InlineStack>
                 </BlockStack>

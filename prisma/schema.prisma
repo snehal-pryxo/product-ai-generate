@@ -55,6 +55,10 @@ model shop {
   defaultAiModel          String?   @default("gpt-4o-mini") @db.VarChar(100)
   credits                 Int       @default(100)
   creditsUsedTotal        Int       @default(0)
+  reviewSubmittedAt       DateTime?
+  reviewPromptDismissedAt DateTime?
+  reviewRating            Int?
+  reviewFeedback          String?   @db.Text
   globalSettingsJson      String?   @db.LongText
   templateSelectionsJson  String?   @db.LongText
   customPromptTemplatesJson String? @db.LongText
