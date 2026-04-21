@@ -232,7 +232,7 @@ function DashboardFeatureCard({ icon, title, desc, url, badge, badgeTone }) {
     <Card>
       <BlockStack gap="300">
         <InlineStack align="space-between" blockAlign="start">
-          <InlineStack gap="200" blockAlign="center">
+          <InlineStack align="start" gap="200" blockAlign="center">
             <Icon source={icon} tone="base" />
             <Text as="h3" variant="headingSm">
               {title}
@@ -282,7 +282,7 @@ function QuickActionCard({ icon, title, description, ctaLabel, onClick }) {
           </Text>
         </BlockStack>
         <div style={{ marginTop: "auto", paddingTop: 14 }}>
-          <Button fullWidth onClick={onClick}>
+          <Button size="large" fullWidth onClick={onClick}>
             {ctaLabel}
           </Button>
         </div>
@@ -405,7 +405,7 @@ export default function Index() {
             }}
           >
             <div className="app-hero-content">
-              <BlockStack gap="250">
+              <BlockStack gap="250" style={{ flex: "1 1 auto", minWidth: 0 }}>
                 <div style={{ display: "inline-flex" }}>
                   <div
                     style={{
@@ -439,13 +439,13 @@ export default function Index() {
                   Create product descriptions, blog posts, collection content, and page copy that is ready to publish.
                 </Text>
               </BlockStack>
-              <div className="app-hero-actions" style={{ display: "flex", width: "100%" }}>
+              <div className="app-hero-actions" style={{ display: "flex", marginInlineStart: "auto" }}>
                 <InlineStack
                   align="end"
                   gap="200"
                   wrap
                   blockAlign="center"
-                  style={{ width: "100%", justifyContent: "flex-end" }}
+                  style={{ justifyContent: "flex-end" }}
                 >
                   <div style={{ display: "inline-flex" }}>
                     <Badge tone="info">{credits} credits</Badge>
@@ -536,7 +536,7 @@ export default function Index() {
                         <Select label="AI model" options={aiModelOptions} value={selectedModel} onChange={setSelectedModel} />
                       </BlockStack>
                       <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end" }}>
-                        <Button submit variant="primary" loading={isSaving} disabled={isSaving}>
+                        <Button size="large" submit variant="primary" loading={isSaving} disabled={isSaving}>
                           {isSaving ? "Saving..." : "Save model"}
                         </Button>
                       </div>
@@ -550,7 +550,7 @@ export default function Index() {
 
         <Card>
           <BlockStack gap="400">
-            <InlineStack gap="200" blockAlign="center">
+            <InlineStack align="start" gap="200" blockAlign="center">
               <Icon source={AppsIcon} tone="base" />
               <Text as="h2" variant="headingMd">
                 Boost store performance with our apps
@@ -561,7 +561,7 @@ export default function Index() {
                 <Grid.Cell key={app.title}>
                   <Card>
                     <BlockStack gap="300">
-                      <InlineStack gap="200" blockAlign="center" wrap={false}>
+                      <InlineStack align="start" gap="200" blockAlign="center" wrap={false}>
                         <img
                           src={app.logoSrc}
                           alt={`${app.title} logo`}
@@ -574,7 +574,7 @@ export default function Index() {
                       <Text as="p" variant="bodySm" tone="subdued">
                         {app.desc}
                       </Text>
-                      <Button url={app.url} external icon={ExternalIcon}>
+                      <Button size="large" fullWidth url={app.url} external icon={ExternalIcon}>
                         Add app
                       </Button>
                     </BlockStack>
@@ -601,6 +601,8 @@ export default function Index() {
                       Get help with app setup, best practices, and growth recommendations.
                     </Text>
                     <Button
+                      size="large"
+                      fullWidth
                       url="https://outlook.office.com/book/ShopifyGrowthConsultationCall@m2webdesigning.com/?ismsaljsauthenabled=true"
                       external
                       variant="primary"
@@ -614,7 +616,7 @@ export default function Index() {
               <Grid.Cell>
                 <Card>
                   <BlockStack gap="200">
-                    <InlineStack gap="100" blockAlign="center">
+                    <InlineStack align="start" gap="100" blockAlign="center">
                       <Icon source={EmailIcon} tone="base" />
                       <Text as="h3" variant="headingSm">
                         Support ticket
@@ -624,8 +626,10 @@ export default function Index() {
                       Reach our team during office hours for issue resolution and guidance.
                     </Text>
                     <InlineStack gap="200">
-                      <Button url="mailto:support@m2webdesigning.com">Email support</Button>
-                      <Button url="https://wa.me/918320023122" external>
+                      <Button size="large" url="mailto:support@m2webdesigning.com">
+                        Email support
+                      </Button>
+                      <Button size="large" url="https://wa.me/918320023122" external>
                         WhatsApp
                       </Button>
                     </InlineStack>
@@ -636,7 +640,7 @@ export default function Index() {
               <Grid.Cell>
                 <Card>
                   <BlockStack gap="200">
-                    <InlineStack gap="100" blockAlign="center">
+                    <InlineStack align="start" gap="100" blockAlign="center">
                       <Icon source={QuestionCircleIcon} tone="base" />
                       <Text as="h3" variant="headingSm">
                         Knowledge base
@@ -646,8 +650,9 @@ export default function Index() {
                       Browse setup guides and troubleshooting docs.
                     </Text>
                     <InlineStack gap="200">
-                      <Button>View docs</Button>
+                      <Button size="large">View docs</Button>
                       <Button
+                        size="large"
                         onClick={() => {
                           if (!reviewAlreadySubmitted) setIsReviewModalOpen(true);
                         }}
