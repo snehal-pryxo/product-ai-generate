@@ -31,6 +31,7 @@ import {
 import {
   ProductIcon,
   CollectionIcon,
+  BlogIcon,
   PageIcon,
   ChartVerticalIcon,
   SettingsIcon,
@@ -185,6 +186,14 @@ const CONTENT_FEATURES = [
     badgeTone: null,
   },
   {
+    icon: BlogIcon,
+    title: "Blog Posts",
+    desc: "View and manage your existing Shopify blogs in one place.",
+    url: "/app/blog",
+    badge: "Blogs",
+    badgeTone: "attention",
+  },
+  {
     icon: PageIcon,
     title: "Pages",
     desc: "Generate About, FAQ, Contact, and landing page copy in one flow.",
@@ -273,7 +282,7 @@ function QuickActionCard({ icon, title, description, ctaLabel, onClick }) {
           </Text>
         </BlockStack>
         <div style={{ marginTop: "auto", paddingTop: 14 }}>
-          <Button fullWidth onClick={onClick}>
+          <Button size="large" onClick={onClick}>
             {ctaLabel}
           </Button>
         </div>
@@ -333,6 +342,7 @@ export default function Index() {
 
   return (
     <Page title="Dashboard" fullWidth>
+      <div className="dashboard-uniform-buttons">
       <BlockStack gap="500">
         <Modal
           open={isReviewModalOpen}
@@ -537,7 +547,7 @@ export default function Index() {
                       <Text as="p" variant="bodySm" tone="subdued">
                         {app.desc}
                       </Text>
-                      <Button size="slim" fullWidth url={app.url} external icon={ExternalIcon}>
+                      <Button size="large" url={app.url} external icon={ExternalIcon}>
                         Add app
                       </Button>
                     </BlockStack>
@@ -564,8 +574,7 @@ export default function Index() {
                       Get help with app setup, best practices, and growth recommendations.
                     </Text>
                     <Button
-                      size="slim"
-                      fullWidth
+                      size="large"
                       url="https://outlook.office.com/book/ShopifyGrowthConsultationCall@m2webdesigning.com/?ismsaljsauthenabled=true"
                       external
                       variant="primary"
@@ -589,10 +598,10 @@ export default function Index() {
                       Reach our team during office hours for issue resolution and guidance.
                     </Text>
                     <InlineStack gap="200">
-                      <Button size="slim" url="mailto:support@m2webdesigning.com">
+                      <Button size="large" url="mailto:support@m2webdesigning.com">
                         Email support
                       </Button>
-                      <Button size="slim" url="https://wa.me/918320023122" external>
+                      <Button size="large" url="https://wa.me/918320023122" external>
                         WhatsApp
                       </Button>
                     </InlineStack>
@@ -613,9 +622,9 @@ export default function Index() {
                       Browse setup guides and troubleshooting docs.
                     </Text>
                     <InlineStack gap="200">
-                      <Button size="slim">View docs</Button>
+                      <Button size="large">View docs</Button>
                       <Button
-                        size="slim"
+                        size="large"
                         onClick={() => {
                           if (!reviewAlreadySubmitted) setIsReviewModalOpen(true);
                         }}
@@ -634,6 +643,7 @@ export default function Index() {
 
         <Box paddingBlockEnd="800" />
       </BlockStack>
+      </div>
     </Page>
   );
 }

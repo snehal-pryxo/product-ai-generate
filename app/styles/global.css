@@ -589,6 +589,11 @@ canvas {
     width: fit-content;
 }
 
+.dashboard-uniform-buttons .Polaris-Button {
+  min-width: 190px;
+  justify-content: center;
+}
+
 @media (max-width: 767px) {
   .content-mgmt-generate-modal .Polaris-Modal-Dialog__Modal {
     width: 100vw !important;

@@ -9,7 +9,6 @@ import {
   IndexTable,
   EmptyState,
   Badge,
-  Link,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 
@@ -24,7 +23,6 @@ const BLOGS_QUERY = `#graphql
           updatedAt
           createdAt
           commentPolicy
-          onlineStoreUrl
         }
       }
       pageInfo {
@@ -80,7 +78,6 @@ export const loader = async ({ request }) => {
         updatedAt: node.updatedAt || null,
         createdAt: node.createdAt || null,
         commentPolicy: node.commentPolicy || "-",
-        onlineStoreUrl: node.onlineStoreUrl || "",
       });
     }
 
@@ -113,15 +110,6 @@ export default function BlogPage() {
           </IndexTable.Cell>
           <IndexTable.Cell>{formatDate(blog.createdAt)}</IndexTable.Cell>
           <IndexTable.Cell>{formatDate(blog.updatedAt)}</IndexTable.Cell>
-          <IndexTable.Cell>
-            {blog.onlineStoreUrl ? (
-              <Link url={blog.onlineStoreUrl} external>
-                View
-              </Link>
-            ) : (
-              "-"
-            )}
-          </IndexTable.Cell>
         </IndexTable.Row>
       )),
     [blogs],
@@ -153,7 +141,6 @@ export default function BlogPage() {
                 { title: "Comments" },
                 { title: "Created" },
                 { title: "Updated" },
-                { title: "Storefront" },
               ]}
             >
               {rows}
