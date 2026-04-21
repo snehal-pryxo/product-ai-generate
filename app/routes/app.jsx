@@ -110,6 +110,7 @@ export default function App() {
         <s-app-nav>
           <s-link href="/app/products">Products Generator</s-link>
           <s-link href="/app/pages">Pages Generator</s-link>
+          <s-link href="/app/blog">Blogs</s-link>
           <s-link href="/app/content-management">Content Management</s-link>
           <s-link href="/app/template">Template</s-link>
            <s-link href="/app/analytics">Analytics</s-link>
