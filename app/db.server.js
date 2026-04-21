@@ -110,11 +110,6 @@ async function ensureTables() {
     );
   } catch (_) { /* column already exists */ }
 
-  try {
-    await prisma.$executeRawUnsafe(
-      "ALTER TABLE `blog_article_generated_contents` ADD COLUMN IF NOT EXISTS `creditsUsed` INT NOT NULL DEFAULT 0"
-    );
-  } catch (_) { /* column already exists */ }
 }
 
 // Ensure defaultAiModel and credits columns exist (migration may not have run yet)

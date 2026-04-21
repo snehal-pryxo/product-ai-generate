@@ -19,10 +19,6 @@ import {
   getEmptyPageTemplateSelection,
   writeStoredPagePromptTemplateSelection,
 } from "../lib/pagePromptTemplateLibrary";
-import {
-  getEmptyBlogTemplateSelection,
-  writeStoredBlogPromptTemplateSelection,
-} from "../lib/blogPromptTemplateLibrary";
 
 const CUSTOM_TEMPLATES_KEY = "custom_prompt_templates_v1";
 
@@ -37,12 +33,10 @@ function normalizeTemplateSelections(value) {
   const product = input.product && typeof input.product === "object" ? input.product : {};
   const collection = input.collection && typeof input.collection === "object" ? input.collection : {};
   const page = input.page && typeof input.page === "object" ? input.page : {};
-  const blog = input.blog && typeof input.blog === "object" ? input.blog : {};
   return {
     product: { ...getEmptyTemplateSelection(), ...product },
     collection: { ...getEmptyCollectionTemplateSelection(), ...collection },
     page: { ...getEmptyPageTemplateSelection(), ...page },
-    blog: { ...getEmptyBlogTemplateSelection(), ...blog },
   };
 }
 
@@ -105,7 +99,6 @@ export default function App() {
     writeStoredProductPromptTemplateSelection(templateSelections.product);
     writeStoredCollectionPromptTemplateSelection(templateSelections.collection);
     writeStoredPagePromptTemplateSelection(templateSelections.page);
-    writeStoredBlogPromptTemplateSelection(templateSelections.blog);
     if (typeof window !== "undefined") {
       window.localStorage.setItem(CUSTOM_TEMPLATES_KEY, JSON.stringify(customTemplates));
     }
@@ -117,7 +110,6 @@ export default function App() {
         <s-app-nav>
           <s-link href="/app/products">Products Generator</s-link>
           <s-link href="/app/pages">Pages Generator</s-link>
-          <s-link href="/app/blog">Blogs Generator</s-link>
           <s-link href="/app/content-management">Content Management</s-link>
           <s-link href="/app/template">Template</s-link>
            <s-link href="/app/analytics">Analytics</s-link>

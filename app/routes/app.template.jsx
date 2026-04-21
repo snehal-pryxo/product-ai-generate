@@ -41,9 +41,6 @@ import {
   writeStoredProductPromptTemplateSelection,
 } from "../lib/productPromptTemplateLibrary";
 import {
-  BLOG_BODY_TEMPLATES,
-  BLOG_META_DESCRIPTION_TEMPLATES,
-  BLOG_META_TITLE_TEMPLATES,
   getEmptyBlogTemplateSelection,
   writeStoredBlogPromptTemplateSelection,
 } from "../lib/blogPromptTemplateLibrary";
@@ -67,7 +64,6 @@ const RESOURCE_FILTERS = [
   { id: "product", label: "Product" },
   { id: "collection", label: "Collection" },
   { id: "page", label: "Page" },
-  { id: "blog", label: "Blog" },
 ];
 
 const TYPE_OPTIONS = [
@@ -87,7 +83,6 @@ const RESOURCE_SELECT_OPTIONS = [
   { label: "Product", value: "product" },
   { label: "Collection", value: "collection" },
   { label: "Page", value: "page" },
-  { label: "Blog", value: "blog" },
 ];
 
 const CUSTOM_TEMPLATES_KEY = "custom_prompt_templates_v1";
@@ -128,6 +123,7 @@ function normalizeCustomTemplates(value) {
 
   return value
     .filter((entry) => entry && typeof entry === "object")
+    .filter((entry) => entry.resource !== "blog")
     .map((entry) => ({
       id: typeof entry.id === "string" ? entry.id : `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       name: typeof entry.name === "string" ? entry.name : "",
@@ -228,11 +224,6 @@ const SYSTEM_TEMPLATE_MAP = {
     "seo-description": PAGE_META_DESCRIPTION_TEMPLATES,
     "seo-title": PAGE_META_TITLE_TEMPLATES,
   },
-  blog: {
-    description: BLOG_BODY_TEMPLATES,
-    "seo-description": BLOG_META_DESCRIPTION_TEMPLATES,
-    "seo-title": BLOG_META_TITLE_TEMPLATES,
-  },
 };
 
 function getSystemTemplates(resourceId, typeId) {
@@ -252,7 +243,7 @@ function getSystemTemplates(resourceId, typeId) {
 function getActiveTemplateId(resourceId, typeId, selectionMap) {
   const sel = selectionMap[resourceId];
   if (!sel) return "";
-  const isBodyResource = resourceId === "page" || resourceId === "blog";
+  const isBodyResource = resourceId === "page";
   if (typeId === "description") return isBodyResource ? sel.bodyTemplateId : sel.descriptionTemplateId;
   if (typeId === "seo-description") return sel.metaDescriptionTemplateId;
   if (typeId === "seo-title") return sel.metaTitleTemplateId;

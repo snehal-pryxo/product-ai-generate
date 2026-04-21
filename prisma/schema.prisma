@@ -143,44 +143,6 @@ model PageGeneratedContent {
   @@map("page_generated_contents")
 }
 
-model BlogArticleGeneratedContent {
-  id               BigInt   @id @default(autoincrement())
-  shop             String
-  articleId        String
-  blogId           String?
-  articleTitle     String?
-  articleType      String?
-  authorName       String?
-  language         String?
-  tone             String?
-  lengthOption     String?
-  formatOption     String?
-  contextKeywords  String?  @db.Text
-  bodyPromptTemplate String? @db.LongText
-  metaTitlePromptTemplate String? @db.Text
-  metaDescriptionPromptTemplate String? @db.Text
-  scheduleRequested Boolean @default(false)
-  scheduledFor      DateTime?
-  scheduleStartAt   DateTime?
-  scheduleEndAt     DateTime?
-  scheduleStatus    String? @db.VarChar(64)
-  imageAltText      String? @db.VarChar(255)
-  hasInlineImage    Boolean @default(false)
-  aiModel          String?
-  bodyHtml         String?  @db.LongText
-  seoTitle         String?
-  seoDescription   String?  @db.Text
-  creditsUsed      Int      @default(0)
-  isPublished      Boolean  @default(false)
-  appliedToShopify Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  @@unique([shop, articleId], map: "BlogArticleGeneratedContent_shop_articleId_key")
-  @@index([shop, updatedAt], map: "BlogArticleGeneratedContent_shop_updatedAt_idx")
-  @@map("blog_article_generated_contents")
-}
-
 model CollectionGeneratedContent {
   id                BigInt   @id @default(autoincrement())
   shop              String

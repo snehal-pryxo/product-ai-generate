@@ -31,7 +31,6 @@ import {
 import {
   ProductIcon,
   CollectionIcon,
-  BlogIcon,
   PageIcon,
   ChartVerticalIcon,
   SettingsIcon,
@@ -186,14 +185,6 @@ const CONTENT_FEATURES = [
     badgeTone: null,
   },
   {
-    icon: BlogIcon,
-    title: "Blog Posts",
-    desc: "Write long-form blog content in 180+ languages and publish faster.",
-    url: "/app/blog",
-    badge: "180+ Languages",
-    badgeTone: "attention",
-  },
-  {
     icon: PageIcon,
     title: "Pages",
     desc: "Generate About, FAQ, Contact, and landing page copy in one flow.",
@@ -282,7 +273,7 @@ function QuickActionCard({ icon, title, description, ctaLabel, onClick }) {
           </Text>
         </BlockStack>
         <div style={{ marginTop: "auto", paddingTop: 14 }}>
-          <Button fullWidth onClick={onClick}>
+          <Button size="small" onClick={onClick}>
             {ctaLabel}
           </Button>
         </div>
@@ -416,7 +407,7 @@ export default function Index() {
                   Generate SEO content for your Shopify store
                 </Text>
                 <Text as="p" variant="bodyLg" tone="subdued">
-                  Create product descriptions, blog posts, collection content, and page copy that is ready to publish.
+                  Create product descriptions, collection content, and page copy that is ready to publish.
                 </Text>
               </BlockStack>
 
@@ -424,9 +415,6 @@ export default function Index() {
                 <div style={{ display: "inline-flex" }}>
                   <Badge tone="info">{credits} credits</Badge>
                 </div>
-                <Button size="slim" onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}>
-                  View analytics
-                </Button>
                 <Button
                   size="slim"
                   variant="primary"
@@ -548,7 +536,7 @@ export default function Index() {
                       <Text as="p" variant="bodySm" tone="subdued">
                         {app.desc}
                       </Text>
-                      <Button size="slim" fullWidth url={app.url} external icon={ExternalIcon}>
+                      <Button size="small" url={app.url} external icon={ExternalIcon}>
                         Add app
                       </Button>
                     </BlockStack>
@@ -575,8 +563,7 @@ export default function Index() {
                       Get help with app setup, best practices, and growth recommendations.
                     </Text>
                     <Button
-                      size="slim"
-                      fullWidth
+                      size="small"
                       url="https://outlook.office.com/book/ShopifyGrowthConsultationCall@m2webdesigning.com/?ismsaljsauthenabled=true"
                       external
                       variant="primary"

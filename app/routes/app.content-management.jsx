@@ -37,18 +37,12 @@ import {
   PAGE_META_DESCRIPTION_TEMPLATES,
   PAGE_META_TITLE_TEMPLATES,
 } from "../lib/pagePromptTemplateLibrary";
-import {
-  BLOG_BODY_TEMPLATES,
-  BLOG_META_DESCRIPTION_TEMPLATES,
-  BLOG_META_TITLE_TEMPLATES,
-} from "../lib/blogPromptTemplateLibrary";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import {
   buildProductContentPrompt,
   buildCollectionContentPrompt,
   buildPageContentPrompt,
-  buildBlogContentPrompt,
 } from "../lib/contentPromptTemplates";
 import { buildInsufficientCreditsError, deductCredits } from "../lib/credits.server";
 /* global process */
@@ -80,7 +74,7 @@ function creditsForGenerateScope(scope) {
 }
 
 function getGenerateScopeOptions(contentType) {
-  const mainLabel = contentType === "pages" || contentType === "blog" ? "Content" : "Description";
+  const mainLabel = contentType === "pages" ? "Content" : "Description";
   return [
     { value: "all", label: "All" },
     { value: "main", label: mainLabel },
@@ -171,7 +165,7 @@ function mapSelectedModelToRuntime(selectedModel) {
 }
 
 function getScopeDisplayLabel(contentType, scope) {
-  const mainLabel = contentType === "pages" || contentType === "blog" ? "Content" : "Description";
+  const mainLabel = contentType === "pages" ? "Content" : "Description";
   if (scope === "main") return mainLabel;
   if (scope === "meta_title") return "Meta Title";
   if (scope === "meta_description") return "Meta Description";
@@ -182,7 +176,6 @@ function getContentTypeDisplayLabel(contentType) {
   if (contentType === "products") return "product";
   if (contentType === "collections") return "collection";
   if (contentType === "pages") return "page";
-  if (contentType === "blog") return "blog";
   return "item";
 }
 
@@ -612,21 +605,6 @@ function buildPrompt(
       metaDescriptionPromptTemplate: templateOverrides.metaDescriptionPromptTemplate || "",
     });
   }
-  if (contentType === "blog") {
-    return buildBlogContentPrompt({
-      articleType: "General",
-      title: item.title,
-      body: stripHtml(item.descriptionHtml || item.body || ""),
-      language: generationOptions.language || "English",
-      tone: "Neutral",
-      length: "Medium",
-      format: "Mixed headings and paragraphs",
-      contextKeywords: generationOptions.contextKeywords || "",
-      bodyPromptTemplate: templateOverrides.bodyPromptTemplate || "",
-      metaTitlePromptTemplate: templateOverrides.metaTitlePromptTemplate || "",
-      metaDescriptionPromptTemplate: templateOverrides.metaDescriptionPromptTemplate || "",
-    });
-  }
   throw new Error(`Unknown content type: ${contentType}`);
 }
 
@@ -658,15 +636,6 @@ function getGenerateTemplateConfig(contentType) {
       mainPromptKey: "bodyPromptTemplate",
     };
   }
-  if (contentType === "blog") {
-    return {
-      mainLabel: "Content Template",
-      mainTemplates: BLOG_BODY_TEMPLATES,
-      metaTitleTemplates: BLOG_META_TITLE_TEMPLATES,
-      metaDescriptionTemplates: BLOG_META_DESCRIPTION_TEMPLATES,
-      mainPromptKey: "bodyPromptTemplate",
-    };
-  }
   return null;
 }
 
@@ -676,7 +645,7 @@ export const loader = async ({ request }) => {
   const url = new URL(request.url);
   const requestedTab = (url.searchParams.get("tab") || "all").toLowerCase();
   const requestedFilter = (url.searchParams.get("filter") || "all").toLowerCase();
-  const validTabs = new Set(["all", "products", "collections", "pages", "blog"]);
+  const validTabs = new Set(["all", "products", "collections", "pages"]);
   const validFilters = new Set(["all", "unoptimized", "empty"]);
   const tab = validTabs.has(requestedTab) ? requestedTab : "all";
   const filter = validFilters.has(requestedFilter) ? requestedFilter : "all";
@@ -692,13 +661,12 @@ export const loader = async ({ request }) => {
   const shouldLoadProducts = tab === "all" || tab === "products";
   const shouldLoadCollections = tab === "all" || tab === "collections";
   const shouldLoadPages = tab === "all" || tab === "pages";
-  const shouldLoadBlog = tab === "all" || tab === "blog";
+  const shouldLoadBlog = false;
 
   const [
     productGeneratedRows,
     collectionGeneratedRows,
     pageGeneratedRows,
-    blogGeneratedRows,
     logRows,
   ] = await Promise.all([
     shouldLoadProducts
@@ -719,12 +687,7 @@ export const loader = async ({ request }) => {
           select: { pageId: true, creditsUsed: true },
         })
       : Promise.resolve([]),
-    shouldLoadBlog
-      ? db.blogArticleGeneratedContent.findMany({
-          where: { shop: session.shop },
-          select: { articleId: true, creditsUsed: true },
-        })
-      : Promise.resolve([]),
+    Promise.resolve([]),
     db.generatedContentLog.findMany({
       where: { shop: session.shop },
       select: { productId: true, resourceType: true, creditsUsed: true },
@@ -734,13 +697,11 @@ export const loader = async ({ request }) => {
   const productCreditsMap = new Map(productGeneratedRows.map((row) => [row.productId, row.creditsUsed ?? 0]));
   const collectionCreditsMap = new Map(collectionGeneratedRows.map((row) => [row.collectionId, row.creditsUsed ?? 0]));
   const pageCreditsMap = new Map(pageGeneratedRows.map((row) => [row.pageId, row.creditsUsed ?? 0]));
-  const blogCreditsMap = new Map(blogGeneratedRows.map((row) => [row.articleId, row.creditsUsed ?? 0]));
 
   const logCreditsMapByType = {
     products: new Map(),
     collections: new Map(),
     pages: new Map(),
-    blog: new Map(),
   };
 
   for (const row of logRows) {
@@ -751,9 +712,7 @@ export const loader = async ({ request }) => {
         ? "collections"
         : row.resourceType === "page"
           ? "pages"
-          : row.resourceType === "blog"
-            ? "blog"
-            : "products";
+          : "products";
     if (!itemId) continue;
     logCreditsMapByType[type].set(itemId, (logCreditsMapByType[type].get(itemId) || 0) + creditsUsed);
   }
@@ -768,9 +727,6 @@ export const loader = async ({ request }) => {
     }
     if (contentType === "pages") {
       return pageCreditsMap.get(itemId) ?? logCreditsMapByType.pages.get(itemId) ?? 0;
-    }
-    if (contentType === "blog") {
-      return blogCreditsMap.get(itemId) ?? logCreditsMapByType.blog.get(itemId) ?? 0;
     }
     return 0;
   };
@@ -788,10 +744,7 @@ export const loader = async ({ request }) => {
       ...pageCreditsMap.keys(),
       ...logCreditsMapByType.pages.keys(),
     ]),
-    blog: new Set([
-      ...blogCreditsMap.keys(),
-      ...logCreditsMapByType.blog.keys(),
-    ]),
+    blog: new Set(),
   };
 
   const isGeneratedItem = (contentType, itemId) => generatedIdsByType[contentType]?.has(itemId);
@@ -894,30 +847,6 @@ export const loader = async ({ request }) => {
         };
       }));
 
-      // Fetch blog articles
-      const res = await admin.graphql(ARTICLES_QUERY, { variables: { first: 250 } });
-      const json = await res.json();
-      const edges = json?.data?.articles?.edges || [];
-      allItems.push(...edges.filter(({ node: n }) => isGeneratedItem("blog", n.id)).map(({ node: n }) => {
-        const mfMap = {};
-        (n.metafields?.edges || []).forEach(({ node: mf }) => { mfMap[mf.key] = mf.value; });
-        return {
-          id: n.id,
-          title: n.title,
-          handle: n.handle,
-          status: n.publishedAt ? "Active" : "Draft",
-          descriptionHtml: n.body || "",
-          seoTitle: mfMap["title_tag"] || "",
-          seoDescription: mfMap["description_tag"] || "",
-          imageUrl: null,
-          imageAlt: n.title,
-          updatedAt: n.publishedAt || null,
-          contentType: "blog",
-          blogTitle: n.blog?.title || "",
-          creditsUsed: resolveCreditsUsed("blog", n.id),
-        };
-      }));
-
       items = allItems;
     } else if (tab === "products") {
       const nodes = [];
@@ -1005,29 +934,6 @@ export const loader = async ({ request }) => {
           updatedAt: n.updatedAt || null,
           contentType: "pages",
           creditsUsed: resolveCreditsUsed("pages", n.id),
-        };
-      });
-    } else if (tab === "blog") {
-      const res = await admin.graphql(ARTICLES_QUERY, { variables: { first: 250 } });
-      const json = await res.json();
-      const edges = json?.data?.articles?.edges || [];
-      items = edges.filter(({ node: n }) => isGeneratedItem("blog", n.id)).map(({ node: n }) => {
-        const mfMap = {};
-        (n.metafields?.edges || []).forEach(({ node: mf }) => { mfMap[mf.key] = mf.value; });
-        return {
-          id: n.id,
-          title: n.title,
-          handle: n.handle,
-          status: n.publishedAt ? "Active" : "Draft",
-          descriptionHtml: n.body || "",
-          seoTitle: mfMap["title_tag"] || "",
-          seoDescription: mfMap["description_tag"] || "",
-          imageUrl: null,
-          imageAlt: n.title,
-          updatedAt: n.publishedAt || null,
-          blogTitle: n.blog?.title || "",
-          contentType: "blog",
-          creditsUsed: resolveCreditsUsed("blog", n.id),
         };
       });
     }
@@ -1327,48 +1233,6 @@ export const action = async ({ request }) => {
             create: createData,
             update: updateData,
           });
-        } else if (contentType === "blog") {
-          const createData = {
-            shop: session.shop,
-            articleId: item.id,
-            articleTitle: item.title || null,
-            articleType: "General",
-            language: generationLanguage,
-            tone: "Neutral",
-            contextKeywords: contextKeywords || null,
-            bodyPromptTemplate: shouldGenerateMain ? templateOverrides.bodyPromptTemplate || null : null,
-            metaTitlePromptTemplate: shouldGenerateMetaTitle
-              ? templateOverrides.metaTitlePromptTemplate || null
-              : null,
-            metaDescriptionPromptTemplate: shouldGenerateMetaDescription
-              ? templateOverrides.metaDescriptionPromptTemplate || null
-              : null,
-            bodyHtml: descHtml || null,
-            ...commonUpsertData,
-            appliedToShopify: true,
-          };
-          const updateData = {
-            ...(shouldGenerateMain
-              ? {
-                  bodyPromptTemplate: templateOverrides.bodyPromptTemplate || null,
-                  bodyHtml: descHtml || null,
-                }
-              : {}),
-            ...(shouldGenerateMetaTitle
-              ? { metaTitlePromptTemplate: templateOverrides.metaTitlePromptTemplate || null }
-              : {}),
-            ...(shouldGenerateMetaDescription
-              ? { metaDescriptionPromptTemplate: templateOverrides.metaDescriptionPromptTemplate || null }
-              : {}),
-            ...commonUpsertData,
-            creditsUsed: { increment: creditsToUse },
-            appliedToShopify: true,
-          };
-          await db.blogArticleGeneratedContent.upsert({
-            where: { shop_articleId: { shop: session.shop, articleId: item.id } },
-            create: createData,
-            update: updateData,
-          });
         }
       } catch (dbError) {
         console.error("Failed to persist content management generation configuration:", dbError);
@@ -1382,7 +1246,7 @@ export const action = async ({ request }) => {
             productId: item.id,
             productTitle: item.title || null,
             intent: `content_management_${contentType}`,
-            resourceType: contentType === "blog" ? "blog" : contentType === "pages" ? "page" : contentType === "collections" ? "collection" : "product",
+            resourceType: contentType === "pages" ? "page" : contentType === "collections" ? "collection" : "product",
             language: generationLanguage,
             tone: "Neutral",
             contextKeywords: contextKeywords || null,
@@ -2282,7 +2146,6 @@ export default function ContentManagementPage() {
     { id: "products", content: "Products" },
     { id: "collections", content: "Collections" },
     { id: "pages", content: "Pages" },
-    { id: "blog", content: "Blog" },
   ];
   const mainTabIndex = mainTabs.findIndex((t) => t.id === tab);
 

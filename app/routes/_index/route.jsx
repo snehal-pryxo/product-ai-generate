@@ -27,7 +27,7 @@ export default function App() {
                   Product AI Generate
                 </Text>
                 <Text as="p" variant="bodyMd" tone="subdued">
-                  Create SEO-friendly product, collection, blog, and page content for your Shopify store using AI.
+                  Create SEO-friendly product, collection, and page content for your Shopify store using AI.
                 </Text>
               </BlockStack>
 
@@ -53,7 +53,7 @@ export default function App() {
                   What you can do
                 </Text>
                 <Text as="p" variant="bodyMd">
-                  Generate high-quality product descriptions, write blog posts, optimize collection pages, and produce page content that matches your brand voice.
+                  Generate high-quality product descriptions, optimize collection pages, and produce page content that matches your brand voice.
                 </Text>
               </BlockStack>
             </BlockStack>
