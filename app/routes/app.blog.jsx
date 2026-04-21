@@ -154,7 +154,6 @@ function normalizeArticle(node) {
     updatedAt: node.updatedAt || null,
     publishedAt: node.publishedAt || null,
     blogId: node.blog?.id || "",
-    blogTitle: node.blog?.title || "-",
   };
 }
 
@@ -363,26 +362,54 @@ export default function BlogPage() {
       rows.map((article, index) => (
         <IndexTable.Row id={article.id} key={article.id} position={index}>
           <IndexTable.Cell>
-            <Text as="span" variant="bodyMd" fontWeight="semibold">
-              {article.title}
-            </Text>
+            <div
+              style={{
+                maxWidth: 260,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+              title={article.title}
+            >
+              <Text as="span" variant="bodyMd" fontWeight="semibold">
+                {article.title}
+              </Text>
+            </div>
           </IndexTable.Cell>
-          <IndexTable.Cell>{article.blogTitle}</IndexTable.Cell>
           <IndexTable.Cell>
-            <Text as="span" variant="bodySm" tone="subdued">
-              {getSummaryFromBody(article.body)}
-            </Text>
-          </IndexTable.Cell>
-          <IndexTable.Cell>
-            <Button
-              size="slim"
+            <button
               onClick={() => {
                 setEditingArticle(article);
                 setEditTitle(article.title);
+                if (editorRef.current) editorRef.current.innerHTML = article.body || "";
+              }}
+              style={{
+                background: "transparent",
+                border: "none",
+                padding: 0,
+                margin: 0,
+                cursor: "pointer",
+                textAlign: "left",
+                width: "100%",
               }}
             >
-              Open editor
-            </Button>
+              <div
+                style={{
+                  display: "-webkit-box",
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  lineHeight: "1.4",
+                  maxWidth: 420,
+                }}
+                title={stripHtml(article.body || "")}
+              >
+                <Text as="span" variant="bodySm" tone="subdued">
+                  {getSummaryFromBody(article.body)}
+                </Text>
+              </div>
+            </button>
           </IndexTable.Cell>
           <IndexTable.Cell>{statusBadge(article.publishedAt)}</IndexTable.Cell>
           <IndexTable.Cell>{formatDate(article.updatedAt)}</IndexTable.Cell>
@@ -440,7 +467,6 @@ export default function BlogPage() {
               headings={[
                 { title: "Title" },
                 { title: "Summary" },
-                { title: "Content" },
                 { title: "Status" },
                 { title: "Updated" },
                 { title: "Regenerate" },

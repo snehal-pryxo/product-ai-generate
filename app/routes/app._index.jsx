@@ -244,7 +244,7 @@ function DashboardFeatureCard({ icon, title, desc, url, badge, badgeTone }) {
           {desc}
         </Text>
         <InlineStack align="end">
-          <Button onClick={() => navigate({ pathname: url, search: location.search })}>
+          <Button size="slim" onClick={() => navigate({ pathname: url, search: location.search })}>
             Open
           </Button>
         </InlineStack>
@@ -282,7 +282,7 @@ function QuickActionCard({ icon, title, description, ctaLabel, onClick }) {
           </Text>
         </BlockStack>
         <div style={{ marginTop: "auto", paddingTop: 14 }}>
-          <Button size="large" onClick={onClick}>
+          <Button size="slim" onClick={onClick}>
             {ctaLabel}
           </Button>
         </div>
@@ -379,10 +379,11 @@ export default function Index() {
                   placeholder="Tell us what worked well and what we can improve."
                 />
                 <InlineStack align="end" gap="200">
-                  <Button onClick={handleDismissReviewPopup} disabled={isSubmittingReview || isDismissingReview}>
+                  <Button size="slim" onClick={handleDismissReviewPopup} disabled={isSubmittingReview || isDismissingReview}>
                     Not now
                   </Button>
                   <Button
+                    size="slim"
                     submit
                     variant="primary"
                     loading={isSubmittingReview}
@@ -509,7 +510,7 @@ export default function Index() {
                         <Select label="AI model" options={aiModelOptions} value={selectedModel} onChange={setSelectedModel} />
                       </BlockStack>
                       <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end" }}>
-                        <Button submit variant="primary" loading={isSaving} disabled={isSaving}>
+                        <Button size="slim" submit variant="primary" loading={isSaving} disabled={isSaving}>
                           {isSaving ? "Saving..." : "Save model"}
                         </Button>
                       </div>
@@ -547,7 +548,7 @@ export default function Index() {
                       <Text as="p" variant="bodySm" tone="subdued">
                         {app.desc}
                       </Text>
-                      <Button size="large" url={app.url} external icon={ExternalIcon}>
+                      <Button size="slim" url={app.url} external icon={ExternalIcon}>
                         Add app
                       </Button>
                     </BlockStack>
@@ -574,7 +575,7 @@ export default function Index() {
                       Get help with app setup, best practices, and growth recommendations.
                     </Text>
                     <Button
-                      size="large"
+                      size="slim"
                       url="https://outlook.office.com/book/ShopifyGrowthConsultationCall@m2webdesigning.com/?ismsaljsauthenabled=true"
                       external
                       variant="primary"
@@ -598,10 +599,10 @@ export default function Index() {
                       Reach our team during office hours for issue resolution and guidance.
                     </Text>
                     <InlineStack gap="200">
-                      <Button size="large" url="mailto:support@m2webdesigning.com">
+                      <Button size="slim" url="mailto:support@m2webdesigning.com">
                         Email support
                       </Button>
-                      <Button size="large" url="https://wa.me/918320023122" external>
+                      <Button size="slim" url="https://wa.me/918320023122" external>
                         WhatsApp
                       </Button>
                     </InlineStack>
@@ -622,9 +623,9 @@ export default function Index() {
                       Browse setup guides and troubleshooting docs.
                     </Text>
                     <InlineStack gap="200">
-                      <Button size="large">View docs</Button>
+                      <Button size="slim">View docs</Button>
                       <Button
-                        size="large"
+                        size="slim"
                         onClick={() => {
                           if (!reviewAlreadySubmitted) setIsReviewModalOpen(true);
                         }}
