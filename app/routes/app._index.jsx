@@ -256,7 +256,7 @@ function DashboardFeatureCard({ icon, title, desc, url, badge, badgeTone }) {
 function QuickActionCard({ icon, title, description, ctaLabel, onClick }) {
   return (
     <Card>
-      <div style={{ minHeight: 220, display: "flex", flexDirection: "column" }}>
+      <div style={{ minHeight: 150, display: "flex", flexDirection: "column" }}>
         <BlockStack gap="300">
           <InlineStack gap="200" blockAlign="center">
             <div
@@ -519,7 +519,7 @@ export default function Index() {
           <Grid.Cell>
             <div style={{ height: "100%" }}>
               <Card>
-                <div style={{ minHeight: 220, display: "flex", flexDirection: "column" }}>
+                <div style={{ minHeight: 150, display: "flex", flexDirection: "column" }}>
                   <BlockStack gap="300">
                     <BlockStack gap="100">
                       <Text variant="headingMd" as="h2">
