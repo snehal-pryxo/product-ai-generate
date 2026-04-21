@@ -256,9 +256,9 @@ function DashboardFeatureCard({ icon, title, desc, url, badge, badgeTone }) {
 function QuickActionCard({ icon, title, description, ctaLabel, onClick }) {
   return (
     <Card>
-      <div style={{ minHeight: 170, display: "flex", flexDirection: "column" }}>
+      <div style={{ minHeight: 220, display: "flex", flexDirection: "column" }}>
         <BlockStack gap="300">
-          <InlineStack align="space-between" blockAlign="center">
+          <InlineStack gap="200" blockAlign="center">
             <div
               style={{
                 width: 36,
@@ -273,7 +273,7 @@ function QuickActionCard({ icon, title, description, ctaLabel, onClick }) {
             >
               <Icon source={icon} tone="subdued" />
             </div>
-            <Text as="h3" variant="headingSm">
+            <Text as="h3" variant="headingMd">
               {title}
             </Text>
           </InlineStack>
@@ -439,20 +439,28 @@ export default function Index() {
                   Create product descriptions, blog posts, collection content, and page copy that is ready to publish.
                 </Text>
               </BlockStack>
-              <BlockStack gap="200" className="app-hero-actions">
-                <div style={{ display: "inline-flex" }}>
-                  <Badge tone="info">{credits} credits</Badge>
-                </div>
-                <Button onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}>
-                  View analytics
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}
+              <div className="app-hero-actions" style={{ display: "flex", width: "100%" }}>
+                <InlineStack
+                  align="end"
+                  gap="200"
+                  wrap
+                  blockAlign="center"
+                  style={{ width: "100%", justifyContent: "flex-end" }}
                 >
-                  Upgrade
-                </Button>
-              </BlockStack>
+                  <div style={{ display: "inline-flex" }}>
+                    <Badge tone="info">{credits} credits</Badge>
+                  </div>
+                  <Button onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}>
+                    View analytics
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}
+                  >
+                    Upgrade
+                  </Button>
+                </InlineStack>
+              </div>
             </div>
           </div>
         </Card>
@@ -485,50 +493,58 @@ export default function Index() {
 
         <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
           <Grid.Cell>
-            <QuickActionCard
-              icon={ChartVerticalIcon}
-              title="Analytics"
-              description="Track usage, SEO performance, and generation trends."
-              ctaLabel="Open analytics"
-              onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}
-            />
+            <div style={{ height: "100%" }}>
+              <QuickActionCard
+                icon={ChartVerticalIcon}
+                title="Analytics"
+                description="Track usage, SEO performance, and generation trends."
+                ctaLabel="Open analytics"
+                onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}
+              />
+            </div>
           </Grid.Cell>
 
           <Grid.Cell>
-            <QuickActionCard
-              icon={SettingsIcon}
-              title="Settings"
-              description="Configure defaults for templates, language, and generation behavior."
-              ctaLabel="Open settings"
-              onClick={() => navigate({ pathname: "/app/settings", search: location.search })}
-            />
+            <div style={{ height: "100%" }}>
+              <QuickActionCard
+                icon={SettingsIcon}
+                title="Settings"
+                description="Configure defaults for templates, language, and generation behavior."
+                ctaLabel="Open settings"
+                onClick={() => navigate({ pathname: "/app/settings", search: location.search })}
+              />
+            </div>
           </Grid.Cell>
 
           <Grid.Cell>
-            <Card>
-              <BlockStack gap="300">
-                <BlockStack gap="100">
-                  <Text variant="headingMd" as="h2">
-                    Default AI Model
-                  </Text>
-                  <Text variant="bodySm" tone="subdued">
-                    This model will be used for all generation tasks.
-                  </Text>
-                </BlockStack>
-                <Form method="post">
-                  <input type="hidden" name="intent" value="save_settings" />
-                  <input type="hidden" name="defaultAiModel" value={selectedModel} />
-                  <BlockStack gap="200">
-                    <Select label="AI model" options={aiModelOptions} value={selectedModel} onChange={setSelectedModel} />
-                    <InlineStack align="end">
-                      <Button submit variant="primary" loading={isSaving} disabled={isSaving}>
-                        {isSaving ? "Saving..." : "Save model"}
-                      </Button>
-                    </InlineStack>
+            <div style={{ height: "100%" }}>
+              <Card>
+                <div style={{ minHeight: 220, display: "flex", flexDirection: "column" }}>
+                  <BlockStack gap="300">
+                    <BlockStack gap="100">
+                      <Text variant="headingMd" as="h2">
+                        Default AI Model
+                      </Text>
+                      <Text variant="bodySm" tone="subdued">
+                        This model will be used for all generation tasks.
+                      </Text>
+                    </BlockStack>
+                    <Form method="post">
+                      <input type="hidden" name="intent" value="save_settings" />
+                      <input type="hidden" name="defaultAiModel" value={selectedModel} />
+                      <BlockStack gap="200">
+                        <Select label="AI model" options={aiModelOptions} value={selectedModel} onChange={setSelectedModel} />
+                      </BlockStack>
+                      <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end" }}>
+                        <Button submit variant="primary" loading={isSaving} disabled={isSaving}>
+                          {isSaving ? "Saving..." : "Save model"}
+                        </Button>
+                      </div>
+                    </Form>
                   </BlockStack>
-                </Form>
-              </BlockStack>
-            </Card>
+                </div>
+              </Card>
+            </div>
           </Grid.Cell>
         </Grid>
 
