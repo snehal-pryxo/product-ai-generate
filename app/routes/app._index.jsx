@@ -273,7 +273,7 @@ function QuickActionCard({ icon, title, description, ctaLabel, onClick }) {
           </Text>
         </BlockStack>
         <div style={{ marginTop: "auto", paddingTop: 14 }}>
-          <Button size="small" onClick={onClick}>
+          <Button fullWidth onClick={onClick}>
             {ctaLabel}
           </Button>
         </div>
@@ -407,7 +407,7 @@ export default function Index() {
                   Generate SEO content for your Shopify store
                 </Text>
                 <Text as="p" variant="bodyLg" tone="subdued">
-                  Create product descriptions, collection content, and page copy that is ready to publish.
+                  Create product descriptions, blog posts, collection content, and page copy that is ready to publish.
                 </Text>
               </BlockStack>
 
@@ -415,6 +415,7 @@ export default function Index() {
                 <div style={{ display: "inline-flex" }}>
                   <Badge tone="info">{credits} credits</Badge>
                 </div>
+        
                 <Button
                   size="slim"
                   variant="primary"
@@ -536,7 +537,7 @@ export default function Index() {
                       <Text as="p" variant="bodySm" tone="subdued">
                         {app.desc}
                       </Text>
-                      <Button size="small" url={app.url} external icon={ExternalIcon}>
+                      <Button size="slim" fullWidth url={app.url} external icon={ExternalIcon}>
                         Add app
                       </Button>
                     </BlockStack>
@@ -563,7 +564,8 @@ export default function Index() {
                       Get help with app setup, best practices, and growth recommendations.
                     </Text>
                     <Button
-                      size="small"
+                      size="slim"
+                      fullWidth
                       url="https://outlook.office.com/book/ShopifyGrowthConsultationCall@m2webdesigning.com/?ismsaljsauthenabled=true"
                       external
                       variant="primary"
