@@ -556,8 +556,32 @@ canvas {
   align-items: start;
 }
 
+.dashboard-hero-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #d1fae5;
+  border: 1px solid #a7f3d0;
+  border-radius: 999px;
+  padding: 6px 12px;
+}
+
+.dashboard-hero-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #059669;
+  display: inline-block;
+}
+
 .dashboard-hero-actions-col {
   align-items: flex-start;
+}
+
+.dashboard-inline-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 }
 
 @media (max-width: 767px) {
@@ -574,8 +598,9 @@ canvas {
 
 @media (min-width: 1024px) {
   .dashboard-hero-layout {
-    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 20px;
+    align-items: start;
   }
 
   .dashboard-hero-actions-col {

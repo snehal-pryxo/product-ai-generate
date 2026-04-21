@@ -405,54 +405,30 @@ export default function Index() {
             }}
           >
             <div className="dashboard-hero-layout">
-              <InlineStack align="start" gap="300" blockAlign="start" wrap={false}>
-                <div
-                  style={{
-                    width: 100,
-                    height: 100,
-                    borderRadius: "50%",
-                    background: "#b7e8d2",
-                    border: "1px solid #a7f3d0",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  <InlineStack align="start" gap="100" blockAlign="center" wrap={false}>
-                    <span
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: "50%",
-                        background: "#059669",
-                        display: "inline-block",
-                      }}
-                    />
-                    <Text as="span" variant="headingSm" fontWeight="semibold">
-                      AI powered
-                    </Text>
-                  </InlineStack>
-                </div>
-                <BlockStack gap="100">
-                  <Text as="h1" variant="heading2xl">
-                    Generate SEO content for your Shopify store
+              <BlockStack gap="200">
+                <div className="dashboard-hero-chip">
+                  <span className="dashboard-hero-chip-dot" />
+                  <Text as="span" variant="bodyMd" fontWeight="semibold">
+                    AI powered
                   </Text>
-                </BlockStack>
-              </InlineStack>
+                </div>
+                <Text as="h1" variant="heading2xl">
+                  Generate SEO content for your Shopify store
+                </Text>
+                <Text as="p" variant="bodyLg" tone="subdued">
+                  Create product descriptions, blog posts, collection content, and page copy that is ready to publish.
+                </Text>
+              </BlockStack>
 
-              <Text as="p" variant="bodyLg" tone="subdued">
-                Create product descriptions, blog posts, collection content, and page copy that is ready to publish.
-              </Text>
-
-              <BlockStack gap="200" inlineAlign="end" className="dashboard-hero-actions-col">
+              <BlockStack gap="150" inlineAlign="end" className="dashboard-hero-actions-col">
                 <div style={{ display: "inline-flex" }}>
                   <Badge tone="info">{credits} credits</Badge>
                 </div>
-                <Button onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}>
+                <Button size="slim" onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}>
                   View analytics
                 </Button>
                 <Button
+                  size="slim"
                   variant="primary"
                   onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}
                 >
@@ -548,12 +524,12 @@ export default function Index() {
 
         <Card>
           <BlockStack gap="400">
-            <InlineStack align="start" gap="200" blockAlign="center">
+            <div className="dashboard-inline-title">
               <Icon source={AppsIcon} tone="base" />
               <Text as="h2" variant="headingMd">
                 Boost store performance with our apps
               </Text>
-            </InlineStack>
+            </div>
             <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
               {PARTNER_APPS.map((app) => (
                 <Grid.Cell key={app.title}>
@@ -572,7 +548,7 @@ export default function Index() {
                       <Text as="p" variant="bodySm" tone="subdued">
                         {app.desc}
                       </Text>
-                      <Button fullWidth url={app.url} external icon={ExternalIcon}>
+                      <Button size="slim" fullWidth url={app.url} external icon={ExternalIcon}>
                         Add app
                       </Button>
                     </BlockStack>
@@ -599,6 +575,7 @@ export default function Index() {
                       Get help with app setup, best practices, and growth recommendations.
                     </Text>
                     <Button
+                      size="slim"
                       fullWidth
                       url="https://outlook.office.com/book/ShopifyGrowthConsultationCall@m2webdesigning.com/?ismsaljsauthenabled=true"
                       external
@@ -613,20 +590,20 @@ export default function Index() {
               <Grid.Cell>
                 <Card>
                   <BlockStack gap="200">
-                    <InlineStack align="start" gap="100" blockAlign="center">
+                    <div className="dashboard-inline-title">
                       <Icon source={EmailIcon} tone="base" />
                       <Text as="h3" variant="headingSm">
                         Support ticket
                       </Text>
-                    </InlineStack>
+                    </div>
                     <Text as="p" variant="bodySm" tone="subdued">
                       Reach our team during office hours for issue resolution and guidance.
                     </Text>
                     <InlineStack gap="200">
-                      <Button url="mailto:support@m2webdesigning.com">
+                      <Button size="slim" url="mailto:support@m2webdesigning.com">
                         Email support
                       </Button>
-                      <Button url="https://wa.me/918320023122" external>
+                      <Button size="slim" url="https://wa.me/918320023122" external>
                         WhatsApp
                       </Button>
                     </InlineStack>
@@ -637,18 +614,19 @@ export default function Index() {
               <Grid.Cell>
                 <Card>
                   <BlockStack gap="200">
-                    <InlineStack align="start" gap="100" blockAlign="center">
+                    <div className="dashboard-inline-title">
                       <Icon source={QuestionCircleIcon} tone="base" />
                       <Text as="h3" variant="headingSm">
                         Knowledge base
                       </Text>
-                    </InlineStack>
+                    </div>
                     <Text as="p" variant="bodySm" tone="subdued">
                       Browse setup guides and troubleshooting docs.
                     </Text>
                     <InlineStack gap="200">
-                      <Button>View docs</Button>
+                      <Button size="slim">View docs</Button>
                       <Button
+                        size="slim"
                         onClick={() => {
                           if (!reviewAlreadySubmitted) setIsReviewModalOpen(true);
                         }}
