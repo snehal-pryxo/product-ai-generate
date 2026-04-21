@@ -564,6 +564,7 @@ canvas {
   border: 1px solid #a7f3d0;
   border-radius: 999px;
   padding: 6px 12px;
+  width: fit-content;
 }
 
 .dashboard-hero-chip-dot {
@@ -575,13 +576,17 @@ canvas {
 }
 
 .dashboard-hero-actions-col {
-  align-items: flex-start;
+  gap: 10px;
+  display: flex;
+  align-items: center;
 }
 
 .dashboard-inline-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: start;
+    width: fit-content;
 }
 
 @media (max-width: 767px) {
