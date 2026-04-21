@@ -253,6 +253,44 @@ function DashboardFeatureCard({ icon, title, desc, url, badge, badgeTone }) {
   );
 }
 
+function QuickActionCard({ icon, title, description, ctaLabel, onClick }) {
+  return (
+    <Card>
+      <div style={{ minHeight: 170, display: "flex", flexDirection: "column" }}>
+        <BlockStack gap="300">
+          <InlineStack align="space-between" blockAlign="center">
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: "#f6f6f7",
+                border: "1px solid #e1e3e5",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Icon source={icon} tone="subdued" />
+            </div>
+            <Text as="h3" variant="headingSm">
+              {title}
+            </Text>
+          </InlineStack>
+          <Text as="p" variant="bodyMd" tone="subdued">
+            {description}
+          </Text>
+        </BlockStack>
+        <div style={{ marginTop: "auto", paddingTop: 14 }}>
+          <Button fullWidth onClick={onClick}>
+            {ctaLabel}
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export default function Index() {
   const { defaultAiModel, envDefaultAiModel, shouldShowReviewPopup, hasSubmittedReview } = useLoaderData();
   const layoutData = useRouteLoaderData("routes/app");
@@ -358,10 +396,42 @@ export default function Index() {
         </Modal>
 
         <Card>
-          <BlockStack gap="400">
-            <InlineStack align="space-between" blockAlign="start" wrap>
-              <BlockStack gap="200">
-                <Badge tone="success">AI powered</Badge>
+          <div
+            style={{
+              borderRadius: 10,
+              background: "linear-gradient(135deg, #f9fffb 0%, #f4f8ff 100%)",
+              border: "1px solid #d7ebe0",
+              padding: 20,
+            }}
+          >
+            <div className="app-hero-content">
+              <BlockStack gap="250">
+                <div style={{ display: "inline-flex" }}>
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "4px 10px",
+                      borderRadius: 999,
+                      background: "#d1fae5",
+                      border: "1px solid #a7f3d0",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: "50%",
+                        background: "#059669",
+                        display: "inline-block",
+                      }}
+                    />
+                    <Text as="span" variant="bodySm" fontWeight="semibold">
+                      AI powered
+                    </Text>
+                  </div>
+                </div>
                 <Text as="h1" variant="heading2xl">
                   Generate SEO content for your Shopify store
                 </Text>
@@ -369,8 +439,10 @@ export default function Index() {
                   Create product descriptions, blog posts, collection content, and page copy that is ready to publish.
                 </Text>
               </BlockStack>
-              <BlockStack gap="200">
-                <Badge tone="info">{credits} credits</Badge>
+              <BlockStack gap="200" className="app-hero-actions">
+                <div style={{ display: "inline-flex" }}>
+                  <Badge tone="info">{credits} credits</Badge>
+                </div>
                 <Button onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}>
                   View analytics
                 </Button>
@@ -381,8 +453,8 @@ export default function Index() {
                   Upgrade
                 </Button>
               </BlockStack>
-            </InlineStack>
-          </BlockStack>
+            </div>
+          </div>
         </Card>
 
         {actionData ? (
@@ -413,41 +485,23 @@ export default function Index() {
 
         <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
           <Grid.Cell>
-            <Card>
-              <BlockStack gap="300">
-                <InlineStack gap="200" blockAlign="center">
-                  <Icon source={ChartVerticalIcon} tone="base" />
-                  <Text as="h3" variant="headingSm">
-                    Analytics
-                  </Text>
-                </InlineStack>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Track usage, SEO performance, and generation trends.
-                </Text>
-                <Button onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}>
-                  Open analytics
-                </Button>
-              </BlockStack>
-            </Card>
+            <QuickActionCard
+              icon={ChartVerticalIcon}
+              title="Analytics"
+              description="Track usage, SEO performance, and generation trends."
+              ctaLabel="Open analytics"
+              onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}
+            />
           </Grid.Cell>
 
           <Grid.Cell>
-            <Card>
-              <BlockStack gap="300">
-                <InlineStack gap="200" blockAlign="center">
-                  <Icon source={SettingsIcon} tone="base" />
-                  <Text as="h3" variant="headingSm">
-                    Settings
-                  </Text>
-                </InlineStack>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Configure defaults for templates, language, and generation behavior.
-                </Text>
-                <Button onClick={() => navigate({ pathname: "/app/settings", search: location.search })}>
-                  Open settings
-                </Button>
-              </BlockStack>
-            </Card>
+            <QuickActionCard
+              icon={SettingsIcon}
+              title="Settings"
+              description="Configure defaults for templates, language, and generation behavior."
+              ctaLabel="Open settings"
+              onClick={() => navigate({ pathname: "/app/settings", search: location.search })}
+            />
           </Grid.Cell>
 
           <Grid.Cell>
