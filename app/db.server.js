@@ -110,6 +110,47 @@ async function ensureTables() {
     );
   } catch (_) { /* column already exists */ }
 
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS \`blog_generated_contents\` (
+        \`id\` BIGINT NOT NULL AUTO_INCREMENT,
+        \`shop\` VARCHAR(191) NOT NULL,
+        \`blogId\` VARCHAR(191) NULL,
+        \`articleId\` VARCHAR(191) NOT NULL,
+        \`title\` VARCHAR(255) NOT NULL,
+        \`summary\` TEXT NULL,
+        \`bodyHtml\` LONGTEXT NULL,
+        \`status\` VARCHAR(32) NULL,
+        \`language\` VARCHAR(191) NULL,
+        \`tone\` VARCHAR(191) NULL,
+        \`lengthOption\` VARCHAR(191) NULL,
+        \`targetAudience\` VARCHAR(191) NULL,
+        \`tabType\` VARCHAR(64) NULL,
+        \`topic\` VARCHAR(255) NULL,
+        \`promotion\` VARCHAR(191) NULL,
+        \`holiday\` VARCHAR(191) NULL,
+        \`productUrl\` TEXT NULL,
+        \`createdAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+        \`updatedAt\` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+        PRIMARY KEY (\`id\`)
+      ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+    `);
+  } catch (_) { /* table already exists */ }
+
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE UNIQUE INDEX IF NOT EXISTS \`BlogGeneratedContent_shop_articleId_key\`
+        ON \`blog_generated_contents\`(\`shop\`, \`articleId\`)
+    `);
+  } catch (_) { /* index already exists */ }
+
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS \`BlogGeneratedContent_shop_updatedAt_idx\`
+        ON \`blog_generated_contents\`(\`shop\`, \`updatedAt\`)
+    `);
+  } catch (_) { /* index already exists */ }
+
 }
 
 // Ensure defaultAiModel and credits columns exist (migration may not have run yet)
