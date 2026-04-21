@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFetcher, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
@@ -158,6 +158,13 @@ function normalizeArticle(node) {
   };
 }
 
+function getSummaryFromBody(body) {
+  const plain = stripHtml(body || "");
+  if (!plain) return "-";
+  if (plain.length <= 120) return plain;
+  return `${plain.slice(0, 120).trim()}...`;
+}
+
 function statusBadge(publishedAt) {
   return publishedAt ? <Badge tone="success">Published</Badge> : <Badge tone="attention">Draft</Badge>;
 }
@@ -305,8 +312,13 @@ export default function BlogPage() {
   const [createStatus, setCreateStatus] = useState("draft");
   const [editingArticle, setEditingArticle] = useState(null);
   const [editTitle, setEditTitle] = useState("");
-  const [editBody, setEditBody] = useState("");
+  const editorRef = useRef(null);
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (!editingArticle || !editorRef.current) return;
+    editorRef.current.innerHTML = editingArticle.body || "";
+  }, [editingArticle]);
 
   useEffect(() => {
     if (fetcher.state !== "idle" || !fetcher.data) return;
@@ -357,12 +369,16 @@ export default function BlogPage() {
           </IndexTable.Cell>
           <IndexTable.Cell>{article.blogTitle}</IndexTable.Cell>
           <IndexTable.Cell>
+            <Text as="span" variant="bodySm" tone="subdued">
+              {getSummaryFromBody(article.body)}
+            </Text>
+          </IndexTable.Cell>
+          <IndexTable.Cell>
             <Button
               size="slim"
               onClick={() => {
                 setEditingArticle(article);
                 setEditTitle(article.title);
-                setEditBody(article.body);
               }}
             >
               Open editor
@@ -423,7 +439,7 @@ export default function BlogPage() {
               selectable={false}
               headings={[
                 { title: "Title" },
-                { title: "Blog" },
+                { title: "Summary" },
                 { title: "Content" },
                 { title: "Status" },
                 { title: "Updated" },
@@ -439,7 +455,6 @@ export default function BlogPage() {
       <Modal open={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="Create Blog">
         <Modal.Section>
           <BlockStack gap="300">
-            <Select label="Blog" options={blogOptions} value={createBlogId} onChange={setCreateBlogId} />
             <TextField
               label="Topic"
               value={createTopic}
@@ -455,7 +470,6 @@ export default function BlogPage() {
               ]}
               value={createStatus}
               onChange={setCreateStatus}
-              helpText="Status is shown in table from Shopify publish state."
             />
             <InlineStack align="end" gap="200">
               <Button onClick={() => setIsCreateOpen(false)}>Cancel</Button>
@@ -492,13 +506,28 @@ export default function BlogPage() {
               onChange={setEditTitle}
               autoComplete="off"
             />
-            <TextField
-              label="Content"
-              value={editBody}
-              onChange={setEditBody}
-              multiline={14}
-              autoComplete="off"
-            />
+            <div style={{ border: "1px solid #d1d5db", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
+              <InlineStack gap="100" wrap>
+                <Button size="slim" onClick={() => document.execCommand("bold")}>B</Button>
+                <Button size="slim" onClick={() => document.execCommand("italic")}>I</Button>
+                <Button size="slim" onClick={() => document.execCommand("underline")}>U</Button>
+                <Button size="slim" onClick={() => document.execCommand("insertUnorderedList")}>• List</Button>
+                <Button size="slim" onClick={() => document.execCommand("insertOrderedList")}>1. List</Button>
+                <Button size="slim" onClick={() => document.execCommand("removeFormat")}>Clear</Button>
+              </InlineStack>
+              <div
+                ref={editorRef}
+                contentEditable
+                suppressContentEditableWarning
+                style={{
+                  minHeight: 340,
+                  padding: 16,
+                  outline: "none",
+                  fontSize: 18,
+                  lineHeight: 1.6,
+                }}
+              />
+            </div>
             <InlineStack align="end" gap="200">
               <Button onClick={() => setEditingArticle(null)}>Close</Button>
               <Button
@@ -510,7 +539,7 @@ export default function BlogPage() {
                   payload.append("intent", "save_blog_content");
                   payload.append("articleId", editingArticle.id);
                   payload.append("title", editTitle);
-                  payload.append("body", editBody);
+                  payload.append("body", editorRef.current?.innerHTML || "");
                   fetcher.submit(payload, { method: "post" });
                 }}
               >
