@@ -113,7 +113,7 @@ export default function App() {
           <s-link href="/app/blog">Blogs Generator</s-link>
           <s-link href="/app/content-management">Content Management</s-link>
           <s-link href="/app/template">Template</s-link>
-           <s-link href="/app/analytics">Analytics</s-link>
+          <s-link href="/app/analytics">Analytics</s-link>
           <s-link href="/app/settings">Settings</s-link>
         </s-app-nav>
         {isBusy && (
