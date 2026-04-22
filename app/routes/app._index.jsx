@@ -414,36 +414,32 @@ export default function Index() {
         </Modal>
 
         <Card>
-          <div
-            style={{
-              borderRadius: 10,
-              background: "linear-gradient(135deg, #f9fffb 0%, #f4f8ff 100%)",
-              border: "1px solid #d7ebe0",
-              padding: 20,
-            }}
-          >
+          <div className="dashboard-welcome-card">
             <div className="dashboard-hero-layout">
-              <BlockStack gap="200">
-                <Text as="h1" variant="heading2xl">
+              <BlockStack gap="100">
+                <Text as="h3" variant="headingLg">
                   Hi {shopOwnerName} !
                 </Text>
                 <Text as="p" variant="bodyMd" tone="subdued">
-                  Welcome to Avada AI Product copy
+                  Manage your apps and generate high-converting AI content for your store.
                 </Text>
               </BlockStack>
 
-              <BlockStack gap="150" inlineAlign="end" className="dashboard-hero-actions-col">
-                <InlineStack align="end" gap="200" blockAlign="center">
-                  <Badge tone="info">{credits} credits</Badge>
-                  <Button
-                    size="slim"
-                    variant="primary"
+              <div className="dashboard-hero-actions-col">
+                <div className="dashboard-credit-pill">
+                  <Icon source={StarFilledIcon} tone="subdued" />
+                  <Text as="span" variant="bodyMd" tone="subdued">
+                    {credits} credits.
+                  </Text>
+                  <button
+                    type="button"
+                    className="dashboard-upgrade-link"
                     onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}
                   >
                     Upgrade
-                  </Button>
-                </InlineStack>
-              </BlockStack>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </Card>

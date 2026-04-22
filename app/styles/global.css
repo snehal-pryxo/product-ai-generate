@@ -562,33 +562,47 @@ canvas {
 .dashboard-hero-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
+  gap: 12px;
+  align-items: center;
 }
 
-.dashboard-hero-chip {
+.dashboard-welcome-card {
+  border-radius: 12px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  padding: 14px 16px;
+}
+
+.dashboard-credit-pill {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: #d1fae5;
-  border: 1px solid #a7f3d0;
-  border-radius: 999px;
-  padding: 6px 12px;
-  width: fit-content;
-}
-
-.dashboard-hero-chip-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #059669;
-  display: inline-block;
+  border: 1px solid #e5e7eb;
+  background: #f8f9fb;
+  border-radius: 12px;
+  padding: 8px 12px;
 }
 
 .dashboard-hero-actions-col {
-  gap: 10px;
   display: flex;
-  align-items: center;
+  justify-content: flex-start;
+}
+
+.dashboard-upgrade-link {
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  font-size: inherit;
+  line-height: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+}
+
+.dashboard-upgrade-link:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
 }
 
 .dashboard-inline-title {
@@ -614,12 +628,12 @@ canvas {
 @media (min-width: 1024px) {
   .dashboard-hero-layout {
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 20px;
-    align-items: start;
+    gap: 12px;
+    align-items: center;
   }
 
   .dashboard-hero-actions-col {
-    align-items: flex-end;
+    justify-content: flex-end;
   }
 }
 
