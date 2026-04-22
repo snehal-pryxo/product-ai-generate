@@ -47,6 +47,7 @@ import {
   getEmptyPageTemplateSelection,
   writeStoredPagePromptTemplateSelection,
 } from "../lib/pagePromptTemplateLibrary";
+import { buildDescriptionPreviewText } from "../lib/templatePreviewFormat";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -1642,6 +1643,11 @@ export default function TemplatePage() {
     [htmlPreview, previewData],
   );
 
+  const descriptionPreviewText = useMemo(() => {
+    if (!previewData || previewData.filterId !== "description") return "";
+    return buildDescriptionPreviewText(previewData);
+  }, [previewData]);
+
   return (
     <>
       {isLoading && (
@@ -1802,7 +1808,36 @@ export default function TemplatePage() {
 
             {/* ── Example output ───────────────────────────────────────────── */}
             <BlockStack gap="150">
-              {htmlPreview ? (
+              {previewData?.filterId === "description" && descriptionPreviewText ? (
+                <div
+                  style={{
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "8px",
+                    padding: "20px 24px",
+                    background: "#fafafa",
+                  }}
+                >
+                  <BlockStack gap="200">
+                    <Text as="h3" variant="headingSm" fontWeight="bold">
+                      Descriptions will look like this:
+                    </Text>
+                    <div
+                      style={{
+                        background: "#fff",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "8px",
+                        padding: "14px 16px",
+                        fontSize: "14px",
+                        lineHeight: "1.6",
+                        color: "#374151",
+                        whiteSpace: "pre-wrap",
+                      }}
+                    >
+                      {descriptionPreviewText}
+                    </div>
+                  </BlockStack>
+                </div>
+              ) : htmlPreview ? (
                 <div
                   style={{
                     border: "1px solid #e5e7eb",

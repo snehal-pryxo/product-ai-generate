@@ -20,6 +20,7 @@ import {
   IndexTable,
   InlineStack,
   Page,
+  Pagination,
   Select,
   Spinner,
   Tabs,
@@ -50,6 +51,7 @@ import {
 const FETCH_BATCH_SIZE = 250;
 const BULK_GENERATE_INTENT = "bulk_generate";
 const MAX_BULK_ITEMS = 50;
+const TABLE_PAGE_SIZE = 10;
 const MIN_BULK_COLLECTION_SELECTION_ERROR = "Select at least one collection for bulk generation.";
 const MAX_BULK_COLLECTION_SELECTION_ERROR = `You can bulk generate up to ${MAX_BULK_ITEMS} collections at a time.`;
 const COLLECTION_CONTENT_TYPES = ["description", "meta_title", "meta_description"];
@@ -1229,6 +1231,7 @@ export default function CollectionsPage() {
   const [useCustomMetaTitleInstructions, setUseCustomMetaTitleInstructions] = useState(false);
   const [templateLibraryOpen, setTemplateLibraryOpen] = useState(false);
   const [templateLibraryContentType, setTemplateLibraryContentType] = useState("description");
+  const [currentPage, setCurrentPage] = useState(1);
   const [outputLanguage, setOutputLanguage] = useState(() => readGlobalSettings().language || "English");
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [addTitleAsHeading, setAddTitleAsHeading] = useState(false);
@@ -1272,9 +1275,24 @@ export default function CollectionsPage() {
     );
   }, [normalizedSearch, collections, sourceCollections]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters.search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredCollections.length / TABLE_PAGE_SIZE));
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
+
+  const paginatedCollections = useMemo(() => {
+    const start = (currentPage - 1) * TABLE_PAGE_SIZE;
+    return filteredCollections.slice(start, start + TABLE_PAGE_SIZE);
+  }, [currentPage, filteredCollections]);
+
   const visibleCollectionIds = useMemo(
-    () => filteredCollections.map((collection) => collection.id),
-    [filteredCollections],
+    () => paginatedCollections.map((collection) => collection.id),
+    [paginatedCollections],
   );
 
   useEffect(() => {
@@ -1455,7 +1473,7 @@ export default function CollectionsPage() {
     [],
   );
 
-  const rowMarkup = filteredCollections.map((collection, index) => (
+  const rowMarkup = paginatedCollections.map((collection, index) => (
     <IndexTable.Row
       id={collection.id}
       key={collection.id}
@@ -1651,7 +1669,7 @@ export default function CollectionsPage() {
                 <div className="collections-table-wrap app-table-scroll">
                   <IndexTable
                     resourceName={{ singular: "collection", plural: "collections" }}
-                    itemCount={filteredCollections.length}
+                    itemCount={paginatedCollections.length}
                     headings={tableHeadings}
                     selectable={false}
                     loading={isSearchLoading}
@@ -1662,10 +1680,20 @@ export default function CollectionsPage() {
               )}
 
               <div style={{ padding: "8px 16px", borderTop: "1px solid var(--p-color-border)" }}>
-                <Text as="span" tone="subdued" variant="bodySm">
-                  {filteredCollections.length} result{filteredCollections.length !== 1 ? "s" : ""}
-                  {isSearchLoading ? " (Searching...)" : isLoading ? " (Loading...)" : ""}
-                </Text>
+                <InlineStack align="space-between" blockAlign="center" wrap>
+                  <Text as="span" tone="subdued" variant="bodySm">
+                    {filteredCollections.length} result{filteredCollections.length !== 1 ? "s" : ""}
+                    {isSearchLoading ? " (Searching...)" : isLoading ? " (Loading...)" : ""}
+                  </Text>
+                  {filteredCollections.length > TABLE_PAGE_SIZE && (
+                    <Pagination
+                      hasPrevious={currentPage > 1}
+                      onPrevious={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                      hasNext={currentPage < totalPages}
+                      onNext={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                    />
+                  )}
+                </InlineStack>
               </div>
             </BlockStack>
           </Card>
@@ -2018,7 +2046,7 @@ export default function CollectionsPage() {
           white-space: nowrap !important;
         }
         .collections-title-cell {
-          max-width: 360px;
+          max-width: 240px;
           white-space: normal !important;
           overflow-wrap: anywhere;
           display: -webkit-box;
