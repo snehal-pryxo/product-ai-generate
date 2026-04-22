@@ -1871,7 +1871,10 @@ export default function TemplatePage() {
               </EmptyState>
             </Card>
           ) : (
-            <div className="app-card-grid" style={{ gap: 16 }}>
+            <div
+              className="app-card-grid"
+              style={{ gap: 16, display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}
+            >
               {templates.map((template) => {
                 const res = template.resource;
                 const activeId = getActiveTemplateId(res, typeFilter, selectionMap);
