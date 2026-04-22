@@ -261,6 +261,95 @@ function typeLabel(typeId) {
   return TYPE_OPTIONS.find((o) => o.value === typeId)?.label || typeId;
 }
 
+const TEMPLATE_PREVIEW_VALUES = {
+  product_title: "UltraBook Pro X15 Gaming Laptop",
+  collection_title: "Performance Laptop Collection",
+  page_topic: "Technical Specifications",
+  brand_name: "Avada Tech",
+  category_keyword: "gaming laptops",
+  primary_feature: "RTX 4080 graphics",
+  main_benefit: "High-performance gaming without compromise",
+  primary_benefit: "desktop-class power in a portable body",
+  key_benefit: "smooth 240Hz gameplay",
+  action_phrase: "Explore now",
+  cta_phrase: "Shop now",
+  trust_signal: "trusted by over 10,000 customers",
+};
+
+function replaceTemplateTokens(template = "") {
+  return template.replace(/{{\s*([a-zA-Z0-9_]+)\s*}}|{\s*([a-zA-Z0-9_]+)\s*}/g, (_, a, b) => {
+    const key = (a || b || "").trim();
+    return TEMPLATE_PREVIEW_VALUES[key] || key.replace(/_/g, " ");
+  });
+}
+
+function resolvePromptLine(hint, state) {
+  const text = String(hint || "").trim();
+  const normalized = text.toLowerCase();
+  const nextSpec = () => {
+    const specs = [
+      '15.6" 240Hz QHD IPS display with 2ms response time',
+      "AMD Ryzen 9 processor with up to 5.7GHz boost",
+      "NVIDIA RTX 4080 with 16GB GDDR6X memory",
+      "32GB DDR5 RAM, expandable to 64GB",
+      "2TB Gen4 NVMe SSD with ultra-fast read/write speeds",
+    ];
+    const value = specs[state.specIndex % specs.length];
+    state.specIndex += 1;
+    return value;
+  };
+
+  if (normalized.includes("product name") || normalized.includes("collection title")) {
+    return TEMPLATE_PREVIEW_VALUES.product_title;
+  }
+  if (normalized.includes("hook")) return "Engineered for creators and gamers who demand speed and reliability.";
+  if (normalized.includes("brief technical overview")) {
+    return "The UltraBook Pro X15 combines desktop-class performance with a lightweight premium chassis.";
+  }
+  if (normalized.includes("key specification")) return nextSpec();
+  if (normalized.includes("key feature")) return "Advanced thermal design for stable performance under heavy workloads.";
+  if (normalized.includes("key benefit")) return "Delivers smoother multitasking, faster rendering, and better gaming consistency.";
+  if (normalized.includes("audience") || normalized.includes("use case")) {
+    return "Ideal for gamers, designers, and professionals who need reliable high performance.";
+  }
+  if (normalized.includes("call to action")) return "Upgrade your setup with performance built for modern workloads.";
+  if (normalized.includes("paragraph comparing")) {
+    return "Compared to conventional laptops in this segment, this model offers higher sustained performance and improved cooling efficiency.";
+  }
+  if (normalized.includes("description")) {
+    return "Built with premium materials and optimized components to deliver speed, durability, and everyday usability.";
+  }
+  if (normalized.includes("features/benefits")) {
+    return "It balances speed, thermal stability, and battery efficiency to improve both productivity and gaming sessions.";
+  }
+  if (normalized.includes("intro")) return "This section provides a clear overview to help customers evaluate the product quickly.";
+  if (normalized.includes("question")) return "Q: Is this laptop suitable for professional editing? A: Yes, it is optimized for high-performance workloads.";
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function generateTemplatePreview(template = "") {
+  const resolved = replaceTemplateTokens(template);
+  const lines = resolved.split("\n");
+  const state = { specIndex: 0 };
+
+  return lines
+    .map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return "";
+      const match = trimmed.match(/^\[(.*)\]$/);
+      if (!match) return trimmed;
+      const rawHint = match[1].trim();
+      const parts = rawHint.split(":");
+      if (parts.length > 1) {
+        const category = parts.shift().trim();
+        const detail = parts.join(":").trim();
+        return `${category}: ${resolvePromptLine(detail, state)}`;
+      }
+      return resolvePromptLine(rawHint, state);
+    })
+    .join("\n\n");
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function ResourceBadge({ resource }) {
@@ -760,6 +849,10 @@ export default function TemplatePage() {
   const isSystemTab = mainTab === 0;
   const templates = isSystemTab ? systemTemplates : filteredCustomTemplates;
   const showResourceBadge = resourceFilter === "all";
+  const generatedPreviewText = useMemo(
+    () => generateTemplatePreview(previewData?.template || ""),
+    [previewData],
+  );
 
   return (
     <>
@@ -922,7 +1015,7 @@ export default function TemplatePage() {
                     color: "var(--p-color-text)",
                   }}
                 >
-                  {previewData?.template || ""}
+                  {generatedPreviewText}
                 </div>
               </Box>
             </Card>
