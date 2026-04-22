@@ -26,7 +26,7 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
-import { CollectionIcon, ProductIcon, SearchIcon, ChevronUpIcon, ChevronDownIcon } from "@shopify/polaris-icons";
+import { CollectionIcon, ProductIcon, SearchIcon, ChevronUpIcon, ChevronDownIcon, XIcon } from "@shopify/polaris-icons";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import { buildCollectionContentPrompt } from "../lib/contentPromptTemplates";
@@ -1258,6 +1258,7 @@ export default function CollectionsPage() {
   const [templateLibraryContentType, setTemplateLibraryContentType] = useState("description");
   const [outputLanguage, setOutputLanguage] = useState(() => readGlobalSettings().language || "English");
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [showCollectionSearchBar, setShowCollectionSearchBar] = useState(false);
   const [addTitleAsHeading, setAddTitleAsHeading] = useState(false);
   const [preserveOldDescription, setPreserveOldDescription] = useState(false);
   const [removeImagesFromDescription, setRemoveImagesFromDescription] = useState(false);
@@ -1674,20 +1675,39 @@ export default function CollectionsPage() {
                     selected={statusTabIndex}
                     onSelect={setStatusTabIndex}
                   />
-                  <div className="app-toolbar-grow" style={{ minWidth: "240px", maxWidth: "420px" }}>
-                    <TextField
-                      label="Search collections"
-                      labelHidden
-                      placeholder="Search by collection title..."
-                      value={searchValue}
-                      onChange={handleSearchInput}
-                      autoComplete="off"
-                      prefix={isSearchLoading ? <Spinner size="small" /> : <Icon source={SearchIcon} tone="subdued" />}
-                    />
-                  </div>
-                  <Text as="span" variant="bodySm" tone="subdued">
-                    {selectedCollections.length} selected
-                  </Text>
+                  <InlineStack gap="200" blockAlign="center">
+                    {showCollectionSearchBar ? (
+                      <InlineStack gap="100" blockAlign="center">
+                        <div className="app-toolbar-grow" style={{ minWidth: "260px", maxWidth: "420px" }}>
+                          <TextField
+                            label="Search collections"
+                            labelHidden
+                            placeholder="Search collections here..."
+                            value={searchValue}
+                            onChange={handleSearchInput}
+                            autoComplete="off"
+                            prefix={isSearchLoading ? <Spinner size="small" /> : <Icon source={SearchIcon} tone="subdued" />}
+                          />
+                        </div>
+                        <Button
+                          icon={XIcon}
+                          variant="secondary"
+                          accessibilityLabel="Close search"
+                          onClick={() => setShowCollectionSearchBar(false)}
+                        />
+                      </InlineStack>
+                    ) : (
+                      <Button
+                        icon={SearchIcon}
+                        variant="secondary"
+                        accessibilityLabel="Show search"
+                        onClick={() => setShowCollectionSearchBar(true)}
+                      />
+                    )}
+                    <Text as="span" variant="bodySm" tone="subdued">
+                      {selectedCollections.length} selected
+                    </Text>
+                  </InlineStack>
                 </InlineStack>
               </div>
 
@@ -1817,7 +1837,7 @@ export default function CollectionsPage() {
                   <Checkbox
                     label={<span>Use custom instructions <span style={{ color: "#f59e0b", fontSize: "14px" }}>✦</span></span>}
                     checked={useCustomDescInstructions}
-                    onChange={(v) => { setUseCustomDescInstructions(v); if (v && !(bulkDescTemplate || "").trim()) { setBulkDescTemplate(DEFAULT_DESCRIPTION_CUSTOM_PROMPT); } }}
+                    onChange={(v) => { setUseCustomDescInstructions(v); if (v) setBulkDescTemplate(DEFAULT_DESCRIPTION_CUSTOM_PROMPT); }}
                   />
                   {!useCustomDescInstructions && (
                     <button
@@ -1834,7 +1854,7 @@ export default function CollectionsPage() {
                     <div style={{ marginTop: "4px" }}>
                       <TextField
                         label="Custom Prompt" labelHidden
-                        multiline
+                        multiline={8}
                         minLength={0}
                         value={bulkDescTemplate}
                         onChange={setBulkDescTemplate}
@@ -1886,7 +1906,7 @@ export default function CollectionsPage() {
                     <div style={{ marginTop: "4px" }}>
                       <TextField
                         label="Custom Prompt" labelHidden
-                        multiline
+                        multiline={8}
                         minLength={0}
                         value={bulkMetaDescTemplate}
                         onChange={setBulkMetaDescTemplate}
@@ -1938,7 +1958,7 @@ export default function CollectionsPage() {
                     <div style={{ marginTop: "4px" }}>
                       <TextField
                         label="Custom Prompt" labelHidden
-                        multiline
+                        multiline={8}
                         minLength={0}
                         value={bulkMetaTitleTemplate}
                         onChange={setBulkMetaTitleTemplate}
@@ -2208,4 +2228,7 @@ export default function CollectionsPage() {
     </Page>
   );
 }
+
+
+
 

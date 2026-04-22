@@ -27,7 +27,7 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
-import { ProductIcon, CollectionIcon, SearchIcon, ChevronUpIcon, ChevronDownIcon } from "@shopify/polaris-icons";
+import { ProductIcon, CollectionIcon, SearchIcon, ChevronUpIcon, ChevronDownIcon, XIcon } from "@shopify/polaris-icons";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import { buildProductContentPrompt } from "../lib/contentPromptTemplates";
@@ -1262,6 +1262,7 @@ export default function ProductsPage() {
   const [templateLibraryContentType, setTemplateLibraryContentType] = useState("description");
   const [outputLanguage, setOutputLanguage] = useState(() => readGlobalSettings().language || "English");
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [showProductSearchBar, setShowProductSearchBar] = useState(false);
   const [addTitleAsHeading, setAddTitleAsHeading] = useState(false);
   const [preserveOldDescription, setPreserveOldDescription] = useState(false);
   const [removeImagesFromDescription, setRemoveImagesFromDescription] = useState(false);
@@ -1669,17 +1670,34 @@ export default function ProductsPage() {
                         onChange={(val) => navigate(makeUrl({ collectionId: val }))}
                       />
                     </div>
-                    <div className="app-toolbar-grow" style={{ minWidth: "240px", maxWidth: "420px" }}>
-                      <TextField
-                        label="Search products"
-                        labelHidden
-                        placeholder="Search by product title..."
-                        value={searchValue}
-                        onChange={handleSearchInput}
-                        autoComplete="off"
-                        prefix={isSearchLoading ? <Spinner size="small" /> : <Icon source={SearchIcon} tone="subdued" />}
+                    {showProductSearchBar ? (
+                      <InlineStack gap="100" blockAlign="center">
+                        <div className="app-toolbar-grow" style={{ minWidth: "260px", maxWidth: "420px" }}>
+                          <TextField
+                            label="Search products"
+                            labelHidden
+                            placeholder="Search by product title..."
+                            value={searchValue}
+                            onChange={handleSearchInput}
+                            autoComplete="off"
+                            prefix={isSearchLoading ? <Spinner size="small" /> : <Icon source={SearchIcon} tone="subdued" />}
+                          />
+                        </div>
+                        <Button
+                          icon={XIcon}
+                          variant="secondary"
+                          accessibilityLabel="Close search"
+                          onClick={() => setShowProductSearchBar(false)}
+                        />
+                      </InlineStack>
+                    ) : (
+                      <Button
+                        icon={SearchIcon}
+                        variant="secondary"
+                        accessibilityLabel="Show search"
+                        onClick={() => setShowProductSearchBar(true)}
                       />
-                    </div>
+                    )}
                   </InlineStack>
                 </InlineStack>
               </div>
@@ -1848,7 +1866,7 @@ export default function ProductsPage() {
                   <Checkbox
                     label={<span>Use custom instructions <span style={{ color: "#f59e0b", fontSize: "14px" }}>✦</span></span>}
                     checked={useCustomDescInstructions}
-                    onChange={(v) => { setUseCustomDescInstructions(v); if (v && !(bulkDescTemplate || "").trim()) { setBulkDescTemplate(DEFAULT_DESCRIPTION_CUSTOM_PROMPT); } }}
+                    onChange={(v) => { setUseCustomDescInstructions(v); if (v) setBulkDescTemplate(DEFAULT_DESCRIPTION_CUSTOM_PROMPT); }}
                   />
                   {!useCustomDescInstructions && (
                     <button
@@ -1865,7 +1883,7 @@ export default function ProductsPage() {
                     <div style={{ marginTop: "4px" }}>
                       <TextField
                         label="Custom Prompt" labelHidden
-                        multiline
+                        multiline={8}
                         minLength={0}
                         value={bulkDescTemplate}
                         onChange={setBulkDescTemplate}
@@ -1917,7 +1935,7 @@ export default function ProductsPage() {
                     <div style={{ marginTop: "4px" }}>
                       <TextField
                         label="Custom Prompt" labelHidden
-                        multiline
+                        multiline={8}
                         minLength={0}
                         value={bulkMetaDescTemplate}
                         onChange={setBulkMetaDescTemplate}
@@ -1969,7 +1987,7 @@ export default function ProductsPage() {
                     <div style={{ marginTop: "4px" }}>
                       <TextField
                         label="Custom Prompt" labelHidden
-                        multiline
+                        multiline={8}
                         minLength={0}
                         value={bulkMetaTitleTemplate}
                         onChange={setBulkMetaTitleTemplate}
@@ -2235,4 +2253,7 @@ export default function ProductsPage() {
     </Page>
   );
 }
+
+
+
 

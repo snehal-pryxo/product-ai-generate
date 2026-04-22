@@ -413,110 +413,125 @@ export function TemplateLibraryModal({ open, onClose, tabs, initialTab, template
   const selectedModalTabIndex = Math.max(0, tabs.findIndex((tab) => tab.id === activeTab));
 
   return (
-    <Modal open={open} onClose={onClose} title="Template Library" large limitHeight={false}>
-      <Modal.Section>
-        {isPreviewOpen ? (
-          <PreviewPanel
-            tabs={tabs}
-            initialTabId={previewTabId}
-            templatesByTab={templatesByTab}
-            previewTemplateByTab={previewTemplateByTab}
-            onBack={() => setIsPreviewOpen(false)}
-            onUse={handleUse}
-          />
-        ) : (
-          <BlockStack gap="300">
-            {tabs.length > 1 && (
-              <Tabs
-                tabs={modalTabs}
-                selected={selectedModalTabIndex}
-                onSelect={(index) => handleTabChange(tabs[index]?.id || activeTab)}
-              />
-            )}
+    <>
+      <style>{`
+        .template-library-modal--wide .Polaris-Modal-Dialog__Modal {
+          width: min(96vw, 1280px) !important;
+          max-width: calc(100vw - 24px) !important;
+        }
+      `}</style>
+      <Modal
+        className="template-library-modal--wide"
+        open={open}
+        onClose={onClose}
+        title="Template Library"
+        large
+        limitHeight={false}
+      >
+        <Modal.Section>
+          {isPreviewOpen ? (
+            <PreviewPanel
+              tabs={tabs}
+              initialTabId={previewTabId}
+              templatesByTab={templatesByTab}
+              previewTemplateByTab={previewTemplateByTab}
+              onBack={() => setIsPreviewOpen(false)}
+              onUse={handleUse}
+            />
+          ) : (
+            <BlockStack gap="300">
+              {tabs.length > 1 && (
+                <Tabs
+                  tabs={modalTabs}
+                  selected={selectedModalTabIndex}
+                  onSelect={(index) => handleTabChange(tabs[index]?.id || activeTab)}
+                />
+              )}
 
-            <div style={{ display: "grid", gridTemplateColumns: "260px minmax(0, 1fr)", gap: "12px", minHeight: "62vh" }}>
-              <Card>
-                <Box padding="300">
-                  <BlockStack gap="200">
-                    <Text as="p" variant="bodySm" tone="subdued" fontWeight="semibold">Categories</Text>
-                    {categories.map((cat) => (
-                      <Button
-                        key={cat}
-                        fullWidth
-                        textAlign="left"
-                        variant={selectedCategory === cat ? "primary" : "secondary"}
-                        onClick={() => setSelectedCategory(cat)}
-                      >
-                        {cat}
-                      </Button>
-                    ))}
-                  </BlockStack>
-                </Box>
-              </Card>
-
-              <div style={{ overflowY: "auto", maxHeight: "70vh", paddingRight: "2px" }}>
-                <BlockStack gap="300">
-                  <InlineStack gap="200" blockAlign="center">
-                    <Text as="h3" variant="headingSm">Templates</Text>
-                    <Badge tone="info">{filtered.length} templates</Badge>
-                  </InlineStack>
-
-                  {filtered.length === 0 ? (
-                    <Card>
-                      <Box padding="400">
-                        <Text as="p" tone="subdued">No templates found in this category.</Text>
-                      </Box>
-                    </Card>
-                  ) : (
-                    <div
-                      className="app-card-grid"
-                      style={{
-                        gap: "14px",
-                        display: "grid",
-                        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                      }}
-                    >
-                      {filtered.map((template) => (
-                        <Card key={template.id}>
-                          <Box padding="300">
-                            <BlockStack gap="200">
-                              <InlineStack align="space-between" blockAlign="start" gap="200">
-                                <Text as="h4" variant="headingSm">{template.name}</Text>
-                                <Badge>{template.template.length}</Badge>
-                              </InlineStack>
-                              <Text as="p" variant="bodySm" tone="subdued">
-                                {template.description || "Template ready for use."}
-                              </Text>
-                              <InlineStack gap="200">
-                                <Button variant="primary" onClick={() => handleUse(template)}>
-                                  Use Template
-                                </Button>
-                                <Button
-                                  icon={ViewIcon}
-                                  onClick={() => {
-                                    setPreviewTemplateByTab((current) => ({
-                                      ...current,
-                                      [activeTab]: template,
-                                    }));
-                                    setPreviewTabId(activeTab);
-                                    setIsPreviewOpen(true);
-                                  }}
-                                >
-                                  Preview
-                                </Button>
-                              </InlineStack>
-                            </BlockStack>
-                          </Box>
-                        </Card>
+              <div style={{ display: "grid", gridTemplateColumns: "260px minmax(0, 1fr)", gap: "12px", minHeight: "62vh" }}>
+                <Card>
+                  <Box padding="300">
+                    <BlockStack gap="200">
+                      <Text as="p" variant="bodySm" tone="subdued" fontWeight="semibold">Categories</Text>
+                      {categories.map((cat) => (
+                        <Button
+                          key={cat}
+                          fullWidth
+                          textAlign="left"
+                          variant={selectedCategory === cat ? "primary" : "secondary"}
+                          onClick={() => setSelectedCategory(cat)}
+                        >
+                          {cat}
+                        </Button>
                       ))}
-                    </div>
-                  )}
-                </BlockStack>
+                    </BlockStack>
+                  </Box>
+                </Card>
+
+                <div style={{ overflowY: "auto", maxHeight: "70vh", paddingRight: "2px" }}>
+                  <BlockStack gap="300">
+                    <InlineStack gap="200" blockAlign="center">
+                      <Text as="h3" variant="headingSm">Templates</Text>
+                      <Badge tone="info">{filtered.length} templates</Badge>
+                    </InlineStack>
+
+                    {filtered.length === 0 ? (
+                      <Card>
+                        <Box padding="400">
+                          <Text as="p" tone="subdued">No templates found in this category.</Text>
+                        </Box>
+                      </Card>
+                    ) : (
+                      <div
+                        className="app-card-grid"
+                        style={{
+                          gap: "14px",
+                          display: "grid",
+                          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                        }}
+                      >
+                        {filtered.map((template) => (
+                          <Card key={template.id}>
+                            <Box padding="300">
+                              <BlockStack gap="200">
+                                <InlineStack align="space-between" blockAlign="start" gap="200">
+                                  <Text as="h4" variant="headingSm">{template.name}</Text>
+                                  <Badge>{template.template.length}</Badge>
+                                </InlineStack>
+                                <Text as="p" variant="bodySm" tone="subdued">
+                                  {template.description || "Template ready for use."}
+                                </Text>
+                                <InlineStack gap="200">
+                                  <Button variant="primary" onClick={() => handleUse(template)}>
+                                    Use Template
+                                  </Button>
+                                  <Button
+                                    icon={ViewIcon}
+                                    onClick={() => {
+                                      setPreviewTemplateByTab((current) => ({
+                                        ...current,
+                                        [activeTab]: template,
+                                      }));
+                                      setPreviewTabId(activeTab);
+                                      setIsPreviewOpen(true);
+                                    }}
+                                  >
+                                    Preview
+                                  </Button>
+                                </InlineStack>
+                              </BlockStack>
+                            </Box>
+                          </Card>
+                        ))}
+                      </div>
+                    )}
+                  </BlockStack>
+                </div>
               </div>
-            </div>
-          </BlockStack>
-        )}
-      </Modal.Section>
-    </Modal>
+            </BlockStack>
+          )}
+        </Modal.Section>
+      </Modal>
+    </>
   );
 }
