@@ -47,7 +47,7 @@ import {
   getEmptyPageTemplateSelection,
   writeStoredPagePromptTemplateSelection,
 } from "../lib/pagePromptTemplateLibrary";
-import { buildDescriptionPreviewText } from "../lib/templatePreviewFormat";
+import { buildDescriptionStructuredPreview, buildMetaPreviewText } from "../lib/templatePreviewFormat";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -1643,9 +1643,17 @@ export default function TemplatePage() {
     [htmlPreview, previewData],
   );
 
-  const descriptionPreviewText = useMemo(() => {
+  const descriptionPreview = useMemo(() => {
     if (!previewData || previewData.filterId !== "description") return "";
-    return buildDescriptionPreviewText(previewData);
+    return buildDescriptionStructuredPreview(previewData, previewData?.name || "", {
+      resourceId: previewData?.resourceId || "",
+    });
+  }, [previewData]);
+
+  const metaPreviewText = useMemo(() => {
+    if (!previewData) return "";
+    if (previewData.filterId !== "seo-title" && previewData.filterId !== "seo-description") return "";
+    return buildMetaPreviewText(previewData);
   }, [previewData]);
 
   return (
@@ -1808,7 +1816,35 @@ export default function TemplatePage() {
 
             {/* ── Example output ───────────────────────────────────────────── */}
             <BlockStack gap="150">
-              {previewData?.filterId === "description" && descriptionPreviewText ? (
+              {metaPreviewText ? (
+                <div
+                  style={{
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "8px",
+                    padding: "20px 24px",
+                    background: "#fafafa",
+                  }}
+                >
+                  <BlockStack gap="150">
+                    <Text as="h3" variant="headingSm" fontWeight="bold">
+                      {previewData?.filterId === "seo-title" ? "Meta Title Preview:" : "Meta Description Preview:"}
+                    </Text>
+                    <div
+                      style={{
+                        background: "#fff",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "8px",
+                        padding: "14px 16px",
+                        fontSize: "14px",
+                        lineHeight: "1.6",
+                        color: "#374151",
+                      }}
+                    >
+                      {metaPreviewText}
+                    </div>
+                  </BlockStack>
+                </div>
+              ) : previewData?.filterId === "description" && descriptionPreview ? (
                 <div
                   style={{
                     border: "1px solid #e5e7eb",
@@ -1827,13 +1863,39 @@ export default function TemplatePage() {
                         border: "1px solid #e5e7eb",
                         borderRadius: "8px",
                         padding: "14px 16px",
-                        fontSize: "14px",
-                        lineHeight: "1.6",
-                        color: "#374151",
-                        whiteSpace: "pre-wrap",
                       }}
                     >
-                      {descriptionPreviewText}
+                      <BlockStack gap="200">
+                        <BlockStack gap="050">
+                          <Text as="h3" variant="headingMd" fontWeight="bold">
+                            {descriptionPreview.heading}
+                          </Text>
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            {descriptionPreview.subheading}
+                          </Text>
+                        </BlockStack>
+                        {descriptionPreview.sections.map((section) => (
+                          <BlockStack key={section.title} gap="100">
+                            <Text as="h4" variant="headingSm" fontWeight="semibold">
+                              {section.title}
+                            </Text>
+                            {section.paragraphs.map((paragraph, idx) => (
+                              <Text key={`${section.title}-p-${idx}`} as="p" variant="bodyMd">
+                                {paragraph}
+                              </Text>
+                            ))}
+                            {section.points.length > 0 && (
+                              <ul style={{ margin: 0, paddingLeft: "20px" }}>
+                                {section.points.map((point, idx) => (
+                                  <li key={`${section.title}-pt-${idx}`} style={{ marginBottom: "6px" }}>
+                                    <Text as="span" variant="bodyMd">{point}</Text>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </BlockStack>
+                        ))}
+                      </BlockStack>
                     </div>
                   </BlockStack>
                 </div>

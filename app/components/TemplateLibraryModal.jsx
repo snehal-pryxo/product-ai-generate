@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { buildDescriptionPreviewText, buildMetaPreviewText } from "../lib/templatePreviewFormat";
+import { buildDescriptionStructuredPreview, buildMetaPreviewText } from "../lib/templatePreviewFormat";
 
 // ─── Category mapping by template ID ────────────────────────────────────────
 const TEMPLATE_CATEGORIES = {
@@ -133,7 +133,10 @@ function PreviewPanel({ template, category, contentTypeLabel, contentTypeId, onC
   const isDescriptionPreview = contentTypeId === "description";
   const isMetaPreview = contentTypeId === "meta_description" || contentTypeId === "meta_title";
   const metaPreviewText = useMemo(() => buildMetaPreviewText(template), [template]);
-  const descriptionPreviewText = useMemo(() => buildDescriptionPreviewText(template), [template]);
+  const descriptionPreview = useMemo(
+    () => buildDescriptionStructuredPreview(template, template?.name || ""),
+    [template],
+  );
   return (
     <div className="template-library-modal__preview" style={{
       position: "absolute", inset: 0, zIndex: 20,
@@ -172,7 +175,7 @@ function PreviewPanel({ template, category, contentTypeLabel, contentTypeId, onC
             </div>
           </div>
 
-          {isDescriptionPreview && descriptionPreviewText && (
+          {isDescriptionPreview && descriptionPreview && (
             <div style={{ marginTop: "16px" }}>
               <div style={{ fontWeight: 700, fontSize: "13px", color: "#111", marginBottom: "8px" }}>
                 Descriptions will look like this:
@@ -186,10 +189,35 @@ function PreviewPanel({ template, category, contentTypeLabel, contentTypeId, onC
                   fontSize: "14px",
                   lineHeight: "1.6",
                   color: "#374151",
-                  whiteSpace: "pre-wrap",
                 }}
               >
-                {descriptionPreviewText}
+                <div style={{ fontSize: "18px", fontWeight: 700, color: "#111", marginBottom: "8px", lineHeight: "1.35" }}>
+                  {descriptionPreview.heading}
+                </div>
+                <div style={{ fontSize: "14px", color: "#6b7280", marginBottom: "14px", lineHeight: "1.5" }}>
+                  {descriptionPreview.subheading}
+                </div>
+                {descriptionPreview.sections.map((section) => (
+                  <div key={section.title} style={{ marginBottom: "12px" }}>
+                    <div style={{ fontSize: "14px", fontWeight: 700, color: "#111", marginBottom: "6px" }}>
+                      {section.title}
+                    </div>
+                    {section.paragraphs.map((paragraph, idx) => (
+                      <p key={`${section.title}-p-${idx}`} style={{ margin: "0 0 8px 0", fontSize: "14px", color: "#374151", lineHeight: "1.6" }}>
+                        {paragraph}
+                      </p>
+                    ))}
+                    {section.points.length > 0 && (
+                      <ul style={{ margin: "0", paddingLeft: "18px" }}>
+                        {section.points.map((point, idx) => (
+                          <li key={`${section.title}-pt-${idx}`} style={{ marginBottom: "6px", fontSize: "14px", color: "#374151", lineHeight: "1.6" }}>
+                            {point}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           )}

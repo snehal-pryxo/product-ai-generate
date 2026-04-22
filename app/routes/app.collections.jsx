@@ -35,10 +35,12 @@ import { TemplateLibraryModal } from "../components/TemplateLibraryModal";
 import { readGlobalSettings } from "../lib/globalSettings";
 import {
   readStoredCollectionPromptTemplateSelection,
-  COLLECTION_DESCRIPTION_TEMPLATES,
-  COLLECTION_META_DESCRIPTION_TEMPLATES,
-  COLLECTION_META_TITLE_TEMPLATES,
 } from "../lib/collectionPromptTemplateLibrary";
+import {
+  PRODUCT_DESCRIPTION_TEMPLATES,
+  PRODUCT_META_DESCRIPTION_TEMPLATES,
+  PRODUCT_META_TITLE_TEMPLATES,
+} from "../lib/productPromptTemplateLibrary";
 import {
   buildInsufficientCreditsError,
   creditsForBatch,
@@ -2120,9 +2122,9 @@ export default function CollectionsPage() {
         ]}
         initialTab={templateLibraryContentType}
         templatesByTab={{
-          description: COLLECTION_DESCRIPTION_TEMPLATES,
-          meta_description: COLLECTION_META_DESCRIPTION_TEMPLATES,
-          meta_title: COLLECTION_META_TITLE_TEMPLATES,
+          description: PRODUCT_DESCRIPTION_TEMPLATES,
+          meta_description: PRODUCT_META_DESCRIPTION_TEMPLATES,
+          meta_title: PRODUCT_META_TITLE_TEMPLATES,
         }}
         onUseTemplate={(templateText) => {
           if (templateLibraryContentType === "description") {
