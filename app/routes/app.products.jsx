@@ -2268,6 +2268,9 @@ export default function ProductsPage() {
         .products-table-wrap .Polaris-IndexTable__ScrollContainer {
           overflow-x: hidden;
         }
+        .products-table-wrap .Polaris-IndexTable__StickyTable {
+          display: none !important;
+        }
         .products-table-wrap .Polaris-IndexTable__Table {
           width: 100%;
           table-layout: fixed;

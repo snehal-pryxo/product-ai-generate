@@ -2181,6 +2181,9 @@ export default function CollectionsPage() {
         .collections-table-wrap .Polaris-IndexTable__ScrollContainer {
           overflow-x: hidden;
         }
+        .collections-table-wrap .Polaris-IndexTable__StickyTable {
+          display: none !important;
+        }
         .collections-table-wrap .Polaris-IndexTable__Table {
           width: 100%;
           table-layout: fixed;
