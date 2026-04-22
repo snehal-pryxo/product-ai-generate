@@ -28,7 +28,7 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
-import { ProductIcon, CollectionIcon } from "@shopify/polaris-icons";
+import { ProductIcon, CollectionIcon, SearchIcon } from "@shopify/polaris-icons";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import { buildProductContentPrompt } from "../lib/contentPromptTemplates";
@@ -1636,7 +1636,7 @@ export default function ProductsPage() {
           <Card padding="0">
             <BlockStack gap="0">
               <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-                <InlineStack align="space-between" blockAlign="center" wrap>
+                <InlineStack align="space-between" blockAlign="center" wrap={false} gap="300">
                   <Tabs
                     tabs={statusTabs}
                     selected={statusTabIndex}
@@ -1650,7 +1650,7 @@ export default function ProductsPage() {
                       value={searchValue}
                       onChange={handleSearchInput}
                       autoComplete="off"
-                      prefix={isSearchLoading ? <Spinner size="small" /> : undefined}
+                      prefix={isSearchLoading ? <Spinner size="small" /> : <Icon source={SearchIcon} tone="subdued" />}
                     />
                   </div>
                 </InlineStack>
@@ -1667,7 +1667,7 @@ export default function ProductsPage() {
                   <Text as="p" tone="subdued">Try adjusting your search or filter.</Text>
                 </EmptyState>
               ) : (
-                <div className="app-table-scroll">
+                <div className="products-table-wrap app-table-scroll">
                   <IndexTable
                   resourceName={resourceName}
                   itemCount={paginatedProducts.length}
@@ -2147,14 +2147,33 @@ export default function ProductsPage() {
         </div>
       )}
 
+      <style>{`
+        .products-table-wrap .Polaris-IndexTable__ScrollContainer {
+          overflow-x: hidden;
+        }
+        .products-table-wrap .Polaris-IndexTable__Table {
+          width: 100%;
+          table-layout: fixed;
+        }
+        .products-table-wrap .Polaris-IndexTable__Table th:first-child,
+        .products-table-wrap .Polaris-IndexTable__Table td:first-child {
+          width: 46px;
+          padding-right: 4px;
+        }
+        .products-table-wrap .Polaris-IndexTable__Table th:nth-child(2),
+        .products-table-wrap .Polaris-IndexTable__Table td:nth-child(2) {
+          padding-left: 4px;
+        }
+      `}</style>
+
       <TemplateLibraryModal
         key={templateLibraryContentType}
         open={templateLibraryOpen}
         onClose={() => setTemplateLibraryOpen(false)}
         tabs={[
           { id: "description", label: "Description" },
-          { id: "meta_description", label: "Meta Description" },
           { id: "meta_title", label: "Meta Title" },
+          { id: "meta_description", label: "Meta Description" },
         ]}
         initialTab={templateLibraryContentType}
         templatesByTab={{

@@ -27,7 +27,7 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
-import { CollectionIcon, ProductIcon } from "@shopify/polaris-icons";
+import { CollectionIcon, ProductIcon, SearchIcon } from "@shopify/polaris-icons";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import { buildCollectionContentPrompt } from "../lib/contentPromptTemplates";
@@ -1239,6 +1239,7 @@ export default function CollectionsPage() {
   const [addTitleAsHeading, setAddTitleAsHeading] = useState(false);
   const [preserveOldDescription, setPreserveOldDescription] = useState(false);
   const [removeImagesFromDescription, setRemoveImagesFromDescription] = useState(false);
+  const [statusTabIndex, setStatusTabIndex] = useState(0);
 
   useEffect(() => {
     const templateSelection = readStoredCollectionPromptTemplateSelection();
@@ -1271,11 +1272,17 @@ export default function CollectionsPage() {
   const sourceCollections = collections.length > 0 ? collections : fallbackCollections;
 
   const filteredCollections = useMemo(() => {
-    if (!normalizedSearch) return collections;
-    return sourceCollections.filter((collection) =>
-      collection.title.toLowerCase().includes(normalizedSearch),
-    );
-  }, [normalizedSearch, collections, sourceCollections]);
+    const statusFilter = statusTabIndex === 1 ? "active" : statusTabIndex === 2 ? "draft" : "all";
+    return sourceCollections.filter((collection) => {
+      const matchesSearch =
+        !normalizedSearch || collection.title.toLowerCase().includes(normalizedSearch);
+      if (!matchesSearch) return false;
+
+      if (statusFilter === "all") return true;
+      const isActive = collection.appStatus?.label?.toLowerCase() === "active";
+      return statusFilter === "active" ? isActive : !isActive;
+    });
+  }, [normalizedSearch, sourceCollections, statusTabIndex]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -1439,14 +1446,6 @@ export default function CollectionsPage() {
     }
   }, [bulkValidationMessage, selectedCollections.length]);
 
-  const tableHeadings = [
-    { title: "" },
-    { title: "Title" },
-    { title: "Short" },
-    { title: "Status" },
-  ];
-
-
   const updateBulkField = (field) => (value) =>
     setBulkSettings((prev) => ({ ...prev, [field]: value }));
 
@@ -1517,6 +1516,11 @@ export default function CollectionsPage() {
   const sectionTabs = [
     { label: "Products", path: "/app/products", icon: ProductIcon },
     { label: "Collections", path: "/app/collections", icon: CollectionIcon },
+  ];
+  const statusTabs = [
+    { id: "all", content: "All" },
+    { id: "active", content: "Active" },
+    { id: "draft", content: "Draft" },
   ];
   const activeSectionPath = location.pathname.startsWith("/app/collections")
     ? "/app/collections"
@@ -1635,12 +1639,11 @@ export default function CollectionsPage() {
           <Card padding="0">
             <BlockStack gap="0">
               <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-                <InlineStack align="space-between" blockAlign="center" wrap>
-                  <Checkbox
-                    label={`Select all visible (${filteredCollections.length})`}
-                    checked={allVisibleSelected}
-                    indeterminate={selectionIndeterminate}
-                    onChange={handleToggleSelectAllVisible}
+                <InlineStack align="space-between" blockAlign="center" wrap={false} gap="300">
+                  <Tabs
+                    tabs={statusTabs}
+                    selected={statusTabIndex}
+                    onSelect={setStatusTabIndex}
                   />
                   <div className="app-toolbar-grow" style={{ minWidth: "240px", maxWidth: "420px" }}>
                     <TextField
@@ -1650,7 +1653,7 @@ export default function CollectionsPage() {
                       value={searchValue}
                       onChange={handleSearchInput}
                       autoComplete="off"
-                      prefix={isSearchLoading ? <Spinner size="small" /> : undefined}
+                      prefix={isSearchLoading ? <Spinner size="small" /> : <Icon source={SearchIcon} tone="subdued" />}
                     />
                   </div>
                   <Text as="span" variant="bodySm" tone="subdued">
@@ -1672,7 +1675,22 @@ export default function CollectionsPage() {
                   <IndexTable
                     resourceName={{ singular: "collection", plural: "collections" }}
                     itemCount={paginatedCollections.length}
-                    headings={tableHeadings}
+                    headings={[
+                      {
+                        title: (
+                          <Checkbox
+                            label={`Select all visible (${filteredCollections.length})`}
+                            labelHidden
+                            checked={allVisibleSelected}
+                            indeterminate={selectionIndeterminate}
+                            onChange={handleToggleSelectAllVisible}
+                          />
+                        ),
+                      },
+                      { title: "Title" },
+                      { title: "Short" },
+                      { title: "Status" },
+                    ]}
                     selectable={false}
                     loading={isSearchLoading}
                   >
@@ -2046,6 +2064,15 @@ export default function CollectionsPage() {
           width: 100%;
           table-layout: fixed;
         }
+        .collections-table-wrap .Polaris-IndexTable__Table th:first-child,
+        .collections-table-wrap .Polaris-IndexTable__Table td:first-child {
+          width: 46px;
+          padding-right: 4px;
+        }
+        .collections-table-wrap .Polaris-IndexTable__Table th:nth-child(2),
+        .collections-table-wrap .Polaris-IndexTable__Table td:nth-child(2) {
+          padding-left: 4px;
+        }
         .collections-title-cell {
           max-width: 240px;
           white-space: normal;
@@ -2116,8 +2143,8 @@ export default function CollectionsPage() {
         onClose={() => setTemplateLibraryOpen(false)}
         tabs={[
           { id: "description", label: "Description" },
-          { id: "meta_description", label: "Meta Description" },
           { id: "meta_title", label: "Meta Title" },
+          { id: "meta_description", label: "Meta Description" },
         ]}
         initialTab={templateLibraryContentType}
         templatesByTab={{

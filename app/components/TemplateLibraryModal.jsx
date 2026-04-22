@@ -1,4 +1,18 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Badge,
+  BlockStack,
+  Box,
+  Button,
+  Card,
+  Divider,
+  Icon,
+  InlineStack,
+  Modal,
+  Tabs,
+  Text,
+} from "@shopify/polaris";
+import { ArrowLeftIcon, ViewIcon } from "@shopify/polaris-icons";
 import { buildDescriptionStructuredPreview, buildMetaPreviewText } from "../lib/templatePreviewFormat";
 import { getPreviewHtml, wrapHtml } from "../lib/templatePreviewLibrary";
 
@@ -149,155 +163,199 @@ function getLengthLabel(templateText) {
 }
 
 // ─── Preview Panel ────────────────────────────────────────────────────────────
-function PreviewPanel({ template, category, contentTypeLabel, contentTypeId, onClose, onUse }) {
-  const length = getLengthLabel(template.template);
-  const isDescriptionPreview = contentTypeId === "description";
-  const isMetaPreview = contentTypeId === "meta_description" || contentTypeId === "meta_title";
-  const metaPreviewText = useMemo(() => buildMetaPreviewText(template), [template]);
+function PreviewPanel({
+  tabs,
+  initialTabId,
+  templatesByTab,
+  previewTemplateByTab,
+  onBack,
+  onUse,
+}) {
+  const [previewTabId, setPreviewTabId] = useState(initialTabId);
+
+  useEffect(() => {
+    setPreviewTabId(initialTabId);
+  }, [initialTabId]);
+
+  const previewTabs = useMemo(
+    () => tabs.map((tab) => ({ id: tab.id, content: tab.label })),
+    [tabs],
+  );
+  const selectedTabIndex = Math.max(
+    0,
+    tabs.findIndex((tab) => tab.id === previewTabId),
+  );
+
+  const currentTemplate = useMemo(() => {
+    const directMatch = previewTemplateByTab?.[previewTabId];
+    if (directMatch) return directMatch;
+
+    const currentTabTemplates = templatesByTab?.[previewTabId] || [];
+    return currentTabTemplates[0] || null;
+  }, [previewTabId, previewTemplateByTab, templatesByTab]);
+
+  const category = currentTemplate ? getCategory(currentTemplate.id) : "General";
+  const length = getLengthLabel(currentTemplate?.template || "");
+  const isDescriptionPreview = previewTabId === "description";
+  const isMetaPreview = previewTabId === "meta_description" || previewTabId === "meta_title";
+  const contentTypeLabel = tabs.find((tab) => tab.id === previewTabId)?.label || previewTabId;
+
+  const metaPreviewText = useMemo(
+    () => buildMetaPreviewText(currentTemplate),
+    [currentTemplate],
+  );
   const descriptionPreview = useMemo(
-    () => buildDescriptionStructuredPreview(template, template?.name || ""),
-    [template],
+    () => buildDescriptionStructuredPreview(currentTemplate, currentTemplate?.name || ""),
+    [currentTemplate],
   );
   const htmlPreview = useMemo(() => {
-    const resourceId = template.id.startsWith("col-") ? "collection" : template.id.startsWith("page-") ? "page" : "product";
-    const typeId = contentTypeId === "meta_title" ? "seo-title" : contentTypeId === "meta_description" ? "seo-description" : contentTypeId;
-    return getPreviewHtml(template.id, resourceId, typeId);
-  }, [template, contentTypeId]);
+    if (!currentTemplate) return "";
+    const resourceId = currentTemplate.id.startsWith("col-")
+      ? "collection"
+      : currentTemplate.id.startsWith("page-")
+        ? "page"
+        : "product";
+    const typeId = previewTabId === "meta_title"
+      ? "seo-title"
+      : previewTabId === "meta_description"
+        ? "seo-description"
+        : previewTabId;
+    return getPreviewHtml(currentTemplate.id, resourceId, typeId);
+  }, [currentTemplate, previewTabId]);
+
   return (
-    <div className="template-library-modal__preview" style={{
-      position: "absolute", inset: 0, zIndex: 20,
-      background: "#fff",
-      display: "flex", flexDirection: "column",
-      borderRadius: "12px", overflow: "hidden",
-    }}>
-      {/* Preview header */}
-      <div style={{ padding: "14px 20px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>
-        <button
-          onClick={onClose}
-          style={{ background: "#f3f4f6", border: "1px solid #e5e7eb", borderRadius: "6px", cursor: "pointer", fontSize: "13px", padding: "6px 12px", fontWeight: 500, color: "#374151", display: "flex", alignItems: "center", gap: "4px" }}
+    <BlockStack gap="300">
+      <InlineStack align="space-between" blockAlign="center" wrap>
+        <InlineStack gap="200">
+          <Button icon={ArrowLeftIcon} onClick={onBack}>Back</Button>
+          <Text as="h3" variant="headingMd">{currentTemplate?.name || "Template Preview"}</Text>
+        </InlineStack>
+        <Button
+          variant="primary"
+          onClick={() => currentTemplate && onUse(currentTemplate)}
+          disabled={!currentTemplate}
         >
-          ← Back
-        </button>
-        <span style={{ flex: 1, fontWeight: 700, fontSize: "15px", color: "#111", textAlign: "center" }}>{template.name}</span>
-        <button onClick={onUse} style={{ padding: "7px 18px", background: "#1a1a1a", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 600, whiteSpace: "nowrap" }}>
-          Use template
-        </button>
-      </div>
+          Use Template
+        </Button>
+      </InlineStack>
 
-      {/* Preview body — two columns */}
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        {/* Left: main content */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
-          <div style={{ marginBottom: "16px" }}>
-            <div style={{ fontWeight: 700, fontSize: "13px", color: "#111", marginBottom: "6px" }}>About this template</div>
-            <p style={{ fontSize: "13px", color: "#6b7280", margin: 0, lineHeight: "1.6" }}>
-              {template.description || "Use this template to generate AI content tailored for your product."}
-            </p>
-          </div>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: "13px", color: "#111", marginBottom: "8px" }}>Template Prompt:</div>
-            <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "14px 16px", fontFamily: "monospace", fontSize: "12px", lineHeight: "1.8", whiteSpace: "pre-wrap", color: "#374151" }}>
-              {template.template}
-            </div>
-          </div>
+      <Tabs
+        tabs={previewTabs}
+        selected={selectedTabIndex}
+        onSelect={(index) => setPreviewTabId(tabs[index]?.id || previewTabId)}
+      />
 
-          {htmlPreview ? (
-            <div style={{ marginTop: "16px" }}>
-              <div style={{ fontWeight: 700, fontSize: "13px", color: "#111", marginBottom: "8px" }}>
-                {isMetaPreview
-                  ? (contentTypeId === "meta_title" ? "Meta Title Preview:" : "Meta Description Preview:")
-                  : "Descriptions will look like this:"}
-              </div>
-              <div
-                style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "14px 16px" }}
-                dangerouslySetInnerHTML={{ __html: wrapHtml(htmlPreview) }}
-              />
-            </div>
-          ) : isDescriptionPreview && descriptionPreview ? (
-            <div style={{ marginTop: "16px" }}>
-              <div style={{ fontWeight: 700, fontSize: "13px", color: "#111", marginBottom: "8px" }}>
-                Descriptions will look like this:
-              </div>
-              <div
-                style={{
-                  background: "#fff",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "8px",
-                  padding: "14px 16px",
-                  fontSize: "14px",
-                  lineHeight: "1.6",
-                  color: "#374151",
-                }}
-              >
-                <div style={{ fontSize: "18px", fontWeight: 700, color: "#111", marginBottom: "8px", lineHeight: "1.35" }}>
-                  {descriptionPreview.heading}
-                </div>
-                <div style={{ fontSize: "14px", color: "#6b7280", marginBottom: "14px", lineHeight: "1.5" }}>
-                  {descriptionPreview.subheading}
-                </div>
-                {descriptionPreview.sections.map((section) => (
-                  <div key={section.title} style={{ marginBottom: "12px" }}>
-                    <div style={{ fontSize: "14px", fontWeight: 700, color: "#111", marginBottom: "6px" }}>
-                      {section.title}
-                    </div>
-                    {section.paragraphs.map((paragraph, idx) => (
-                      <p key={`${section.title}-p-${idx}`} style={{ margin: "0 0 8px 0", fontSize: "14px", color: "#374151", lineHeight: "1.6" }}>
-                        {paragraph}
-                      </p>
-                    ))}
-                    {section.points.length > 0 && (
-                      <ul style={{ margin: "0", paddingLeft: "18px" }}>
-                        {section.points.map((point, idx) => (
-                          <li key={`${section.title}-pt-${idx}`} style={{ marginBottom: "6px", fontSize: "14px", color: "#374151", lineHeight: "1.6" }}>
-                            {point}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+      {!currentTemplate ? (
+        <Card>
+          <Box padding="400">
+            <Text as="p" tone="subdued">No template available for this content type.</Text>
+          </Box>
+        </Card>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 280px", gap: "12px" }}>
+          <Card>
+            <Box padding="300">
+              <BlockStack gap="300">
+                <BlockStack gap="100">
+                  <Text as="h4" variant="headingSm">About this template</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {currentTemplate.description || "Use this template to generate AI content tailored for your store."}
+                  </Text>
+                </BlockStack>
+
+                <Divider />
+
+                <BlockStack gap="100">
+                  <Text as="h4" variant="headingSm">Template Prompt</Text>
+                  <div
+                    style={{
+                      background: "#f6f6f7",
+                      border: "1px solid #e1e3e5",
+                      borderRadius: "8px",
+                      padding: "12px",
+                      fontFamily: "monospace",
+                      fontSize: "12px",
+                      lineHeight: 1.6,
+                      whiteSpace: "pre-wrap",
+                    }}
+                  >
+                    {currentTemplate.template}
                   </div>
-                ))}
-              </div>
-            </div>
-          ) : isMetaPreview ? (
-            <div style={{ marginTop: "16px" }}>
-              <div style={{ fontWeight: 700, fontSize: "13px", color: "#111", marginBottom: "8px" }}>
-                {contentTypeId === "meta_title" ? "Meta Title Preview:" : "Meta Description Preview:"}
-              </div>
-              <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "14px 16px", fontSize: "14px", lineHeight: "1.6", color: "#374151" }}>
-                {metaPreviewText}
-              </div>
-            </div>
-          ) : null}
-        </div>
+                </BlockStack>
 
-        {/* Right: sidebar details */}
-        <div style={{ width: "200px", borderLeft: "1px solid #e5e7eb", padding: "20px 16px", flexShrink: 0, overflowY: "auto" }}>
-          <div style={{ fontWeight: 700, fontSize: "13px", color: "#111", marginBottom: "14px" }}>Template Details</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            <div>
-              <div style={{ fontSize: "11px", color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "3px" }}>Category</div>
-              <div style={{ fontSize: "13px", color: "#374151" }}>{category}</div>
-            </div>
-            {contentTypeLabel && (
-              <div>
-                <div style={{ fontSize: "11px", color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "3px" }}>Content Type</div>
-                <div style={{ fontSize: "13px", color: "#374151" }}>{contentTypeLabel}</div>
-              </div>
-            )}
-            <div>
-              <div style={{ fontSize: "11px", color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "4px" }}>Length</div>
-              <span style={{ background: length.bg, color: length.color, borderRadius: "10px", padding: "2px 10px", fontSize: "12px", fontWeight: 600 }}>
-                {length.label}
-              </span>
-            </div>
-            <div>
-              <div style={{ fontSize: "11px", color: "#9ca3af", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "3px" }}>Language</div>
-              <div style={{ fontSize: "13px", color: "#374151" }}>English</div>
-            </div>
-          </div>
+                <Divider />
+
+                <BlockStack gap="100">
+                  <Text as="h4" variant="headingSm">
+                    {previewTabId === "meta_title"
+                      ? "Meta Title Preview"
+                      : previewTabId === "meta_description"
+                        ? "Meta Description Preview"
+                        : "Description Preview"}
+                  </Text>
+                  {htmlPreview ? (
+                    <div
+                      style={{ border: "1px solid #e1e3e5", borderRadius: "8px", padding: "12px" }}
+                      // Safe: preview html comes from static template preview library.
+                      dangerouslySetInnerHTML={{ __html: wrapHtml(htmlPreview) }}
+                    />
+                  ) : isDescriptionPreview && descriptionPreview ? (
+                    <div style={{ border: "1px solid #e1e3e5", borderRadius: "8px", padding: "12px" }}>
+                      <BlockStack gap="200">
+                        <Text as="h5" variant="headingSm">{descriptionPreview.heading}</Text>
+                        {descriptionPreview.sections.map((section) => (
+                          <BlockStack key={section.title} gap="100">
+                            <Text as="h6" variant="bodyMd" fontWeight="semibold">{section.title}</Text>
+                            {section.paragraphs.map((paragraph, index) => (
+                              <Text key={`${section.title}-p-${index}`} as="p" variant="bodySm">{paragraph}</Text>
+                            ))}
+                            {section.points.length > 0 && (
+                              <ul style={{ margin: 0, paddingLeft: "18px" }}>
+                                {section.points.map((point, index) => (
+                                  <li key={`${section.title}-pt-${index}`}>
+                                    <Text as="span" variant="bodySm">{point}</Text>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </BlockStack>
+                        ))}
+                      </BlockStack>
+                    </div>
+                  ) : isMetaPreview ? (
+                    <div style={{ border: "1px solid #e1e3e5", borderRadius: "8px", padding: "12px" }}>
+                      <Text as="p" variant="bodySm">{metaPreviewText}</Text>
+                    </div>
+                  ) : null}
+                </BlockStack>
+              </BlockStack>
+            </Box>
+          </Card>
+
+          <Card>
+            <Box padding="300">
+              <BlockStack gap="200">
+                <Text as="h4" variant="headingSm">Template Details</Text>
+                <InlineStack gap="150">
+                  <Badge>{contentTypeLabel}</Badge>
+                  <Badge tone="info">{category}</Badge>
+                </InlineStack>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Length:{" "}
+                  <span style={{ color: length.color, fontWeight: 600, textTransform: "capitalize" }}>
+                    {length.label}
+                  </span>
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Characters: {currentTemplate.template.length}
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">Language: English</Text>
+              </BlockStack>
+            </Box>
+          </Card>
         </div>
-      </div>
-    </div>
+      )}
+    </BlockStack>
   );
 }
 
@@ -314,11 +372,21 @@ function PreviewPanel({ template, category, contentTypeLabel, contentTypeId, onC
 export function TemplateLibraryModal({ open, onClose, tabs, initialTab, templatesByTab, onUseTemplate }) {
   const [activeTab, setActiveTab] = useState(initialTab || (tabs?.[0]?.id ?? "description"));
   const [selectedCategory, setSelectedCategory] = useState("All");
-  const [previewTemplate, setPreviewTemplate] = useState(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewTabId, setPreviewTabId] = useState(initialTab || (tabs?.[0]?.id ?? "description"));
+  const [previewTemplateByTab, setPreviewTemplateByTab] = useState({});
+
+  useEffect(() => {
+    if (!open) return;
+    const initial = initialTab || (tabs?.[0]?.id ?? "description");
+    setActiveTab(initial);
+    setPreviewTabId(initial);
+    setSelectedCategory("All");
+    setIsPreviewOpen(false);
+  }, [open, initialTab, tabs]);
 
   if (!open) return null;
 
-  const activeTabLabel = tabs.find((t) => t.id === activeTab)?.label || activeTab;
   const currentTemplates = templatesByTab[activeTab] || [];
 
   // Derive categories
@@ -333,7 +401,7 @@ export function TemplateLibraryModal({ open, onClose, tabs, initialTab, template
   function handleTabChange(tabId) {
     setActiveTab(tabId);
     setSelectedCategory("All");
-    setPreviewTemplate(null);
+    setIsPreviewOpen(false);
   }
 
   function handleUse(template) {
@@ -341,195 +409,107 @@ export function TemplateLibraryModal({ open, onClose, tabs, initialTab, template
     onClose();
   }
 
+  const modalTabs = tabs.map((tab) => ({ id: tab.id, content: tab.label }));
+  const selectedModalTabIndex = Math.max(0, tabs.findIndex((tab) => tab.id === activeTab));
+
   return (
-    <div
-      style={{
-        position: "fixed", inset: 0, zIndex: 9999,
-        background: "rgba(0,0,0,0.55)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        padding: "16px",
-      }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="template-library-modal__dialog" style={{
-        background: "#fff",
-        borderRadius: "12px",
-        width: "min(94vw, 920px)",
-        maxHeight: "88vh",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        boxShadow: "0 24px 64px rgba(0,0,0,0.28)",
-        position: "relative",
-      }}>
-        {/* Preview overlay */}
-        {previewTemplate && (
+    <Modal open={open} onClose={onClose} title="Template Library" large>
+      <Modal.Section>
+        {isPreviewOpen ? (
           <PreviewPanel
-            template={previewTemplate}
-            category={getCategory(previewTemplate.id)}
-            contentTypeLabel={activeTabLabel}
-            contentTypeId={activeTab}
-            onClose={() => setPreviewTemplate(null)}
-            onUse={() => { handleUse(previewTemplate); }}
+            tabs={tabs}
+            initialTabId={previewTabId}
+            templatesByTab={templatesByTab}
+            previewTemplateByTab={previewTemplateByTab}
+            onBack={() => setIsPreviewOpen(false)}
+            onUse={handleUse}
           />
-        )}
-
-        {/* Header */}
-        <div style={{
-          padding: "16px 20px",
-          borderBottom: "1px solid #e5e7eb",
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          flexShrink: 0,
-        }}>
-          <span style={{ fontWeight: 700, fontSize: "16px", color: "#111" }}>Template Library</span>
-          <button
-            onClick={onClose}
-            style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "#6b7280", lineHeight: 1, padding: "4px 8px", borderRadius: "4px" }}
-          >✕</button>
-        </div>
-
-        {/* Tabs */}
-        {tabs.length > 1 && (
-          <div style={{ display: "flex", gap: "0", borderBottom: "1px solid #e5e7eb", padding: "0 20px", flexShrink: 0, overflowX: "auto" }}>
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                style={{
-                  padding: "10px 18px",
-                  border: "none",
-                  background: activeTab === tab.id ? "#000" : "none",
-                  cursor: "pointer",
-                  fontSize: "13px",
-                  fontWeight: activeTab === tab.id ? 600 : 400,
-                  color: activeTab === tab.id ? "#fff" : "#6b7280",
-                  borderRadius: "6px 6px 0 0",
-                  borderBottom: activeTab === tab.id ? "2px solid #1a1a1a" : "2px solid transparent",
-                  whiteSpace: "nowrap",
-                  transition: "color 0.15s, background 0.15s",
-                }}
-              >
-                {activeTab === tab.id && <span style={{ marginRight: "6px" }}>✓</span>}
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Body */}
-        <div className="template-library-modal__body" style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-          {/* Categories sidebar */}
-          <div className="template-library-modal__sidebar" style={{ width: "180px", borderRight: "1px solid #e5e7eb", overflowY: "auto", padding: "8px 0", flexShrink: 0 }}>
-            <div style={{ padding: "8px 16px 4px", fontSize: "11px", fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              Categories
-            </div>
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                style={{
-                  width: "100%",
-                  textAlign: "left",
-                  padding: "8px 16px",
-                  border: "none",
-                  background: selectedCategory === cat ? "#f3f4f6" : "none",
-                  cursor: "pointer",
-                  fontSize: "13px",
-                  fontWeight: selectedCategory === cat ? 600 : 400,
-                  color: selectedCategory === cat ? "#111" : "#374151",
-                  borderLeft: selectedCategory === cat ? "3px solid #1a1a1a" : "3px solid transparent",
-                  transition: "all 0.1s",
-                }}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-
-          {/* Templates grid */}
-          <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
-            <div style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ fontSize: "13px", fontWeight: 600, color: "#374151" }}>Templates</span>
-              <span style={{ background: "#e0f2fe", color: "#0369a1", borderRadius: "10px", padding: "2px 8px", fontSize: "11px", fontWeight: 600 }}>
-                {filtered.length} templates
-              </span>
-            </div>
-
-            {filtered.length === 0 ? (
-              <div style={{ padding: "40px 20px", textAlign: "center", color: "#9ca3af", fontSize: "14px" }}>
-                No templates in this category.
-              </div>
-            ) : (
-              <div className="app-card-grid" style={{ gap: "14px" }}>
-                {filtered.map((t) => (
-                  <div
-                    key={t.id}
-                    style={{
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "8px",
-                      padding: "14px",
-                      background: "#fff",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "8px",
-                      transition: "box-shadow 0.15s",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
-                      <span style={{ fontWeight: 600, fontSize: "13px", color: "#111", lineHeight: "1.4" }}>{t.name}</span>
-                      <span style={{
-                        background: "#f3f4f6", color: "#6b7280",
-                        borderRadius: "4px", padding: "2px 6px",
-                        fontSize: "11px", fontWeight: 500, flexShrink: 0,
-                      }}>
-                        {t.template.length}
-                      </span>
-                    </div>
-                    <p style={{ fontSize: "12px", color: "#6b7280", margin: 0, lineHeight: "1.45" }}>
-                      {t.description}
-                    </p>
-                    <div style={{ display: "flex", gap: "8px", marginTop: "auto" }}>
-                      <button
-                        onClick={() => handleUse(t)}
-                        style={{
-                          flex: 1, padding: "7px 10px",
-                          background: "#1a1a1a", color: "#fff",
-                          border: "none", borderRadius: "6px",
-                          cursor: "pointer", fontSize: "12px", fontWeight: 600,
-                        }}
-                      >
-                        Use Template
-                      </button>
-                      <button
-                        onClick={() => setPreviewTemplate(t)}
-                        style={{
-                          padding: "7px 10px",
-                          background: "#fff", color: "#374151",
-                          border: "1px solid #d1d5db", borderRadius: "6px",
-                          cursor: "pointer", fontSize: "12px",
-                          display: "flex", alignItems: "center", gap: "4px",
-                        }}
-                      >
-                        <span>👁</span> Preview
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+        ) : (
+          <BlockStack gap="300">
+            {tabs.length > 1 && (
+              <Tabs
+                tabs={modalTabs}
+                selected={selectedModalTabIndex}
+                onSelect={(index) => handleTabChange(tabs[index]?.id || activeTab)}
+              />
             )}
-          </div>
-        </div>
 
-        {/* Footer */}
-        <div className="template-library-modal__footer-actions" style={{ padding: "10px 20px", borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "flex-end", flexShrink: 0 }}>
-          <button
-            onClick={onClose}
-            style={{ padding: "8px 20px", background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
+            <div style={{ display: "grid", gridTemplateColumns: "220px minmax(0, 1fr)", gap: "12px", minHeight: "420px" }}>
+              <Card>
+                <Box padding="300">
+                  <BlockStack gap="200">
+                    <Text as="p" variant="bodySm" tone="subdued" fontWeight="semibold">Categories</Text>
+                    {categories.map((cat) => (
+                      <Button
+                        key={cat}
+                        fullWidth
+                        textAlign="left"
+                        variant={selectedCategory === cat ? "primary" : "secondary"}
+                        onClick={() => setSelectedCategory(cat)}
+                      >
+                        {cat}
+                      </Button>
+                    ))}
+                  </BlockStack>
+                </Box>
+              </Card>
+
+              <div style={{ overflowY: "auto", maxHeight: "58vh", paddingRight: "2px" }}>
+                <BlockStack gap="300">
+                  <InlineStack gap="200" blockAlign="center">
+                    <Text as="h3" variant="headingSm">Templates</Text>
+                    <Badge tone="info">{filtered.length} templates</Badge>
+                  </InlineStack>
+
+                  {filtered.length === 0 ? (
+                    <Card>
+                      <Box padding="400">
+                        <Text as="p" tone="subdued">No templates found in this category.</Text>
+                      </Box>
+                    </Card>
+                  ) : (
+                    <div className="app-card-grid" style={{ gap: "14px" }}>
+                      {filtered.map((template) => (
+                        <Card key={template.id}>
+                          <Box padding="300">
+                            <BlockStack gap="200">
+                              <InlineStack align="space-between" blockAlign="start" gap="200">
+                                <Text as="h4" variant="headingSm">{template.name}</Text>
+                                <Badge>{template.template.length}</Badge>
+                              </InlineStack>
+                              <Text as="p" variant="bodySm" tone="subdued">
+                                {template.description || "Template ready for use."}
+                              </Text>
+                              <InlineStack gap="200">
+                                <Button variant="primary" onClick={() => handleUse(template)}>
+                                  Use Template
+                                </Button>
+                                <Button
+                                  icon={ViewIcon}
+                                  onClick={() => {
+                                    setPreviewTemplateByTab((current) => ({
+                                      ...current,
+                                      [activeTab]: template,
+                                    }));
+                                    setPreviewTabId(activeTab);
+                                    setIsPreviewOpen(true);
+                                  }}
+                                >
+                                  Preview
+                                </Button>
+                              </InlineStack>
+                            </BlockStack>
+                          </Box>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </BlockStack>
+              </div>
+            </div>
+          </BlockStack>
+        )}
+      </Modal.Section>
+    </Modal>
   );
 }
