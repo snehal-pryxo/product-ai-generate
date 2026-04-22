@@ -41,6 +41,9 @@ import {
   writeStoredProductPromptTemplateSelection,
 } from "../lib/productPromptTemplateLibrary";
 import {
+  BLOG_BODY_TEMPLATES,
+  BLOG_META_DESCRIPTION_TEMPLATES,
+  BLOG_META_TITLE_TEMPLATES,
   getEmptyBlogTemplateSelection,
   writeStoredBlogPromptTemplateSelection,
 } from "../lib/blogPromptTemplateLibrary";
@@ -64,6 +67,7 @@ const RESOURCE_FILTERS = [
   { id: "product", label: "Product" },
   { id: "collection", label: "Collection" },
   { id: "page", label: "Page" },
+  { id: "blog", label: "Blog" },
 ];
 
 const TYPE_OPTIONS = [
@@ -83,6 +87,7 @@ const RESOURCE_SELECT_OPTIONS = [
   { label: "Product", value: "product" },
   { label: "Collection", value: "collection" },
   { label: "Page", value: "page" },
+  { label: "Blog", value: "blog" },
 ];
 
 const CUSTOM_TEMPLATES_KEY = "custom_prompt_templates_v1";
@@ -93,12 +98,23 @@ const TEMPLATE_SELECTIONS_DEFAULT = {
   blog: getEmptyBlogTemplateSelection(),
 };
 
+const TONE_OPTIONS = [
+  { label: "Not specified", value: "" },
+  { label: "Professional / Formal", value: "professional" },
+  { label: "Friendly / Casual", value: "friendly" },
+  { label: "Persuasive / Sales-focused", value: "persuasive" },
+  { label: "Informational / Technical", value: "informational" },
+];
+
 const EMPTY_CUSTOM_FORM = {
   name: "",
   description: "",
   resource: "product",
   type: "description",
   template: "",
+  tone: "",
+  language: "",
+  exampleOutput: "",
 };
 
 function normalizeObjectStringFields(value, fallback) {
@@ -123,7 +139,6 @@ function normalizeCustomTemplates(value) {
 
   return value
     .filter((entry) => entry && typeof entry === "object")
-    .filter((entry) => entry.resource !== "blog")
     .map((entry) => ({
       id: typeof entry.id === "string" ? entry.id : `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       name: typeof entry.name === "string" ? entry.name : "",
@@ -131,6 +146,9 @@ function normalizeCustomTemplates(value) {
       resource: typeof entry.resource === "string" ? entry.resource : "product",
       type: typeof entry.type === "string" ? entry.type : "description",
       template: typeof entry.template === "string" ? entry.template : "",
+      tone: typeof entry.tone === "string" ? entry.tone : "",
+      language: typeof entry.language === "string" ? entry.language : "",
+      exampleOutput: typeof entry.exampleOutput === "string" ? entry.exampleOutput : "",
       createdAt: typeof entry.createdAt === "number" ? entry.createdAt : Date.now(),
     }));
 }
@@ -224,6 +242,11 @@ const SYSTEM_TEMPLATE_MAP = {
     "seo-description": PAGE_META_DESCRIPTION_TEMPLATES,
     "seo-title": PAGE_META_TITLE_TEMPLATES,
   },
+  blog: {
+    description: BLOG_BODY_TEMPLATES,
+    "seo-description": BLOG_META_DESCRIPTION_TEMPLATES,
+    "seo-title": BLOG_META_TITLE_TEMPLATES,
+  },
 };
 
 function getSystemTemplates(resourceId, typeId) {
@@ -256,7 +279,7 @@ function dedupeTemplatesByName(templates) {
 function getActiveTemplateId(resourceId, typeId, selectionMap) {
   const sel = selectionMap[resourceId];
   if (!sel) return "";
-  const isBodyResource = resourceId === "page";
+  const isBodyResource = resourceId === "page" || resourceId === "blog";
   if (typeId === "description") return isBodyResource ? sel.bodyTemplateId : sel.descriptionTemplateId;
   if (typeId === "seo-description") return sel.metaDescriptionTemplateId;
   if (typeId === "seo-title") return sel.metaTitleTemplateId;
@@ -268,6 +291,23 @@ function saveCustomTemplates(templates) {
     window.localStorage.setItem(CUSTOM_TEMPLATES_KEY, JSON.stringify(templates));
   }
   return templates;
+}
+
+// Builds the final prompt text by embedding tone, language, and few-shot example
+// into the template. System templates without these fields are returned unchanged.
+function buildEffectiveTemplate(template) {
+  let effective = template.template || "";
+  if (template.tone) {
+    const toneLabel = TONE_OPTIONS.find((o) => o.value === template.tone)?.label || template.tone;
+    effective = `[Tone: Write in a ${toneLabel} tone throughout]\n${effective}`;
+  }
+  if (template.language) {
+    effective = `[Language: Generate all content in ${template.language}]\n${effective}`;
+  }
+  if (template.exampleOutput) {
+    effective = `${effective}\n\nExample output to match style and format:\n${template.exampleOutput}`;
+  }
+  return effective;
 }
 
 function typeLabel(typeId) {
@@ -615,7 +655,18 @@ function TemplateCard({ template, active, showResource, isCustom, isLoading, onP
               <Text as="h3" variant="bodyMd" fontWeight="semibold">
                 {template.name}
               </Text>
-              {showResource && <ResourceBadge resource={template.resource} />}
+              <InlineStack gap="100" wrap>
+                {showResource && <ResourceBadge resource={template.resource} />}
+                {template.tone && (
+                  <Badge tone="magic">{template.tone}</Badge>
+                )}
+                {template.language && (
+                  <Badge tone="info">{template.language}</Badge>
+                )}
+                {template.exampleOutput && (
+                  <Badge tone="warning">Few-shot</Badge>
+                )}
+              </InlineStack>
             </BlockStack>
             {active && <Badge tone="success">Active</Badge>}
           </InlineStack>
@@ -822,20 +873,24 @@ export default function TemplatePage() {
 
   async function applyTemplate(template, resourceId, typeId) {
     if (!template || !resourceId || !typeId) return;
-    
+
+    // Builds the effective prompt by prepending tone/language overrides and
+    // appending the few-shot example when they are set on a custom template.
+    const effectivePrompt = buildEffectiveTemplate(template);
+
     setIsLoading(true);
     try {
       if (resourceId === "product") {
         const next = { ...productSelection };
         if (typeId === "description") {
           next.descriptionTemplateId = template.id;
-          next.descriptionPromptTemplate = template.template;
+          next.descriptionPromptTemplate = effectivePrompt;
         } else if (typeId === "seo-title") {
           next.metaTitleTemplateId = template.id;
-          next.metaTitlePromptTemplate = template.template;
+          next.metaTitlePromptTemplate = effectivePrompt;
         } else if (typeId === "seo-description") {
           next.metaDescriptionTemplateId = template.id;
-          next.metaDescriptionPromptTemplate = template.template;
+          next.metaDescriptionPromptTemplate = effectivePrompt;
         }
         const normalized = writeStoredProductPromptTemplateSelection(next);
         setProductSelection(normalized);
@@ -857,13 +912,13 @@ export default function TemplatePage() {
         const next = { ...collectionSelection };
         if (typeId === "description") {
           next.descriptionTemplateId = template.id;
-          next.descriptionPromptTemplate = template.template;
+          next.descriptionPromptTemplate = effectivePrompt;
         } else if (typeId === "seo-title") {
           next.metaTitleTemplateId = template.id;
-          next.metaTitlePromptTemplate = template.template;
+          next.metaTitlePromptTemplate = effectivePrompt;
         } else if (typeId === "seo-description") {
           next.metaDescriptionTemplateId = template.id;
-          next.metaDescriptionPromptTemplate = template.template;
+          next.metaDescriptionPromptTemplate = effectivePrompt;
         }
         const normalized = writeStoredCollectionPromptTemplateSelection(next);
         setCollectionSelection(normalized);
@@ -885,13 +940,13 @@ export default function TemplatePage() {
         const next = { ...pageSelection };
         if (typeId === "description") {
           next.bodyTemplateId = template.id;
-          next.bodyPromptTemplate = template.template;
+          next.bodyPromptTemplate = effectivePrompt;
         } else if (typeId === "seo-title") {
           next.metaTitleTemplateId = template.id;
-          next.metaTitlePromptTemplate = template.template;
+          next.metaTitlePromptTemplate = effectivePrompt;
         } else if (typeId === "seo-description") {
           next.metaDescriptionTemplateId = template.id;
-          next.metaDescriptionPromptTemplate = template.template;
+          next.metaDescriptionPromptTemplate = effectivePrompt;
         }
         const normalized = writeStoredPagePromptTemplateSelection(next);
         setPageSelection(normalized);
@@ -913,13 +968,13 @@ export default function TemplatePage() {
         const next = { ...blogSelection };
         if (typeId === "description") {
           next.bodyTemplateId = template.id;
-          next.bodyPromptTemplate = template.template;
+          next.bodyPromptTemplate = effectivePrompt;
         } else if (typeId === "seo-title") {
           next.metaTitleTemplateId = template.id;
-          next.metaTitlePromptTemplate = template.template;
+          next.metaTitlePromptTemplate = effectivePrompt;
         } else if (typeId === "seo-description") {
           next.metaDescriptionTemplateId = template.id;
-          next.metaDescriptionPromptTemplate = template.template;
+          next.metaDescriptionPromptTemplate = effectivePrompt;
         }
         const normalized = writeStoredBlogPromptTemplateSelection(next);
         setBlogSelection(normalized);
@@ -973,6 +1028,9 @@ export default function TemplatePage() {
       resource: template.resource,
       type: template.type,
       template: template.template,
+      tone: template.tone || "",
+      language: template.language || "",
+      exampleOutput: template.exampleOutput || "",
     });
     setFormErrors({});
     setShowFormModal(true);
@@ -1339,6 +1397,25 @@ export default function TemplatePage() {
               helpText="Short description of what this template is for."
               disabled={isLoading}
             />
+            <FormLayout.Group>
+              <Select
+                label="Tone preference (optional)"
+                options={TONE_OPTIONS}
+                value={formData.tone}
+                onChange={(v) => setFormData((p) => ({ ...p, tone: v }))}
+                helpText="Override the default tone for AI generation when this template is used."
+                disabled={isLoading}
+              />
+              <TextField
+                label="Language (optional)"
+                value={formData.language}
+                onChange={(v) => setFormData((p) => ({ ...p, language: v }))}
+                placeholder="e.g. French, Spanish, German"
+                helpText="Generate content in a specific language when this template is applied."
+                autoComplete="off"
+                disabled={isLoading}
+              />
+            </FormLayout.Group>
             <TextField
               label="Template content"
               value={formData.template}
@@ -1348,6 +1425,15 @@ export default function TemplatePage() {
               autoComplete="off"
               helpText="Use [brackets] for structure placeholders and {curly_braces} for dynamic values."
               monospaced
+              disabled={isLoading}
+            />
+            <TextField
+              label="Example output (optional — few-shot prompting)"
+              value={formData.exampleOutput}
+              onChange={(v) => setFormData((p) => ({ ...p, exampleOutput: v }))}
+              multiline={6}
+              autoComplete="off"
+              helpText="Provide a reference example of ideal output. The AI will match this style and format (few-shot prompting)."
               disabled={isLoading}
             />
           </FormLayout>

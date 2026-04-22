@@ -134,6 +134,34 @@ export const PRODUCT_DESCRIPTION_TEMPLATES = [
     template:
       "[Common frustration with ordinary alternatives]\n[How this product is fundamentally different]\n[Advantage 1 vs. the standard option]\n[Advantage 2 vs. the standard option]\n[Advantage 3 vs. the standard option]\n[Verified proof point or test result]\n[Who makes the switch and why]\n[Call to action: upgrade today]\nKey features and benefits: Differentiation and Value",
   },
+  {
+    id: "tone-professional",
+    name: "Professional Tone",
+    description: "Formal, authoritative copy suited for B2B or enterprise-grade products.",
+    template:
+      "[Tone: Write in a formal, professional tone throughout]\n[Product name and formal purpose statement]\n[Technical capability or quality specification]\n[Feature 1 described with precision and clarity]\n[Feature 2 described with measurable benefit]\n[Feature 3 described with professional context]\n[Compliance, certification, or reliability assurance]\n[Professional-grade application or industry use case]\n[Formal closing call to action]\nKey features and benefits: Professional Quality",
+  },
+  {
+    id: "tone-friendly",
+    name: "Friendly & Casual Tone",
+    description: "Warm, approachable copy for lifestyle and consumer-facing brands.",
+    template:
+      "[Tone: Write in a warm, friendly, conversational tone throughout]\n[Relatable opening that speaks directly to the reader]\n[Why customers genuinely love it]\n[What makes everyday use better — first point]\n[What makes everyday use better — second point]\n[Easy-to-understand outcome or benefit]\n[Who it is perfect for in casual language]\n[Easy, inviting call to action]\nKey features and benefits: Everyday Value",
+  },
+  {
+    id: "tone-persuasive",
+    name: "Persuasive & Sales-Focused",
+    description: "High-conversion copy using urgency, proof, and persuasion triggers.",
+    template:
+      "[Tone: Write in a bold, persuasive, sales-driven tone throughout]\n[Powerful opening claim that grabs immediate attention]\n[Key problem this product solves with urgency framing]\n[Strongest differentiator 1 with immediate benefit]\n[Strongest differentiator 2 with immediate benefit]\n[Social proof, reviews, or customer milestone]\n[Risk reversal: money-back, warranty, or satisfaction guarantee]\n[Strong CTA with urgency or scarcity element]\nKey features and benefits: Conversion and Value",
+  },
+  {
+    id: "tone-informational",
+    name: "Informational / Technical",
+    description: "Fact-based, specification-driven copy for technical buyers and researchers.",
+    template:
+      "[Tone: Write in a clear, factual, informational tone throughout]\n[Product category and primary functional purpose]\n[Key technical specification 1 with unit of measurement]\n[Key technical specification 2 with unit of measurement]\n[Key technical specification 3 with unit of measurement]\n[Compatibility, integration, or certification detail]\n[Performance benchmark or validated test data]\n[Recommended professional use case or application context]\nKey features and benefits: Specifications and Accuracy",
+  },
 ];
 
 export const PRODUCT_META_DESCRIPTION_TEMPLATES = [
