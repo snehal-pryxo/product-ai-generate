@@ -1838,8 +1838,6 @@ export default function TemplatePage() {
                     borderRadius: "8px",
                     padding: "20px 24px",
                     background: "#fafafa",
-                    maxHeight: "600px",
-                    overflowY: "auto",
                     lineHeight: "1.6",
                   }}
                   // Safe: content is authored statically in this file, never user input
@@ -1852,8 +1850,6 @@ export default function TemplatePage() {
                     borderRadius: "8px",
                     padding: "20px 24px",
                     background: "#fafafa",
-                    maxHeight: "600px",
-                    overflowY: "auto",
                   }}
                 >
                   <BlockStack gap="300">
