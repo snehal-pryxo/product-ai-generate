@@ -243,7 +243,7 @@ function DashboardFeatureCard({ icon, title, desc, url, badge, badgeTone }) {
         <Text as="p" variant="bodySm" tone="subdued">
           {desc}
         </Text>
-        <InlineStack align="end">
+        <InlineStack align="start">
           <Button size="slim" onClick={() => navigate({ pathname: url, search: location.search })}>
             Open
           </Button>
@@ -378,7 +378,7 @@ export default function Index() {
                   autoComplete="off"
                   placeholder="Tell us what worked well and what we can improve."
                 />
-                <InlineStack align="end" gap="200">
+                <InlineStack align="start" gap="200">
                   <Button size="slim" onClick={handleDismissReviewPopup} disabled={isSubmittingReview || isDismissingReview}>
                     Not now
                   </Button>
@@ -422,7 +422,7 @@ export default function Index() {
                 </Text>
               </BlockStack>
 
-              <BlockStack gap="150" inlineAlign="end" className="dashboard-hero-actions-col">
+              <BlockStack gap="150" inlineAlign="start" className="dashboard-hero-actions-col">
                 <div style={{ display: "inline-flex" }}>
                   <Badge tone="info">{credits} credits</Badge>
                 </div>
@@ -509,7 +509,7 @@ export default function Index() {
                       <BlockStack gap="200">
                         <Select label="AI model" options={aiModelOptions} value={selectedModel} onChange={setSelectedModel} />
                       </BlockStack>
-                      <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end" }}>
+                      <div style={{ marginTop: 14, display: "flex", justifyContent: "start" }}>
                         <Button size="slim" submit variant="primary" loading={isSaving} disabled={isSaving}>
                           {isSaving ? "Saving..." : "Save model"}
                         </Button>
