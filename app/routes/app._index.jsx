@@ -7,6 +7,7 @@ import {
   useNavigation,
   useNavigate,
   useLocation,
+  useRouteLoaderData,
 } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
@@ -55,6 +56,8 @@ export const loader = async ({ request }) => {
       createdAt: true,
       reviewSubmittedAt: true,
       reviewPromptDismissedAt: true,
+      ownerName: true,
+      name: true,
     },
   });
 
@@ -69,11 +72,25 @@ export const loader = async ({ request }) => {
       !shopData.reviewPromptDismissedAt,
   );
 
+  const shopDomain = String(session.shop || "").trim();
+  const shopHandle = shopDomain.split(".")[0] || "Shop Owner";
+  const fallbackOwnerName = shopHandle
+    .split(/[-_]+/g)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+  const shopOwnerName =
+    (shopData?.ownerName || "").trim() ||
+    (shopData?.name || "").trim() ||
+    fallbackOwnerName ||
+    "Shop Owner";
+
   return {
     defaultAiModel: shopData?.defaultAiModel || envDefaultAiModel,
     envDefaultAiModel,
     shouldShowReviewPopup,
     hasSubmittedReview: Boolean(shopData?.reviewSubmittedAt),
+    shopOwnerName,
   };
 };
 
@@ -291,12 +308,14 @@ function QuickActionCard({ icon, title, description, ctaLabel, onClick }) {
 }
 
 export default function Index() {
-  const { defaultAiModel, envDefaultAiModel, shouldShowReviewPopup, hasSubmittedReview } = useLoaderData();
+  const { defaultAiModel, envDefaultAiModel, shouldShowReviewPopup, hasSubmittedReview, shopOwnerName } = useLoaderData();
+  const layoutData = useRouteLoaderData("routes/app");
   const actionData = useActionData();
   const reviewFetcher = useFetcher();
   const navigation = useNavigation();
   const navigate = useNavigate();
   const location = useLocation();
+  const credits = layoutData?.credits ?? 0;
   const isSaving = navigation.state === "submitting";
 
   const [selectedModel, setSelectedModel] = useState(() =>
@@ -392,6 +411,37 @@ export default function Index() {
             </reviewFetcher.Form>
           </Modal.Section>
         </Modal>
+
+        <Card>
+          <div className="dashboard-welcome-card">
+            <div className="dashboard-hero-layout">
+              <BlockStack gap="100">
+                <Text as="h3" variant="headingLg">
+                  Hi {shopOwnerName} !
+                </Text>
+                <Text as="p" variant="bodyMd" tone="subdued">
+                  Manage your apps and generate high-converting AI content for your store.
+                </Text>
+              </BlockStack>
+
+              <div className="dashboard-hero-actions-col">
+                <div className="dashboard-credit-pill">
+                  <Icon source={StarFilledIcon} tone="subdued" />
+                  <Text as="span" variant="bodyMd" tone="subdued">
+                    {credits} credits.
+                  </Text>
+                  <button
+                    type="button"
+                    className="dashboard-upgrade-link"
+                    onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}
+                  >
+                    Upgrade
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Card>
 
         {actionData ? (
           <Banner tone={actionData.success ? "success" : "critical"}>
