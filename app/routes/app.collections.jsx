@@ -778,6 +778,7 @@ async function upsertCollectionGeneratedContent({
   descriptionHtml,
   seoTitle,
   seoDescription,
+  creditsUsed,
   appliedToCollection,
 }) {
   try {
@@ -804,6 +805,7 @@ async function upsertCollectionGeneratedContent({
         descriptionHtml,
         seoTitle,
         seoDescription,
+        creditsUsed: typeof creditsUsed === "number" ? creditsUsed : 0,
         appliedToCollection,
       },
       update: {
@@ -820,6 +822,7 @@ async function upsertCollectionGeneratedContent({
         descriptionHtml,
         seoTitle,
         seoDescription,
+        creditsUsed: typeof creditsUsed === "number" ? creditsUsed : 0,
         appliedToCollection,
       },
     });
