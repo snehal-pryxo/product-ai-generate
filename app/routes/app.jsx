@@ -1,9 +1,10 @@
 import { useEffect } from "react";
-import { Outlet, useFetchers, useLoaderData, useNavigation, useRouteError } from "react-router";
+import { Outlet, useFetchers, useLoaderData, useLocation, useNavigate, useNavigation, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider as ShopifyAppProvider } from "@shopify/shopify-app-react-router/react";
-import { AppProvider as PolarisProvider, Spinner, Text } from "@shopify/polaris";
+import { AppProvider as PolarisProvider, Icon, Spinner, Text } from "@shopify/polaris";
 import enTranslations from "@shopify/polaris/locales/en.json";
+import { StarFilledIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { getDefaultGlobalSettings, writeGlobalSettings } from "../lib/globalSettings";
@@ -21,6 +22,44 @@ import {
 } from "../lib/pagePromptTemplateLibrary";
 
 const CUSTOM_TEMPLATES_KEY = "custom_prompt_templates_v1";
+const PAGE_HEADER_CONTENT = {
+  "/app": {
+    title: "Dashboard",
+    description: "Manage your apps and generate high-converting AI content for your store.",
+  },
+  "/app/products": {
+    title: "Products Generator",
+    description: "Create optimized product titles, descriptions, and SEO fields in one flow.",
+  },
+  "/app/collections": {
+    title: "Collections Generator",
+    description: "Generate keyword-focused collection copy for better discoverability.",
+  },
+  "/app/pages": {
+    title: "Pages Generator",
+    description: "Build clear, conversion-friendly page content for your storefront.",
+  },
+  "/app/blog": {
+    title: "Blogs Generator",
+    description: "Draft and improve blog content to support SEO and customer education.",
+  },
+  "/app/content-management": {
+    title: "Content Management",
+    description: "Review, edit, and manage generated content across all resources.",
+  },
+  "/app/template": {
+    title: "Template",
+    description: "Set and manage reusable prompt templates for consistent output quality.",
+  },
+  "/app/analytics": {
+    title: "Analytics",
+    description: "Track content generation usage, credits, and performance trends.",
+  },
+  "/app/settings": {
+    title: "Settings",
+    description: "Configure default models, preferences, and app behavior.",
+  },
+};
 
 function normalizeGlobalSettings(value) {
   const defaults = getDefaultGlobalSettings();
@@ -54,6 +93,8 @@ export const loader = async ({ request }) => {
       customPromptTemplatesJson: true,
       credits: true,
       creditsUsedTotal: true,
+      ownerName: true,
+      name: true,
     },
   });
 
@@ -76,6 +117,19 @@ export const loader = async ({ request }) => {
     parsedCustomTemplates = [];
   }
 
+  const shopDomain = String(session.shop || "").trim();
+  const shopHandle = shopDomain.split(".")[0] || "Shop Owner";
+  const fallbackOwnerName = shopHandle
+    .split(/[-_]+/g)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+  const shopOwnerName =
+    (shopData?.ownerName || "").trim() ||
+    (shopData?.name || "").trim() ||
+    fallbackOwnerName ||
+    "Shop Owner";
+
   // eslint-disable-next-line no-undef
   return {
     apiKey: process.env.SHOPIFY_API_KEY || "",
@@ -84,14 +138,21 @@ export const loader = async ({ request }) => {
     customTemplates: normalizeCustomTemplates(parsedCustomTemplates),
     credits: shopData?.credits ?? 100,
     creditsUsedTotal: shopData?.creditsUsedTotal ?? 0,
+    shopOwnerName,
   };
 };
 
 export default function App() {
-  const { apiKey, globalSettings, templateSelections, customTemplates } = useLoaderData();
+  const { apiKey, globalSettings, templateSelections, customTemplates, credits, shopOwnerName } = useLoaderData();
   const navigation = useNavigation();
+  const location = useLocation();
+  const navigate = useNavigate();
   const fetchers = useFetchers();
   const isBusy = navigation.state !== "idle" || fetchers.some((fetcher) => fetcher.state !== "idle");
+  const pageMeta = PAGE_HEADER_CONTENT[location.pathname] || {
+    title: "Page",
+    description: "Manage your store content and settings from this section.",
+  };
 
   useEffect(() => {
     // Keep localStorage mirrored with DB values for client-side pages using local settings utilities.
@@ -116,6 +177,39 @@ export default function App() {
           <s-link href="/app/analytics">Analytics</s-link>
           <s-link href="/app/settings">Settings</s-link>
         </s-app-nav>
+        <div style={{ padding: "16px 16px 0" }}>
+          <div className="dashboard-welcome-card">
+            <div className="dashboard-hero-layout">
+              <div>
+                <Text as="h3" variant="headingLg">
+                  Hi {shopOwnerName} !
+                </Text>
+                <Text as="h2" variant="headingSm">
+                  {pageMeta.title}
+                </Text>
+                <Text as="p" variant="bodyMd" tone="subdued">
+                  {pageMeta.description}
+                </Text>
+              </div>
+
+              <div className="dashboard-hero-actions-col">
+                <div className="dashboard-credit-pill">
+                  <Icon source={StarFilledIcon} tone="subdued" />
+                  <Text as="span" variant="bodyMd" tone="subdued">
+                    {credits} credits.
+                  </Text>
+                  <button
+                    type="button"
+                    className="dashboard-upgrade-link"
+                    onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}
+                  >
+                    Upgrade
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         {isBusy && (
           <div
             style={{
