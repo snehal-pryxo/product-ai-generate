@@ -1228,7 +1228,7 @@ export default function CollectionsPage() {
   const shopify = useAppBridge();
   const [searchValue, setSearchValue] = useState(filters.search);
   const [fallbackCollections, setFallbackCollections] = useState(collections);
-  const [bulkDescTemplate, setBulkDescTemplate] = useState(DEFAULT_DESCRIPTION_CUSTOM_PROMPT);
+  const [bulkDescTemplate, setBulkDescTemplate] = useState("");
   const [bulkMetaDescTemplate, setBulkMetaDescTemplate] = useState("");
   const [bulkMetaTitleTemplate, setBulkMetaTitleTemplate] = useState("");
   const [bulkSettings, setBulkSettings] = useState(() => {
@@ -1268,10 +1268,6 @@ export default function CollectionsPage() {
 
   useEffect(() => {
     const templateSelection = readStoredCollectionPromptTemplateSelection();
-    if (templateSelection.descriptionPromptTemplate) {
-      setBulkDescTemplate(templateSelection.descriptionPromptTemplate);
-      setUseCustomDescInstructions(true);
-    }
     if (templateSelection.metaTitlePromptTemplate) {
       setBulkMetaTitleTemplate(templateSelection.metaTitlePromptTemplate);
       setUseCustomMetaTitleInstructions(true);
@@ -1647,7 +1643,7 @@ export default function CollectionsPage() {
                 borderRadius: "12px",
                 overflow: "hidden",
                 background: "#fff",
-                width: "100%",
+                width: "fit-content",
               }}
             >
               {sectionTabs.map((tab, index) => {
@@ -1857,12 +1853,7 @@ export default function CollectionsPage() {
                   <Checkbox
                     label={<span>Use custom instructions <span style={{ color: "#f59e0b", fontSize: "14px" }}>✦</span></span>}
                     checked={useCustomDescInstructions}
-                    onChange={(v) => {
-                      setUseCustomDescInstructions(v);
-                      if (v && !(bulkDescTemplate || "").trim()) {
-                        setBulkDescTemplate(DEFAULT_DESCRIPTION_CUSTOM_PROMPT);
-                      }
-                    }}
+                    onChange={setUseCustomDescInstructions}
                   />
                   {!useCustomDescInstructions && (
                     <button
@@ -1897,7 +1888,7 @@ export default function CollectionsPage() {
                         Browse Templates
                       </button>
                       <button
-                        onClick={() => { setBulkDescTemplate(DEFAULT_DESCRIPTION_CUSTOM_PROMPT); setUseCustomDescInstructions(false); }}
+                        onClick={() => { setBulkDescTemplate(""); setUseCustomDescInstructions(false); }}
                         style={{ padding: "6px 14px", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}
                       >
                         Reset to Default
