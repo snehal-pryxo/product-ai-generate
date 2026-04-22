@@ -548,9 +548,11 @@ export default function Index() {
                       <Text as="p" variant="bodySm" tone="subdued">
                         {app.desc}
                       </Text>
-                      <Button size="slim" url={app.url} external icon={ExternalIcon}>
-                        Add app
-                      </Button>
+                      <InlineStack align="start">
+                        <Button size="slim" url={app.url} external icon={ExternalIcon}>
+                          Add app
+                        </Button>
+                      </InlineStack>
                     </BlockStack>
                   </Card>
                 </Grid.Cell>
@@ -574,14 +576,16 @@ export default function Index() {
                     <Text as="p" variant="bodySm" tone="subdued">
                       Get help with app setup, best practices, and growth recommendations.
                     </Text>
-                    <Button
-                      size="slim"
-                      url="https://outlook.office.com/book/ShopifyGrowthConsultationCall@m2webdesigning.com/?ismsaljsauthenabled=true"
-                      external
-                      variant="primary"
-                    >
-                      Schedule call
-                    </Button>
+                    <InlineStack align="start">
+                      <Button
+                        size="slim"
+                        url="https://outlook.office.com/book/ShopifyGrowthConsultationCall@m2webdesigning.com/?ismsaljsauthenabled=true"
+                        external
+                        variant="primary"
+                      >
+                        Schedule call
+                      </Button>
+                    </InlineStack>
                   </BlockStack>
                 </Card>
               </Grid.Cell>
