@@ -363,6 +363,7 @@ export default function Index() {
           open={isReviewModalOpen}
           onClose={handleDismissReviewPopup}
           title="How is your experience with Product AI?"
+          large
         >
           <Modal.Section>
             <reviewFetcher.Form method="post">

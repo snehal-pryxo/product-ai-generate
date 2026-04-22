@@ -252,7 +252,7 @@ function PreviewPanel({
           </Box>
         </Card>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 280px", gap: "12px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 340px", gap: "12px", minHeight: "62vh" }}>
           <Card>
             <Box padding="300">
               <BlockStack gap="300">
@@ -413,7 +413,7 @@ export function TemplateLibraryModal({ open, onClose, tabs, initialTab, template
   const selectedModalTabIndex = Math.max(0, tabs.findIndex((tab) => tab.id === activeTab));
 
   return (
-    <Modal open={open} onClose={onClose} title="Template Library" large>
+    <Modal open={open} onClose={onClose} title="Template Library" large limitHeight={false}>
       <Modal.Section>
         {isPreviewOpen ? (
           <PreviewPanel
@@ -434,7 +434,7 @@ export function TemplateLibraryModal({ open, onClose, tabs, initialTab, template
               />
             )}
 
-            <div style={{ display: "grid", gridTemplateColumns: "220px minmax(0, 1fr)", gap: "12px", minHeight: "420px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "260px minmax(0, 1fr)", gap: "12px", minHeight: "62vh" }}>
               <Card>
                 <Box padding="300">
                   <BlockStack gap="200">
@@ -454,7 +454,7 @@ export function TemplateLibraryModal({ open, onClose, tabs, initialTab, template
                 </Box>
               </Card>
 
-              <div style={{ overflowY: "auto", maxHeight: "58vh", paddingRight: "2px" }}>
+              <div style={{ overflowY: "auto", maxHeight: "70vh", paddingRight: "2px" }}>
                 <BlockStack gap="300">
                   <InlineStack gap="200" blockAlign="center">
                     <Text as="h3" variant="headingSm">Templates</Text>

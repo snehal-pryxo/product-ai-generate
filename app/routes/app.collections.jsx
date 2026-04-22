@@ -1258,6 +1258,8 @@ export default function CollectionsPage() {
   const [addTitleAsHeading, setAddTitleAsHeading] = useState(false);
   const [preserveOldDescription, setPreserveOldDescription] = useState(false);
   const [removeImagesFromDescription, setRemoveImagesFromDescription] = useState(false);
+  const [queueStatusById, setQueueStatusById] = useState({});
+  const queueIntervalRef = useRef(null);
   const [statusTabIndex, setStatusTabIndex] = useState(0);
 
   useEffect(() => {
@@ -1358,6 +1360,27 @@ export default function CollectionsPage() {
 
     setBulkValidationMessage(null);
     setBulkResult(null);
+    const initialQueueState = {};
+    selectedCollections.forEach((collection, index) => {
+      initialQueueState[collection.id] = index === 0 ? "processing" : "queued";
+    });
+    setQueueStatusById(initialQueueState);
+    if (queueIntervalRef.current) clearInterval(queueIntervalRef.current);
+    let processingIndex = 0;
+    queueIntervalRef.current = setInterval(() => {
+      processingIndex += 1;
+      setQueueStatusById((prev) => {
+        const next = { ...prev };
+        if (selectedCollections[processingIndex - 1] && next[selectedCollections[processingIndex - 1].id] === "processing") {
+          next[selectedCollections[processingIndex - 1].id] = "queued";
+        }
+        if (selectedCollections[processingIndex] && next[selectedCollections[processingIndex].id] === "queued") {
+          next[selectedCollections[processingIndex].id] = "processing";
+        }
+        return next;
+      });
+    }, 1400);
+
     const payload = new FormData();
     payload.append("intent", BULK_GENERATE_INTENT);
     payload.append("collections", JSON.stringify(
@@ -1404,6 +1427,7 @@ export default function CollectionsPage() {
     addTitleAsHeading,
     preserveOldDescription,
     removeImagesFromDescription,
+    selectedCollections,
   ]);
 
   const isBulkGenerating = bulkFetcher.state !== "idle";
@@ -1417,7 +1441,18 @@ export default function CollectionsPage() {
     const response = bulkFetcher.data;
     if (!response || response.intent !== BULK_GENERATE_INTENT || bulkResultHandledRef.current) return;
     bulkResultHandledRef.current = true;
+    if (queueIntervalRef.current) {
+      clearInterval(queueIntervalRef.current);
+      queueIntervalRef.current = null;
+    }
     setBulkResult(response);
+    if (response.results && Array.isArray(response.results)) {
+      const settledQueueState = {};
+      response.results.forEach((item) => {
+        settledQueueState[item.id] = item.status === "success" ? "completed" : "failed";
+      });
+      setQueueStatusById((prev) => ({ ...prev, ...settledQueueState }));
+    }
     if (response.ok) {
       setBulkValidationMessage(null);
       revalidator.revalidate();
@@ -1431,6 +1466,10 @@ export default function CollectionsPage() {
     }
     setBulkValidationMessage(response.error || "Bulk generation failed.");
   }, [bulkFetcher.state, bulkFetcher.data, navigate, revalidator, shopify]);
+
+  useEffect(() => () => {
+    if (queueIntervalRef.current) clearInterval(queueIntervalRef.current);
+  }, []);
 
   useEffect(() => {
     if (selectedCollections.length > MAX_BULK_ITEMS) {
@@ -1699,7 +1738,7 @@ export default function CollectionsPage() {
         </div>
 
         {/* ── RIGHT: Bulk Settings Panel ── */}
-        <div className="app-split-side" style={{ flex: "0 0 420px", width: "420px", maxWidth: "100%" }}>
+        <div className="app-split-side" style={{ flex: "1 1 0", width: "420px", maxWidth: "100%" }}>
           <Card padding="0">
             {/* Header */}
             <div style={{ padding: "16px", borderBottom: "1px solid var(--p-color-border)" }}>
@@ -1717,6 +1756,9 @@ export default function CollectionsPage() {
 
             {/* Content Type Pills */}
             <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+              <Text as="p" variant="bodySm" tone="subdued" style={{ marginBottom: "8px" }}>
+                Flow: Select Collections → Choose Content Types → Configure Prompt/Tone/Language → Check Credits → Generate → Queue Progress → Content Management
+              </Text>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
                 {[
                   { id: "description", label: "Description" },
@@ -1753,6 +1795,21 @@ export default function CollectionsPage() {
                     </button>
                   );
                 })}
+                <button
+                  disabled
+                  style={{
+                    padding: "5px 14px",
+                    borderRadius: "20px",
+                    border: "1px solid #d1d5db",
+                    background: "#f3f4f6",
+                    color: "#9ca3af",
+                    cursor: "not-allowed",
+                    fontSize: "13px",
+                    fontWeight: 500,
+                  }}
+                >
+                  Alt Text (Soon)
+                </button>
               </div>
             </div>
 
@@ -2008,6 +2065,34 @@ export default function CollectionsPage() {
                   {bulkResult.succeeded}/{bulkResult.total} updated
                   {bulkResult.failed > 0 ? ` · ${bulkResult.failed} failed` : ""}
                 </Badge>
+              </div>
+            )}
+
+            <div style={{ padding: "8px 16px", borderTop: "1px solid var(--p-color-border)" }}>
+              <Text as="p" variant="bodySm" tone="subdued">
+                Estimated credits: {selectedCollections.length * bulkContentTypes.length} ({selectedCollections.length} collections × {bulkContentTypes.length} types)
+              </Text>
+            </div>
+
+            {selectedCollections.length > 0 && (
+              <div style={{ padding: "8px 16px", borderTop: "1px solid var(--p-color-border)" }}>
+                <BlockStack gap="100">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text as="p" variant="bodySm" fontWeight="semibold">Queue Progress</Text>
+                    {isBulkGenerating && <Spinner size="small" />}
+                  </InlineStack>
+                  {selectedCollections.slice(0, 10).map((collection) => {
+                    const status = queueStatusById[collection.id] || "queued";
+                    const tone = status === "completed" ? "success" : status === "failed" ? "critical" : status === "processing" ? "attention" : "info";
+                    const label = status === "processing" ? "Processing" : status === "completed" ? "Completed" : status === "failed" ? "Failed" : "Queued";
+                    return (
+                      <InlineStack key={collection.id} align="space-between" blockAlign="center">
+                        <Text as="span" variant="bodySm" tone="subdued">{collection.title}</Text>
+                        <Badge tone={tone}>{label}</Badge>
+                      </InlineStack>
+                    );
+                  })}
+                </BlockStack>
               </div>
             )}
 
