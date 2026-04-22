@@ -1756,11 +1756,6 @@ export default function CollectionsPage() {
                     </button>
                   );
                 })}
-                {[{ label: "Collection Title" }, { label: "Collection Tags" }].map((item) => (
-                  <span key={item.label} style={{ fontSize: "13px", color: "#6b7280", display: "flex", alignItems: "center", gap: "4px" }}>
-                    <span style={{ fontSize: "11px" }}>•</span> {item.label}
-                  </span>
-                ))}
               </div>
             </div>
 
