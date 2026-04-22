@@ -567,7 +567,12 @@ canvas {
 }
 
 .dashboard-welcome-card {
+  background: #ffffff;
   padding: 14px 16px;
+}
+
+.dashboard-welcome-card .Polaris-Text {
+  color: #000000 !important;
 }
 
 .dashboard-credit-pill {
@@ -575,7 +580,7 @@ canvas {
   align-items: center;
   gap: 8px;
   border: 1px solid #e5e7eb;
-  background: #f8f9fb;
+  background: #ffffff;
   border-radius: 12px;
   padding: 8px 12px;
 }
@@ -588,7 +593,7 @@ canvas {
 .dashboard-upgrade-link {
   border: 0;
   background: transparent;
-  color: #2563eb;
+  color: #000000;
   font-size: inherit;
   line-height: inherit;
   font-weight: 600;
@@ -598,8 +603,8 @@ canvas {
 }
 
 .dashboard-upgrade-link:hover {
-  color: #1d4ed8;
-  text-decoration: underline;
+  color: #000000;
+  text-decoration: none;
 }
 
 .dashboard-inline-title {
