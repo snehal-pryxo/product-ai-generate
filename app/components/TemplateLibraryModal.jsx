@@ -415,6 +415,11 @@ export function TemplateLibraryModal({ open, onClose, tabs, initialTab, template
   return (
     <>
       <style>{`
+      @media (max-width: 1440px) {
+          .template-library-modal--wide .Polaris-Modal-Dialog__Modal {
+            width: 60vw !important;
+          }
+      }
         .template-library-modal--wide .Polaris-Modal-Dialog__Modal {
           width: min(96vw, 1440px) !important;
           max-width: calc(100vw - 24px) !important;
@@ -425,7 +430,7 @@ export function TemplateLibraryModal({ open, onClose, tabs, initialTab, template
         open={open}
         onClose={onClose}
         title="Template Library"
-        large
+        size="large"
         limitHeight={false}
       >
         <Modal.Section>

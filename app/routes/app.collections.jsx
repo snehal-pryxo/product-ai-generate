@@ -104,6 +104,27 @@ Html format should be like this:
 {Benefits text here}
 </p>`;
 
+const DEFAULT_META_DESCRIPTION_CUSTOM_PROMPT = `Write an SEO-friendly meta description for the given collection.
+
+Requirements:
+- Keep length between 120 and 160 characters.
+- Include the main collection keyword naturally.
+- Highlight one clear shopper benefit.
+- Use persuasive but trustworthy language.
+- Add a simple call to action.
+
+Output only the final meta description text.`;
+
+const DEFAULT_META_TITLE_CUSTOM_PROMPT = `Write an SEO-friendly meta title for the given collection.
+
+Requirements:
+- Keep length between 50 and 60 characters.
+- Include the primary collection keyword near the beginning.
+- Make it clear, readable, and compelling for search results.
+- Avoid keyword stuffing and clickbait.
+
+Output only the final meta title text.`;
+
 const TONE_OPTIONS = [
   { label: "Professional", value: "professional" },
   { label: "Friendly", value: "friendly" },
@@ -1853,7 +1874,10 @@ export default function CollectionsPage() {
                   <Checkbox
                     label={<span>Use custom instructions <span style={{ color: "#f59e0b", fontSize: "14px" }}>✦</span></span>}
                     checked={useCustomDescInstructions}
-                    onChange={setUseCustomDescInstructions}
+                    onChange={(v) => {
+                      setUseCustomDescInstructions(v);
+                      if (v) setBulkDescTemplate(DEFAULT_DESCRIPTION_CUSTOM_PROMPT);
+                    }}
                   />
                   {!useCustomDescInstructions && (
                     <button
@@ -1888,7 +1912,7 @@ export default function CollectionsPage() {
                         Browse Templates
                       </button>
                       <button
-                        onClick={() => { setBulkDescTemplate(""); setUseCustomDescInstructions(false); }}
+                        onClick={() => { setBulkDescTemplate(DEFAULT_DESCRIPTION_CUSTOM_PROMPT); setUseCustomDescInstructions(true); }}
                         style={{ padding: "6px 14px", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}
                       >
                         Reset to Default
@@ -1907,7 +1931,10 @@ export default function CollectionsPage() {
                   <Checkbox
                     label={<span>Use custom instructions <span style={{ color: "#f59e0b", fontSize: "14px" }}>✦</span></span>}
                     checked={useCustomMetaDescInstructions}
-                    onChange={(v) => setUseCustomMetaDescInstructions(v)}
+                    onChange={(v) => {
+                      setUseCustomMetaDescInstructions(v);
+                      if (v) setBulkMetaDescTemplate(DEFAULT_META_DESCRIPTION_CUSTOM_PROMPT);
+                    }}
                   />
                   {!useCustomMetaDescInstructions && (
                     <button
@@ -1942,7 +1969,7 @@ export default function CollectionsPage() {
                         Browse Templates
                       </button>
                       <button
-                        onClick={() => { setBulkMetaDescTemplate(""); setUseCustomMetaDescInstructions(false); }}
+                        onClick={() => { setBulkMetaDescTemplate(DEFAULT_META_DESCRIPTION_CUSTOM_PROMPT); setUseCustomMetaDescInstructions(true); }}
                         style={{ padding: "6px 14px", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}
                       >
                         Reset to Default
@@ -1961,7 +1988,10 @@ export default function CollectionsPage() {
                   <Checkbox
                     label={<span>Use custom instructions <span style={{ color: "#f59e0b", fontSize: "14px" }}>✦</span></span>}
                     checked={useCustomMetaTitleInstructions}
-                    onChange={(v) => setUseCustomMetaTitleInstructions(v)}
+                    onChange={(v) => {
+                      setUseCustomMetaTitleInstructions(v);
+                      if (v) setBulkMetaTitleTemplate(DEFAULT_META_TITLE_CUSTOM_PROMPT);
+                    }}
                   />
                   {!useCustomMetaTitleInstructions && (
                     <button
@@ -1996,7 +2026,7 @@ export default function CollectionsPage() {
                         Browse Templates
                       </button>
                       <button
-                        onClick={() => { setBulkMetaTitleTemplate(""); setUseCustomMetaTitleInstructions(false); }}
+                        onClick={() => { setBulkMetaTitleTemplate(DEFAULT_META_TITLE_CUSTOM_PROMPT); setUseCustomMetaTitleInstructions(true); }}
                         style={{ padding: "6px 14px", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}
                       >
                         Reset to Default
