@@ -41,13 +41,6 @@ import {
   writeStoredProductPromptTemplateSelection,
 } from "../lib/productPromptTemplateLibrary";
 import {
-  BLOG_BODY_TEMPLATES,
-  BLOG_META_DESCRIPTION_TEMPLATES,
-  BLOG_META_TITLE_TEMPLATES,
-  getEmptyBlogTemplateSelection,
-  writeStoredBlogPromptTemplateSelection,
-} from "../lib/blogPromptTemplateLibrary";
-import {
   PAGE_BODY_TEMPLATES,
   PAGE_META_DESCRIPTION_TEMPLATES,
   PAGE_META_TITLE_TEMPLATES,
@@ -67,7 +60,6 @@ const RESOURCE_FILTERS = [
   { id: "product", label: "Product" },
   { id: "collection", label: "Collection" },
   { id: "page", label: "Page" },
-  { id: "blog", label: "Blog" },
 ];
 
 const TYPE_OPTIONS = [
@@ -80,14 +72,12 @@ const RESOURCE_BADGE_TONE = {
   product: "info",
   collection: "warning",
   page: "success",
-  blog: "attention",
 };
 
 const RESOURCE_SELECT_OPTIONS = [
   { label: "Product", value: "product" },
   { label: "Collection", value: "collection" },
   { label: "Page", value: "page" },
-  { label: "Blog", value: "blog" },
 ];
 
 const CUSTOM_TEMPLATES_KEY = "custom_prompt_templates_v1";
@@ -95,7 +85,6 @@ const TEMPLATE_SELECTIONS_DEFAULT = {
   product: getEmptyTemplateSelection(),
   collection: getEmptyCollectionTemplateSelection(),
   page: getEmptyPageTemplateSelection(),
-  blog: getEmptyBlogTemplateSelection(),
 };
 
 const TONE_OPTIONS = [
@@ -130,7 +119,6 @@ function normalizeTemplateSelections(value) {
     product: normalizeObjectStringFields(input.product, TEMPLATE_SELECTIONS_DEFAULT.product),
     collection: normalizeObjectStringFields(input.collection, TEMPLATE_SELECTIONS_DEFAULT.collection),
     page: normalizeObjectStringFields(input.page, TEMPLATE_SELECTIONS_DEFAULT.page),
-    blog: normalizeObjectStringFields(input.blog, TEMPLATE_SELECTIONS_DEFAULT.blog),
   };
 }
 
@@ -242,11 +230,6 @@ const SYSTEM_TEMPLATE_MAP = {
     "seo-description": PAGE_META_DESCRIPTION_TEMPLATES,
     "seo-title": PAGE_META_TITLE_TEMPLATES,
   },
-  blog: {
-    description: BLOG_BODY_TEMPLATES,
-    "seo-description": BLOG_META_DESCRIPTION_TEMPLATES,
-    "seo-title": BLOG_META_TITLE_TEMPLATES,
-  },
 };
 
 function getSystemTemplates(resourceId, typeId) {
@@ -279,7 +262,7 @@ function dedupeTemplatesByName(templates) {
 function getActiveTemplateId(resourceId, typeId, selectionMap) {
   const sel = selectionMap[resourceId];
   if (!sel) return "";
-  const isBodyResource = resourceId === "page" || resourceId === "blog";
+  const isBodyResource = resourceId === "page";
   if (typeId === "description") return isBodyResource ? sel.bodyTemplateId : sel.descriptionTemplateId;
   if (typeId === "seo-description") return sel.metaDescriptionTemplateId;
   if (typeId === "seo-title") return sel.metaTitleTemplateId;
@@ -1100,16 +1083,6 @@ const SERP_TITLE_EXAMPLES = {
   "page-mt-action-benefit": "Get Your Gaming Laptop — Upgrade to Real Performance Today",
   "page-mt-question-style": "Which Gaming Laptop Is Best for Creators? | Avada Tech",
   "page-mt-trust": "Trusted by 50,000+ Customers | Avada Tech Gaming Laptops",
-  // Blog SEO titles
-  "blog-mt-how-to": "How to Choose the Right Gaming Laptop in 2026 | Avada Tech",
-  "blog-mt-complete-guide": "Gaming Laptops: The Complete Buyer's Guide (2026 Edition)",
-  "blog-mt-tips": "7 Tips for Getting the Best Performance from Your Gaming Laptop",
-  "blog-mt-comparison": "RTX 4080 vs RTX 4070: Best Choice for Editing and Gaming",
-  "blog-mt-best-for": "Best Gaming Laptops for Professional Creators in 2026",
-  "blog-mt-question-style": "Which Gaming Laptop Lasts Longest? | Avada Tech Guide",
-  "blog-mt-beginner-friendly": "Gaming Laptops for Beginners: Everything You Need to Know",
-  "blog-mt-year-edition": "Gaming Laptops in 2026: What's Actually Worth Buying",
-  "blog-mt-case-study": "How One Creator Cut Render Times by 60% with a Laptop Upgrade",
 };
 
 // ── SERP preview examples for SEO description templates ──────────────────────
@@ -1143,15 +1116,6 @@ const SERP_DESCRIPTION_EXAMPLES = {
   "page-md-trust-signal": "Avada Tech — trusted by 50,000+ creators since 2018. See our story, our team, and why professionals choose our laptops for demanding work.",
   "page-md-concise-seo": "Avada Tech gaming laptops: RTX 4080 performance, DCI-P3 displays, 3-year warranties. Founded 2018. San Francisco. Free shipping worldwide.",
   "page-md-action-oriented": "Ready to upgrade? Browse Avada Tech's full gaming laptop lineup. Filter by GPU, display, and budget. Free shipping and 30-day returns on all orders.",
-  // Blog SEO descriptions
-  "blog-md-learn-outcome": "Learn how to choose the right gaming laptop in this comprehensive 2026 buyer's guide. GPU comparison, display specs, and real-world performance benchmarks.",
-  "blog-md-problem-solution": "Struggling to find a gaming laptop that doesn't throttle? This article explains what to look for and which specs actually matter under sustained workloads.",
-  "blog-md-listicle": "Discover 7 key tips on gaming laptop performance and start getting more out of your machine today. Practical, tested advice for gamers and creators.",
-  "blog-md-expert-tips": "Get expert-backed insights on gaming laptop selection, including GPU TGP ratings, display calibration, and upgradeability — and practical next steps.",
-  "blog-md-action-cta": "Gaming laptop buying simplified: GPU tiers, display specs, and budget breakpoints explained clearly. Read now and buy with confidence.",
-  "blog-md-story-hook": "One creator's honest experience testing 14 gaming laptops in 6 months about finding one that actually delivers on its spec sheet. A story that could change how you shop.",
-  "blog-md-curiosity-gap": "Most people buy gaming laptops wrong. Discover the one spec manufacturers hide in the footnotes — and what to check before you spend a dollar.",
-  "blog-md-quick-wins": "Quick wins for gaming laptop performance: three settings changes that take under 5 minutes and can add 15–25% to your frame rates. Apply today.",
 };
 
 function getPreviewHtml(templateId, resourceId, typeId) {
@@ -1366,7 +1330,6 @@ export default function TemplatePage() {
   const [productSelection, setProductSelection] = useState(() => initialSelections.product);
   const [collectionSelection, setCollectionSelection] = useState(() => initialSelections.collection);
   const [pageSelection, setPageSelection] = useState(() => initialSelections.page);
-  const [blogSelection, setBlogSelection] = useState(() => initialSelections.blog);
 
   // Preview modal
   const [previewData, setPreviewData] = useState(null);
@@ -1400,7 +1363,6 @@ export default function TemplatePage() {
     writeStoredProductPromptTemplateSelection(initialSelections.product);
     writeStoredCollectionPromptTemplateSelection(initialSelections.collection);
     writeStoredPagePromptTemplateSelection(initialSelections.page);
-    writeStoredBlogPromptTemplateSelection(initialSelections.blog);
     saveCustomTemplates(initialCustomTemplates);
   }, [initialSelections, initialCustomTemplates]);
 
@@ -1409,9 +1371,8 @@ export default function TemplatePage() {
       product: productSelection,
       collection: collectionSelection,
       page: pageSelection,
-      blog: blogSelection,
     }),
-    [productSelection, collectionSelection, pageSelection, blogSelection],
+    [productSelection, collectionSelection, pageSelection],
   );
 
   useEffect(() => {
@@ -1487,7 +1448,6 @@ export default function TemplatePage() {
             product: normalized,
             collection: collectionSelection,
             page: pageSelection,
-            blog: blogSelection,
           },
           customTemplates,
         );
@@ -1515,7 +1475,6 @@ export default function TemplatePage() {
             product: productSelection,
             collection: normalized,
             page: pageSelection,
-            blog: blogSelection,
           },
           customTemplates,
         );
@@ -1543,40 +1502,11 @@ export default function TemplatePage() {
             product: productSelection,
             collection: collectionSelection,
             page: normalized,
-            blog: blogSelection,
           },
           customTemplates,
         );
         showConfigSavedMessage();
         shopify.toast.show(`${template.name} applied to pages.`);
-        return;
-      }
-
-      if (resourceId === "blog") {
-        const next = { ...blogSelection };
-        if (typeId === "description") {
-          next.bodyTemplateId = template.id;
-          next.bodyPromptTemplate = effectivePrompt;
-        } else if (typeId === "seo-title") {
-          next.metaTitleTemplateId = template.id;
-          next.metaTitlePromptTemplate = effectivePrompt;
-        } else if (typeId === "seo-description") {
-          next.metaDescriptionTemplateId = template.id;
-          next.metaDescriptionPromptTemplate = effectivePrompt;
-        }
-        const normalized = writeStoredBlogPromptTemplateSelection(next);
-        setBlogSelection(normalized);
-        await persistTemplateConfiguration(
-          {
-            product: productSelection,
-            collection: collectionSelection,
-            page: pageSelection,
-            blog: normalized,
-          },
-          customTemplates,
-        );
-        showConfigSavedMessage();
-        shopify.toast.show(`${template.name} applied to blog posts.`);
         return;
       }
     } catch (error) {
@@ -1651,7 +1581,6 @@ export default function TemplatePage() {
             product: productSelection,
             collection: collectionSelection,
             page: pageSelection,
-            blog: blogSelection,
           },
           normalized,
         );
@@ -1671,7 +1600,6 @@ export default function TemplatePage() {
             product: productSelection,
             collection: collectionSelection,
             page: pageSelection,
-            blog: blogSelection,
           },
           normalized,
         );
@@ -1698,7 +1626,6 @@ export default function TemplatePage() {
           product: productSelection,
           collection: collectionSelection,
           page: pageSelection,
-          blog: blogSelection,
         },
         normalized,
       );
@@ -1960,30 +1887,6 @@ export default function TemplatePage() {
                   </BlockStack>
                 </div>
               ) : null}
-            </BlockStack>
-
-            {/* ── Template structure (collapsible) ─────────────────────────── */}
-            <BlockStack gap="150">
-              <Text as="p" variant="bodySm" fontWeight="semibold">
-                Template structure
-              </Text>
-              <div
-                style={{
-                  background: "#f3f4f6",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "6px",
-                  padding: "12px 14px",
-                  fontFamily: "monospace",
-                  fontSize: "12px",
-                  lineHeight: "1.7",
-                  color: "#374151",
-                  whiteSpace: "pre-wrap",
-                  maxHeight: "160px",
-                  overflowY: "auto",
-                }}
-              >
-                {previewData?.template || ""}
-              </div>
             </BlockStack>
 
             {/* Actions */}
