@@ -163,7 +163,6 @@ export function buildDescriptionStructuredPreview(template, templateName = "", o
 
   return {
     heading,
-    subheading: `Generated dynamically from the selected template structure (${targetWordCount}+ words preview).`,
     sections,
   };
 }

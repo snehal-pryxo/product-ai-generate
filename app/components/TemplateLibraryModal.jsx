@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { buildDescriptionStructuredPreview, buildMetaPreviewText } from "../lib/templatePreviewFormat";
+import { getPreviewHtml, wrapHtml } from "../lib/templatePreviewLibrary";
 
 // ─── Category mapping by template ID ────────────────────────────────────────
 const TEMPLATE_CATEGORIES = {
@@ -11,6 +12,10 @@ const TEMPLATE_CATEGORIES = {
   "premium-luxury-product": "Brands & Luxury",
   "budget-friendly-product": "Product Categories",
   "seasonal-limited-edition": "Seasonal & Events",
+  "storytelling-narrative": "Marketing & Sales",
+  "social-proof-focus": "Marketing & Sales",
+  "gift-occasion": "Seasonal & Events",
+  "competitive-differentiation": "Marketing & Sales",
   // Product Meta Description
   "md-basic-benefit": "Marketing & Sales",
   "md-problem-solution": "Marketing & Sales",
@@ -24,6 +29,9 @@ const TEMPLATE_CATEGORIES = {
   "md-elevation": "SEO Optimized",
   "md-discovery": "Marketing & Sales",
   "md-variety-options": "Product Categories",
+  "md-guarantee-assurance": "Marketing & Sales",
+  "md-gift-occasion": "Seasonal & Events",
+  "md-social-proof": "Marketing & Sales",
   // Product Meta Title
   "mt-benefit-first": "SEO Optimized",
   "mt-product-feature": "Technical & Specs",
@@ -33,6 +41,9 @@ const TEMPLATE_CATEGORIES = {
   "mt-quality-value": "Product Categories",
   "mt-usage-occasion": "Lifestyle & Emotion",
   "mt-promo": "Seasonal & Events",
+  "mt-review-signal": "Marketing & Sales",
+  "mt-best-for-audience": "Product Categories",
+  "mt-gift-intent": "Seasonal & Events",
   // Collection Description
   "col-problem-solution": "Marketing & Sales",
   "col-technical-specifications": "Technical & Specs",
@@ -42,6 +53,9 @@ const TEMPLATE_CATEGORIES = {
   "col-budget-friendly-product": "Product Categories",
   "col-seasonal-limited-edition": "Seasonal & Events",
   "col-collection-comparison": "Product Categories",
+  "col-gift-guide": "Seasonal & Events",
+  "col-new-arrivals": "Marketing & Sales",
+  "col-bestsellers-curated": "Marketing & Sales",
   // Collection Meta Title
   "col-mt-benefit-first": "SEO Optimized",
   "col-mt-category-seo": "SEO Optimized",
@@ -58,6 +72,9 @@ const TEMPLATE_CATEGORIES = {
   "col-md-experience": "Lifestyle & Emotion",
   "col-md-occasion-based": "Lifestyle & Emotion",
   "col-md-discovery": "Marketing & Sales",
+  "col-md-new-arrivals": "Marketing & Sales",
+  "col-md-gift-guide": "Seasonal & Events",
+  "col-md-bestsellers": "Marketing & Sales",
   // Tone & Style templates
   "tone-professional": "Tone & Style",
   "tone-friendly": "Tone & Style",
@@ -101,6 +118,10 @@ const TEMPLATE_CATEGORIES = {
   "page-body-contact-conversion": "Contact",
   "page-body-landing-offer": "Marketing",
   "page-body-comparison": "Comparison",
+  "page-body-team": "Brand & About",
+  "page-body-testimonials": "Marketing & Sales",
+  "page-body-press-media": "Brand & About",
+  "page-body-size-guide": "FAQ & Support",
   // Page Meta Description
   "page-md-benefit-first": "SEO Optimized",
   "page-md-problem-solution": "Marketing",
@@ -137,6 +158,11 @@ function PreviewPanel({ template, category, contentTypeLabel, contentTypeId, onC
     () => buildDescriptionStructuredPreview(template, template?.name || ""),
     [template],
   );
+  const htmlPreview = useMemo(() => {
+    const resourceId = template.id.startsWith("col-") ? "collection" : template.id.startsWith("page-") ? "page" : "product";
+    const typeId = contentTypeId === "meta_title" ? "seo-title" : contentTypeId === "meta_description" ? "seo-description" : contentTypeId;
+    return getPreviewHtml(template.id, resourceId, typeId);
+  }, [template, contentTypeId]);
   return (
     <div className="template-library-modal__preview" style={{
       position: "absolute", inset: 0, zIndex: 20,
@@ -175,7 +201,19 @@ function PreviewPanel({ template, category, contentTypeLabel, contentTypeId, onC
             </div>
           </div>
 
-          {isDescriptionPreview && descriptionPreview && (
+          {htmlPreview ? (
+            <div style={{ marginTop: "16px" }}>
+              <div style={{ fontWeight: 700, fontSize: "13px", color: "#111", marginBottom: "8px" }}>
+                {isMetaPreview
+                  ? (contentTypeId === "meta_title" ? "Meta Title Preview:" : "Meta Description Preview:")
+                  : "Descriptions will look like this:"}
+              </div>
+              <div
+                style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "14px 16px" }}
+                dangerouslySetInnerHTML={{ __html: wrapHtml(htmlPreview) }}
+              />
+            </div>
+          ) : isDescriptionPreview && descriptionPreview ? (
             <div style={{ marginTop: "16px" }}>
               <div style={{ fontWeight: 700, fontSize: "13px", color: "#111", marginBottom: "8px" }}>
                 Descriptions will look like this:
@@ -220,9 +258,7 @@ function PreviewPanel({ template, category, contentTypeLabel, contentTypeId, onC
                 ))}
               </div>
             </div>
-          )}
-
-          {isMetaPreview && (
+          ) : isMetaPreview ? (
             <div style={{ marginTop: "16px" }}>
               <div style={{ fontWeight: 700, fontSize: "13px", color: "#111", marginBottom: "8px" }}>
                 {contentTypeId === "meta_title" ? "Meta Title Preview:" : "Meta Description Preview:"}
@@ -231,7 +267,7 @@ function PreviewPanel({ template, category, contentTypeLabel, contentTypeId, onC
                 {metaPreviewText}
               </div>
             </div>
-          )}
+          ) : null}
         </div>
 
         {/* Right: sidebar details */}
