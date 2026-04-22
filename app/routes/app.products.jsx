@@ -1850,7 +1850,8 @@ export default function ProductsPage() {
                     <div style={{ marginTop: "4px" }}>
                       <TextField
                         label="Custom Prompt" labelHidden
-                        multiline={5}
+                        multiline={8}
+                        minLength={0}
                         value={bulkDescTemplate}
                         onChange={setBulkDescTemplate}
                         autoComplete="off"
@@ -1901,7 +1902,8 @@ export default function ProductsPage() {
                     <div style={{ marginTop: "4px" }}>
                       <TextField
                         label="Custom Prompt" labelHidden
-                        multiline={5}
+                        multiline={8}
+                        minLength={0}
                         value={bulkMetaDescTemplate}
                         onChange={setBulkMetaDescTemplate}
                         autoComplete="off"
@@ -1952,7 +1954,8 @@ export default function ProductsPage() {
                     <div style={{ marginTop: "4px" }}>
                       <TextField
                         label="Custom Prompt" labelHidden
-                        multiline={5}
+                        multiline={8}
+                        minLength={0}
                         value={bulkMetaTitleTemplate}
                         onChange={setBulkMetaTitleTemplate}
                         autoComplete="off"

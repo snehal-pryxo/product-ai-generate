@@ -1799,7 +1799,8 @@ export default function CollectionsPage() {
                     <div style={{ marginTop: "4px" }}>
                       <TextField
                         label="Custom Prompt" labelHidden
-                        multiline={5}
+                        multiline={8}
+                        minLength={0}
                         value={bulkDescTemplate}
                         onChange={setBulkDescTemplate}
                         autoComplete="off"
@@ -1850,7 +1851,8 @@ export default function CollectionsPage() {
                     <div style={{ marginTop: "4px" }}>
                       <TextField
                         label="Custom Prompt" labelHidden
-                        multiline={5}
+                        multiline={8}
+                        minLength={0}
                         value={bulkMetaDescTemplate}
                         onChange={setBulkMetaDescTemplate}
                         autoComplete="off"
@@ -1901,7 +1903,8 @@ export default function CollectionsPage() {
                     <div style={{ marginTop: "4px" }}>
                       <TextField
                         label="Custom Prompt" labelHidden
-                        multiline={5}
+                        multiline={8}
+                        minLength={0}
                         value={bulkMetaTitleTemplate}
                         onChange={setBulkMetaTitleTemplate}
                         autoComplete="off"
@@ -2042,14 +2045,15 @@ export default function CollectionsPage() {
 
       <style>{`
         .collections-table-wrap .Polaris-IndexTable__ScrollContainer {
-          overflow-x: auto !important;
+          overflow-x: hidden;
         }
-        .collections-table-wrap .Polaris-IndexTable__TableCell {
-          white-space: nowrap !important;
+        .collections-table-wrap .Polaris-IndexTable__Table {
+          width: 100%;
+          table-layout: fixed;
         }
         .collections-title-cell {
           max-width: 240px;
-          white-space: normal !important;
+          white-space: normal;
           overflow-wrap: anywhere;
           display: -webkit-box;
           -webkit-line-clamp: 2;

@@ -188,16 +188,12 @@ canvas {
 }
 
 .app-table-scroll .Polaris-IndexTable__ScrollContainer {
-  overflow-x: auto !important;
-  -webkit-overflow-scrolling: touch;
+  overflow-x: hidden;
 }
 
 .app-table-scroll .Polaris-IndexTable__Table {
-  min-width: 640px;
-}
-
-.app-table-scroll .Polaris-IndexTable__TableCell {
-  white-space: nowrap;
+  width: 100%;
+  table-layout: fixed;
 }
 
 .app-modal-dropdown {
