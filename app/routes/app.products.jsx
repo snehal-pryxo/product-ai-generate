@@ -1273,12 +1273,15 @@ export default function ProductsPage() {
     const templateSelection = readStoredProductPromptTemplateSelection();
     if (templateSelection.descriptionPromptTemplate) {
       setBulkDescTemplate(templateSelection.descriptionPromptTemplate);
+      setUseCustomDescInstructions(true);
     }
     if (templateSelection.metaTitlePromptTemplate) {
       setBulkMetaTitleTemplate(templateSelection.metaTitlePromptTemplate);
+      setUseCustomMetaTitleInstructions(true);
     }
     if (templateSelection.metaDescriptionPromptTemplate) {
       setBulkMetaDescTemplate(templateSelection.metaDescriptionPromptTemplate);
+      setUseCustomMetaDescInstructions(true);
     }
   }, []);
 
@@ -1577,10 +1580,10 @@ export default function ProductsPage() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", zIndex: 1, flexWrap: "wrap", gap: "16px" }}>
           <div>
             <div style={{ fontSize: "24px", fontWeight: 800, color: "#111827", marginBottom: "4px", letterSpacing: "-0.3px" }}>
-              Hi {shopOwnerName} !
+              Products
             </div>
             <div style={{ fontSize: "14px", color: "#6b7280", lineHeight: 1.4, fontWeight: 600 }}>
-              Manage your apps and generate high-converting AI content for your store.
+              Generate AI-powered product descriptions, meta titles, and meta descriptions.
             </div>
           </div>
           <InlineStack gap="200" blockAlign="center">
@@ -1590,6 +1593,20 @@ export default function ProductsPage() {
             </Button>
           </InlineStack>
         </div>
+      </div>
+
+      <div style={{ marginBottom: "16px" }}>
+        <Card>
+          <BlockStack gap="300">
+            <Text as="p" variant="bodyMd" fontWeight="semibold">
+              Choose individual products or an entire collection to generate AI-powered content
+            </Text>
+            <BlockStack gap="100">
+              <Text as="p" variant="bodySm" tone="subdued">- You can select multiple products (up to {MAX_BULK_ITEMS}) for bulk content generation</Text>
+              <Text as="p" variant="bodySm" tone="subdued">- You can choose a single collection to generate content for all its products</Text>
+            </BlockStack>
+          </BlockStack>
+        </Card>
       </div>
 
       <div
@@ -1604,24 +1621,20 @@ export default function ProductsPage() {
       >
         {/* ── LEFT: Product List ── */}
         <div className="app-split-main" style={{ flex: "1 1 0", minWidth: "0" }}>
-          {/* Instructions Card */}
-          <div style={{ marginBottom: "16px" }}>
-            <Card>
-              <BlockStack gap="300">
-                <Text as="p" variant="bodyMd" fontWeight="semibold">
-                  Choose individual products or an entire collection to generate AI-powered content
-                </Text>
-                <BlockStack gap="100">
-                  <Text as="p" variant="bodySm" tone="subdued">• You can select multiple products (up to {MAX_BULK_ITEMS}) for bulk content generation</Text>
-                  <Text as="p" variant="bodySm" tone="subdued">• You can choose a single collection to generate content for all its products</Text>
-                </BlockStack>
-              </BlockStack>
-            </Card>
-          </div>
-
           {/* Products / Collections tab */}
           <div className="app-toolbar" style={{ marginBottom: "16px", alignItems: "stretch" }}>
-            <div className="app-toolbar-fixed" style={{ display: "flex", border: "1px solid #d1d5db", borderRadius: "10px", overflow: "hidden", background: "#fff", minWidth: "180px" }}>
+            <div
+              className="app-toolbar-fixed"
+              style={{
+                display: "flex",
+                alignItems: "stretch",
+                border: "1px solid #d1d5db",
+                borderRadius: "12px",
+                overflow: "hidden",
+                background: "#fff",
+                width: "100%",
+              }}
+            >
               {sectionTabs.map((tab, index) => {
                 const isActive = activeSectionPath === tab.path;
                 return (
@@ -1632,8 +1645,10 @@ export default function ProductsPage() {
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
+                      justifyContent: "center",
                       gap: "6px",
-                      padding: "6px 14px",
+                      minWidth: "140px",
+                      padding: "8px 16px",
                       border: "none",
                       borderRight: index < sectionTabs.length - 1 ? "1px solid #e5e7eb" : "none",
                       background: isActive ? "#000000" : "#e5e7eb",
@@ -1643,11 +1658,14 @@ export default function ProductsPage() {
                       cursor: "pointer",
                     }}
                   >
-                    <Icon source={tab.icon} tone={isActive ? "accent" : "subdued"} />
+                    <span style={{ display: "inline-flex", color: isActive ? "#ffffff" : "#6b7280" }}>
+                      <Icon source={tab.icon} />
+                    </span>
                     {tab.label}
                   </button>
                 );
               })}
+              <div style={{ flex: "1 1 auto", background: "#ffffff" }} />
             </div>
           </div>
 
@@ -1655,13 +1673,15 @@ export default function ProductsPage() {
             <BlockStack gap="0">
               <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
                 <InlineStack align="space-between" blockAlign="center" wrap={false} gap="300">
-                  <Tabs
-                    tabs={statusTabs}
-                    selected={statusTabIndex}
-                    onSelect={handleTabChange}
-                  />
-                  <InlineStack gap="200" blockAlign="center">
-                    <div style={{ minWidth: "210px", width: "210px" }}>
+                  <div style={{ flexShrink: 0 }}>
+                    <Tabs
+                      tabs={statusTabs}
+                      selected={statusTabIndex}
+                      onSelect={handleTabChange}
+                    />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: "1 1 0", minWidth: 0, justifyContent: "flex-end" }}>
+                    <div style={{ width: "260px", flexShrink: 0 }}>
                       <Select
                         label="Filter by Collection"
                         labelHidden
@@ -1671,8 +1691,8 @@ export default function ProductsPage() {
                       />
                     </div>
                     {showProductSearchBar ? (
-                      <InlineStack gap="100" blockAlign="center">
-                        <div className="app-toolbar-grow" style={{ minWidth: "260px", maxWidth: "420px" }}>
+                      <>
+                        <div style={{ flex: "1 1 0", minWidth: "280px" }}>
                           <TextField
                             label="Search products"
                             labelHidden
@@ -1689,7 +1709,7 @@ export default function ProductsPage() {
                           accessibilityLabel="Close search"
                           onClick={() => setShowProductSearchBar(false)}
                         />
-                      </InlineStack>
+                      </>
                     ) : (
                       <Button
                         icon={SearchIcon}
@@ -1698,7 +1718,7 @@ export default function ProductsPage() {
                         onClick={() => setShowProductSearchBar(true)}
                       />
                     )}
-                  </InlineStack>
+                  </div>
                 </InlineStack>
               </div>
 
@@ -1866,7 +1886,12 @@ export default function ProductsPage() {
                   <Checkbox
                     label={<span>Use custom instructions <span style={{ color: "#f59e0b", fontSize: "14px" }}>✦</span></span>}
                     checked={useCustomDescInstructions}
-                    onChange={(v) => { setUseCustomDescInstructions(v); if (v) setBulkDescTemplate(DEFAULT_DESCRIPTION_CUSTOM_PROMPT); }}
+                    onChange={(v) => {
+                      setUseCustomDescInstructions(v);
+                      if (v && !(bulkDescTemplate || "").trim()) {
+                        setBulkDescTemplate(DEFAULT_DESCRIPTION_CUSTOM_PROMPT);
+                      }
+                    }}
                   />
                   {!useCustomDescInstructions && (
                     <button
@@ -1884,6 +1909,8 @@ export default function ProductsPage() {
                       <TextField
                         label="Custom Prompt" labelHidden
                         multiline={8}
+                        autoSize={false}
+                        maxHeight={240}
                         minLength={0}
                         value={bulkDescTemplate}
                         onChange={setBulkDescTemplate}
@@ -1936,6 +1963,8 @@ export default function ProductsPage() {
                       <TextField
                         label="Custom Prompt" labelHidden
                         multiline={8}
+                        autoSize={false}
+                        maxHeight={240}
                         minLength={0}
                         value={bulkMetaDescTemplate}
                         onChange={setBulkMetaDescTemplate}
@@ -1988,6 +2017,8 @@ export default function ProductsPage() {
                       <TextField
                         label="Custom Prompt" labelHidden
                         multiline={8}
+                        autoSize={false}
+                        maxHeight={240}
                         minLength={0}
                         value={bulkMetaTitleTemplate}
                         onChange={setBulkMetaTitleTemplate}
@@ -2204,6 +2235,15 @@ export default function ProductsPage() {
       )}
 
       <style>{`
+        .products-table-wrap {
+          max-height: 62vh;
+          overflow-y: auto;
+          overflow-x: hidden;
+        }
+        .app-table-scroll {
+          max-height: 62vh;
+          overflow: auto;
+        }
         .products-table-wrap .Polaris-IndexTable__ScrollContainer {
           overflow-x: hidden;
         }
@@ -2253,6 +2293,7 @@ export default function ProductsPage() {
     </Page>
   );
 }
+
 
 
 

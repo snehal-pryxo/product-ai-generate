@@ -416,7 +416,7 @@ export function TemplateLibraryModal({ open, onClose, tabs, initialTab, template
     <>
       <style>{`
         .template-library-modal--wide .Polaris-Modal-Dialog__Modal {
-          width: min(96vw, 1280px) !important;
+          width: min(96vw, 1440px) !important;
           max-width: calc(100vw - 24px) !important;
         }
       `}</style>

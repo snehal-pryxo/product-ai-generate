@@ -18,6 +18,7 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
+import { AppPageHeader } from "../components/AppPageHeader";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { getDefaultGlobalSettings } from "../lib/globalSettings";
@@ -849,6 +850,10 @@ export default function BlogPage() {
   return (
     <Page title="Blogs" subtitle="Generate, review, edit, and save blog posts with Shopify + database sync.">
       <BlockStack gap="400">
+        <AppPageHeader
+          title="Blogs"
+          description="Generate, review, edit, and save blog posts with Shopify + database sync."
+        />
         {message ? (
           <Banner tone="success" onDismiss={() => setMessage("")}>
             <Text as="p">{message}</Text>

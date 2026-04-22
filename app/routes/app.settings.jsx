@@ -19,6 +19,7 @@ import {
   getDefaultGlobalSettings,
   writeGlobalSettings,
 } from "../lib/globalSettings";
+import { AppPageHeader } from "../components/AppPageHeader";
 
 function normalizeGlobalSettings(value) {
   const defaults = getDefaultGlobalSettings();
@@ -156,6 +157,10 @@ export default function SettingsPage() {
       secondaryActions={[{ content: "Back", onAction: () => navigate("/app") }]}
     >
       <BlockStack gap="600">
+        <AppPageHeader
+          title="Settings"
+          description="Configure global defaults for AI content generation."
+        />
         {saveMessage && (
           <Banner tone={saveMessage.tone}>
             <Text as="p">{saveMessage.text}</Text>

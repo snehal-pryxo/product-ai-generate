@@ -25,6 +25,7 @@ import {
 } from "@shopify/polaris";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
+import { AppPageHeader } from "../components/AppPageHeader";
 import db from "../db.server";
 import {
   COLLECTION_DESCRIPTION_TEMPLATES,
@@ -1796,6 +1797,10 @@ export default function TemplatePage() {
       title="Templates"
       subtitle="Manage prompt templates for AI content generation."
     >
+      <AppPageHeader
+        title="Templates"
+        description="Manage prompt templates for AI content generation."
+      />
       {configMessage && (
         <div style={{ marginBottom: "16px" }}>
           <Banner tone={configMessage.tone}>

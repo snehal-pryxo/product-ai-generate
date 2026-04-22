@@ -22,6 +22,7 @@ import {
   FolderIcon,
   ExternalIcon,
 } from "@shopify/polaris-icons";
+import { AppPageHeader } from "../components/AppPageHeader";
 
 const PAGES = [
   {
@@ -111,6 +112,10 @@ export default function AdditionalPage() {
       fullWidth
     >
       <BlockStack gap="600">
+        <AppPageHeader
+          title="App Overview"
+          description="All pages and resources available in this app."
+        />
         <Card>
           <BlockStack gap="400">
             <BlockStack gap="100">

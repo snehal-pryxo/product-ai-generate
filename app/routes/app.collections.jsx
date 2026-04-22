@@ -1270,12 +1270,15 @@ export default function CollectionsPage() {
     const templateSelection = readStoredCollectionPromptTemplateSelection();
     if (templateSelection.descriptionPromptTemplate) {
       setBulkDescTemplate(templateSelection.descriptionPromptTemplate);
+      setUseCustomDescInstructions(true);
     }
     if (templateSelection.metaTitlePromptTemplate) {
       setBulkMetaTitleTemplate(templateSelection.metaTitlePromptTemplate);
+      setUseCustomMetaTitleInstructions(true);
     }
     if (templateSelection.metaDescriptionPromptTemplate) {
       setBulkMetaDescTemplate(templateSelection.metaDescriptionPromptTemplate);
+      setUseCustomMetaDescInstructions(true);
     }
   }, []);
 
@@ -1590,10 +1593,10 @@ export default function CollectionsPage() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", zIndex: 1, flexWrap: "wrap", gap: "16px" }}>
           <div>
             <div style={{ fontSize: "24px", fontWeight: 800, color: "#111827", marginBottom: "4px", letterSpacing: "-0.3px" }}>
-              Hi {shopOwnerName} !
+              Collections
             </div>
             <div style={{ fontSize: "14px", color: "#6b7280", lineHeight: 1.4, fontWeight: 600 }}>
-              Manage your apps and generate high-converting AI content for your store.
+              Generate AI-powered collection descriptions, meta titles, and meta descriptions.
             </div>
           </div>
           <InlineStack gap="200" blockAlign="center">
@@ -1605,6 +1608,20 @@ export default function CollectionsPage() {
         </div>
       </div>
 
+
+      <div style={{ marginBottom: "16px" }}>
+        <Card>
+          <BlockStack gap="300">
+            <Text as="p" variant="bodyMd" fontWeight="semibold">
+              Choose a collection to generate AI-powered content for all its products
+            </Text>
+            <BlockStack gap="100">
+              <Text as="p" variant="bodySm" tone="subdued">- You can select multiple collections (up to {MAX_BULK_ITEMS}) for bulk content generation</Text>
+              <Text as="p" variant="bodySm" tone="subdued">- Content will be generated for all products within the selected collections</Text>
+            </BlockStack>
+          </BlockStack>
+        </Card>
+      </div>
 
 
       <div
@@ -1619,24 +1636,20 @@ export default function CollectionsPage() {
       >
         {/* ── LEFT: Collection List ── */}
         <div className="app-split-main" style={{ flex: "1 1 0", minWidth: "0" }}>
-          {/* Instructions Card */}
-          <div style={{ marginBottom: "16px" }}>
-            <Card>
-              <BlockStack gap="300">
-                <Text as="p" variant="bodyMd" fontWeight="semibold">
-                  Choose a collection to generate AI-powered content for all its products
-                </Text>
-                <BlockStack gap="100">
-                  <Text as="p" variant="bodySm" tone="subdued">• You can select multiple collections (up to {MAX_BULK_ITEMS}) for bulk content generation</Text>
-                  <Text as="p" variant="bodySm" tone="subdued">• Content will be generated for all products within the selected collections</Text>
-                </BlockStack>
-              </BlockStack>
-            </Card>
-          </div>
-
           {/* ── Products / Collections tab bar ── */}
           <div className="app-toolbar" style={{ marginBottom: "20px" }}>
-            <div className="app-toolbar-fixed" style={{ display: "flex", border: "1px solid #d1d5db", borderRadius: "10px", overflow: "hidden", background: "#fff", minWidth: "180px" }}>
+            <div
+              className="app-toolbar-fixed"
+              style={{
+                display: "flex",
+                alignItems: "stretch",
+                border: "1px solid #d1d5db",
+                borderRadius: "12px",
+                overflow: "hidden",
+                background: "#fff",
+                width: "100%",
+              }}
+            >
               {sectionTabs.map((tab, index) => {
                 const isActive = activeSectionPath === tab.path;
                 return (
@@ -1647,8 +1660,10 @@ export default function CollectionsPage() {
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
+                    justifyContent: "center",
                     gap: "6px",
-                    padding: "6px 14px",
+                    minWidth: "140px",
+                    padding: "8px 16px",
                     border: "none",
                     borderRight: index < sectionTabs.length - 1 ? "1px solid #e5e7eb" : "none",
                     background: isActive ? "#000000" : "#e5e7eb",
@@ -1658,11 +1673,14 @@ export default function CollectionsPage() {
                     cursor: "pointer",
                   }}
                 >
-                  <Icon source={tab.icon} tone={isActive ? "accent" : "subdued"} />
+                  <span style={{ display: "inline-flex", color: isActive ? "#ffffff" : "#6b7280" }}>
+                    <Icon source={tab.icon} />
+                  </span>
                   {tab.label}
                 </button>
                 );
               })}
+              <div style={{ flex: "1 1 auto", background: "#ffffff" }} />
             </div>
           </div>
 
@@ -1670,15 +1688,17 @@ export default function CollectionsPage() {
             <BlockStack gap="0">
               <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
                 <InlineStack align="space-between" blockAlign="center" wrap={false} gap="300">
-                  <Tabs
-                    tabs={statusTabs}
-                    selected={statusTabIndex}
-                    onSelect={setStatusTabIndex}
-                  />
-                  <InlineStack gap="200" blockAlign="center">
+                  <div style={{ flexShrink: 0 }}>
+                    <Tabs
+                      tabs={statusTabs}
+                      selected={statusTabIndex}
+                      onSelect={setStatusTabIndex}
+                    />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: "1 1 0", minWidth: 0, justifyContent: "flex-end" }}>
                     {showCollectionSearchBar ? (
-                      <InlineStack gap="100" blockAlign="center">
-                        <div className="app-toolbar-grow" style={{ minWidth: "260px", maxWidth: "420px" }}>
+                      <>
+                        <div style={{ flex: "1 1 0", minWidth: "300px" }}>
                           <TextField
                             label="Search collections"
                             labelHidden
@@ -1695,7 +1715,7 @@ export default function CollectionsPage() {
                           accessibilityLabel="Close search"
                           onClick={() => setShowCollectionSearchBar(false)}
                         />
-                      </InlineStack>
+                      </>
                     ) : (
                       <Button
                         icon={SearchIcon}
@@ -1707,7 +1727,7 @@ export default function CollectionsPage() {
                     <Text as="span" variant="bodySm" tone="subdued">
                       {selectedCollections.length} selected
                     </Text>
-                  </InlineStack>
+                  </div>
                 </InlineStack>
               </div>
 
@@ -1837,7 +1857,12 @@ export default function CollectionsPage() {
                   <Checkbox
                     label={<span>Use custom instructions <span style={{ color: "#f59e0b", fontSize: "14px" }}>✦</span></span>}
                     checked={useCustomDescInstructions}
-                    onChange={(v) => { setUseCustomDescInstructions(v); if (v) setBulkDescTemplate(DEFAULT_DESCRIPTION_CUSTOM_PROMPT); }}
+                    onChange={(v) => {
+                      setUseCustomDescInstructions(v);
+                      if (v && !(bulkDescTemplate || "").trim()) {
+                        setBulkDescTemplate(DEFAULT_DESCRIPTION_CUSTOM_PROMPT);
+                      }
+                    }}
                   />
                   {!useCustomDescInstructions && (
                     <button
@@ -1855,6 +1880,8 @@ export default function CollectionsPage() {
                       <TextField
                         label="Custom Prompt" labelHidden
                         multiline={8}
+                        autoSize={false}
+                        maxHeight={240}
                         minLength={0}
                         value={bulkDescTemplate}
                         onChange={setBulkDescTemplate}
@@ -1907,6 +1934,8 @@ export default function CollectionsPage() {
                       <TextField
                         label="Custom Prompt" labelHidden
                         multiline={8}
+                        autoSize={false}
+                        maxHeight={240}
                         minLength={0}
                         value={bulkMetaDescTemplate}
                         onChange={setBulkMetaDescTemplate}
@@ -1959,6 +1988,8 @@ export default function CollectionsPage() {
                       <TextField
                         label="Custom Prompt" labelHidden
                         multiline={8}
+                        autoSize={false}
+                        maxHeight={240}
                         minLength={0}
                         value={bulkMetaTitleTemplate}
                         onChange={setBulkMetaTitleTemplate}
@@ -2117,6 +2148,15 @@ export default function CollectionsPage() {
       </div>
 
       <style>{`
+        .collections-table-wrap {
+          max-height: 62vh;
+          overflow-y: auto;
+          overflow-x: hidden;
+        }
+        .app-table-scroll {
+          max-height: 62vh;
+          overflow: auto;
+        }
         .collections-table-wrap .Polaris-IndexTable__ScrollContainer {
           overflow-x: hidden;
         }
@@ -2228,6 +2268,7 @@ export default function CollectionsPage() {
     </Page>
   );
 }
+
 
 
 

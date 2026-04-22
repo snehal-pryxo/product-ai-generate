@@ -7,6 +7,7 @@ import db from "../db.server";
 import {
   Page, Card, BlockStack, InlineStack, Text, Badge, Divider, Box, Grid, Button, Layout, Icon, Select,
 } from "@shopify/polaris";
+import { AppPageHeader } from "../components/AppPageHeader";
 import {
   FolderIcon, TargetIcon, AutomationIcon, CalendarIcon,
   ProductIcon, CollectionIcon, PageIcon, BlogIcon,
@@ -1010,6 +1011,10 @@ export default function AnalyticsPage() {
       backAction={{ content: "Dashboard", onAction: () => navigate("/app") }}
     >
       <BlockStack gap="600">
+        <AppPageHeader
+          title="SEO Analytics"
+          description="Track SEO health and AI content generation across your store."
+        />
 
         {/* KPI Summary Strip */}
         <Grid>
