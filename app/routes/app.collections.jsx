@@ -20,7 +20,6 @@ import {
   IndexTable,
   InlineStack,
   Page,
-  Pagination,
   Select,
   Spinner,
   Tabs,
@@ -53,7 +52,6 @@ import {
 const FETCH_BATCH_SIZE = 250;
 const BULK_GENERATE_INTENT = "bulk_generate";
 const MAX_BULK_ITEMS = 50;
-const TABLE_PAGE_SIZE = 10;
 const MIN_BULK_COLLECTION_SELECTION_ERROR = "Select at least one collection for bulk generation.";
 const MAX_BULK_COLLECTION_SELECTION_ERROR = `You can bulk generate up to ${MAX_BULK_ITEMS} collections at a time.`;
 const COLLECTION_CONTENT_TYPES = ["description", "meta_title", "meta_description"];
@@ -1233,7 +1231,6 @@ export default function CollectionsPage() {
   const [useCustomMetaTitleInstructions, setUseCustomMetaTitleInstructions] = useState(false);
   const [templateLibraryOpen, setTemplateLibraryOpen] = useState(false);
   const [templateLibraryContentType, setTemplateLibraryContentType] = useState("description");
-  const [currentPage, setCurrentPage] = useState(1);
   const [outputLanguage, setOutputLanguage] = useState(() => readGlobalSettings().language || "English");
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [addTitleAsHeading, setAddTitleAsHeading] = useState(false);
@@ -1284,24 +1281,9 @@ export default function CollectionsPage() {
     });
   }, [normalizedSearch, sourceCollections, statusTabIndex]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filters.search]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredCollections.length / TABLE_PAGE_SIZE));
-
-  useEffect(() => {
-    setCurrentPage((page) => Math.min(page, totalPages));
-  }, [totalPages]);
-
-  const paginatedCollections = useMemo(() => {
-    const start = (currentPage - 1) * TABLE_PAGE_SIZE;
-    return filteredCollections.slice(start, start + TABLE_PAGE_SIZE);
-  }, [currentPage, filteredCollections]);
-
   const visibleCollectionIds = useMemo(
-    () => paginatedCollections.map((collection) => collection.id),
-    [paginatedCollections],
+    () => filteredCollections.map((collection) => collection.id),
+    [filteredCollections],
   );
 
   useEffect(() => {
@@ -1474,7 +1456,7 @@ export default function CollectionsPage() {
     [],
   );
 
-  const rowMarkup = paginatedCollections.map((collection, index) => (
+  const rowMarkup = filteredCollections.map((collection, index) => (
     <IndexTable.Row
       id={collection.id}
       key={collection.id}
@@ -1621,8 +1603,8 @@ export default function CollectionsPage() {
                     padding: "6px 14px",
                     border: "none",
                     borderRight: index < sectionTabs.length - 1 ? "1px solid #e5e7eb" : "none",
-                    background: isActive ? "#f3f4f6" : "transparent",
-                    color: isActive ? "#111827" : "#6b7280",
+                    background: isActive ? "#000000" : "#e5e7eb",
+                    color: isActive ? "#ffffff" : "#374151",
                     fontWeight: isActive ? 600 : 500,
                     fontSize: "13px",
                     cursor: "pointer",
@@ -1674,7 +1656,7 @@ export default function CollectionsPage() {
                 <div className="collections-table-wrap app-table-scroll">
                   <IndexTable
                     resourceName={{ singular: "collection", plural: "collections" }}
-                    itemCount={paginatedCollections.length}
+                    itemCount={filteredCollections.length}
                     headings={[
                       {
                         title: (
@@ -1705,14 +1687,6 @@ export default function CollectionsPage() {
                     {filteredCollections.length} result{filteredCollections.length !== 1 ? "s" : ""}
                     {isSearchLoading ? " (Searching...)" : isLoading ? " (Loading...)" : ""}
                   </Text>
-                  {filteredCollections.length > TABLE_PAGE_SIZE && (
-                    <Pagination
-                      hasPrevious={currentPage > 1}
-                      onPrevious={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                      hasNext={currentPage < totalPages}
-                      onNext={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                    />
-                  )}
                 </InlineStack>
               </div>
             </BlockStack>

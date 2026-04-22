@@ -21,7 +21,6 @@ import {
   IndexTable,
   InlineStack,
   Page,
-  Pagination,
   Select,
   Spinner,
   Tabs,
@@ -55,7 +54,6 @@ const BULK_GENERATE_INTENT = "bulk_generate";
 const MAX_BULK_ITEMS = 50;
 const MIN_BULK_PRODUCT_SELECTION_ERROR = "Select at least one product for bulk generation.";
 const MAX_BULK_PRODUCT_SELECTION_ERROR = `You can bulk generate up to ${MAX_BULK_ITEMS} products at a time.`;
-const TABLE_PAGE_SIZE = 10;
 const PRODUCT_CONTENT_TYPES = ["description", "meta_title", "meta_description"];
 const DEFAULT_PRODUCT_CONTENT_TYPES = ["description", "meta_title", "meta_description"];
 const DEFAULT_AI_MODEL = "gpt-4o-mini";
@@ -1240,7 +1238,6 @@ export default function ProductsPage() {
   const [useCustomMetaTitleInstructions, setUseCustomMetaTitleInstructions] = useState(false);
   const [templateLibraryOpen, setTemplateLibraryOpen] = useState(false);
   const [templateLibraryContentType, setTemplateLibraryContentType] = useState("description");
-  const [currentPage, setCurrentPage] = useState(1);
   const [outputLanguage, setOutputLanguage] = useState(() => readGlobalSettings().language || "English");
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [addTitleAsHeading, setAddTitleAsHeading] = useState(false);
@@ -1284,24 +1281,9 @@ export default function ProductsPage() {
     );
   }, [normalizedSearch, products, sourceProducts]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filters.search, filters.status, filters.collectionId]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / TABLE_PAGE_SIZE));
-
-  useEffect(() => {
-    setCurrentPage((page) => Math.min(page, totalPages));
-  }, [totalPages]);
-
-  const paginatedProducts = useMemo(() => {
-    const start = (currentPage - 1) * TABLE_PAGE_SIZE;
-    return filteredProducts.slice(start, start + TABLE_PAGE_SIZE);
-  }, [currentPage, filteredProducts]);
-
   const visibleProductIds = useMemo(
-    () => paginatedProducts.map((product) => product.id),
-    [paginatedProducts],
+    () => filteredProducts.map((product) => product.id),
+    [filteredProducts],
   );
 
   useEffect(() => {
@@ -1609,8 +1591,8 @@ export default function ProductsPage() {
                       padding: "6px 14px",
                       border: "none",
                       borderRight: index < sectionTabs.length - 1 ? "1px solid #e5e7eb" : "none",
-                      background: isActive ? "#f3f4f6" : "transparent",
-                      color: isActive ? "#111827" : "#6b7280",
+                      background: isActive ? "#000000" : "#e5e7eb",
+                      color: isActive ? "#ffffff" : "#374151",
                       fontWeight: isActive ? 600 : 500,
                       fontSize: "13px",
                       cursor: "pointer",
@@ -1670,7 +1652,7 @@ export default function ProductsPage() {
                 <div className="products-table-wrap app-table-scroll">
                   <IndexTable
                   resourceName={resourceName}
-                  itemCount={paginatedProducts.length}
+                  itemCount={filteredProducts.length}
                   headings={[
                     {
                       title: (
@@ -1689,7 +1671,7 @@ export default function ProductsPage() {
                   ]}
                   selectable={false}
                 >
-                  {paginatedProducts.map((product, index) => (
+                  {filteredProducts.map((product, index) => (
                     <IndexTable.Row id={product.id} key={product.id} position={index}>
                       <IndexTable.Cell>
                         <Checkbox
@@ -1738,14 +1720,6 @@ export default function ProductsPage() {
                     {filteredProducts.length} results{" "}
                     {isLoading && !isSearchLoading ? "(Loading...)" : ""}
                   </Text>
-                  {filteredProducts.length > TABLE_PAGE_SIZE && (
-                    <Pagination
-                      hasPrevious={currentPage > 1}
-                      onPrevious={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                      hasNext={currentPage < totalPages}
-                      onNext={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                    />
-                  )}
                 </InlineStack>
               </div>
             </BlockStack>
