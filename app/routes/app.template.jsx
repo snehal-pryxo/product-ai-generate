@@ -1119,7 +1119,7 @@ const SERP_DESCRIPTION_EXAMPLES = {
 };
 
 function getPreviewHtml(templateId, resourceId, typeId) {
-  // SEO title → SERP snippet
+  // SEO title → plain content preview
   if (typeId === "seo-title") {
     const title = SERP_TITLE_EXAMPLES[templateId];
     const defaultTitle = resourceId === "collection"
@@ -1127,38 +1127,18 @@ function getPreviewHtml(templateId, resourceId, typeId) {
       : resourceId === "page"
         ? "About Avada Tech | Premium Gaming Laptops Since 2018"
         : "UltraBook Pro X15 Gaming Laptop | Avada Tech";
-    const url = resourceId === "collection"
-      ? "avadatech.com › collections › gaming-laptops"
-      : resourceId === "page"
-        ? "avadatech.com › pages › about"
-        : "avadatech.com › products › ultrabook-pro-x15";
-    const desc = resourceId === "collection"
-      ? "Shop 45+ gaming laptops from RTX 4060 to RTX 4090. Every model validated under sustained load. Free shipping on all orders."
-      : resourceId === "page"
-        ? "Avada Tech builds high-performance laptops for creators and gamers. Founded 2018, San Francisco. 50,000+ customers worldwide."
-        : "RTX 4080 gaming laptop with zero thermal throttling. 240Hz QHD display, 32GB DDR5 RAM. Trusted by 12,000+ creators. Free shipping.";
-    return buildSerpHtml(title || defaultTitle, url, desc);
+    return `<p>${title || defaultTitle}</p>`;
   }
 
-  // SEO description → SERP snippet
+  // SEO description → plain content preview
   if (typeId === "seo-description") {
     const desc = SERP_DESCRIPTION_EXAMPLES[templateId];
-    const defaultTitle = resourceId === "collection"
-      ? "Performance Gaming Laptops | Avada Tech"
-      : resourceId === "page"
-        ? "About Avada Tech | Premium Gaming Laptops"
-        : "UltraBook Pro X15 Gaming Laptop | Avada Tech";
-    const url = resourceId === "collection"
-      ? "avadatech.com › collections › gaming-laptops"
-      : resourceId === "page"
-        ? "avadatech.com › pages › about"
-        : "avadatech.com › products › ultrabook-pro-x15";
     const defaultDesc = resourceId === "collection"
       ? "Shop our curated Performance Gaming Laptops collection. RTX 4060–4090 configurations with validated sustained performance. Free shipping."
       : resourceId === "page"
         ? "Learn about Avada Tech — premium gaming and creator laptops since 2018. 3-year warranties, 30-day returns, and engineer-staffed support."
         : "UltraBook Pro X15 gaming laptop — RTX 4080, 240Hz QHD display, zero thermal throttling. Shop now with free shipping and 3-year warranty.";
-    return buildSerpHtml(defaultTitle, url, desc || defaultDesc);
+    return `<p>${desc || defaultDesc}</p>`;
   }
 
   // Description / body → rendered HTML
@@ -1822,15 +1802,6 @@ export default function TemplatePage() {
 
             {/* ── Example output ───────────────────────────────────────────── */}
             <BlockStack gap="150">
-              <InlineStack blockAlign="center" gap="200">
-                <Text as="p" variant="bodySm" fontWeight="semibold">
-                  Example output
-                </Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  — this is what the AI would generate using this template
-                </Text>
-              </InlineStack>
-
               {htmlPreview ? (
                 <div
                   style={{
