@@ -1574,8 +1574,8 @@ export default function ProductsPage() {
 
   const location = useLocation();
   const sectionTabs = [
-    { id: "products", content: "Products", path: "/app/products", icon: <Icon source={ProductIcon} /> },
-    { id: "collections", content: "Collections", path: "/app/collections", icon: <Icon source={CollectionIcon} /> },
+    { id: "products", content: "Products", path: "/app/products" },
+    { id: "collections", content: "Collections", path: "/app/collections" },
   ];
   const activeSectionPath = location.pathname?.startsWith("/app/collections")
     ? "/app/collections"

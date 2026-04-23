@@ -1648,8 +1648,8 @@ export default function CollectionsPage() {
   ));
 
   const sectionTabs = [
-    { id: "products", content: "Products", path: "/app/products", icon: <Icon source={ProductIcon} /> },
-    { id: "collections", content: "Collections", path: "/app/collections", icon: <Icon source={CollectionIcon} /> },
+    { id: "products", content: "Products", path: "/app/products" },
+    { id: "collections", content: "Collections", path: "/app/collections" },
   ];
   const statusTabs = [
     { id: "all", content: "All" },
