@@ -233,6 +233,34 @@ const COLLECTION_LIST_QUERY = `#graphql
   }
 `;
 
+const COLLECTION_PRODUCTS_QUERY = `#graphql
+  query CollectionProducts(
+    $id: ID!
+    $first: Int
+    $after: String
+  ) {
+    collection(id: $id) {
+      id
+      title
+      products(first: $first, after: $after, sortKey: TITLE) {
+        edges {
+          node {
+            id
+            title
+            status
+            descriptionHtml
+            updatedAt
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+`;
+
 function escapeSearchValue(value) {
   return value.replace(/[\\"]/g, "\\$&");
 }
@@ -278,6 +306,13 @@ function stripHtml(html) {
 function toCollectionTypeMeta(ruleSet) {
   if (ruleSet) return { label: "Smart", tone: "success" };
   return { label: "Manual", tone: "neutral" };
+}
+
+function toProductStatusMeta(status) {
+  if (status === "ACTIVE") return { label: "Active", tone: "success" };
+  if (status === "DRAFT") return { label: "Draft", tone: "warning" };
+  if (status === "ARCHIVED") return { label: "Archived", tone: "caution" };
+  return { label: status || "Unknown", tone: "neutral" };
 }
 
 function toAppGenerationStatusMeta(generatedContent) {
@@ -1159,6 +1194,7 @@ export const loader = async ({ request }) => {
   const url = new URL(request.url);
 
   const search = (url.searchParams.get("q") || "").trim();
+  const productsCollectionId = (url.searchParams.get("productsCollectionId") || "").trim();
   const searchForQuery = search.length >= 2 ? search : "";
   const query = toSearchQuery(searchForQuery);
 
@@ -1187,8 +1223,10 @@ export const loader = async ({ request }) => {
 
   if (collectionNodes.length === 0) {
     return {
-      filters: { search },
+      filters: { search, productsCollectionId },
       collections: [],
+      collectionProducts: [],
+      collectionProductsTitle: "",
       hasOpenaiKey: !!(shopData?.openaiApiKey || process.env.OPENAI_API_KEY),
       hasAnthropicKey: !!(shopData?.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
       defaultAiProvider: shopData?.defaultAiProvider || "auto",
@@ -1241,9 +1279,44 @@ export const loader = async ({ request }) => {
     };
   });
 
+  let collectionProducts = [];
+  let collectionProductsTitle = "";
+  if (productsCollectionId) {
+    const productNodes = [];
+    let productCursor;
+    while (true) {
+      const productRes = await admin.graphql(COLLECTION_PRODUCTS_QUERY, {
+        variables: {
+          id: productsCollectionId,
+          first: FETCH_BATCH_SIZE,
+          after: productCursor,
+        },
+      });
+      const productJson = await productRes.json();
+      const collectionData = productJson?.data?.collection;
+      if (!collectionData) break;
+      collectionProductsTitle = collectionData.title || collectionProductsTitle;
+      const productConnection = collectionData.products;
+      const nodes = (productConnection?.edges || []).map(({ node }) => node);
+      productNodes.push(...nodes);
+      if (!productConnection?.pageInfo?.hasNextPage || !productConnection?.pageInfo?.endCursor) break;
+      productCursor = productConnection.pageInfo.endCursor;
+    }
+
+    collectionProducts = productNodes.map((node) => ({
+      id: node.id,
+      title: node.title,
+      status: toProductStatusMeta(node.status),
+      descriptionStatus: evaluateDescription(stripHtml(node.descriptionHtml || "")),
+      updatedAt: formatDate(node.updatedAt),
+    }));
+  }
+
   return {
-    filters: { search },
+    filters: { search, productsCollectionId },
     collections,
+    collectionProducts,
+    collectionProductsTitle,
     hasOpenaiKey: !!(shopData?.openaiApiKey || process.env.OPENAI_API_KEY),
     hasAnthropicKey: !!(shopData?.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
     defaultAiProvider: shopData?.defaultAiProvider || "auto",
@@ -1262,7 +1335,15 @@ const bulkInitialSettings = {
 };
 
 export default function CollectionsPage() {
-  const { filters, collections, defaultAiProvider, credits, shopOwnerName } = useLoaderData();
+  const {
+    filters,
+    collections,
+    collectionProducts,
+    collectionProductsTitle,
+    defaultAiProvider,
+    credits,
+    shopOwnerName,
+  } = useLoaderData();
   const navigation = useNavigation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -1370,13 +1451,14 @@ export default function CollectionsPage() {
   const exceedsBulkLimit = selectedCollections.length > MAX_BULK_ITEMS;
 
   const makeUrl = useCallback(
-    ({ search = searchValue.trim() } = {}) => {
+    ({ search = searchValue.trim(), productsCollectionId = filters.productsCollectionId } = {}) => {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
+      if (productsCollectionId) params.set("productsCollectionId", productsCollectionId);
       const query = params.toString();
       return query ? `?${query}` : "";
     },
-    [searchValue],
+    [filters.productsCollectionId, searchValue],
   );
 
   useEffect(() => {
@@ -1384,11 +1466,11 @@ export default function CollectionsPage() {
     if (nextSearch === filters.search) return;
 
     const timeoutId = setTimeout(() => {
-      navigate(makeUrl({ search: nextSearch }), { replace: true });
+      navigate(makeUrl({ search: nextSearch, productsCollectionId: filters.productsCollectionId }), { replace: true });
     }, 180);
 
     return () => clearTimeout(timeoutId);
-  }, [filters.search, makeUrl, navigate, searchValue]);
+  }, [filters.productsCollectionId, filters.search, makeUrl, navigate, searchValue]);
 
   const handleSearchInput = useCallback((value) => {
     setSearchValue(value || "");
@@ -1614,9 +1696,6 @@ export default function CollectionsPage() {
               <Text as="span" variant="bodySm" tone="subdued">
                 Last updated: {collection.updatedAt}
               </Text>
-              <InlineStack gap="100">
-                <Badge tone="info">{collection.productsCount} product{collection.productsCount === 1 ? "" : "s"}</Badge>
-              </InlineStack>
             </BlockStack>
           </div>
           <Button
@@ -1629,6 +1708,26 @@ export default function CollectionsPage() {
             disabled={!collection.adminUrl}
           />
         </div>
+      </IndexTable.Cell>
+
+      <IndexTable.Cell>
+        <InlineStack gap="100" blockAlign="center" wrap={false}>
+          <Badge tone="info">{collection.productsCount} product{collection.productsCount === 1 ? "" : "s"}</Badge>
+          <Button
+            size="slim"
+            variant="tertiary"
+            onClick={() =>
+              navigate(
+                makeUrl({
+                  search: filters.search,
+                  productsCollectionId: collection.id,
+                }),
+              )
+            }
+          >
+            View
+          </Button>
+        </InlineStack>
       </IndexTable.Cell>
 
       <IndexTable.Cell>{renderBadge(collection.descriptionStatus)}</IndexTable.Cell>
@@ -1812,7 +1911,8 @@ export default function CollectionsPage() {
                           />
                         ),
                       },
-                      { title: "Title" },
+                      { title: "Collection" },
+                      { title: "Collection Products" },
                       { title: "Short" },
                       { title: "Status" },
                     ]}
@@ -1834,6 +1934,62 @@ export default function CollectionsPage() {
               </div>
             </BlockStack>
           </Card>
+
+          <div style={{ marginTop: "16px" }}>
+            <Card padding="0">
+              <BlockStack gap="0">
+                <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+                  <Text as="h3" variant="headingSm" fontWeight="semibold">
+                    Collection Products{collectionProductsTitle ? `: ${collectionProductsTitle}` : ""}
+                  </Text>
+                </div>
+                {!filters.productsCollectionId ? (
+                  <Box padding="400">
+                    <Text as="p" tone="subdued">
+                      Click `View` on any collection to load its product table here.
+                    </Text>
+                  </Box>
+                ) : collectionProducts.length === 0 ? (
+                  <Box padding="400">
+                    <Text as="p" tone="subdued">
+                      No products found for the selected collection.
+                    </Text>
+                  </Box>
+                ) : (
+                  <div className="collections-table-wrap app-table-scroll">
+                    <IndexTable
+                      resourceName={{ singular: "product", plural: "products" }}
+                      itemCount={collectionProducts.length}
+                      headings={[
+                        { title: "Product" },
+                        { title: "Shopify Status" },
+                        { title: "Short" },
+                        { title: "Last Updated" },
+                      ]}
+                      selectable={false}
+                    >
+                      {collectionProducts.map((product, index) => (
+                        <IndexTable.Row id={product.id} key={product.id} position={index}>
+                          <IndexTable.Cell>
+                            <Text as="span" variant="bodyMd" fontWeight="medium">
+                              {product.title}
+                            </Text>
+                          </IndexTable.Cell>
+                          <IndexTable.Cell>{renderBadge(product.status)}</IndexTable.Cell>
+                          <IndexTable.Cell>{renderBadge(product.descriptionStatus)}</IndexTable.Cell>
+                          <IndexTable.Cell>
+                            <Text as="span" variant="bodySm" tone="subdued">
+                              {product.updatedAt}
+                            </Text>
+                          </IndexTable.Cell>
+                        </IndexTable.Row>
+                      ))}
+                    </IndexTable>
+                  </div>
+                )}
+              </BlockStack>
+            </Card>
+          </div>
         </div>
 
         {/* ── RIGHT: Bulk Settings Panel ── */}
