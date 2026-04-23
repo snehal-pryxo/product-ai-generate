@@ -169,3 +169,32 @@ model CollectionGeneratedContent {
   @@index([shop, updatedAt], map: "CollectionGeneratedContent_shop_updatedAt_idx")
   @@map("collection_generated_contents")
 }
+
+model CollectionProductGeneratedContent {
+  id                BigInt   @id @default(autoincrement())
+  shop              String
+  collectionId      String
+  collectionTitle   String?
+  productId         String
+  productTitle      String?
+  language          String?
+  tone              String?
+  lengthOption      String?
+  formatOption      String?
+  contextKeywords   String?  @db.Text
+  descriptionPromptTemplate String? @db.LongText
+  metaTitlePromptTemplate String? @db.Text
+  metaDescriptionPromptTemplate String? @db.Text
+  aiModel           String?
+  descriptionHtml   String?  @db.LongText
+  seoTitle          String?
+  seoDescription    String?  @db.Text
+  creditsUsed       Int      @default(0)
+  appliedToProduct  Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([shop, collectionId, productId], map: "CollectionProductGeneratedContent_shop_collection_product_key")
+  @@index([shop, collectionId, updatedAt], map: "CollectionProductGeneratedContent_shop_collection_updatedAt_idx")
+  @@map("collection_product_generated_contents")
+}

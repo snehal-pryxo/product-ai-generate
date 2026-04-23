@@ -59,6 +59,7 @@ import {
 
 const FETCH_BATCH_SIZE = 250;
 const BULK_GENERATE_INTENT = "bulk_generate";
+const COLLECTION_PRODUCTS_MODE = "collection-products";
 const MAX_BULK_ITEMS = 50;
 const MIN_BULK_COLLECTION_SELECTION_ERROR = "Select at least one collection for bulk generation.";
 const MAX_BULK_COLLECTION_SELECTION_ERROR = `You can bulk generate up to ${MAX_BULK_ITEMS} collections at a time.`;
@@ -247,8 +248,13 @@ const COLLECTION_PRODUCTS_QUERY = `#graphql
           node {
             id
             title
+            handle
             status
             descriptionHtml
+            seo {
+              title
+              description
+            }
             updatedAt
           }
         }
@@ -256,6 +262,26 @@ const COLLECTION_PRODUCTS_QUERY = `#graphql
           hasNextPage
           endCursor
         }
+      }
+    }
+  }
+`;
+
+const PRODUCT_UPDATE_MUTATION = `#graphql
+  mutation ProductUpdate($product: ProductUpdateInput!) {
+    productUpdate(product: $product) {
+      product {
+        id
+        title
+        descriptionHtml
+        seo {
+          title
+          description
+        }
+      }
+      userErrors {
+        field
+        message
       }
     }
   }
@@ -371,6 +397,49 @@ function formatDate(dateValue) {
 
 function toLegacyResourceId(gid) {
   return String(gid || "").split("/").pop() || "";
+}
+
+async function fetchCollectionProducts(admin, collectionId) {
+  const productNodes = [];
+  let productCursor;
+  let collectionTitle = "";
+
+  while (true) {
+    const productRes = await admin.graphql(COLLECTION_PRODUCTS_QUERY, {
+      variables: {
+        id: collectionId,
+        first: FETCH_BATCH_SIZE,
+        after: productCursor,
+      },
+    });
+    const productJson = await productRes.json();
+    const collectionData = productJson?.data?.collection;
+    if (!collectionData) break;
+    collectionTitle = collectionData.title || collectionTitle;
+
+    const productConnection = collectionData.products;
+    const nodes = (productConnection?.edges || []).map(({ node }) => node);
+    productNodes.push(...nodes);
+
+    if (!productConnection?.pageInfo?.hasNextPage || !productConnection?.pageInfo?.endCursor) {
+      break;
+    }
+    productCursor = productConnection.pageInfo.endCursor;
+  }
+
+  return {
+    collectionTitle,
+    products: productNodes.map((node) => ({
+      id: node.id,
+      title: node.title,
+      handle: node.handle || "",
+      status: node.status,
+      descriptionHtml: node.descriptionHtml || "",
+      seoTitleValue: node.seo?.title || "",
+      seoDescriptionValue: node.seo?.description || "",
+      updatedAt: node.updatedAt,
+    })),
+  };
 }
 
 function readFormString(formData, key) {
@@ -904,6 +973,81 @@ async function upsertCollectionGeneratedContent({
   }
 }
 
+async function upsertCollectionProductGeneratedContent({
+  shop,
+  collectionId,
+  collectionTitle,
+  productId,
+  productTitle,
+  language,
+  tone,
+  lengthOption,
+  formatOption,
+  contextKeywords,
+  descriptionPromptTemplate,
+  metaTitlePromptTemplate,
+  metaDescriptionPromptTemplate,
+  aiModel,
+  descriptionHtml,
+  seoTitle,
+  seoDescription,
+  creditsUsed,
+  appliedToProduct,
+}) {
+  try {
+    await db.collectionProductGeneratedContent.upsert({
+      where: {
+        shop_collectionId_productId: {
+          shop,
+          collectionId,
+          productId,
+        },
+      },
+      create: {
+        shop,
+        collectionId,
+        collectionTitle,
+        productId,
+        productTitle,
+        language,
+        tone,
+        lengthOption,
+        formatOption,
+        contextKeywords,
+        descriptionPromptTemplate,
+        metaTitlePromptTemplate,
+        metaDescriptionPromptTemplate,
+        aiModel,
+        descriptionHtml,
+        seoTitle,
+        seoDescription,
+        creditsUsed: typeof creditsUsed === "number" ? creditsUsed : 0,
+        appliedToProduct,
+      },
+      update: {
+        collectionTitle,
+        productTitle,
+        language,
+        tone,
+        lengthOption,
+        formatOption,
+        contextKeywords,
+        descriptionPromptTemplate,
+        metaTitlePromptTemplate,
+        metaDescriptionPromptTemplate,
+        aiModel,
+        descriptionHtml,
+        seoTitle,
+        seoDescription,
+        creditsUsed: typeof creditsUsed === "number" ? creditsUsed : 0,
+        appliedToProduct,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to upsert collection product generated content", error);
+  }
+}
+
 export const action = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const formData = await request.formData();
@@ -916,6 +1060,7 @@ export const action = async ({ request }) => {
 
   try {
     if (intent === BULK_GENERATE_INTENT) {
+      const bulkMode = readFormString(formData, "bulkMode");
       const collectionsJson = formData.get("collections");
       const bulkCollections = JSON.parse(collectionsJson || "[]");
       if (!Array.isArray(bulkCollections) || bulkCollections.length === 0) {
@@ -928,6 +1073,307 @@ export const action = async ({ request }) => {
           error: MAX_BULK_COLLECTION_SELECTION_ERROR,
         };
       }
+
+      if (bulkMode === COLLECTION_PRODUCTS_MODE) {
+        const language = readFormString(formData, "language") || "English";
+        const tone = readFormString(formData, "tone") || "Neutral";
+        const lengthOption = readFormString(formData, "length") || "50 - 150 words";
+        const formatOption = readFormString(formData, "format") || "Single paragraph";
+        const contextKeywords = readFormString(formData, "contextKeywords");
+        const descriptionPromptTemplate = readFormString(formData, "descriptionPromptTemplate");
+        const metaTitlePromptTemplate = readFormString(formData, "metaTitlePromptTemplate");
+        const metaDescriptionPromptTemplate = readFormString(formData, "metaDescriptionPromptTemplate");
+        const aiProvider = readFormString(formData, "aiProvider") || "auto";
+        const addTitleAsHeadingFlag = !!readFormString(formData, "addTitleAsHeading");
+        const preserveOldDescriptionFlag = !!readFormString(formData, "preserveOldDescription");
+        const removeImagesFlag = !!readFormString(formData, "removeImagesFromDescription");
+        const selectedProductsCollectionId = readFormString(formData, "productsCollectionId");
+        const selectedProductIdsRaw = formData.get("selectedCollectionProductIds");
+        let selectedCollectionProductIds = [];
+        if (typeof selectedProductIdsRaw === "string" && selectedProductIdsRaw.trim()) {
+          try {
+            const parsed = JSON.parse(selectedProductIdsRaw);
+            if (Array.isArray(parsed)) {
+              selectedCollectionProductIds = parsed;
+            }
+          } catch {
+            selectedCollectionProductIds = [];
+          }
+        }
+        const selectedProductIdSet = new Set(
+          selectedCollectionProductIds.map((value) => String(value || "").trim()).filter(Boolean),
+        );
+        const selectedContentTypes = parseSelectedContentTypes(
+          formData.get("contentTypes"),
+          COLLECTION_CONTENT_TYPES,
+          DEFAULT_COLLECTION_CONTENT_TYPES,
+        );
+        const shouldUpdateDescription = selectedContentTypes.includes("description");
+        const shouldUpdateMetaTitle = selectedContentTypes.includes("meta_title");
+        const shouldUpdateMetaDescription = selectedContentTypes.includes("meta_description");
+        const creditsPerItem = creditsForContentTypes(selectedContentTypes);
+
+        const collectionsWithProducts = await Promise.all(
+          bulkCollections.map(async (collection) => {
+            const fetched = await fetchCollectionProducts(admin, collection.id);
+            const allProducts = fetched.products || [];
+            const targetProducts =
+              selectedProductIdSet.size > 0 && selectedProductsCollectionId === collection.id
+                ? allProducts.filter((product) => selectedProductIdSet.has(product.id))
+                : allProducts;
+
+            return {
+              id: collection.id,
+              title: collection.title || fetched.collectionTitle || "Untitled Collection",
+              products: targetProducts,
+            };
+          }),
+        );
+
+        const targetProductsCount = collectionsWithProducts.reduce(
+          (sum, collection) => sum + collection.products.length,
+          0,
+        );
+
+        if (targetProductsCount < 1) {
+          return {
+            ok: false,
+            intent,
+            error: "No products found in selected collections.",
+          };
+        }
+
+        const availableCredits = shopData?.credits ?? 100;
+        const requiredCredits = creditsForBatch(selectedContentTypes, targetProductsCount);
+        if (availableCredits < requiredCredits) {
+          return {
+            ok: false,
+            intent,
+            error: buildInsufficientCreditsError(requiredCredits, availableCredits),
+          };
+        }
+
+        const collectionResults = await Promise.allSettled(
+          collectionsWithProducts.map(async (collection) => {
+            const productResults = await Promise.allSettled(
+              collection.products.map(async (product) => {
+                const generated = await generateContent(
+                  {
+                    title: product.title,
+                    descriptionText: stripHtml(product.descriptionHtml || ""),
+                    seoTitle: product.seoTitleValue || "",
+                    seoDescription: product.seoDescriptionValue || "",
+                    language,
+                    tone,
+                    lengthOption,
+                    format: formatOption,
+                    contextKeywords,
+                    descriptionPromptTemplate,
+                    metaTitlePromptTemplate,
+                    metaDescriptionPromptTemplate,
+                    intent: shouldUpdateMetaTitle && !shouldUpdateDescription && !shouldUpdateMetaDescription
+                      ? "seo_title"
+                      : !shouldUpdateMetaTitle && !shouldUpdateDescription && shouldUpdateMetaDescription
+                        ? "seo_description"
+                        : "all",
+                  },
+                  {
+                    aiProvider,
+                    shopOpenaiKey: shopData?.openaiApiKey || null,
+                    shopAnthropicKey: shopData?.anthropicApiKey || null,
+                  },
+                );
+
+                let nextDescription = shouldUpdateDescription
+                  ? (generated.collectionDescription
+                    ? normalizeGeneratedHtml(generated.collectionDescription)
+                    : product.descriptionHtml || "")
+                  : product.descriptionHtml || "";
+
+                if (shouldUpdateDescription && generated.collectionDescription) {
+                  if (removeImagesFlag) {
+                    nextDescription = nextDescription
+                      .replace(/<img\b[^>]*>/gi, "")
+                      .replace(/<figure\b[^>]*>[\s\S]*?<\/figure>/gi, "");
+                  }
+                  if (addTitleAsHeadingFlag && product.title) {
+                    nextDescription = `<h2>${product.title.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</h2>${nextDescription}`;
+                  }
+                  if (preserveOldDescriptionFlag && product.descriptionHtml) {
+                    const oldHtml = removeImagesFlag
+                      ? product.descriptionHtml
+                        .replace(/<img\b[^>]*>/gi, "")
+                        .replace(/<figure\b[^>]*>[\s\S]*?<\/figure>/gi, "")
+                      : product.descriptionHtml;
+                    nextDescription = nextDescription + oldHtml;
+                  }
+                }
+
+                const nextSeoTitle = shouldUpdateMetaTitle
+                  ? (generated.seoTitle || product.seoTitleValue || "")
+                  : (product.seoTitleValue || "");
+                const nextSeoDescription = shouldUpdateMetaDescription
+                  ? (generated.seoDescription || product.seoDescriptionValue || "")
+                  : (product.seoDescriptionValue || "");
+
+                const updateResponse = await admin.graphql(PRODUCT_UPDATE_MUTATION, {
+                  variables: {
+                    product: {
+                      id: product.id,
+                      descriptionHtml: nextDescription,
+                      seo: {
+                        title: nextSeoTitle,
+                        description: nextSeoDescription,
+                      },
+                    },
+                  },
+                });
+                const updateJson = await updateResponse.json();
+                const graphqlErrors =
+                  updateJson?.errors?.map((item) => item?.message).filter(Boolean) || [];
+                if (graphqlErrors.length > 0) {
+                  throw new Error(graphqlErrors.join(" "));
+                }
+                const userErrors = updateJson?.data?.productUpdate?.userErrors || [];
+                if (userErrors.length > 0) {
+                  throw new Error(userErrors.map((item) => item?.message).filter(Boolean).join(" "));
+                }
+
+                await writeGenerationLog({
+                  shop: session.shop,
+                  productId: product.id,
+                  productTitle: product.title || null,
+                  intent: "collection_product_bulk_generate",
+                  resourceType: "collection_product",
+                  language: language || null,
+                  tone: tone || null,
+                  lengthOption: lengthOption || null,
+                  formatOption: formatOption || null,
+                  contextKeywords: contextKeywords || null,
+                  aiModel: generated.aiModel || null,
+                  generatedDescription: nextDescription || null,
+                  generatedSeoTitle: nextSeoTitle || null,
+                  generatedSeoDescription: nextSeoDescription || null,
+                  creditsUsed: creditsPerItem,
+                  appliedToProduct: true,
+                });
+
+                await upsertCollectionProductGeneratedContent({
+                  shop: session.shop,
+                  collectionId: collection.id,
+                  collectionTitle: collection.title || null,
+                  productId: product.id,
+                  productTitle: product.title || null,
+                  language: language || null,
+                  tone: tone || null,
+                  lengthOption: lengthOption || null,
+                  formatOption: formatOption || null,
+                  contextKeywords: contextKeywords || null,
+                  descriptionPromptTemplate: descriptionPromptTemplate || null,
+                  metaTitlePromptTemplate: metaTitlePromptTemplate || null,
+                  metaDescriptionPromptTemplate: metaDescriptionPromptTemplate || null,
+                  aiModel: generated.aiModel || null,
+                  descriptionHtml: nextDescription || null,
+                  seoTitle: nextSeoTitle || null,
+                  seoDescription: nextSeoDescription || null,
+                  creditsUsed: creditsPerItem,
+                  appliedToProduct: true,
+                });
+
+                return {
+                  id: product.id,
+                  title: product.title,
+                  seoTitle: nextSeoTitle,
+                  seoDescription: nextSeoDescription,
+                };
+              }),
+            );
+
+            const succeededProducts = productResults.filter((item) => item.status === "fulfilled").length;
+            const failedProducts = productResults.filter((item) => item.status === "rejected").length;
+
+            return {
+              id: collection.id,
+              title: collection.title,
+              succeededProducts,
+              failedProducts,
+              totalProducts: collection.products.length,
+            };
+          }),
+        );
+
+        const itemResults = collectionResults.map((result, index) => {
+          const collection = bulkCollections[index];
+          if (result.status === "rejected") {
+            return {
+              id: collection.id,
+              title: collection.title,
+              status: "failed",
+              error: result.reason?.message || "Collection product generation failed.",
+              seoTitle: null,
+              seoDescription: null,
+            };
+          }
+
+          const value = result.value;
+          const status = value.failedProducts > 0 ? "failed" : "success";
+          return {
+            id: value.id,
+            title: value.title,
+            status,
+            error:
+              value.failedProducts > 0
+                ? `${value.failedProducts}/${value.totalProducts} products failed in this collection.`
+                : null,
+            seoTitle: null,
+            seoDescription: null,
+          };
+        });
+
+        const succeeded = itemResults.filter((item) => item.status === "success").length;
+        const failed = itemResults.length - succeeded;
+        const succeededProducts = collectionResults.reduce((sum, result) => (
+          result.status === "fulfilled" ? sum + result.value.succeededProducts : sum
+        ), 0);
+        const failedProducts = collectionResults.reduce((sum, result) => (
+          result.status === "fulfilled" ? sum + result.value.failedProducts : sum
+        ), 0);
+
+        const creditsUsed = succeededProducts * creditsPerItem;
+        let newCredits = availableCredits;
+        let creditsUsedTotal = shopData?.creditsUsedTotal ?? 0;
+        let creditWarning = null;
+
+        if (creditsUsed > 0) {
+          try {
+            const creditSnapshot = await deductCredits({ shopDomain: session.shop, creditsUsed });
+            newCredits = creditSnapshot.credits;
+            creditsUsedTotal = creditSnapshot.creditsUsedTotal;
+          } catch (creditError) {
+            creditWarning = creditError?.message || "Credits could not be updated automatically.";
+          }
+        }
+
+        return {
+          ok: true,
+          intent,
+          mode: COLLECTION_PRODUCTS_MODE,
+          succeeded,
+          failed,
+          total: bulkCollections.length,
+          results: itemResults,
+          contentTypes: selectedContentTypes,
+          creditsPerItem,
+          creditsUsed,
+          newCredits,
+          creditsUsedTotal,
+          creditWarning,
+          targetProducts: targetProductsCount,
+          succeededProducts,
+          failedProducts,
+        };
+      }
+
       const language = readFormString(formData, "language") || "English";
       const tone = readFormString(formData, "tone") || "Neutral";
       const lengthOption = readFormString(formData, "length") || "50 - 150 words";
@@ -1282,31 +1728,15 @@ export const loader = async ({ request }) => {
   let collectionProducts = [];
   let collectionProductsTitle = "";
   if (productsCollectionId) {
-    const productNodes = [];
-    let productCursor;
-    while (true) {
-      const productRes = await admin.graphql(COLLECTION_PRODUCTS_QUERY, {
-        variables: {
-          id: productsCollectionId,
-          first: FETCH_BATCH_SIZE,
-          after: productCursor,
-        },
-      });
-      const productJson = await productRes.json();
-      const collectionData = productJson?.data?.collection;
-      if (!collectionData) break;
-      collectionProductsTitle = collectionData.title || collectionProductsTitle;
-      const productConnection = collectionData.products;
-      const nodes = (productConnection?.edges || []).map(({ node }) => node);
-      productNodes.push(...nodes);
-      if (!productConnection?.pageInfo?.hasNextPage || !productConnection?.pageInfo?.endCursor) break;
-      productCursor = productConnection.pageInfo.endCursor;
-    }
-
-    collectionProducts = productNodes.map((node) => ({
+    const fetched = await fetchCollectionProducts(admin, productsCollectionId);
+    collectionProductsTitle = fetched.collectionTitle;
+    collectionProducts = fetched.products.map((node) => ({
       id: node.id,
       title: node.title,
       status: toProductStatusMeta(node.status),
+      descriptionHtml: node.descriptionHtml || "",
+      seoTitleValue: node.seoTitleValue || "",
+      seoDescriptionValue: node.seoDescriptionValue || "",
       descriptionStatus: evaluateDescription(stripHtml(node.descriptionHtml || "")),
       updatedAt: formatDate(node.updatedAt),
     }));
@@ -1347,6 +1777,8 @@ export default function CollectionsPage() {
   const navigation = useNavigation();
   const navigate = useNavigate();
   const location = useLocation();
+  const sectionMode = new URLSearchParams(location.search).get("mode");
+  const isCollectionProductsMode = sectionMode === COLLECTION_PRODUCTS_MODE;
   const revalidator = useRevalidator();
   const bulkFetcher = useFetcher();
   const shopify = useAppBridge();
@@ -1387,6 +1819,7 @@ export default function CollectionsPage() {
   const [preserveOldDescription, setPreserveOldDescription] = useState(false);
   const [removeImagesFromDescription, setRemoveImagesFromDescription] = useState(false);
   const [queueStatusById, setQueueStatusById] = useState({});
+  const [selectedCollectionProductIds, setSelectedCollectionProductIds] = useState([]);
   const queueIntervalRef = useRef(null);
   const [statusTabIndex, setStatusTabIndex] = useState(0);
 
@@ -1437,6 +1870,11 @@ export default function CollectionsPage() {
     [filteredCollections],
   );
 
+  const visibleCollectionProductIds = useMemo(
+    () => collectionProducts.map((product) => product.id),
+    [collectionProducts],
+  );
+
   useEffect(() => {
     setSelectedCollectionIds((current) => {
       const visibleSet = new Set(visibleCollectionIds);
@@ -1448,6 +1886,13 @@ export default function CollectionsPage() {
     () => filteredCollections.filter((collection) => selectedCollectionIds.includes(collection.id)),
     [filteredCollections, selectedCollectionIds],
   );
+
+  useEffect(() => {
+    setSelectedCollectionProductIds((current) => {
+      const visibleSet = new Set(visibleCollectionProductIds);
+      return current.filter((id) => visibleSet.has(id));
+    });
+  }, [visibleCollectionProductIds]);
   const exceedsBulkLimit = selectedCollections.length > MAX_BULK_ITEMS;
 
   const makeUrl = useCallback(
@@ -1511,6 +1956,7 @@ export default function CollectionsPage() {
 
     const payload = new FormData();
     payload.append("intent", BULK_GENERATE_INTENT);
+    payload.append("bulkMode", isCollectionProductsMode ? COLLECTION_PRODUCTS_MODE : "collections");
     payload.append("collections", JSON.stringify(
       selectedCollections.map((c) => ({
         id: c.id,
@@ -1520,6 +1966,8 @@ export default function CollectionsPage() {
         seoDescriptionValue: c.seoDescriptionValue,
       })),
     ));
+    payload.append("productsCollectionId", filters.productsCollectionId || "");
+    payload.append("selectedCollectionProductIds", JSON.stringify(selectedCollectionProductIds));
     payload.append("language", outputLanguage || "English");
     payload.append("tone", bulkSettings.tone);
     payload.append("length", bulkSettings.length);
@@ -1555,7 +2003,10 @@ export default function CollectionsPage() {
     addTitleAsHeading,
     preserveOldDescription,
     removeImagesFromDescription,
+    filters.productsCollectionId,
+    isCollectionProductsMode,
     selectedCollections,
+    selectedCollectionProductIds,
   ]);
 
   const isBulkGenerating = bulkFetcher.state !== "idle";
@@ -1620,6 +2071,28 @@ export default function CollectionsPage() {
   const updateBulkField = (field) => (value) =>
     setBulkSettings((prev) => ({ ...prev, [field]: value }));
 
+  const estimatedTargetItems = useMemo(() => {
+    if (!isCollectionProductsMode) {
+      return selectedCollections.length;
+    }
+
+    return selectedCollections.reduce((sum, collection) => {
+      if (
+        filters.productsCollectionId &&
+        filters.productsCollectionId === collection.id &&
+        selectedCollectionProductIds.length > 0
+      ) {
+        return sum + selectedCollectionProductIds.length;
+      }
+      return sum + (collection.productsCount || 0);
+    }, 0);
+  }, [
+    filters.productsCollectionId,
+    isCollectionProductsMode,
+    selectedCollectionProductIds.length,
+    selectedCollections,
+  ]);
+
 
   const allVisibleSelected =
     visibleCollectionIds.length > 0 && selectedCollectionIds.length === visibleCollectionIds.length;
@@ -1640,6 +2113,32 @@ export default function CollectionsPage() {
           return current.includes(collectionId) ? current : [...current, collectionId];
         }
         return current.filter((id) => id !== collectionId);
+      });
+    },
+    [],
+  );
+
+  const allVisibleCollectionProductsSelected =
+    visibleCollectionProductIds.length > 0 &&
+    selectedCollectionProductIds.length === visibleCollectionProductIds.length;
+  const collectionProductsSelectionIndeterminate =
+    selectedCollectionProductIds.length > 0 &&
+    selectedCollectionProductIds.length < visibleCollectionProductIds.length;
+
+  const handleToggleSelectAllCollectionProducts = useCallback(
+    (checked) => {
+      setSelectedCollectionProductIds(checked ? [...visibleCollectionProductIds] : []);
+    },
+    [visibleCollectionProductIds],
+  );
+
+  const handleToggleCollectionProductSelection = useCallback(
+    (productId) => (checked) => {
+      setSelectedCollectionProductIds((current) => {
+        if (checked) {
+          return current.includes(productId) ? current : [...current, productId];
+        }
+        return current.filter((id) => id !== productId);
       });
     },
     [],
@@ -1683,31 +2182,33 @@ export default function CollectionsPage() {
         </Button>
       </IndexTable.Cell>
 
-      <IndexTable.Cell>{renderBadge(collection.descriptionStatus)}</IndexTable.Cell>
+      {!isCollectionProductsMode && (
+        <IndexTable.Cell>{renderBadge(collection.descriptionStatus)}</IndexTable.Cell>
+      )}
 
-      <IndexTable.Cell>
-        {isBulkGenerating && selectedCollectionIds.includes(collection.id) ? (
-          <InlineStack gap="100" blockAlign="center">
-            <Spinner size="small" />
-            <Text as="span" tone="subdued">Generating...</Text>
-          </InlineStack>
-        ) : (
-          renderBadge(collection.appStatus)
-        )}
-      </IndexTable.Cell>
+      {!isCollectionProductsMode && (
+        <IndexTable.Cell>
+          {isBulkGenerating && selectedCollectionIds.includes(collection.id) ? (
+            <InlineStack gap="100" blockAlign="center">
+              <Spinner size="small" />
+              <Text as="span" tone="subdued">Generating...</Text>
+            </InlineStack>
+          ) : (
+            renderBadge(collection.appStatus)
+          )}
+        </IndexTable.Cell>
+      )}
 
     </IndexTable.Row>
   ));
 
-  const sectionMode = new URLSearchParams(location.search).get("mode");
-  const isCollectionProductsMode = sectionMode === "collection-products";
   const sectionTabs = [
     { id: "products", label: "Products", to: { pathname: "/app/products", search: "" }, icon: ProductIcon },
     { id: "collections", label: "Collections", to: { pathname: "/app/collections", search: "" }, icon: CollectionIcon },
     {
       id: "collection-products",
       label: "Collection Product",
-      to: { pathname: "/app/collections", search: "?mode=collection-products" },
+      to: { pathname: "/app/collections", search: `?mode=${COLLECTION_PRODUCTS_MODE}` },
       icon: ProductIcon,
     },
   ];
@@ -1907,8 +2408,12 @@ export default function CollectionsPage() {
                       },
                       { title: "Collection Name" },
                       { title: "View" },
-                      { title: "Short" },
-                      { title: "Status" },
+                      ...(!isCollectionProductsMode
+                        ? [
+                            { title: "Short" },
+                            { title: "Status" },
+                          ]
+                        : []),
                     ]}
                     selectable={false}
                     loading={isSearchLoading}
@@ -1955,27 +2460,38 @@ export default function CollectionsPage() {
                       resourceName={{ singular: "product", plural: "products" }}
                       itemCount={collectionProducts.length}
                       headings={[
+                        {
+                          title: (
+                            <Checkbox
+                              label={`Select all visible (${collectionProducts.length})`}
+                              labelHidden
+                              checked={allVisibleCollectionProductsSelected}
+                              indeterminate={collectionProductsSelectionIndeterminate}
+                              onChange={handleToggleSelectAllCollectionProducts}
+                            />
+                          ),
+                        },
                         { title: "Product" },
                         { title: "Shopify Status" },
-                        { title: "Short" },
-                        { title: "Last Updated" },
                       ]}
                       selectable={false}
                     >
                       {collectionProducts.map((product, index) => (
                         <IndexTable.Row id={product.id} key={product.id} position={index}>
                           <IndexTable.Cell>
+                            <Checkbox
+                              label={`Select ${product.title}`}
+                              labelHidden
+                              checked={selectedCollectionProductIds.includes(product.id)}
+                              onChange={handleToggleCollectionProductSelection(product.id)}
+                            />
+                          </IndexTable.Cell>
+                          <IndexTable.Cell>
                             <Text as="span" variant="bodyMd" fontWeight="medium">
                               {product.title}
                             </Text>
                           </IndexTable.Cell>
                           <IndexTable.Cell>{renderBadge(product.status)}</IndexTable.Cell>
-                          <IndexTable.Cell>{renderBadge(product.descriptionStatus)}</IndexTable.Cell>
-                          <IndexTable.Cell>
-                            <Text as="span" variant="bodySm" tone="subdued">
-                              {product.updatedAt}
-                            </Text>
-                          </IndexTable.Cell>
                         </IndexTable.Row>
                       ))}
                     </IndexTable>
@@ -2000,7 +2516,10 @@ export default function CollectionsPage() {
                     bulkContentTypes.includes("description") ? "Descriptions" : null,
                     bulkContentTypes.includes("meta_description") ? "Meta Descriptions" : null,
                     bulkContentTypes.includes("meta_title") ? "Meta Titles" : null,
-                  ].filter(Boolean).join(", ")} will be generated for {selectedCollections.length} collection{selectedCollections.length !== 1 ? "s" : ""}
+                  ].filter(Boolean).join(", ")} will be generated for{" "}
+                  {isCollectionProductsMode
+                    ? `${estimatedTargetItems} product${estimatedTargetItems !== 1 ? "s" : ""}`
+                    : `${selectedCollections.length} collection${selectedCollections.length !== 1 ? "s" : ""}`}
                 </Text>
               </BlockStack>
             </div>
@@ -2309,7 +2828,10 @@ export default function CollectionsPage() {
 
             <div style={{ padding: "8px 16px", borderTop: "1px solid var(--p-color-border)" }}>
               <Text as="p" variant="bodySm" tone="subdued">
-                Estimated credits: {selectedCollections.length * bulkContentTypes.length} ({selectedCollections.length} collections × {bulkContentTypes.length} types)
+                Estimated credits: {estimatedTargetItems * bulkContentTypes.length} (
+                {isCollectionProductsMode
+                  ? `${estimatedTargetItems} products`
+                  : `${selectedCollections.length} collections`} × {bulkContentTypes.length} types)
               </Text>
             </div>
 
@@ -2352,7 +2874,9 @@ export default function CollectionsPage() {
                 loading={isBulkGenerating}
                 tone="success"
               >
-                {`Generate ${selectedCollections.length} items (${selectedCollections.length} collections × ${bulkContentTypes.length} types)`}
+                {isCollectionProductsMode
+                  ? `Generate ${estimatedTargetItems} items (${estimatedTargetItems} products × ${bulkContentTypes.length} types)`
+                  : `Generate ${selectedCollections.length} items (${selectedCollections.length} collections × ${bulkContentTypes.length} types)`}
               </Button>
             </div>
           </Card>
