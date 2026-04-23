@@ -107,23 +107,24 @@ Html format should be like this:
 const DEFAULT_META_DESCRIPTION_CUSTOM_PROMPT = `Write an SEO-friendly meta description for the given product.
 
 Requirements:
-- Keep length between 120 and 160 characters.
-- Include the main product keyword naturally.
-- Highlight one clear customer benefit.
-- Use persuasive but trustworthy language.
-- Add a simple call to action.
+- Primary keyword naturally included
+- Clear value proposition
+- Call to action
+- 140-160 characters max
+- Compelling and click-worthy
 
-Output only the final meta description text.`;
+Format: Engaging description that drives clicks from search results.`;
 
 const DEFAULT_META_TITLE_CUSTOM_PROMPT = `Write an SEO-friendly meta title for the given product.
 
 Requirements:
-- Keep length between 50 and 60 characters.
-- Include the primary product keyword near the beginning.
-- Make it clear, readable, and compelling for search results.
-- Avoid keyword stuffing and clickbait.
+- Primary keyword placement
+- Brand name inclusion
+- Under 60 characters
+- Compelling and descriptive
+- Search-friendly format
 
-Output only the final meta title text.`;
+Focus on click-through rate optimization.`;
 const COLLECTIONS_QUERY = `#graphql
   query GetCollections {
     collections(first: 100, sortKey: TITLE) {
