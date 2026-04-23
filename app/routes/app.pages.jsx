@@ -828,9 +828,20 @@ export default function PagesPage() {
         </div>
       </div>
 
-      <div className="app-split-layout">
+      <div
+        className="app-split-layout"
+        style={{
+          display: "flex",
+          gap: "16px",
+          alignItems: "flex-start",
+          flexWrap: "wrap",
+        }}
+      >
         {/* LEFT: Pages Table */}
-        <div className="app-split-main">
+        <div
+          className="app-split-main"
+          style={{ flex: "1 1 calc(50% - 8px)", maxWidth: "calc(50% - 8px)", minWidth: "320px" }}
+        >
           {pages.length === 0 && (
             <Banner tone="info">
               <p>No pages found in your store. Create pages in Shopify Admin first.</p>
@@ -878,7 +889,10 @@ export default function PagesPage() {
         </div>
 
         {/* RIGHT: Bulk Settings Panel */}
-        <div className="app-split-side">
+        <div
+          className="app-split-side"
+          style={{ flex: "1 1 calc(50% - 8px)", maxWidth: "calc(50% - 8px)", minWidth: "320px" }}
+        >
           <Card padding="0">
             <div style={{ padding: "16px", borderBottom: "1px solid var(--p-color-border)" }}>
               <BlockStack gap="100">
