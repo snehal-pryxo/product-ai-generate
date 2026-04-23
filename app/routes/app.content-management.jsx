@@ -2501,13 +2501,12 @@ export default function ContentManagementPage() {
     { title: "SEO Title" },
     { title: "SEO Description" },
     { title: "Last Updated" },
-    ...(tabLabel === "collection_products" ? [] : [{ title: "Generate" }]),
+    { title: "Generate" },
   ];
 
   const rowMarkup = localItems.map((item, idx) => {
     const isGenerating = generatingId === item.id;
     const effectiveContentType = item.contentType || tab;
-    const isCollectionProductRow = effectiveContentType === "collection_products";
     const scopeOptions = getGenerateScopeOptions(effectiveContentType);
     const isPopoverOpen = openGeneratePopoverId === item.id;
     const descText = truncateText(item.descriptionHtml, 90);
@@ -2642,58 +2641,42 @@ export default function ContentManagementPage() {
         </IndexTable.Cell>
 
         {/* Generate button */}
-        {!isCollectionProductRow ? (
-          <IndexTable.Cell>
-            <InlineStack gap="100" wrap={false}>
+        <IndexTable.Cell>
+          <Popover
+            active={isPopoverOpen}
+            activator={
               <Button
                 size="slim"
+                loading={isGenerating}
+                disabled={isGenerating || localCredits < 1}
                 icon={
-                  <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                  <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path d="M10 1L12.39 7.26L19 8.27L14.5 12.64L15.78 19.02L10 15.77L4.22 19.02L5.5 12.64L1 8.27L7.61 7.26L10 1Z" />
                   </svg>
                 }
-                onClick={() => handleGenerate(item, "all")}
-                loading={isGenerating}
-                disabled={isGenerating || localCredits < CREDITS_PER_GENERATION}
+                onClick={() => setOpenGeneratePopoverId((prev) => (prev === item.id ? null : item.id))}
+                accessibilityLabel={`${hasGeneratedContent ? "Regenerate" : "Generate"} options`}
               >
                 {hasGeneratedContent ? "Regenerate" : "Generate"}
               </Button>
-              <Popover
-                active={isPopoverOpen}
-                activator={
-                <Button
-                  size="slim"
-                  icon={
-                    <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                      <path d="M5.5 7.5L10 12L14.5 7.5" />
-                    </svg>
-                  }
-                  onClick={() => setOpenGeneratePopoverId((prev) => (prev === item.id ? null : item.id))}
-                  disabled={isGenerating || localCredits < 1}
-                  accessibilityLabel="More generate options"
-                />
-                }
-                onClose={() => setOpenGeneratePopoverId(null)}
-              >
-                <ActionList
-                  items={scopeOptions
-                    .filter((option) => option.value !== "all")
-                    .map((option) => {
-                      const optionCredits = creditsForGenerateScope(option.value);
-                      return {
-                        content: `${option.label} (${optionCredits} credit${optionCredits === 1 ? "" : "s"})`,
-                        disabled: localCredits < optionCredits,
-                        onAction: () => {
-                          setOpenGeneratePopoverId(null);
-                          handleGenerate(item, option.value);
-                        },
-                      };
-                    })}
-                />
-              </Popover>
-            </InlineStack>
-          </IndexTable.Cell>
-        ) : null}
+            }
+            onClose={() => setOpenGeneratePopoverId(null)}
+          >
+            <ActionList
+              items={scopeOptions.map((option) => {
+                const optionCredits = creditsForGenerateScope(option.value);
+                return {
+                  content: `${option.label} (${optionCredits} credit${optionCredits === 1 ? "" : "s"})`,
+                  disabled: localCredits < optionCredits,
+                  onAction: () => {
+                    setOpenGeneratePopoverId(null);
+                    handleGenerate(item, option.value);
+                  },
+                };
+              })}
+            />
+          </Popover>
+        </IndexTable.Cell>
       </IndexTable.Row>
     );
   });
