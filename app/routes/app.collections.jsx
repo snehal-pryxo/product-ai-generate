@@ -11,6 +11,7 @@ import {
 import {
   Badge,
   Banner,
+  Box,
   BlockStack,
   Button,
   Card,
@@ -1747,8 +1748,8 @@ export default function CollectionsPage() {
   ));
 
   const sectionTabs = [
-    { id: "products", content: "Products", path: "/app/products" },
-    { id: "collections", content: "Collections", path: "/app/collections" },
+    { id: "products", label: "Products", path: "/app/products", icon: ProductIcon },
+    { id: "collections", label: "Collections", path: "/app/collections", icon: CollectionIcon },
   ];
   const statusTabs = [
     { id: "all", content: "All" },
@@ -1758,14 +1759,6 @@ export default function CollectionsPage() {
   const activeSectionPath = location.pathname.startsWith("/app/collections")
     ? "/app/collections"
     : "/app/products";
-  const sectionTabIndex = sectionTabs.findIndex((tab) => tab.path === activeSectionPath);
-  const handleSectionTabChange = useCallback(
-    (selectedTabIndex) => {
-      const nextPath = selectedTabIndex === 1 ? "/app/collections" : "/app/products";
-      navigate({ pathname: nextPath, search: location.search });
-    },
-    [navigate, location.search],
-  );
 
   return (
     <Page fullWidth>
@@ -1829,13 +1822,46 @@ export default function CollectionsPage() {
         <div className="app-split-main" style={{ flex: "1 1 0", minWidth: "0" }}>
           {/* ── Products / Collections tab bar ── */}
           <div className="app-toolbar" style={{ marginBottom: "20px" }}>
-            <div className="app-toolbar-fixed" style={{ maxWidth: "360px" }}>
-              <Tabs
-                tabs={sectionTabs}
-                selected={sectionTabIndex >= 0 ? sectionTabIndex : 0}
-                onSelect={handleSectionTabChange}
-                fitted
-              />
+            <div
+              className="app-toolbar-fixed"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                border: "1px solid #d1d5db",
+                borderRadius: "12px",
+                padding: "4px",
+                background: "#f3f4f6",
+                gap: "4px",
+              }}
+            >
+              {sectionTabs.map((tab) => {
+                const isActive = activeSectionPath === tab.path;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => navigate({ pathname: tab.path, search: location.search })}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                      minWidth: "150px",
+                      padding: "8px 14px",
+                      border: "none",
+                      borderRadius: "10px",
+                      background: isActive ? "#000000" : "transparent",
+                      color: isActive ? "#ffffff" : "#374151",
+                      fontWeight: 600,
+                      fontSize: "14px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <Icon source={tab.icon} />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
