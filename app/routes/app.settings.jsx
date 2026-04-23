@@ -89,6 +89,19 @@ const LANGUAGE_OPTIONS = [
   "Telugu", "Thai", "Turkish", "Ukrainian", "Urdu", "Vietnamese",
 ].map((l) => ({ label: l, value: l }));
 
+const AI_PROVIDER_OPTIONS = [
+  { label: "Auto", value: "auto" },
+  { label: "OpenAI", value: "openai" },
+  { label: "Anthropic", value: "anthropic" },
+  { label: "Ollama", value: "ollama" },
+];
+
+const LENGTH_OPTIONS = [
+  { label: "Short", value: "short" },
+  { label: "Medium", value: "medium" },
+  { label: "Long", value: "long" },
+];
+
 
 function SectionLabel({ children }) {
   return (
@@ -181,7 +194,7 @@ export default function SettingsPage() {
               borderRadius="300"
               padding="300"
             >
-              <div className="app-form-grid-2" style={{ gap: "16px" }}>
+              <div className="app-form-grid-3" style={{ gap: "16px" }}>
                 <Select
                   label="Output Language"
                   options={LANGUAGE_OPTIONS}
@@ -190,19 +203,16 @@ export default function SettingsPage() {
                   helpText="Default language for all AI-generated content."
                 />
                 <Select
-                  label="Tone"
-                  options={[
-                    { label: "Professional", value: "professional" },
-                    { label: "Casual", value: "casual" },
-                    { label: "Friendly", value: "friendly" },
-                    { label: "Persuasive", value: "persuasive" },
-                    { label: "Informative", value: "informative" },
-                    { label: "Luxury", value: "luxury" },
-                    { label: "Playful", value: "playful" },
-                    { label: "Urgent", value: "urgent" },
-                  ]}
-                  value={settings.tone}
-                  onChange={update("tone")}
+                  label="AI Provider"
+                  options={AI_PROVIDER_OPTIONS}
+                  value={settings.aiProvider}
+                  onChange={update("aiProvider")}
+                />
+                <Select
+                  label="Default Length"
+                  options={LENGTH_OPTIONS}
+                  value={settings.length}
+                  onChange={update("length")}
                 />
               </div>
             </Box>
