@@ -34,7 +34,6 @@ import {
   ChevronUpIcon,
   ChevronDownIcon,
   XIcon,
-  ExternalIcon,
 } from "@shopify/polaris-icons";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
@@ -1662,80 +1661,29 @@ export default function CollectionsPage() {
       </IndexTable.Cell>
 
       <IndexTable.Cell>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
-            <div
-              style={{
-                width: 72,
-                height: 72,
-                borderRadius: 10,
-                border: "1px solid #d1d5db",
-                background: "#f3f4f6",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                overflow: "hidden",
-                flexShrink: 0,
-              }}
-            >
-              {collection.imageUrl ? (
-                <img
-                  src={collection.imageUrl}
-                  alt={collection.imageAlt}
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
-              ) : (
-                <Text as="span" variant="bodySm" tone="subdued">No Image</Text>
-              )}
-            </div>
-            <BlockStack gap="050">
-              <div className="collections-title-cell">
-                <Text as="span" variant="bodyMd" fontWeight="medium">
-                  {collection.title}
-                </Text>
-              </div>
-              <Text as="span" variant="bodySm" tone="subdued">
-                Last updated: {collection.updatedAt}
-              </Text>
-            </BlockStack>
-          </div>
-          <Button
-            icon={ExternalIcon}
-            size="slim"
-            variant="tertiary"
-            url={collection.adminUrl || undefined}
-            external
-            accessibilityLabel={`Open ${collection.title} in Shopify admin`}
-            disabled={!collection.adminUrl}
-          />
-        </div>
+        <Text as="span" variant="bodyMd" fontWeight="medium">
+          {collection.title}
+        </Text>
       </IndexTable.Cell>
 
       <IndexTable.Cell>
-        <InlineStack gap="100" blockAlign="center" wrap={false}>
-          <Badge tone="info">{collection.productsCount} product{collection.productsCount === 1 ? "" : "s"}</Badge>
-          <Button
-            size="slim"
-            variant="tertiary"
-            onClick={() =>
-              navigate(
-                makeUrl({
-                  search: filters.search,
-                  productsCollectionId: collection.id,
-                }),
-              )
-            }
-          >
-            View
-          </Button>
-        </InlineStack>
+        <Button
+          size="slim"
+          variant="tertiary"
+          onClick={() =>
+            navigate(
+              makeUrl({
+                search: filters.search,
+                productsCollectionId: collection.id,
+              }),
+            )
+          }
+        >
+          View
+        </Button>
       </IndexTable.Cell>
 
       <IndexTable.Cell>{renderBadge(collection.descriptionStatus)}</IndexTable.Cell>
-
-      <IndexTable.Cell>{renderBadge(collection.seoTitle)}</IndexTable.Cell>
-
-      <IndexTable.Cell>{renderBadge(collection.seoDescription)}</IndexTable.Cell>
 
       <IndexTable.Cell>
         {isBulkGenerating && selectedCollectionIds.includes(collection.id) ? (
@@ -1751,18 +1699,28 @@ export default function CollectionsPage() {
     </IndexTable.Row>
   ));
 
+  const sectionMode = new URLSearchParams(location.search).get("mode");
+  const isCollectionProductsMode = sectionMode === "collection-products";
   const sectionTabs = [
-    { id: "products", label: "Products", path: "/app/products", icon: ProductIcon },
-    { id: "collections", label: "Collections", path: "/app/collections", icon: CollectionIcon },
+    { id: "products", label: "Products", to: { pathname: "/app/products", search: "" }, icon: ProductIcon },
+    { id: "collections", label: "Collections", to: { pathname: "/app/collections", search: "" }, icon: CollectionIcon },
+    {
+      id: "collection-products",
+      label: "Collection Product",
+      to: { pathname: "/app/collections", search: "?mode=collection-products" },
+      icon: ProductIcon,
+    },
   ];
   const statusTabs = [
     { id: "all", content: "All" },
     { id: "active", content: "Active" },
     { id: "draft", content: "Draft" },
   ];
-  const activeSectionPath = location.pathname.startsWith("/app/collections")
-    ? "/app/collections"
-    : "/app/products";
+  const activeSectionId = location.pathname.startsWith("/app/products")
+    ? "products"
+    : isCollectionProductsMode
+      ? "collection-products"
+      : "collections";
 
   return (
     <Page fullWidth>
@@ -1801,11 +1759,17 @@ export default function CollectionsPage() {
         <Card>
           <BlockStack gap="300">
             <Text as="p" variant="bodyMd" fontWeight="semibold">
-              Choose a collection to generate AI-powered content for all its products
+              {isCollectionProductsMode
+                ? "Choose a collection, then generate product content inside that collection"
+                : "Choose collections to generate AI-powered collection content"}
             </Text>
             <BlockStack gap="100">
               <Text as="p" variant="bodySm" tone="subdued">- You can select multiple collections (up to {MAX_BULK_ITEMS}) for bulk content generation</Text>
-              <Text as="p" variant="bodySm" tone="subdued">- Content will be generated for all products within the selected collections</Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                {isCollectionProductsMode
+                  ? "- Generate Description, Meta Title, and Meta Description for products under the selected collection"
+                  : "- Generates Collection Description, Meta Title, and Meta Description directly on each selected collection"}
+              </Text>
             </BlockStack>
           </BlockStack>
         </Card>
@@ -1839,12 +1803,12 @@ export default function CollectionsPage() {
               }}
             >
               {sectionTabs.map((tab) => {
-                const isActive = activeSectionPath === tab.path;
+                const isActive = activeSectionId === tab.id;
                 return (
                   <button
                     key={tab.id}
                     type="button"
-                    onClick={() => navigate({ pathname: tab.path, search: location.search })}
+                    onClick={() => navigate(tab.to)}
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
@@ -1941,12 +1905,10 @@ export default function CollectionsPage() {
                           />
                         ),
                       },
-                      { title: "Collection" },
-                      { title: "Collection Products" },
-                      { title: "Description" },
-                      { title: "Meta Title" },
-                      { title: "Meta Description" },
-                      { title: "Generated" },
+                      { title: "Collection Name" },
+                      { title: "View" },
+                      { title: "Short" },
+                      { title: "Status" },
                     ]}
                     selectable={false}
                     loading={isSearchLoading}
@@ -2030,7 +1992,9 @@ export default function CollectionsPage() {
             {/* Header */}
             <div style={{ padding: "16px", borderBottom: "1px solid var(--p-color-border)" }}>
               <BlockStack gap="100">
-                <Text as="h2" variant="headingMd" fontWeight="bold">Collection Bulk Order Settings</Text>
+                <Text as="h2" variant="headingMd" fontWeight="bold">
+                  {isCollectionProductsMode ? "Collection Product Bulk Settings" : "Collection Bulk Settings"}
+                </Text>
                 <Text as="p" variant="bodySm" tone="subdued">
                   {[
                     bulkContentTypes.includes("description") ? "Descriptions" : null,
@@ -2423,16 +2387,6 @@ export default function CollectionsPage() {
         .collections-table-wrap .Polaris-IndexTable__Table th:nth-child(2),
         .collections-table-wrap .Polaris-IndexTable__Table td:nth-child(2) {
           padding-left: 4px;
-        }
-        .collections-title-cell {
-          max-width: 240px;
-          white-space: normal;
-          overflow-wrap: anywhere;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-          text-overflow: ellipsis;
         }
       `}</style>
 

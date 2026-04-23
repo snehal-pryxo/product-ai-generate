@@ -1573,13 +1573,22 @@ export default function ProductsPage() {
   );
 
   const location = useLocation();
+  const sectionMode = new URLSearchParams(location.search).get("mode");
   const sectionTabs = [
-    { id: "products", label: "Products", path: "/app/products", icon: ProductIcon },
-    { id: "collections", label: "Collections", path: "/app/collections", icon: CollectionIcon },
+    { id: "products", label: "Products", to: { pathname: "/app/products", search: "" }, icon: ProductIcon },
+    { id: "collections", label: "Collections", to: { pathname: "/app/collections", search: "" }, icon: CollectionIcon },
+    {
+      id: "collection-products",
+      label: "Collection Product",
+      to: { pathname: "/app/collections", search: "?mode=collection-products" },
+      icon: ProductIcon,
+    },
   ];
-  const activeSectionPath = location.pathname?.startsWith("/app/collections")
-    ? "/app/collections"
-    : "/app/products";
+  const activeSectionId = location.pathname?.startsWith("/app/products")
+    ? "products"
+    : sectionMode === "collection-products"
+      ? "collection-products"
+      : "collections";
 
   return (
     <Page fullWidth>
@@ -1654,12 +1663,12 @@ export default function ProductsPage() {
               }}
             >
               {sectionTabs.map((tab) => {
-                const isActive = activeSectionPath === tab.path;
+                const isActive = activeSectionId === tab.id;
                 return (
                   <button
                     key={tab.id}
                     type="button"
-                    onClick={() => navigate({ pathname: tab.path, search: location.search })}
+                    onClick={() => navigate(tab.to)}
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
