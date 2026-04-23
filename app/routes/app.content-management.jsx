@@ -661,7 +661,7 @@ export const loader = async ({ request }) => {
 
   const shouldLoadProducts = tab === "all" || tab === "products";
   const shouldLoadCollections = tab === "all" || tab === "collections";
-  const shouldLoadCollectionProducts = tab === "collection_products";
+  const shouldLoadCollectionProducts = tab === "collection_products" || tab === "all";
   const shouldLoadPages = tab === "all" || tab === "pages";
   const shouldLoadBlog = false;
 
@@ -675,13 +675,29 @@ export const loader = async ({ request }) => {
     shouldLoadProducts
       ? db.productGeneratedContent.findMany({
           where: { shop: session.shop },
-          select: { productId: true, creditsUsed: true },
+          select: {
+            productId: true,
+            productTitle: true,
+            descriptionHtml: true,
+            seoTitle: true,
+            seoDescription: true,
+            creditsUsed: true,
+            updatedAt: true,
+          },
         })
       : Promise.resolve([]),
     shouldLoadCollections
       ? db.collectionGeneratedContent.findMany({
           where: { shop: session.shop },
-          select: { collectionId: true, creditsUsed: true },
+          select: {
+            collectionId: true,
+            collectionTitle: true,
+            descriptionHtml: true,
+            seoTitle: true,
+            seoDescription: true,
+            creditsUsed: true,
+            updatedAt: true,
+          },
         })
       : Promise.resolve([]),
     shouldLoadCollectionProducts
@@ -704,14 +720,27 @@ export const loader = async ({ request }) => {
     shouldLoadPages
       ? db.pageGeneratedContent.findMany({
           where: { shop: session.shop },
-          select: { pageId: true, creditsUsed: true },
+          select: {
+            pageId: true,
+            pageTitle: true,
+            bodyHtml: true,
+            seoTitle: true,
+            seoDescription: true,
+            creditsUsed: true,
+            updatedAt: true,
+          },
         })
       : Promise.resolve([]),
     db.generatedContentLog.findMany({
       where: { shop: session.shop },
-      select: { productId: true, resourceType: true, creditsUsed: true },
+      select: { productId: true, resourceType: true, creditsUsed: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
     }),
   ]);
+
+  const productGeneratedMap = new Map(productGeneratedRows.map((row) => [row.productId, row]));
+  const collectionGeneratedMap = new Map(collectionGeneratedRows.map((row) => [row.collectionId, row]));
+  const pageGeneratedMap = new Map(pageGeneratedRows.map((row) => [row.pageId, row]));
 
   const productCreditsMap = new Map(productGeneratedRows.map((row) => [row.productId, row.creditsUsed ?? 0]));
   const collectionCreditsMap = new Map(collectionGeneratedRows.map((row) => [row.collectionId, row.creditsUsed ?? 0]));
@@ -733,7 +762,9 @@ export const loader = async ({ request }) => {
           ? "pages"
           : "products";
     if (!itemId) continue;
-    logCreditsMapByType[type].set(itemId, (logCreditsMapByType[type].get(itemId) || 0) + creditsUsed);
+    if (!logCreditsMapByType[type].has(itemId)) {
+      logCreditsMapByType[type].set(itemId, creditsUsed);
+    }
   }
 
   const resolveCreditsUsed = (contentType, itemId) => {
@@ -790,16 +821,17 @@ export const loader = async ({ request }) => {
         afterCursor = conn.pageInfo.endCursor;
       }
       allItems.push(...productNodes.filter((n) => isGeneratedItem("products", n.id)).map((n) => ({
+        ...(productGeneratedMap.get(n.id) || {}),
         id: n.id,
-        title: n.title,
+        title: productGeneratedMap.get(n.id)?.productTitle || n.title,
         handle: n.handle,
         status: n.status,
-        descriptionHtml: n.descriptionHtml || "",
-        seoTitle: n.seo?.title || "",
-        seoDescription: n.seo?.description || "",
+        descriptionHtml: productGeneratedMap.get(n.id)?.descriptionHtml || "",
+        seoTitle: productGeneratedMap.get(n.id)?.seoTitle || "",
+        seoDescription: productGeneratedMap.get(n.id)?.seoDescription || "",
         imageUrl: n.featuredMedia?.preview?.image?.url || null,
-        imageAlt: n.featuredMedia?.preview?.image?.altText || n.title,
-        updatedAt: n.updatedAt || null,
+        imageAlt: n.featuredMedia?.preview?.image?.altText || (productGeneratedMap.get(n.id)?.productTitle || n.title),
+        updatedAt: productGeneratedMap.get(n.id)?.updatedAt || n.updatedAt || null,
         contentType: "products",
         creditsUsed: resolveCreditsUsed("products", n.id),
       })));
@@ -819,16 +851,17 @@ export const loader = async ({ request }) => {
         afterCursor = conn.pageInfo.endCursor;
       }
       allItems.push(...collectionNodes.filter((n) => isGeneratedItem("collections", n.id)).map((n) => ({
+        ...(collectionGeneratedMap.get(n.id) || {}),
         id: n.id,
-        title: n.title,
+        title: collectionGeneratedMap.get(n.id)?.collectionTitle || n.title,
         handle: n.handle,
         status: "Active",
-        descriptionHtml: n.descriptionHtml || "",
-        seoTitle: n.seo?.title || "",
-        seoDescription: n.seo?.description || "",
+        descriptionHtml: collectionGeneratedMap.get(n.id)?.descriptionHtml || "",
+        seoTitle: collectionGeneratedMap.get(n.id)?.seoTitle || "",
+        seoDescription: collectionGeneratedMap.get(n.id)?.seoDescription || "",
         imageUrl: n.image?.url || null,
-        imageAlt: n.image?.altText || n.title,
-        updatedAt: n.updatedAt || null,
+        imageAlt: n.image?.altText || (collectionGeneratedMap.get(n.id)?.collectionTitle || n.title),
+        updatedAt: collectionGeneratedMap.get(n.id)?.updatedAt || n.updatedAt || null,
         contentType: "collections",
         creditsUsed: resolveCreditsUsed("collections", n.id),
       })));
@@ -851,20 +884,39 @@ export const loader = async ({ request }) => {
         const mfMap = {};
         (n.metafields?.edges || []).forEach(({ node: mf }) => { mfMap[mf.key] = mf.value; });
         return {
+          ...(pageGeneratedMap.get(n.id) || {}),
           id: n.id,
-          title: n.title,
+          title: pageGeneratedMap.get(n.id)?.pageTitle || n.title,
           handle: n.handle,
           status: "Active",
-          descriptionHtml: n.body || "",
-          seoTitle: mfMap["title_tag"] || "",
-          seoDescription: mfMap["description_tag"] || "",
+          descriptionHtml: pageGeneratedMap.get(n.id)?.bodyHtml || "",
+          seoTitle: pageGeneratedMap.get(n.id)?.seoTitle || "",
+          seoDescription: pageGeneratedMap.get(n.id)?.seoDescription || "",
           imageUrl: null,
-          imageAlt: n.title,
-          updatedAt: n.updatedAt || null,
+          imageAlt: pageGeneratedMap.get(n.id)?.pageTitle || n.title,
+          updatedAt: pageGeneratedMap.get(n.id)?.updatedAt || n.updatedAt || null,
           contentType: "pages",
           creditsUsed: resolveCreditsUsed("pages", n.id),
         };
       }));
+
+      allItems.push(...collectionProductGeneratedRows.map((row) => ({
+        id: `${row.collectionId}::${row.productId}`,
+        title: row.productTitle || row.productId,
+        collectionTitle: row.collectionTitle || row.collectionId,
+        productId: row.productId,
+        collectionId: row.collectionId,
+        handle: "",
+        status: row.appliedToProduct ? "Active" : "Generated",
+        descriptionHtml: row.descriptionHtml || "",
+        seoTitle: row.seoTitle || "",
+        seoDescription: row.seoDescription || "",
+        imageUrl: null,
+        imageAlt: row.productTitle || row.productId,
+        updatedAt: row.updatedAt || null,
+        contentType: "collection_products",
+        creditsUsed: row.creditsUsed ?? 0,
+      })));
 
       items = allItems;
     } else if (tab === "products") {
@@ -882,16 +934,17 @@ export const loader = async ({ request }) => {
         afterCursor = conn.pageInfo.endCursor;
       }
       items = nodes.filter((n) => isGeneratedItem("products", n.id)).map((n) => ({
+        ...(productGeneratedMap.get(n.id) || {}),
         id: n.id,
-        title: n.title,
+        title: productGeneratedMap.get(n.id)?.productTitle || n.title,
         handle: n.handle,
         status: n.status,
-        descriptionHtml: n.descriptionHtml || "",
-        seoTitle: n.seo?.title || "",
-        seoDescription: n.seo?.description || "",
+        descriptionHtml: productGeneratedMap.get(n.id)?.descriptionHtml || "",
+        seoTitle: productGeneratedMap.get(n.id)?.seoTitle || "",
+        seoDescription: productGeneratedMap.get(n.id)?.seoDescription || "",
         imageUrl: n.featuredMedia?.preview?.image?.url || null,
-        imageAlt: n.featuredMedia?.preview?.image?.altText || n.title,
-        updatedAt: n.updatedAt || null,
+        imageAlt: n.featuredMedia?.preview?.image?.altText || (productGeneratedMap.get(n.id)?.productTitle || n.title),
+        updatedAt: productGeneratedMap.get(n.id)?.updatedAt || n.updatedAt || null,
         contentType: "products",
         creditsUsed: resolveCreditsUsed("products", n.id),
       }));
@@ -910,16 +963,17 @@ export const loader = async ({ request }) => {
         afterCursor = conn.pageInfo.endCursor;
       }
       items = nodes.filter((n) => isGeneratedItem("collections", n.id)).map((n) => ({
+        ...(collectionGeneratedMap.get(n.id) || {}),
         id: n.id,
-        title: n.title,
+        title: collectionGeneratedMap.get(n.id)?.collectionTitle || n.title,
         handle: n.handle,
         status: "Active",
-        descriptionHtml: n.descriptionHtml || "",
-        seoTitle: n.seo?.title || "",
-        seoDescription: n.seo?.description || "",
+        descriptionHtml: collectionGeneratedMap.get(n.id)?.descriptionHtml || "",
+        seoTitle: collectionGeneratedMap.get(n.id)?.seoTitle || "",
+        seoDescription: collectionGeneratedMap.get(n.id)?.seoDescription || "",
         imageUrl: n.image?.url || null,
-        imageAlt: n.image?.altText || n.title,
-        updatedAt: n.updatedAt || null,
+        imageAlt: n.image?.altText || (collectionGeneratedMap.get(n.id)?.collectionTitle || n.title),
+        updatedAt: collectionGeneratedMap.get(n.id)?.updatedAt || n.updatedAt || null,
         contentType: "collections",
         creditsUsed: resolveCreditsUsed("collections", n.id),
       }));
@@ -941,16 +995,17 @@ export const loader = async ({ request }) => {
         const mfMap = {};
         (n.metafields?.edges || []).forEach(({ node: mf }) => { mfMap[mf.key] = mf.value; });
         return {
+          ...(pageGeneratedMap.get(n.id) || {}),
           id: n.id,
-          title: n.title,
+          title: pageGeneratedMap.get(n.id)?.pageTitle || n.title,
           handle: n.handle,
           status: "Active",
-          descriptionHtml: n.body || "",
-          seoTitle: mfMap["title_tag"] || "",
-          seoDescription: mfMap["description_tag"] || "",
+          descriptionHtml: pageGeneratedMap.get(n.id)?.bodyHtml || "",
+          seoTitle: pageGeneratedMap.get(n.id)?.seoTitle || "",
+          seoDescription: pageGeneratedMap.get(n.id)?.seoDescription || "",
           imageUrl: null,
-          imageAlt: n.title,
-          updatedAt: n.updatedAt || null,
+          imageAlt: pageGeneratedMap.get(n.id)?.pageTitle || n.title,
+          updatedAt: pageGeneratedMap.get(n.id)?.updatedAt || n.updatedAt || null,
           contentType: "pages",
           creditsUsed: resolveCreditsUsed("pages", n.id),
         };
@@ -1177,7 +1232,7 @@ export const action = async ({ request }) => {
               ? { metaDescriptionPromptTemplate: templateOverrides.metaDescriptionPromptTemplate || null }
               : {}),
             ...commonUpsertData,
-            creditsUsed: { increment: creditsToUse },
+            creditsUsed: creditsToUse,
             appliedToProduct: true,
           };
           await db.productGeneratedContent.upsert({
@@ -1220,7 +1275,7 @@ export const action = async ({ request }) => {
               ? { metaDescriptionPromptTemplate: templateOverrides.metaDescriptionPromptTemplate || null }
               : {}),
             ...commonUpsertData,
-            creditsUsed: { increment: creditsToUse },
+            creditsUsed: creditsToUse,
             appliedToCollection: true,
           };
           await db.collectionGeneratedContent.upsert({
@@ -1262,7 +1317,7 @@ export const action = async ({ request }) => {
               ? { metaDescriptionPromptTemplate: templateOverrides.metaDescriptionPromptTemplate || null }
               : {}),
             ...commonUpsertData,
-            creditsUsed: { increment: creditsToUse },
+            creditsUsed: creditsToUse,
             appliedToPage: true,
           };
           await db.pageGeneratedContent.upsert({
@@ -1320,6 +1375,8 @@ export const action = async ({ request }) => {
     const descriptionHtml = formData.get("descriptionHtml") || "";
     const seoTitle = formData.get("seoTitle") || "";
     const seoDescription = formData.get("seoDescription") || "";
+    const collectionId = String(formData.get("collectionId") || "").trim();
+    const postedProductId = String(formData.get("productId") || "").trim();
 
     try {
       if (contentType === "products") {
@@ -1331,6 +1388,46 @@ export const action = async ({ request }) => {
         const json = await res.json();
         const errors = json?.data?.productUpdate?.userErrors || [];
         if (errors.length > 0) throw new Error(errors.map((e) => e.message).join(", "));
+      } else if (contentType === "collection_products") {
+        const productId = postedProductId || String(itemId || "").split("::").pop() || "";
+        if (!productId) throw new Error("Missing product id for collection product save.");
+
+        const res = await admin.graphql(PRODUCT_UPDATE_MUTATION, {
+          variables: {
+            product: { id: productId, descriptionHtml, seo: { title: seoTitle, description: seoDescription } },
+          },
+        });
+        const json = await res.json();
+        const errors = json?.data?.productUpdate?.userErrors || [];
+        if (errors.length > 0) throw new Error(errors.map((e) => e.message).join(", "));
+
+        if (collectionId) {
+          await db.collectionProductGeneratedContent.upsert({
+            where: {
+              shop_collectionId_productId: {
+                shop: session.shop,
+                collectionId,
+                productId,
+              },
+            },
+            create: {
+              shop: session.shop,
+              collectionId,
+              productId,
+              descriptionHtml,
+              seoTitle,
+              seoDescription,
+              appliedToProduct: true,
+              creditsUsed: 0,
+            },
+            update: {
+              descriptionHtml,
+              seoTitle,
+              seoDescription,
+              appliedToProduct: true,
+            },
+          });
+        }
       } else if (contentType === "collections") {
         const res = await admin.graphql(COLLECTION_UPDATE_MUTATION, {
           variables: { input: { id: itemId, descriptionHtml, seo: { title: seoTitle, description: seoDescription } } },
@@ -1729,6 +1826,8 @@ function EditorModal({ open, item, field, contentType, onClose, onSave, isSaving
       seoTitle,
       seoDescription,
       contentType: item.contentType || contentType,
+      collectionId: item.collectionId || "",
+      productId: item.productId || "",
     });
   };
 
@@ -1887,6 +1986,7 @@ function GenerateTemplateModal({
       onClose={onClose}
       title={`Generate ${itemTypeLabel} ${titleScope}`}
       className="content-mgmt-generate-modal"
+      size="large"
       primaryAction={{
         content: isGenerating ? "Generating..." : `Generate (${modalCredits} credits)`,
         onAction: onGenerate,
@@ -2211,7 +2311,7 @@ export default function ContentManagementPage() {
   }, []);
 
   const handleSaveContent = useCallback(
-    ({ itemId, descriptionHtml, seoTitle, seoDescription, contentType }) => {
+    ({ itemId, descriptionHtml, seoTitle, seoDescription, contentType, collectionId, productId }) => {
       const fd = new FormData();
       fd.append("intent", "save_content");
       fd.append("contentType", contentType || tab);
@@ -2219,6 +2319,8 @@ export default function ContentManagementPage() {
       fd.append("descriptionHtml", descriptionHtml);
       fd.append("seoTitle", seoTitle);
       fd.append("seoDescription", seoDescription);
+      if (collectionId) fd.append("collectionId", collectionId);
+      if (productId) fd.append("productId", productId);
       saveFetcher.submit(fd, { method: "post" });
     },
     [saveFetcher, tab]
@@ -2378,11 +2480,7 @@ export default function ContentManagementPage() {
 
         {/* Description – clickable to open editor */}
         <IndexTable.Cell>
-          {isCollectionProductRow ? (
-            <Text variant="bodySm" as="span" tone={descText ? undefined : "subdued"}>
-              {descText || "—"}
-            </Text>
-          ) : descText ? (
+          {descText ? (
             <button
               type="button"
               onClick={() => openEditor(item, "description")}
@@ -2410,11 +2508,7 @@ export default function ContentManagementPage() {
 
         {/* SEO Title */}
         <IndexTable.Cell>
-          {isCollectionProductRow ? (
-            <Text variant="bodySm" as="span" tone={seoTitleText ? undefined : "subdued"}>
-              {seoTitleText || "—"}
-            </Text>
-          ) : seoTitleText ? (
+          {seoTitleText ? (
             <button
               type="button"
               onClick={() => openEditor(item, "seo")}
@@ -2442,11 +2536,7 @@ export default function ContentManagementPage() {
 
         {/* SEO Description – clickable */}
         <IndexTable.Cell>
-          {isCollectionProductRow ? (
-            <Text variant="bodySm" as="span" tone={seoDescText ? undefined : "subdued"}>
-              {seoDescText || "—"}
-            </Text>
-          ) : seoDescText ? (
+          {seoDescText ? (
             <button
               type="button"
               onClick={() => openEditor(item, "seo")}

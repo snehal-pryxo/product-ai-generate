@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { useLoaderData, useNavigate, useFetcher } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -34,6 +34,8 @@ import {
   Badge,
   IndexTable,
   useIndexResourceState,
+  Modal,
+  InlineStack,
 } from "@shopify/polaris";
 import { PageIcon, ChevronUpIcon, ChevronDownIcon } from "@shopify/polaris-icons";
 
@@ -705,6 +707,121 @@ Focus on:
 
 Format: Engaging description that drives clicks from search results.`;
 
+function RichTextEditor({ value, onChange }) {
+  const editorRef = useRef(null);
+
+  useEffect(() => {
+    if (!editorRef.current) return;
+    const next = value || "";
+    if (editorRef.current.innerHTML !== next) {
+      editorRef.current.innerHTML = next;
+    }
+  }, [value]);
+
+  const exec = useCallback((command, arg = null) => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    document.execCommand(command, false, arg);
+    onChange(editorRef.current.innerHTML || "");
+  }, [onChange]);
+
+  const handleInput = useCallback(() => {
+    if (!editorRef.current) return;
+    onChange(editorRef.current.innerHTML || "");
+  }, [onChange]);
+
+  return (
+    <div style={{ border: "1px solid #d1d5db", borderRadius: 8, overflow: "hidden", background: "#fff" }}>
+      <InlineStack gap="100" wrap>
+        <div style={{ minWidth: 180 }}>
+          <Select
+            label="Text style"
+            labelHidden
+            options={[
+              { label: "Paragraph", value: "p" },
+              { label: "Heading", value: "h2" },
+              { label: "Sub heading", value: "h3" },
+              { label: "Description", value: "h4" },
+            ]}
+            value="p"
+            onChange={(v) => exec("formatBlock", v)}
+          />
+        </div>
+        <Button size="slim" onClick={() => exec("bold")}>B</Button>
+        <Button size="slim" onClick={() => exec("italic")}>I</Button>
+        <Button size="slim" onClick={() => exec("underline")}>U</Button>
+        <Button size="slim" onClick={() => exec("insertUnorderedList")}>Bullet</Button>
+        <Button size="slim" onClick={() => exec("insertOrderedList")}>1. List</Button>
+      </InlineStack>
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={handleInput}
+        style={{
+          minHeight: 260,
+          maxHeight: 420,
+          overflowY: "auto",
+          padding: 16,
+          outline: "none",
+          fontSize: 16,
+          lineHeight: 1.65,
+        }}
+      />
+    </div>
+  );
+}
+
+function PageEditorModal({
+  open,
+  page,
+  body,
+  seoTitle,
+  seoDescription,
+  onBodyChange,
+  onSeoTitleChange,
+  onSeoDescriptionChange,
+  onClose,
+  onSave,
+  loading,
+}) {
+  if (!page) return null;
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={`Edit Page: ${page.title}`}
+      primaryAction={{ content: loading ? "Saving..." : "Save", onAction: onSave, loading }}
+      secondaryActions={[{ content: "Cancel", onAction: onClose }]}
+      large
+    >
+      <Modal.Section>
+        <BlockStack gap="300">
+          <RichTextEditor value={body} onChange={onBodyChange} />
+          <TextField
+            label="Meta Title"
+            value={seoTitle}
+            onChange={onSeoTitleChange}
+            autoComplete="off"
+            maxLength={70}
+            showCharacterCount
+          />
+          <TextField
+            label="Meta Description"
+            value={seoDescription}
+            onChange={onSeoDescriptionChange}
+            autoComplete="off"
+            multiline={4}
+            maxLength={160}
+            showCharacterCount
+          />
+        </BlockStack>
+      </Modal.Section>
+    </Modal>
+  );
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function PagesPage() {
@@ -713,7 +830,9 @@ export default function PagesPage() {
   const shopify = useAppBridge();
 
   const bulkFetcher = useFetcher();
+  const editFetcher = useFetcher();
   const isBulkGenerating = bulkFetcher.state !== "idle";
+  const isSavingPage = editFetcher.state !== "idle";
 
   const [bulkSettings, setBulkSettings] = useState(() => {
     const gs = readGlobalSettings();
@@ -740,9 +859,18 @@ export default function PagesPage() {
   const [bulkBodyKeywords, setBulkBodyKeywords] = useState(() => readGlobalSettings().pageContentKeywords || "");
   const [bulkMetaTitleKeywords, setBulkMetaTitleKeywords] = useState(() => readGlobalSettings().pageMetaTitleKeywords || "");
   const [bulkMetaDescKeywords, setBulkMetaDescKeywords] = useState(() => readGlobalSettings().pageMetaDescKeywords || "");
+  const [localPages, setLocalPages] = useState(pages);
+  const [editingPage, setEditingPage] = useState(null);
+  const [editBody, setEditBody] = useState("");
+  const [editSeoTitle, setEditSeoTitle] = useState("");
+  const [editSeoDescription, setEditSeoDescription] = useState("");
 
   const { selectedResources, allResourcesSelected, handleSelectionChange } =
-    useIndexResourceState(pages);
+    useIndexResourceState(localPages);
+
+  useEffect(() => {
+    setLocalPages(pages);
+  }, [pages]);
 
   useEffect(() => {
     const templateSelection = readStoredPagePromptTemplateSelection();
@@ -767,7 +895,7 @@ export default function PagesPage() {
     }
     setBulkValidationMessage(null);
     setBulkResult(null);
-    const selectedPages = pages.filter((p) => selectedResources.includes(p.id));
+    const selectedPages = localPages.filter((p) => selectedResources.includes(p.id));
     const fd = new FormData();
     fd.append("intent", "bulk_generate_pages");
     fd.append("pages", JSON.stringify(selectedPages.map((p) => ({
@@ -809,6 +937,53 @@ export default function PagesPage() {
       setBulkValidationMessage(data.error || "Bulk generation failed.");
     }
   }, [bulkFetcher.data, bulkFetcher.state, navigate, shopify]);
+
+  function openPageEditor(page) {
+    setEditingPage(page);
+    setEditBody(page.body || "");
+    setEditSeoTitle(page.seo?.title || "");
+    setEditSeoDescription(page.seo?.description || "");
+  }
+
+  function handleSavePageEditor() {
+    if (!editingPage) return;
+    const fd = new FormData();
+    fd.append("intent", "update_page");
+    fd.append("pageId", editingPage.id);
+    fd.append("pageTitle", editingPage.title || "");
+    fd.append("body", editBody || "");
+    fd.append("seoTitle", editSeoTitle || "");
+    fd.append("seoDescription", editSeoDescription || "");
+    fd.append("pageType", bulkSettings.pageType || "");
+    fd.append("language", readGlobalSettings().language || "English");
+    fd.append("tone", bulkSettings.tone || "professional");
+    fd.append("length", bulkSettings.length || "medium");
+    fd.append("format", bulkSettings.format || "paragraphs");
+    fd.append("contextKeywords", [bulkBodyKeywords, bulkMetaTitleKeywords, bulkMetaDescKeywords].filter(Boolean).join(", "));
+    editFetcher.submit(fd, { method: "post" });
+  }
+
+  useEffect(() => {
+    const data = editFetcher.data;
+    if (!data || editFetcher.state !== "idle") return;
+    if (data.success) {
+      setLocalPages((prev) =>
+        prev.map((p) =>
+          p.id === editingPage?.id
+            ? {
+                ...p,
+                body: editBody,
+                seo: { ...(p.seo || {}), title: editSeoTitle, description: editSeoDescription },
+              }
+            : p,
+        ),
+      );
+      setEditingPage(null);
+      shopify.toast.show(data.message || "Page updated successfully!");
+      return;
+    }
+    shopify.toast.show(data.error || "Failed to update page");
+  }, [editFetcher.data, editFetcher.state, editingPage?.id, editBody, editSeoDescription, editSeoTitle, shopify]);
 
   return (
     <Page fullWidth>
@@ -881,7 +1056,7 @@ export default function PagesPage() {
           className="app-split-main"
           style={{ flex: "1 1 calc(50% - 8px)", maxWidth: "calc(50% - 8px)", minWidth: "320px" }}
         >
-          {pages.length === 0 && (
+          {localPages.length === 0 && (
             <Banner tone="info">
               <p>No pages found in your store. Create pages in Shopify Admin first.</p>
             </Banner>
@@ -890,7 +1065,7 @@ export default function PagesPage() {
             <div className="app-table-scroll">
               <IndexTable
                 resourceName={{ singular: "page", plural: "pages" }}
-              itemCount={pages.length}
+              itemCount={localPages.length}
               selectedItemsCount={allResourcesSelected ? "All" : selectedResources.length}
               onSelectionChange={handleSelectionChange}
               headings={[
@@ -899,7 +1074,7 @@ export default function PagesPage() {
                 { title: "Status" },
               ]}
             >
-              {pages.map((page, index) => {
+              {localPages.map((page, index) => {
                 const shortStatus = evaluateContentShortStatus(stripHtml(page.body || page.bodySummary || ""));
                 const publishStatus = evaluatePagePublishStatus(page.publishedAt);
                 return (
@@ -910,7 +1085,14 @@ export default function PagesPage() {
                     position={index}
                   >
                     <IndexTable.Cell>
-                      <Text variant="bodyMd" fontWeight="bold" as="span">{page.title}</Text>
+                      <button
+                        type="button"
+                        onClick={() => openPageEditor(page)}
+                        style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
+                        title="Open page editor"
+                      >
+                        <Text variant="bodyMd" fontWeight="bold" as="span">{page.title}</Text>
+                      </button>
                     </IndexTable.Cell>
                     <IndexTable.Cell>
                       <Badge tone={shortStatus.tone}>{shortStatus.label}</Badge>
@@ -1342,6 +1524,20 @@ export default function PagesPage() {
             setUseCustomMetaDescInstructions(true);
           }
         }}
+      />
+
+      <PageEditorModal
+        open={Boolean(editingPage)}
+        page={editingPage}
+        body={editBody}
+        seoTitle={editSeoTitle}
+        seoDescription={editSeoDescription}
+        onBodyChange={setEditBody}
+        onSeoTitleChange={setEditSeoTitle}
+        onSeoDescriptionChange={setEditSeoDescription}
+        onClose={() => setEditingPage(null)}
+        onSave={handleSavePageEditor}
+        loading={isSavingPage}
       />
 
     </Page>

@@ -2165,6 +2165,7 @@ export default function TemplatePage() {
         open={Boolean(deleteTargetId)}
         onClose={() => setDeleteTargetId(null)}
         title="Delete custom template?"
+        large
         primaryAction={{
           content: "Delete",
           tone: "critical",
