@@ -2353,7 +2353,7 @@ export default function CollectionsPage() {
         }}
       >
         {/* ── LEFT: Collection List ── */}
-        <div className="app-split-main" style={{ minWidth: "0" }}>
+        <div className="app-split-main" style={{ flex: "1 1 0", minWidth: "0" }}>
           {/* ── Products / Collections tab bar ── */}
           <div className="app-toolbar" style={{ marginBottom: "20px", maxWidth: "640px" }}>
             <Tabs
