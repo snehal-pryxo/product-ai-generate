@@ -38,6 +38,7 @@ import {
   PAGE_META_DESCRIPTION_TEMPLATES,
   PAGE_META_TITLE_TEMPLATES,
 } from "../lib/pagePromptTemplateLibrary";
+import { TemplateLibraryModal } from "../components/TemplateLibraryModal";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import {
@@ -147,11 +148,18 @@ function defaultTemplateSelection() {
   };
 }
 
+function defaultCustomInstructionSettings() {
+  return {
+    main: { enabled: false, prompt: "" },
+    meta_title: { enabled: false, prompt: "" },
+    meta_description: { enabled: false, prompt: "" },
+  };
+}
+
 function defaultGenerateModalPrefs() {
   return {
     templateSelection: defaultTemplateSelection(),
-    useCustomInstructions: false,
-    customPrompt: "",
+    customInstructions: defaultCustomInstructionSettings(),
   };
 }
 
@@ -566,6 +574,18 @@ function buildPrompt(
       metaDescriptionPromptTemplate: templateOverrides.metaDescriptionPromptTemplate || "",
     });
   }
+  if (contentType === "collection_products") {
+    return buildCollectionContentPrompt({
+      ...base,
+      title: item.title,
+      descriptionText: stripHtml(item.descriptionHtml || ""),
+      seoTitle: item.seoTitle || "",
+      seoDescription: item.seoDescription || "",
+      descriptionPromptTemplate: templateOverrides.descriptionPromptTemplate || "",
+      metaTitlePromptTemplate: templateOverrides.metaTitlePromptTemplate || "",
+      metaDescriptionPromptTemplate: templateOverrides.metaDescriptionPromptTemplate || "",
+    });
+  }
   if (contentType === "pages") {
     return buildPageContentPrompt({
       pageTitle: item.title,
@@ -595,6 +615,15 @@ function getGenerateTemplateConfig(contentType) {
     };
   }
   if (contentType === "collections") {
+    return {
+      mainLabel: "Description Template",
+      mainTemplates: COLLECTION_DESCRIPTION_TEMPLATES,
+      metaTitleTemplates: COLLECTION_META_TITLE_TEMPLATES,
+      metaDescriptionTemplates: COLLECTION_META_DESCRIPTION_TEMPLATES,
+      mainPromptKey: "descriptionPromptTemplate",
+    };
+  }
+  if (contentType === "collection_products") {
     return {
       mainLabel: "Description Template",
       mainTemplates: COLLECTION_DESCRIPTION_TEMPLATES,
@@ -1116,6 +1145,20 @@ export const action = async ({ request }) => {
         const json = await res.json();
         const errors = json?.data?.collectionUpdate?.userErrors || [];
         if (errors.length > 0) throw new Error(errors.map((e) => e.message).join(", "));
+      } else if (contentType === "collection_products") {
+        const rawCollectionProductId = String(item.productId || item.id || "").trim();
+        const productId = rawCollectionProductId.includes("::")
+          ? rawCollectionProductId.split("::").pop()
+          : rawCollectionProductId;
+        if (!productId) throw new Error("Missing product id for collection product generation.");
+        const res = await admin.graphql(PRODUCT_UPDATE_MUTATION, {
+          variables: {
+            product: { id: productId, descriptionHtml: descHtml, seo: { title: seoTitle, description: seoDescription } },
+          },
+        });
+        const json = await res.json();
+        const errors = json?.data?.productUpdate?.userErrors || [];
+        if (errors.length > 0) throw new Error(errors.map((e) => e.message).join(", "));
       } else if (contentType === "pages") {
         const res = await admin.graphql(PAGE_UPDATE_MUTATION, {
           variables: { id: item.id, page: { body: descHtml } },
@@ -1258,6 +1301,58 @@ export const action = async ({ request }) => {
             create: createData,
             update: updateData,
           });
+        } else if (contentType === "collection_products") {
+          const rawCollectionProductId = String(item.productId || item.id || "").trim();
+          const productId = rawCollectionProductId.includes("::")
+            ? rawCollectionProductId.split("::").pop()
+            : rawCollectionProductId;
+          const collectionId = String(item.collectionId || "").trim();
+          if (productId && collectionId) {
+            const createData = {
+              shop: session.shop,
+              collectionId,
+              collectionTitle: item.collectionTitle || null,
+              productId,
+              productTitle: item.title || null,
+              language: generationLanguage,
+              tone: "Neutral",
+              contextKeywords: contextKeywords || null,
+              descriptionPromptTemplate: shouldGenerateMain
+                ? templateOverrides.descriptionPromptTemplate || null
+                : null,
+              metaTitlePromptTemplate: shouldGenerateMetaTitle
+                ? templateOverrides.metaTitlePromptTemplate || null
+                : null,
+              metaDescriptionPromptTemplate: shouldGenerateMetaDescription
+                ? templateOverrides.metaDescriptionPromptTemplate || null
+                : null,
+              descriptionHtml: descHtml || null,
+              ...commonUpsertData,
+              appliedToProduct: true,
+            };
+            const updateData = {
+              ...(shouldGenerateMain
+                ? {
+                    descriptionPromptTemplate: templateOverrides.descriptionPromptTemplate || null,
+                    descriptionHtml: descHtml || null,
+                  }
+                : {}),
+              ...(shouldGenerateMetaTitle
+                ? { metaTitlePromptTemplate: templateOverrides.metaTitlePromptTemplate || null }
+                : {}),
+              ...(shouldGenerateMetaDescription
+                ? { metaDescriptionPromptTemplate: templateOverrides.metaDescriptionPromptTemplate || null }
+                : {}),
+              ...commonUpsertData,
+              creditsUsed: creditsToUse,
+              appliedToProduct: true,
+            };
+            await db.collectionProductGeneratedContent.upsert({
+              where: { shop_collectionId_productId: { shop: session.shop, collectionId, productId } },
+              create: createData,
+              update: updateData,
+            });
+          }
         } else if (contentType === "pages") {
           const createData = {
             shop: session.shop,
@@ -1310,10 +1405,23 @@ export const action = async ({ request }) => {
         await db.generatedContentLog.create({
           data: {
             shop: session.shop,
-            productId: item.id,
+            productId:
+              contentType === "collection_products"
+                ? (() => {
+                    const raw = String(item.productId || item.id || "").trim();
+                    return raw.includes("::") ? raw.split("::").pop() : raw;
+                  })()
+                : item.id,
             productTitle: item.title || null,
             intent: `content_management_${contentType}`,
-            resourceType: contentType === "pages" ? "page" : contentType === "collections" ? "collection" : "product",
+            resourceType:
+              contentType === "pages"
+                ? "page"
+                : contentType === "collections"
+                  ? "collection"
+                  : contentType === "collection_products"
+                    ? "collection_product"
+                    : "product",
             language: generationLanguage,
             tone: "Neutral",
             contextKeywords: contextKeywords || null,
@@ -1355,14 +1463,34 @@ export const action = async ({ request }) => {
 
     try {
       if (contentType === "products") {
+        const productId = String(itemId || "").trim();
+        if (!productId) throw new Error("Missing product id.");
         const res = await admin.graphql(PRODUCT_UPDATE_MUTATION, {
           variables: {
-            product: { id: itemId, descriptionHtml, seo: { title: seoTitle, description: seoDescription } },
+            product: { id: productId, descriptionHtml, seo: { title: seoTitle, description: seoDescription } },
           },
         });
         const json = await res.json();
         const errors = json?.data?.productUpdate?.userErrors || [];
         if (errors.length > 0) throw new Error(errors.map((e) => e.message).join(", "));
+        await db.productGeneratedContent.upsert({
+          where: { shop_productId: { shop: session.shop, productId } },
+          create: {
+            shop: session.shop,
+            productId,
+            descriptionHtml,
+            seoTitle,
+            seoDescription,
+            appliedToProduct: true,
+            creditsUsed: 0,
+          },
+          update: {
+            descriptionHtml,
+            seoTitle,
+            seoDescription,
+            appliedToProduct: true,
+          },
+        });
       } else if (contentType === "collection_products") {
         const productId = postedProductId || String(itemId || "").split("::").pop() || "";
         if (!productId) throw new Error("Missing product id for collection product save.");
@@ -1404,29 +1532,69 @@ export const action = async ({ request }) => {
           });
         }
       } else if (contentType === "collections") {
+        const collectionKey = String(itemId || "").trim();
+        if (!collectionKey) throw new Error("Missing collection id.");
         const res = await admin.graphql(COLLECTION_UPDATE_MUTATION, {
-          variables: { input: { id: itemId, descriptionHtml, seo: { title: seoTitle, description: seoDescription } } },
+          variables: { input: { id: collectionKey, descriptionHtml, seo: { title: seoTitle, description: seoDescription } } },
         });
         const json = await res.json();
         const errors = json?.data?.collectionUpdate?.userErrors || [];
         if (errors.length > 0) throw new Error(errors.map((e) => e.message).join(", "));
+        await db.collectionGeneratedContent.upsert({
+          where: { shop_collectionId: { shop: session.shop, collectionId: collectionKey } },
+          create: {
+            shop: session.shop,
+            collectionId: collectionKey,
+            descriptionHtml,
+            seoTitle,
+            seoDescription,
+            appliedToCollection: true,
+            creditsUsed: 0,
+          },
+          update: {
+            descriptionHtml,
+            seoTitle,
+            seoDescription,
+            appliedToCollection: true,
+          },
+        });
       } else if (contentType === "pages") {
+        const pageId = String(itemId || "").trim();
+        if (!pageId) throw new Error("Missing page id.");
         const res = await admin.graphql(PAGE_UPDATE_MUTATION, {
-          variables: { id: itemId, page: { body: descriptionHtml } },
+          variables: { id: pageId, page: { body: descriptionHtml } },
         });
         const json = await res.json();
         const errors = json?.data?.pageUpdate?.userErrors || [];
         if (errors.length > 0) throw new Error(errors.map((e) => e.message).join(", "));
         // Save SEO metafields for page
         const pageMetafields = [];
-        if (seoTitle) pageMetafields.push({ ownerId: itemId, namespace: "global", key: "title_tag", value: seoTitle, type: "single_line_text_field" });
-        if (seoDescription) pageMetafields.push({ ownerId: itemId, namespace: "global", key: "description_tag", value: seoDescription, type: "single_line_text_field" });
+        if (seoTitle) pageMetafields.push({ ownerId: pageId, namespace: "global", key: "title_tag", value: seoTitle, type: "single_line_text_field" });
+        if (seoDescription) pageMetafields.push({ ownerId: pageId, namespace: "global", key: "description_tag", value: seoDescription, type: "single_line_text_field" });
         if (pageMetafields.length > 0) {
           const mfRes = await admin.graphql(METAFIELDS_SET_MUTATION, { variables: { metafields: pageMetafields } });
           const mfJson = await mfRes.json();
           const mfErrors = mfJson?.data?.metafieldsSet?.userErrors || [];
           if (mfErrors.length > 0) throw new Error(mfErrors.map((e) => e.message).join(", "));
         }
+        await db.pageGeneratedContent.upsert({
+          where: { shop_pageId: { shop: session.shop, pageId } },
+          create: {
+            shop: session.shop,
+            pageId,
+            bodyHtml: descriptionHtml,
+            seoTitle,
+            seoDescription,
+            appliedToPage: true,
+            creditsUsed: 0,
+          },
+          update: {
+            bodyHtml: descriptionHtml,
+            seoTitle,
+            seoDescription,
+            appliedToPage: true,
+          },
+        });
       } else if (contentType === "blog") {
         const res = await admin.graphql(ARTICLE_UPDATE_MUTATION, {
           variables: { id: itemId, article: { body: descriptionHtml } },
@@ -1865,13 +2033,12 @@ function GenerateTemplateModal({
   contentType,
   generateScope,
   templateSelection,
-  useCustomInstructions,
-  customPrompt,
+  customInstructions,
   previewText,
   progress,
   onChange,
-  onUseCustomInstructionsChange,
-  onCustomPromptChange,
+  onCustomInstructionToggle,
+  onCustomInstructionPromptChange,
   onResetDefaults,
   onClose,
   onGenerate,
@@ -1900,81 +2067,68 @@ function GenerateTemplateModal({
     isHydratedRef.current = true;
   }, []);
 
-  const [templatePopoverActive, setTemplatePopoverActive] = useState(false);
-  const sectionTitle = showMetaTitle && !showMain && !showMetaDescription
-    ? "Meta Title"
-    : showMetaDescription && !showMain && !showMetaTitle
-      ? "Meta Description"
-      : contentType === "pages"
-        ? "Body"
-        : "Description";
+  const [templateLibraryOpen, setTemplateLibraryOpen] = useState(false);
+  const [templateLibraryTab, setTemplateLibraryTab] = useState("description");
   const browseButtonLabel = "Browse Templates";
-  const defaultPromptByScope = (() => {
-    if (showMetaTitle && !showMain && !showMetaDescription) {
-      return contentType === "collections"
-        ? "Generate SEO-optimized meta title for the given collection.\n\nRequirements:\n- Primary keyword placement\n- Brand name inclusion\n- Under 60 characters\n- Compelling and descriptive\n- Search-friendly format\n\nFocus on click-through rate optimization."
-        : "Generate SEO-optimized meta title for the given item.\n\nRequirements:\n- Primary keyword placement\n- Brand name inclusion\n- Under 60 characters\n- Compelling and descriptive\n- Search-friendly format\n\nFocus on click-through rate optimization.";
+  const getScopeLabel = useCallback((scope) => {
+    if (scope === "main") return contentType === "pages" ? "Body" : "Description";
+    if (scope === "meta_title") return "Meta Title";
+    return "Meta Description";
+  }, [contentType]);
+  const getDefaultPromptByScope = useCallback((scope) => {
+    if (scope === "meta_title") {
+      if (contentType === "collections" || contentType === "collection_products") {
+        return "Generate SEO-optimized meta title for the given collection.\n\nRequirements:\n- Primary keyword placement\n- Brand name inclusion\n- Under 60 characters\n- Compelling and descriptive\n- Search-friendly format\n\nFocus on click-through rate optimization.";
+      }
+      if (contentType === "products") {
+        return "Write an SEO-friendly meta title for the given product.\n\nRequirements:\n- Primary keyword placement\n- Brand name inclusion\n- Under 60 characters\n- Compelling and descriptive\n- Search-friendly format\n\nFocus on click-through rate optimization.";
+      }
+      return "Generate SEO-optimized meta title for the given page.\n\nRequirements:\n- Primary keyword placement\n- Brand name inclusion\n- Under 60 characters\n- Compelling and descriptive\n- Search-friendly format\n\nFocus on click-through rate optimization.";
     }
-    if (showMetaDescription && !showMain && !showMetaTitle) {
-      return contentType === "collections"
-        ? "Generate SEO-optimized meta description for given collection.\n\nFocus on:\n- Primary keyword naturally included\n- Clear value proposition\n- Call to action\n- 140-160 characters max\n- Compelling and click-worthy\n\nFormat: Engaging description that drives clicks from search results."
-        : "Generate SEO-optimized meta description for given item.\n\nFocus on:\n- Primary keyword naturally included\n- Clear value proposition\n- Call to action\n- 140-160 characters max\n- Compelling and click-worthy\n\nFormat: Engaging description that drives clicks from search results.";
+    if (scope === "meta_description") {
+      if (contentType === "collections" || contentType === "collection_products") {
+        return "Generate SEO-optimized meta description for given collection.\n\nFocus on:\n- Primary keyword naturally included\n- Clear value proposition\n- Call to action\n- 140-160 characters max\n- Compelling and click-worthy\n\nFormat: Engaging description that drives clicks from search results.";
+      }
+      if (contentType === "products") {
+        return "Write an SEO-friendly meta description for the given product.\n\nRequirements:\n- Primary keyword naturally included\n- Clear value proposition\n- Call to action\n- 140-160 characters max\n- Compelling and click-worthy\n\nFormat: Engaging description that drives clicks from search results.";
+      }
+      return "Generate SEO-optimized meta description for given page.\n\nFocus on:\n- Primary keyword naturally included\n- Clear value proposition\n- Call to action\n- 140-160 characters max\n- Compelling and click-worthy\n\nFormat: Engaging description that drives clicks from search results.";
     }
     if (contentType === "pages") {
-      return "Generate premium long-form page content for the given Shopify page.\n\nObjective:\nCreate clear, persuasive, SEO-aware content that is easy to scan and ready to publish.\n\nRequirements:\n- Use heading/subheading structure\n- Keep language simple and customer-focused\n- Add bullet points where useful\n- Keep natural keyword usage and avoid stuffing\n- End with a clear CTA";
+      return "Generate premium long-form page content for the given Shopify page.\n\nObjective:\nCreate clear, persuasive, SEO-aware content that is easy to scan and ready to publish.\n\nRequirements:\n- Understand the page type and user intent before writing.\n- Use heading/subheading structure.\n- Keep language simple, direct, and customer-focused.\n- Include natural keyword usage without stuffing.\n- End with a clear CTA.";
     }
-    if (contentType === "collections") {
+    if (contentType === "collections" || contentType === "collection_products") {
       return "Write a clear, engaging, and SEO-friendly collection description for the given collection.\n\nFocus on:\n- What type of products are in this collection\n- Who this collection is best for\n- Key value/benefits customers get\n- Search-friendly structure with natural keywords\n\nFormat:\n- 1 short intro paragraph\n- 3-5 bullet points for highlights\n- 1 closing CTA line";
     }
-    return "Write a clear, engaging, and conversion-focused product description.\n\nUse:\n- Short intro paragraph\n- Key features as bullet points\n- Benefits and use-case clarity\n- Closing CTA";
-  })();
-  const handleCustomInstructionToggle = useCallback((checked) => {
-    onUseCustomInstructionsChange(checked);
-    if (checked && !String(customPrompt || "").trim()) {
-      onCustomPromptChange(defaultPromptByScope);
-    }
-  }, [customPrompt, defaultPromptByScope, onCustomPromptChange, onUseCustomInstructionsChange]);
-  const templateSections = [
-    ...(showMain
-      ? [{
-          title: contentType === "pages" ? "Content Template" : "Description Template",
-          items: [
-            { content: "Default", active: !templateSelection?.mainTemplateId, onAction: () => onChange("mainTemplateId", "") },
-            ...(config?.mainTemplates || []).map((template) => ({
-              content: template.name,
-              active: templateSelection?.mainTemplateId === template.id,
-              onAction: () => onChange("mainTemplateId", template.id),
-            })),
-          ],
-        }]
-      : []),
-    ...(showMetaTitle
-      ? [{
-          title: "Meta Title Template",
-          items: [
-            { content: "Default", active: !templateSelection?.metaTitleTemplateId, onAction: () => onChange("metaTitleTemplateId", "") },
-            ...(config?.metaTitleTemplates || []).map((template) => ({
-              content: template.name,
-              active: templateSelection?.metaTitleTemplateId === template.id,
-              onAction: () => onChange("metaTitleTemplateId", template.id),
-            })),
-          ],
-        }]
-      : []),
-    ...(showMetaDescription
-      ? [{
-          title: "Meta Description Template",
-          items: [
-            { content: "Default", active: !templateSelection?.metaDescriptionTemplateId, onAction: () => onChange("metaDescriptionTemplateId", "") },
-            ...(config?.metaDescriptionTemplates || []).map((template) => ({
-              content: template.name,
-              active: templateSelection?.metaDescriptionTemplateId === template.id,
-              onAction: () => onChange("metaDescriptionTemplateId", template.id),
-            })),
-          ],
-        }]
-      : []),
+    return "Write a clear, engaging, and professional product description for the given product.\n\nFollow this format:\n- Intro paragraph\n- Key features in bullets\n- Benefits and use-case value\n- Closing CTA";
+  }, [contentType]);
+
+  const visibleScopes = [
+    ...(showMain ? ["main"] : []),
+    ...(showMetaDescription ? ["meta_description"] : []),
+    ...(showMetaTitle ? ["meta_title"] : []),
   ];
+
+  const openTemplateLibraryForScope = useCallback((scope) => {
+    const tabId = scope === "main" ? "description" : scope;
+    setTemplateLibraryTab(tabId);
+    setTemplateLibraryOpen(true);
+  }, []);
+
+  const handleUseTemplateFromLibrary = useCallback((templateText) => {
+    if (!templateText) return;
+    if (templateLibraryTab === "meta_title") {
+      const matched = (config?.metaTitleTemplates || []).find((template) => template.template === templateText);
+      onChange("metaTitleTemplateId", matched?.id || "");
+    } else if (templateLibraryTab === "meta_description") {
+      const matched = (config?.metaDescriptionTemplates || []).find((template) => template.template === templateText);
+      onChange("metaDescriptionTemplateId", matched?.id || "");
+    } else {
+      const matched = (config?.mainTemplates || []).find((template) => template.template === templateText);
+      onChange("mainTemplateId", matched?.id || "");
+    }
+    setTemplateLibraryOpen(false);
+  }, [config?.mainTemplates, config?.metaDescriptionTemplates, config?.metaTitleTemplates, onChange, templateLibraryTab]);
   useEffect(() => {
     if (!isHydratedRef.current || !open || !item) return;
     if (showMain) {
@@ -2063,32 +2217,35 @@ function GenerateTemplateModal({
           ) : null}
 
           <div className="content-mgmt-generate-modal__grid">
-            <Card>
-              <div className="content-mgmt-generate-modal__preview">
-                {showMain ? (
-                  editablePreviewHtml ? (
-                    <RichTextEditor value={editablePreviewHtml} onChange={setEditablePreviewHtml} />
+            <div className="content-mgmt-generate-modal__left">
+              <Card>
+                <div className="content-mgmt-generate-modal__preview">
+                  {showMain ? (
+                    editablePreviewHtml ? (
+                      <RichTextEditor value={editablePreviewHtml} onChange={setEditablePreviewHtml} />
+                    ) : (
+                      <Text as="p" variant="bodyMd" tone="subdued" alignment="center">
+                        Generated content will appear here
+                      </Text>
+                    )
                   ) : (
-                    <Text as="p" variant="bodyMd" tone="subdued" alignment="center">
-                      Generated content will appear here
-                    </Text>
-                  )
-                ) : (
-                  <BlockStack gap="200">
-                    <TextField
-                      label={generateScope === "meta_title" ? "Meta title preview" : "Meta description preview"}
-                      value={editableMetaText}
-                      onChange={setEditableMetaText}
-                      multiline={generateScope === "meta_description" ? 6 : 1}
-                      autoComplete="off"
-                      placeholder={previewMetaText}
-                    />
-                  </BlockStack>
-                )}
-              </div>
-            </Card>
+                    <BlockStack gap="200">
+                      <TextField
+                        label={generateScope === "meta_title" ? "Meta title preview" : "Meta description preview"}
+                        value={editableMetaText}
+                        onChange={setEditableMetaText}
+                        multiline={generateScope === "meta_description" ? 6 : 1}
+                        autoComplete="off"
+                        placeholder={previewMetaText}
+                      />
+                    </BlockStack>
+                  )}
+                </div>
+              </Card>
+            </div>
 
-            <BlockStack gap="300">
+            <div className="content-mgmt-generate-modal__right">
+              <BlockStack gap="300">
               <Card>
                 <BlockStack gap="200">
                   <Text as="p" variant="headingSm">{itemTypeLabel[0].toUpperCase() + itemTypeLabel.slice(1)}</Text>
@@ -2105,60 +2262,83 @@ function GenerateTemplateModal({
                 </BlockStack>
               </Card>
 
-              <Card>
-                <BlockStack gap="250">
-                  <Text as="h3" variant="headingSm">{sectionTitle}</Text>
-                  <InlineStack align="space-between" blockAlign="center" wrap={false}>
-                    <Checkbox
-                      label={(
-                        <span>
-                          Use custom instructions <span style={{ color: "#f59e0b" }}>✦</span>
-                        </span>
-                      )}
-                      checked={Boolean(useCustomInstructions)}
-                      onChange={handleCustomInstructionToggle}
-                    />
-                  <Popover
-                    active={templatePopoverActive}
-                    activator={
-                        <Button onClick={() => setTemplatePopoverActive((prev) => !prev)}>
-                        {browseButtonLabel}
-                      </Button>
-                    }
-                    onClose={() => setTemplatePopoverActive(false)}
-                  >
-                    <ActionList sections={templateSections} />
-                  </Popover>
-                  </InlineStack>
-
-                  {useCustomInstructions ? (
-                    <BlockStack gap="200">
-                      <Text as="p" variant="bodyMd" fontWeight="semibold">Custom Prompt</Text>
-                      <TextField
-                        label="Custom Prompt"
-                        labelHidden
-                        value={customPrompt}
-                        onChange={onCustomPromptChange}
-                        multiline={12}
-                        autoComplete="off"
-                        placeholder="Write detailed instructions for style, tone, structure, and required points."
-                      />
-                      <InlineStack gap="200">
-                        <Button onClick={() => setTemplatePopoverActive(true)}>Browse Templates</Button>
-                        <Button
-                          variant="secondary"
-                          onClick={() => onResetDefaults(defaultPromptByScope)}
-                        >
-                          Reset to Default
+              {visibleScopes.map((scope) => {
+                const scopeState =
+                  customInstructions?.[scope] || { enabled: false, prompt: "" };
+                const scopeDefaultPrompt = getDefaultPromptByScope(scope);
+                return (
+                  <Card key={scope}>
+                    <BlockStack gap="250">
+                      <Text as="h3" variant="headingSm">{getScopeLabel(scope)}</Text>
+                      <InlineStack align="space-between" blockAlign="center" wrap={false}>
+                        <Checkbox
+                          label={(
+                            <span>
+                              Use custom instructions <span style={{ color: "#f59e0b" }}>✦</span>
+                            </span>
+                          )}
+                          checked={Boolean(scopeState.enabled)}
+                          onChange={(checked) => {
+                            onCustomInstructionToggle(scope, checked);
+                            if (checked && !String(scopeState.prompt || "").trim()) {
+                              onCustomInstructionPromptChange(scope, scopeDefaultPrompt);
+                            }
+                          }}
+                        />
+                        <Button onClick={() => openTemplateLibraryForScope(scope)}>
+                          {browseButtonLabel}
                         </Button>
                       </InlineStack>
+
+                      {scopeState.enabled ? (
+                        <BlockStack gap="200">
+                          <Text as="p" variant="bodyMd" fontWeight="semibold">Custom Prompt</Text>
+                          <TextField
+                            label="Custom Prompt"
+                            labelHidden
+                            value={scopeState.prompt || ""}
+                            onChange={(value) => onCustomInstructionPromptChange(scope, value)}
+                            multiline={12}
+                            autoComplete="off"
+                            placeholder="Write detailed instructions for style, tone, structure, and required points."
+                          />
+                          <InlineStack gap="200">
+                            <Button onClick={() => openTemplateLibraryForScope(scope)}>Browse Templates</Button>
+                            <Button
+                              variant="secondary"
+                              onClick={() => onResetDefaults(scope, scopeDefaultPrompt)}
+                            >
+                              Reset to Default
+                            </Button>
+                          </InlineStack>
+                        </BlockStack>
+                      ) : null}
                     </BlockStack>
-                  ) : null}
-                </BlockStack>
-              </Card>
-            </BlockStack>
+                  </Card>
+                );
+              })}
+              </BlockStack>
+            </div>
           </div>
         </BlockStack>
+
+        <TemplateLibraryModal
+          key={`${contentType}-${templateLibraryTab}`}
+          open={templateLibraryOpen}
+          onClose={() => setTemplateLibraryOpen(false)}
+          tabs={[
+            { id: "description", label: contentType === "pages" ? "Body" : "Description" },
+            { id: "meta_title", label: "Meta Title" },
+            { id: "meta_description", label: "Meta Description" },
+          ]}
+          initialTab={templateLibraryTab}
+          templatesByTab={{
+            description: config?.mainTemplates || [],
+            meta_title: config?.metaTitleTemplates || [],
+            meta_description: config?.metaDescriptionTemplates || [],
+          }}
+          onUseTemplate={handleUseTemplateFromLibrary}
+        />
       </Modal.Section>
     </Modal>
   );
@@ -2214,8 +2394,7 @@ export default function ContentManagementPage() {
   const [pendingGenerateScope, setPendingGenerateScope] = useState("all");
   const [openGeneratePopoverId, setOpenGeneratePopoverId] = useState(null);
   const [generateTemplateSelection, setGenerateTemplateSelection] = useState(defaultTemplateSelection);
-  const [useCustomInstructions, setUseCustomInstructions] = useState(false);
-  const [customPrompt, setCustomPrompt] = useState("");
+  const [customInstructions, setCustomInstructions] = useState(defaultCustomInstructionSettings);
   const [generatePrefsByType, setGeneratePrefsByType] = useState(() => ({
     products: defaultGenerateModalPrefs(),
     collections: defaultGenerateModalPrefs(),
@@ -2385,8 +2564,7 @@ export default function ContentManagementPage() {
       setPendingGenerateContentType(effectiveContentType);
       setPendingGenerateScope(generateScope);
       setGenerateTemplateSelection(savedPrefs.templateSelection || defaultTemplateSelection());
-      setUseCustomInstructions(Boolean(savedPrefs.useCustomInstructions));
-      setCustomPrompt(savedPrefs.customPrompt || "");
+      setCustomInstructions(savedPrefs.customInstructions || defaultCustomInstructionSettings());
       setGeneratedPreviewText("");
       setGenerationProgress(0);
       setTemplateModalOpen(true);
@@ -2402,8 +2580,7 @@ export default function ContentManagementPage() {
           ...all,
           [pendingGenerateContentType]: {
             templateSelection: next,
-            useCustomInstructions: all[pendingGenerateContentType]?.useCustomInstructions || false,
-            customPrompt: all[pendingGenerateContentType]?.customPrompt || "",
+            customInstructions: all[pendingGenerateContentType]?.customInstructions || defaultCustomInstructionSettings(),
           },
         }));
       }
@@ -2411,49 +2588,70 @@ export default function ContentManagementPage() {
     });
   }, [pendingGenerateContentType]);
 
-  const updateUseCustomInstructions = useCallback((checked) => {
-    setUseCustomInstructions(checked);
-    if (pendingGenerateContentType) {
-      setGeneratePrefsByType((all) => ({
-        ...all,
-        [pendingGenerateContentType]: {
-          templateSelection: all[pendingGenerateContentType]?.templateSelection || defaultTemplateSelection(),
-          useCustomInstructions: checked,
-          customPrompt: all[pendingGenerateContentType]?.customPrompt || "",
+  const updateCustomInstructionToggle = useCallback((scope, checked) => {
+    setCustomInstructions((prev) => {
+      const next = {
+        ...prev,
+        [scope]: {
+          ...(prev?.[scope] || { enabled: false, prompt: "" }),
+          enabled: checked,
         },
-      }));
-    }
+      };
+      if (pendingGenerateContentType) {
+        setGeneratePrefsByType((all) => ({
+          ...all,
+          [pendingGenerateContentType]: {
+            templateSelection: all[pendingGenerateContentType]?.templateSelection || defaultTemplateSelection(),
+            customInstructions: next,
+          },
+        }));
+      }
+      return next;
+    });
   }, [pendingGenerateContentType]);
 
-  const updateCustomPrompt = useCallback((value) => {
-    setCustomPrompt(value);
-    if (pendingGenerateContentType) {
-      setGeneratePrefsByType((all) => ({
-        ...all,
-        [pendingGenerateContentType]: {
-          templateSelection: all[pendingGenerateContentType]?.templateSelection || defaultTemplateSelection(),
-          useCustomInstructions: all[pendingGenerateContentType]?.useCustomInstructions || false,
-          customPrompt: value,
+  const updateCustomInstructionPrompt = useCallback((scope, value) => {
+    setCustomInstructions((prev) => {
+      const next = {
+        ...prev,
+        [scope]: {
+          ...(prev?.[scope] || { enabled: false, prompt: "" }),
+          prompt: value,
         },
-      }));
-    }
+      };
+      if (pendingGenerateContentType) {
+        setGeneratePrefsByType((all) => ({
+          ...all,
+          [pendingGenerateContentType]: {
+            templateSelection: all[pendingGenerateContentType]?.templateSelection || defaultTemplateSelection(),
+            customInstructions: next,
+          },
+        }));
+      }
+      return next;
+    });
   }, [pendingGenerateContentType]);
 
-  const resetGenerateModalDefaults = useCallback((defaultPrompt = "") => {
-    const defaults = defaultGenerateModalPrefs();
-    setGenerateTemplateSelection(defaults.templateSelection);
-    setUseCustomInstructions(Boolean(defaultPrompt));
-    setCustomPrompt(defaultPrompt || defaults.customPrompt);
-    if (pendingGenerateContentType) {
-      setGeneratePrefsByType((all) => ({
-        ...all,
-        [pendingGenerateContentType]: {
-          ...defaults,
-          useCustomInstructions: Boolean(defaultPrompt),
-          customPrompt: defaultPrompt || "",
+  const resetGenerateModalDefaults = useCallback((scope, defaultPrompt = "") => {
+    setCustomInstructions((prev) => {
+      const next = {
+        ...prev,
+        [scope]: {
+          enabled: Boolean(defaultPrompt),
+          prompt: defaultPrompt || "",
         },
-      }));
-    }
+      };
+      if (pendingGenerateContentType) {
+        setGeneratePrefsByType((all) => ({
+          ...all,
+          [pendingGenerateContentType]: {
+            templateSelection: all[pendingGenerateContentType]?.templateSelection || defaultTemplateSelection(),
+            customInstructions: next,
+          },
+        }));
+      }
+      return next;
+    });
   }, [pendingGenerateContentType]);
 
   const closeGenerateModal = useCallback(() => {
@@ -2473,19 +2671,23 @@ export default function ContentManagementPage() {
       config?.metaTitleTemplates.find((template) => template.id === generateTemplateSelection.metaTitleTemplateId)?.template || "";
     const metaDescriptionTemplate =
       config?.metaDescriptionTemplates.find((template) => template.id === generateTemplateSelection.metaDescriptionTemplateId)?.template || "";
-    const customInstructionText = String(customPrompt || "").trim();
-    const shouldApplyCustomInstructions = Boolean(useCustomInstructions && customInstructionText);
-    const applyCustomInstructions = (templateText, enabledForScope) => {
-      if (!enabledForScope || !shouldApplyCustomInstructions) return templateText;
-      if (!templateText) return customInstructionText;
-      return `${templateText}\n\nCustom Instructions:\n${customInstructionText}`;
+    const applyCustomInstructions = (templateText, enabledForScope, customInstructionState) => {
+      const customText = String(customInstructionState?.prompt || "").trim();
+      const shouldApply = Boolean(enabledForScope && customInstructionState?.enabled && customText);
+      if (!shouldApply) return templateText;
+      if (!templateText) return customText;
+      return `${templateText}\n\nCustom Instructions:\n${customText}`;
     };
     const shouldGenerateMain = pendingGenerateScope === "all" || pendingGenerateScope === "main";
     const shouldGenerateMetaTitle = pendingGenerateScope === "all" || pendingGenerateScope === "meta_title";
     const shouldGenerateMetaDescription = pendingGenerateScope === "all" || pendingGenerateScope === "meta_description";
-    const finalMainTemplate = applyCustomInstructions(mainTemplate, shouldGenerateMain);
-    const finalMetaTitleTemplate = applyCustomInstructions(metaTitleTemplate, shouldGenerateMetaTitle);
-    const finalMetaDescriptionTemplate = applyCustomInstructions(metaDescriptionTemplate, shouldGenerateMetaDescription);
+    const finalMainTemplate = applyCustomInstructions(mainTemplate, shouldGenerateMain, customInstructions?.main);
+    const finalMetaTitleTemplate = applyCustomInstructions(metaTitleTemplate, shouldGenerateMetaTitle, customInstructions?.meta_title);
+    const finalMetaDescriptionTemplate = applyCustomInstructions(
+      metaDescriptionTemplate,
+      shouldGenerateMetaDescription,
+      customInstructions?.meta_description,
+    );
 
     setErrorMessage(null);
     setGeneratingId(pendingGenerateItem.id);
@@ -2508,7 +2710,7 @@ export default function ContentManagementPage() {
     }
     generateFetcher.submit(fd, { method: "post" });
   }, [
-    customPrompt,
+    customInstructions,
     defaultAiProvider,
     envAiModel,
     generateFetcher,
@@ -2518,7 +2720,6 @@ export default function ContentManagementPage() {
     pendingGenerateContentType,
     pendingGenerateItem,
     pendingGenerateScope,
-    useCustomInstructions,
   ]);
 
   const isSaving = saveFetcher.state !== "idle";
@@ -2534,12 +2735,9 @@ export default function ContentManagementPage() {
 
   const headings = [
     { title: "Item" },
-    { title: "Credits Used" },
-    { title: "Status" },
     { title: "Description" },
     { title: "SEO Title" },
     { title: "SEO Description" },
-    { title: "Last Updated" },
     { title: "Generate" },
   ];
 
@@ -2577,16 +2775,6 @@ export default function ContentManagementPage() {
             </div>
           </InlineStack>
         </IndexTable.Cell>
-
-        {/* Credits used */}
-        <IndexTable.Cell>
-          <Badge tone={(item.creditsUsed || 0) > 0 ? "success" : "info"}>
-            {item.creditsUsed || 0} credits
-          </Badge>
-        </IndexTable.Cell>
-
-        {/* Status */}
-        <IndexTable.Cell>{statusBadge(item.status)}</IndexTable.Cell>
 
         {/* Description – clickable to open editor */}
         <IndexTable.Cell>
@@ -2670,13 +2858,6 @@ export default function ContentManagementPage() {
               <Text variant="bodySm" as="span" tone="subdued">—</Text>
             </button>
           )}
-        </IndexTable.Cell>
-
-        {/* Last Updated */}
-        <IndexTable.Cell>
-          <Text variant="bodySm" as="span" tone="subdued">
-            {formatDate(item.updatedAt)}
-          </Text>
         </IndexTable.Cell>
 
         {/* Generate button */}
@@ -2844,6 +3025,36 @@ export default function ContentManagementPage() {
           color: #111827;
           border-radius: 10px;
         }
+        .content-mgmt-generate-modal__grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1.35fr) minmax(360px, 1fr);
+          gap: 16px;
+          align-items: start;
+        }
+        .content-mgmt-generate-modal__left,
+        .content-mgmt-generate-modal__right {
+          min-width: 0;
+        }
+        .content-mgmt-generate-modal__preview {
+          min-height: 520px;
+          max-height: 68vh;
+          overflow: auto;
+        }
+        .content-mgmt-generate-modal__item {
+          border: 1px solid #e5e7eb;
+          border-radius: 10px;
+          padding: 10px;
+          background: #f9fafb;
+        }
+        @media (max-width: 960px) {
+          .content-mgmt-generate-modal__grid {
+            grid-template-columns: 1fr;
+          }
+          .content-mgmt-generate-modal__preview {
+            min-height: 360px;
+            max-height: 55vh;
+          }
+        }
       `}</style>
 
       {/* Editor Modal */}
@@ -2862,13 +3073,12 @@ export default function ContentManagementPage() {
         contentType={pendingGenerateContentType}
         generateScope={pendingGenerateScope}
         templateSelection={generateTemplateSelection}
-        useCustomInstructions={useCustomInstructions}
-        customPrompt={customPrompt}
+        customInstructions={customInstructions}
         previewText={generatedPreviewText}
         progress={generationProgress}
         onChange={updateGenerateTemplateSelection}
-        onUseCustomInstructionsChange={updateUseCustomInstructions}
-        onCustomPromptChange={updateCustomPrompt}
+        onCustomInstructionToggle={updateCustomInstructionToggle}
+        onCustomInstructionPromptChange={updateCustomInstructionPrompt}
         onResetDefaults={resetGenerateModalDefaults}
         onClose={closeGenerateModal}
         onGenerate={handleConfirmGenerate}
