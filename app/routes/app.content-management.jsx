@@ -2498,20 +2498,26 @@ export default function ContentManagementPage() {
         {/* Main tabs: Products | Collections | Pages | Blog */}
         <Card padding="0">
           <Box padding="300" paddingBlockEnd="200">
-            <BlockStack gap="300">
-              <Tabs
-                tabs={mainTabs}
-                selected={mainTabIndex < 0 ? 0 : mainTabIndex}
-                onSelect={handleMainTabChange}
-                fitted
-              />
+            <div className="content-mgmt-tabs-design">
+              <BlockStack gap="300">
+                <div className="content-mgmt-tabs-main">
+                  <Tabs
+                    tabs={mainTabs}
+                    selected={mainTabIndex < 0 ? 0 : mainTabIndex}
+                    onSelect={handleMainTabChange}
+                    fitted
+                  />
+                </div>
 
-              <Tabs
-                tabs={filterTabs}
-                selected={filterTabIndex < 0 ? 0 : filterTabIndex}
-                onSelect={handleFilterTabChange}
-              />
-            </BlockStack>
+                <div className="content-mgmt-tabs-filter">
+                  <Tabs
+                    tabs={filterTabs}
+                    selected={filterTabIndex < 0 ? 0 : filterTabIndex}
+                    onSelect={handleFilterTabChange}
+                  />
+                </div>
+              </BlockStack>
+            </div>
           </Box>
 
           {/* Table */}
@@ -2547,6 +2553,34 @@ export default function ContentManagementPage() {
           </Text>
         </Box>
       </BlockStack>
+
+      <style>{`
+        .content-mgmt-tabs-design {
+          background: #f3f4f6;
+          border-radius: 14px;
+          padding: 10px;
+        }
+        .content-mgmt-tabs-design .Polaris-Tabs__Tab {
+          border-radius: 10px;
+          color: #4b5563;
+          font-weight: 600;
+        }
+        .content-mgmt-tabs-design .Polaris-Tabs__Tab:hover,
+        .content-mgmt-tabs-design .Polaris-Tabs__Tab:focus {
+          background: #e5e7eb;
+          color: #374151;
+        }
+        .content-mgmt-tabs-design .Polaris-Tabs__Tab--active,
+        .content-mgmt-tabs-design .Polaris-Tabs__Tab--active:hover,
+        .content-mgmt-tabs-design .Polaris-Tabs__Tab--active:focus,
+        .content-mgmt-tabs-design .Polaris-Tabs__Tab--active:active {
+          background: #000000;
+          color: #ffffff;
+        }
+        .content-mgmt-tabs-design .Polaris-Tabs__Tab--active path {
+          fill: #ffffff;
+        }
+      `}</style>
 
       {/* Editor Modal */}
       <EditorModal
