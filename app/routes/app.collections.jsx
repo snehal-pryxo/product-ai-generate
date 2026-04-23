@@ -43,12 +43,10 @@ import { TemplateLibraryModal } from "../components/TemplateLibraryModal";
 import { readGlobalSettings } from "../lib/globalSettings";
 import {
   readStoredCollectionPromptTemplateSelection,
+  COLLECTION_DESCRIPTION_TEMPLATES,
+  COLLECTION_META_DESCRIPTION_TEMPLATES,
+  COLLECTION_META_TITLE_TEMPLATES,
 } from "../lib/collectionPromptTemplateLibrary";
-import {
-  PRODUCT_DESCRIPTION_TEMPLATES,
-  PRODUCT_META_DESCRIPTION_TEMPLATES,
-  PRODUCT_META_TITLE_TEMPLATES,
-} from "../lib/productPromptTemplateLibrary";
 import {
   buildInsufficientCreditsError,
   creditsForBatch,
@@ -85,34 +83,21 @@ const LANGUAGE_OPTIONS = [
   "Telugu", "Thai", "Turkish", "Ukrainian", "Urdu", "Vietnamese",
 ].map((l) => ({ label: l, value: l }));
 
-const DEFAULT_DESCRIPTION_CUSTOM_PROMPT = `Write a clear, engaging, and professional product description for the given product. The description should be structured and easy to scan.
 
-Follow this format:
+const DEFAULT_COLLECTION_DESCRIPTION_CUSTOM_PROMPT = `Write a clear, engaging, and SEO-friendly collection description for the given collection.
 
-Introduction - Start with 1-2 sentences that capture the product's essence: what it is, who it's for, and its main appeal.
+Focus on:
+- What type of products are in this collection
+- Who this collection is best for
+- Key value/benefits customers get
+- Search-friendly structure with natural keywords
 
-Key Features - Highlight important attributes such as size, color, material, functionality, technology, or craftsmanship.
+Format:
+- 1 short intro paragraph
+- 3-5 bullet points for highlights
+- 1 closing CTA line
 
-Benefits - Explain how the product helps the user, what problem it solves, or what experience it enhances.
-
-Keep the tone trustworthy, simple, and appealing, like a top e-commerce store.
-Avoid exaggeration. Adapt the level of detail depending on the product type.
-
-Html format should be like this:
-<p>
-{Introduction text here}
-</p>
-
-<ul>
-<li><b>{Feature name}</b>: {Feature text here}</li>
-<li><b>{Feature name}</b>: {Feature text here}</li>
-<li><b>{Feature name}</b>: {Feature text here}</li>
-... and so on
-</ul>
-
-<p>
-{Benefits text here}
-</p>`;
+Tone: clear, trustworthy, and conversion-focused.`;
 
 const DEFAULT_META_DESCRIPTION_CUSTOM_PROMPT = `Generate SEO-optimized meta description for given collection.
 
@@ -135,6 +120,7 @@ Requirements:
 - Search-friendly format
 
 Focus on click-through rate optimization.`;
+
 
 const TONE_OPTIONS = [
   { label: "Professional", value: "professional" },
@@ -1780,6 +1766,14 @@ export default function CollectionsPage() {
   const location = useLocation();
   const sectionMode = new URLSearchParams(location.search).get("mode");
   const isCollectionProductsMode = sectionMode === COLLECTION_PRODUCTS_MODE;
+  const activeDescriptionDefaultPrompt = DEFAULT_COLLECTION_DESCRIPTION_CUSTOM_PROMPT;
+  const activeMetaDescriptionDefaultPrompt = DEFAULT_META_DESCRIPTION_CUSTOM_PROMPT;
+  const activeMetaTitleDefaultPrompt = DEFAULT_META_TITLE_CUSTOM_PROMPT;
+  const activeTemplateLibraryByTab = {
+    description: COLLECTION_DESCRIPTION_TEMPLATES,
+    meta_description: COLLECTION_META_DESCRIPTION_TEMPLATES,
+    meta_title: COLLECTION_META_TITLE_TEMPLATES,
+  };
   const revalidator = useRevalidator();
   const bulkFetcher = useFetcher();
   const shopify = useAppBridge();
@@ -2618,7 +2612,7 @@ export default function CollectionsPage() {
                     checked={useCustomDescInstructions}
                     onChange={(v) => {
                       setUseCustomDescInstructions(v);
-                      if (v) setBulkDescTemplate(DEFAULT_DESCRIPTION_CUSTOM_PROMPT);
+                      if (v) setBulkDescTemplate(activeDescriptionDefaultPrompt);
                     }}
                   />
                   {!useCustomDescInstructions && (
@@ -2654,7 +2648,7 @@ export default function CollectionsPage() {
                         Browse Templates
                       </button>
                       <button
-                        onClick={() => { setBulkDescTemplate(DEFAULT_DESCRIPTION_CUSTOM_PROMPT); setUseCustomDescInstructions(true); }}
+                        onClick={() => { setBulkDescTemplate(activeDescriptionDefaultPrompt); setUseCustomDescInstructions(true); }}
                         style={{ padding: "6px 14px", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}
                       >
                         Reset to Default
@@ -2675,7 +2669,7 @@ export default function CollectionsPage() {
                     checked={useCustomMetaDescInstructions}
                     onChange={(v) => {
                       setUseCustomMetaDescInstructions(v);
-                      if (v) setBulkMetaDescTemplate(DEFAULT_META_DESCRIPTION_CUSTOM_PROMPT);
+                      if (v) setBulkMetaDescTemplate(activeMetaDescriptionDefaultPrompt);
                     }}
                   />
                   {!useCustomMetaDescInstructions && (
@@ -2711,7 +2705,7 @@ export default function CollectionsPage() {
                         Browse Templates
                       </button>
                       <button
-                        onClick={() => { setBulkMetaDescTemplate(DEFAULT_META_DESCRIPTION_CUSTOM_PROMPT); setUseCustomMetaDescInstructions(true); }}
+                        onClick={() => { setBulkMetaDescTemplate(activeMetaDescriptionDefaultPrompt); setUseCustomMetaDescInstructions(true); }}
                         style={{ padding: "6px 14px", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}
                       >
                         Reset to Default
@@ -2732,7 +2726,7 @@ export default function CollectionsPage() {
                     checked={useCustomMetaTitleInstructions}
                     onChange={(v) => {
                       setUseCustomMetaTitleInstructions(v);
-                      if (v) setBulkMetaTitleTemplate(DEFAULT_META_TITLE_CUSTOM_PROMPT);
+                      if (v) setBulkMetaTitleTemplate(activeMetaTitleDefaultPrompt);
                     }}
                   />
                   {!useCustomMetaTitleInstructions && (
@@ -2768,7 +2762,7 @@ export default function CollectionsPage() {
                         Browse Templates
                       </button>
                       <button
-                        onClick={() => { setBulkMetaTitleTemplate(DEFAULT_META_TITLE_CUSTOM_PROMPT); setUseCustomMetaTitleInstructions(true); }}
+                        onClick={() => { setBulkMetaTitleTemplate(activeMetaTitleDefaultPrompt); setUseCustomMetaTitleInstructions(true); }}
                         style={{ padding: "6px 14px", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}
                       >
                         Reset to Default
@@ -3021,11 +3015,7 @@ export default function CollectionsPage() {
           { id: "meta_description", label: "Meta Description" },
         ]}
         initialTab={templateLibraryContentType}
-        templatesByTab={{
-          description: PRODUCT_DESCRIPTION_TEMPLATES,
-          meta_description: PRODUCT_META_DESCRIPTION_TEMPLATES,
-          meta_title: PRODUCT_META_TITLE_TEMPLATES,
-        }}
+        templatesByTab={activeTemplateLibraryByTab}
         onUseTemplate={(templateText) => {
           if (templateLibraryContentType === "description") {
             setBulkDescTemplate(templateText);

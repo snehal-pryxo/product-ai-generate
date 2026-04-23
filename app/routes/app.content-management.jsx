@@ -8,6 +8,7 @@ import {
   Box,
   Button,
   Card,
+  Checkbox,
   ActionList,
   EmptyState,
   IndexTable,
@@ -83,48 +84,6 @@ function getGenerateScopeOptions(contentType) {
   ];
 }
 
-const LANGUAGE_OPTIONS = [
-  "English",
-  "English (British)",
-  "English (US)",
-  "Arabic",
-  "Bengali",
-  "Bulgarian",
-  "Chinese",
-  "Chinese (Simplified)",
-  "Chinese (Traditional)",
-  "Croatian",
-  "Czech",
-  "Danish",
-  "Dutch",
-  "Finnish",
-  "French",
-  "German",
-  "Greek",
-  "Hebrew",
-  "Hindi",
-  "Hungarian",
-  "Indonesian",
-  "Italian",
-  "Japanese",
-  "Korean",
-  "Malay",
-  "Norwegian",
-  "Polish",
-  "Portuguese",
-  "Romanian",
-  "Russian",
-  "Spanish",
-  "Swedish",
-  "Tamil",
-  "Telugu",
-  "Thai",
-  "Turkish",
-  "Ukrainian",
-  "Urdu",
-  "Vietnamese",
-].map((language) => ({ label: language, value: language }));
-
 function resolveEnvDefaultAiModel() {
   return (
     (process.env.AI_MODEL || "").trim() ||
@@ -178,6 +137,22 @@ function getContentTypeDisplayLabel(contentType) {
   if (contentType === "collection_products") return "collection product";
   if (contentType === "pages") return "page";
   return "item";
+}
+
+function defaultTemplateSelection() {
+  return {
+    mainTemplateId: "",
+    metaTitleTemplateId: "",
+    metaDescriptionTemplateId: "",
+  };
+}
+
+function defaultGenerateModalPrefs() {
+  return {
+    templateSelection: defaultTemplateSelection(),
+    useCustomInstructions: false,
+    customPrompt: "",
+  };
 }
 
 // ─── GraphQL ─────────────────────────────────────────────────────────────────
@@ -1890,12 +1865,14 @@ function GenerateTemplateModal({
   contentType,
   generateScope,
   templateSelection,
-  aiModelOptions,
-  formValues,
+  useCustomInstructions,
+  customPrompt,
   previewText,
   progress,
   onChange,
-  onFormChange,
+  onUseCustomInstructionsChange,
+  onCustomPromptChange,
+  onResetDefaults,
   onClose,
   onGenerate,
   onSave,
@@ -1913,22 +1890,69 @@ function GenerateTemplateModal({
   const scopeLabel = getScopeDisplayLabel(contentType, generateScope);
   const itemTypeLabel = getContentTypeDisplayLabel(contentType);
   const titleScope = scopeLabel === "All" ? "content" : scopeLabel.toLowerCase();
+  const hasExistingContent = Boolean(
+    stripHtml(item?.descriptionHtml || "") ||
+    String(item?.seoTitle || "").trim() ||
+    String(item?.seoDescription || "").trim()
+  );
 
   useEffect(() => {
     isHydratedRef.current = true;
   }, []);
 
-  const mainOptions = [
-    { label: `Default (${config?.mainLabel || "Template"})`, value: "" },
-    ...(config?.mainTemplates || []).map((template) => ({ label: template.name, value: template.id })),
-  ];
-  const metaTitleOptions = [
-    { label: "Default (Meta Title)", value: "" },
-    ...(config?.metaTitleTemplates || []).map((template) => ({ label: template.name, value: template.id })),
-  ];
-  const metaDescriptionOptions = [
-    { label: "Default (Meta Description)", value: "" },
-    ...(config?.metaDescriptionTemplates || []).map((template) => ({ label: template.name, value: template.id })),
+  const [templatePopoverActive, setTemplatePopoverActive] = useState(false);
+  const selectedTemplateCount = [
+    templateSelection?.mainTemplateId,
+    templateSelection?.metaTitleTemplateId,
+    templateSelection?.metaDescriptionTemplateId,
+  ].filter(Boolean).length;
+  const activeScopeLabels = [];
+  if (showMain) activeScopeLabels.push(contentType === "pages" ? "Content" : "Description");
+  if (showMetaTitle) activeScopeLabels.push("Meta Title");
+  if (showMetaDescription) activeScopeLabels.push("Meta Description");
+  const browseButtonLabel = selectedTemplateCount > 0
+    ? `Browse Templates (${selectedTemplateCount} selected)`
+    : "Browse Templates";
+  const templateSections = [
+    ...(showMain
+      ? [{
+          title: contentType === "pages" ? "Content Template" : "Description Template",
+          items: [
+            { content: "Default", active: !templateSelection?.mainTemplateId, onAction: () => onChange("mainTemplateId", "") },
+            ...(config?.mainTemplates || []).map((template) => ({
+              content: template.name,
+              active: templateSelection?.mainTemplateId === template.id,
+              onAction: () => onChange("mainTemplateId", template.id),
+            })),
+          ],
+        }]
+      : []),
+    ...(showMetaTitle
+      ? [{
+          title: "Meta Title Template",
+          items: [
+            { content: "Default", active: !templateSelection?.metaTitleTemplateId, onAction: () => onChange("metaTitleTemplateId", "") },
+            ...(config?.metaTitleTemplates || []).map((template) => ({
+              content: template.name,
+              active: templateSelection?.metaTitleTemplateId === template.id,
+              onAction: () => onChange("metaTitleTemplateId", template.id),
+            })),
+          ],
+        }]
+      : []),
+    ...(showMetaDescription
+      ? [{
+          title: "Meta Description Template",
+          items: [
+            { content: "Default", active: !templateSelection?.metaDescriptionTemplateId, onAction: () => onChange("metaDescriptionTemplateId", "") },
+            ...(config?.metaDescriptionTemplates || []).map((template) => ({
+              content: template.name,
+              active: templateSelection?.metaDescriptionTemplateId === template.id,
+              onAction: () => onChange("metaDescriptionTemplateId", template.id),
+            })),
+          ],
+        }]
+      : []),
   ];
   useEffect(() => {
     if (!isHydratedRef.current || !open || !item) return;
@@ -1988,7 +2012,9 @@ function GenerateTemplateModal({
       className="content-mgmt-generate-modal"
       size="large"
       primaryAction={{
-        content: isGenerating ? "Generating..." : `Generate (${modalCredits} credits)`,
+        content: isGenerating
+          ? "Generating..."
+          : `${hasExistingContent ? "Regenerate" : "Generate"} (${modalCredits} credits)`,
         onAction: onGenerate,
         loading: isGenerating,
         disabled: isGenerating,
@@ -2033,58 +2059,42 @@ function GenerateTemplateModal({
                 </BlockStack>
               </Card>
 
-              <TextField
-                label="SEO keyword"
-                value={formValues.seoKeyword}
-                onChange={(value) => onFormChange("seoKeyword", value)}
-                autoComplete="off"
-                placeholder="Keyword"
+              <BlockStack gap="200">
+                <InlineStack gap="200" wrap={false}>
+                  <Popover
+                    active={templatePopoverActive}
+                    activator={
+                      <Button onClick={() => setTemplatePopoverActive((prev) => !prev)}>
+                        {browseButtonLabel}
+                      </Button>
+                    }
+                    onClose={() => setTemplatePopoverActive(false)}
+                  >
+                    <ActionList sections={templateSections} />
+                  </Popover>
+                  <Button variant="secondary" onClick={onResetDefaults}>
+                    Reset to Default
+                  </Button>
+                </InlineStack>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Target: {activeScopeLabels.join(", ")}
+                </Text>
+              </BlockStack>
+
+              <Checkbox
+                label="Use custom instructions"
+                checked={Boolean(useCustomInstructions)}
+                onChange={onUseCustomInstructionsChange}
               />
 
-              {showMain ? (
-                <Select
-                  label={config.mainLabel}
-                  options={mainOptions}
-                  value={templateSelection.mainTemplateId}
-                  onChange={(value) => onChange("mainTemplateId", value)}
-                />
-              ) : null}
-              {showMetaTitle ? (
-                <Select
-                  label="Meta Title Template"
-                  options={metaTitleOptions}
-                  value={templateSelection.metaTitleTemplateId}
-                  onChange={(value) => onChange("metaTitleTemplateId", value)}
-                />
-              ) : null}
-              {showMetaDescription ? (
-                <Select
-                  label="Meta Description Template"
-                  options={metaDescriptionOptions}
-                  value={templateSelection.metaDescriptionTemplateId}
-                  onChange={(value) => onChange("metaDescriptionTemplateId", value)}
-                />
-              ) : null}
-
               <TextField
-                label="Additional information"
-                value={formValues.additionalInformation}
-                onChange={(value) => onFormChange("additionalInformation", value)}
-                multiline={4}
+                label="Custom Prompt"
+                value={customPrompt}
+                onChange={onCustomPromptChange}
+                multiline={8}
                 autoComplete="off"
-                placeholder="Add unique product details, specifications, key selling points, etc."
-              />
-              <Select
-                label="Language"
-                options={LANGUAGE_OPTIONS}
-                value={formValues.language}
-                onChange={(value) => onFormChange("language", value)}
-              />
-              <Select
-                label="AI model"
-                options={aiModelOptions}
-                value={formValues.aiModel}
-                onChange={(value) => onFormChange("aiModel", value)}
+                disabled={!useCustomInstructions}
+                placeholder="Write detailed instructions for style, tone, structure, and required points."
               />
             </BlockStack>
 
@@ -2157,6 +2167,7 @@ export default function ContentManagementPage() {
   const generateFetcher = useFetcher();
   const saveFetcher = useFetcher();
   const isHydratedRef = useRef(false);
+  const saveRequestInFlightRef = useRef(false);
 
   // Editor modal state
   const [editorOpen, setEditorOpen] = useState(false);
@@ -2167,17 +2178,15 @@ export default function ContentManagementPage() {
   const [pendingGenerateContentType, setPendingGenerateContentType] = useState(tab === "all" ? "products" : tab);
   const [pendingGenerateScope, setPendingGenerateScope] = useState("all");
   const [openGeneratePopoverId, setOpenGeneratePopoverId] = useState(null);
-  const [generateTemplateSelection, setGenerateTemplateSelection] = useState({
-    mainTemplateId: "",
-    metaTitleTemplateId: "",
-    metaDescriptionTemplateId: "",
-  });
-  const [generateFormValues, setGenerateFormValues] = useState({
-    seoKeyword: "",
-    additionalInformation: "",
-    language: "English (US)",
-    aiModel: envAiModel || DEFAULT_AI_MODEL,
-  });
+  const [generateTemplateSelection, setGenerateTemplateSelection] = useState(defaultTemplateSelection);
+  const [useCustomInstructions, setUseCustomInstructions] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState("");
+  const [generatePrefsByType, setGeneratePrefsByType] = useState(() => ({
+    products: defaultGenerateModalPrefs(),
+    collections: defaultGenerateModalPrefs(),
+    pages: defaultGenerateModalPrefs(),
+    collection_products: defaultGenerateModalPrefs(),
+  }));
   const [generationProgress, setGenerationProgress] = useState(0);
   const [generatedPreviewText, setGeneratedPreviewText] = useState("");
 
@@ -2255,7 +2264,13 @@ export default function ContentManagementPage() {
   // Handle save response
   useEffect(() => {
     if (!isHydratedRef.current) return;
-    if (saveFetcher.state !== "idle") return;
+    if (saveFetcher.state !== "idle") {
+      saveRequestInFlightRef.current = true;
+      return;
+    }
+    if (!saveRequestInFlightRef.current) return;
+    saveRequestInFlightRef.current = false;
+
     const data = saveFetcher.data;
     if (!data || data.intent !== "save_content") return;
     if (data.ok) {
@@ -2329,34 +2344,78 @@ export default function ContentManagementPage() {
   const handleGenerate = useCallback(
     (item, generateScope = "all") => {
       const effectiveContentType = item.contentType || tab;
+      const savedPrefs = generatePrefsByType[effectiveContentType] || defaultGenerateModalPrefs();
+
       setPendingGenerateItem(item);
       setPendingGenerateContentType(effectiveContentType);
       setPendingGenerateScope(generateScope);
-      setGenerateTemplateSelection({
-        mainTemplateId: "",
-        metaTitleTemplateId: "",
-        metaDescriptionTemplateId: "",
-      });
-      setGenerateFormValues({
-        seoKeyword: item.title || "",
-        additionalInformation: "",
-        language: "English (US)",
-        aiModel: envAiModel || DEFAULT_AI_MODEL,
-      });
+      setGenerateTemplateSelection(savedPrefs.templateSelection || defaultTemplateSelection());
+      setUseCustomInstructions(Boolean(savedPrefs.useCustomInstructions));
+      setCustomPrompt(savedPrefs.customPrompt || "");
       setGeneratedPreviewText("");
       setGenerationProgress(0);
       setTemplateModalOpen(true);
     },
-    [envAiModel, tab]
+    [generatePrefsByType, tab]
   );
 
   const updateGenerateTemplateSelection = useCallback((field, value) => {
-    setGenerateTemplateSelection((prev) => ({ ...prev, [field]: value }));
-  }, []);
+    setGenerateTemplateSelection((prev) => {
+      const next = { ...prev, [field]: value };
+      if (pendingGenerateContentType) {
+        setGeneratePrefsByType((all) => ({
+          ...all,
+          [pendingGenerateContentType]: {
+            templateSelection: next,
+            useCustomInstructions: all[pendingGenerateContentType]?.useCustomInstructions || false,
+            customPrompt: all[pendingGenerateContentType]?.customPrompt || "",
+          },
+        }));
+      }
+      return next;
+    });
+  }, [pendingGenerateContentType]);
 
-  const updateGenerateFormValues = useCallback((field, value) => {
-    setGenerateFormValues((prev) => ({ ...prev, [field]: value }));
-  }, []);
+  const updateUseCustomInstructions = useCallback((checked) => {
+    setUseCustomInstructions(checked);
+    if (pendingGenerateContentType) {
+      setGeneratePrefsByType((all) => ({
+        ...all,
+        [pendingGenerateContentType]: {
+          templateSelection: all[pendingGenerateContentType]?.templateSelection || defaultTemplateSelection(),
+          useCustomInstructions: checked,
+          customPrompt: all[pendingGenerateContentType]?.customPrompt || "",
+        },
+      }));
+    }
+  }, [pendingGenerateContentType]);
+
+  const updateCustomPrompt = useCallback((value) => {
+    setCustomPrompt(value);
+    if (pendingGenerateContentType) {
+      setGeneratePrefsByType((all) => ({
+        ...all,
+        [pendingGenerateContentType]: {
+          templateSelection: all[pendingGenerateContentType]?.templateSelection || defaultTemplateSelection(),
+          useCustomInstructions: all[pendingGenerateContentType]?.useCustomInstructions || false,
+          customPrompt: value,
+        },
+      }));
+    }
+  }, [pendingGenerateContentType]);
+
+  const resetGenerateModalDefaults = useCallback(() => {
+    const defaults = defaultGenerateModalPrefs();
+    setGenerateTemplateSelection(defaults.templateSelection);
+    setUseCustomInstructions(defaults.useCustomInstructions);
+    setCustomPrompt(defaults.customPrompt);
+    if (pendingGenerateContentType) {
+      setGeneratePrefsByType((all) => ({
+        ...all,
+        [pendingGenerateContentType]: defaults,
+      }));
+    }
+  }, [pendingGenerateContentType]);
 
   const closeGenerateModal = useCallback(() => {
     if (generateFetcher.state !== "idle") return;
@@ -2375,6 +2434,19 @@ export default function ContentManagementPage() {
       config?.metaTitleTemplates.find((template) => template.id === generateTemplateSelection.metaTitleTemplateId)?.template || "";
     const metaDescriptionTemplate =
       config?.metaDescriptionTemplates.find((template) => template.id === generateTemplateSelection.metaDescriptionTemplateId)?.template || "";
+    const customInstructionText = String(customPrompt || "").trim();
+    const shouldApplyCustomInstructions = Boolean(useCustomInstructions && customInstructionText);
+    const applyCustomInstructions = (templateText, enabledForScope) => {
+      if (!enabledForScope || !shouldApplyCustomInstructions) return templateText;
+      if (!templateText) return customInstructionText;
+      return `${templateText}\n\nCustom Instructions:\n${customInstructionText}`;
+    };
+    const shouldGenerateMain = pendingGenerateScope === "all" || pendingGenerateScope === "main";
+    const shouldGenerateMetaTitle = pendingGenerateScope === "all" || pendingGenerateScope === "meta_title";
+    const shouldGenerateMetaDescription = pendingGenerateScope === "all" || pendingGenerateScope === "meta_description";
+    const finalMainTemplate = applyCustomInstructions(mainTemplate, shouldGenerateMain);
+    const finalMetaTitleTemplate = applyCustomInstructions(metaTitleTemplate, shouldGenerateMetaTitle);
+    const finalMetaDescriptionTemplate = applyCustomInstructions(metaDescriptionTemplate, shouldGenerateMetaDescription);
 
     setErrorMessage(null);
     setGeneratingId(pendingGenerateItem.id);
@@ -2387,35 +2459,30 @@ export default function ContentManagementPage() {
     fd.append("generateScope", pendingGenerateScope);
     fd.append("item", JSON.stringify(pendingGenerateItem));
     fd.append("aiProvider", defaultAiProvider || "auto");
-    fd.append("seoKeyword", generateFormValues.seoKeyword || "");
-    fd.append("additionalInformation", generateFormValues.additionalInformation || "");
-    fd.append("language", generateFormValues.language || "English (US)");
-    fd.append("aiModel", generateFormValues.aiModel || "");
-    fd.append("metaTitlePromptTemplate", metaTitleTemplate);
-    fd.append("metaDescriptionPromptTemplate", metaDescriptionTemplate);
+    fd.append("aiModel", envAiModel || DEFAULT_AI_MODEL);
+    fd.append("metaTitlePromptTemplate", finalMetaTitleTemplate);
+    fd.append("metaDescriptionPromptTemplate", finalMetaDescriptionTemplate);
     if (config?.mainPromptKey === "bodyPromptTemplate") {
-      fd.append("bodyPromptTemplate", mainTemplate);
+      fd.append("bodyPromptTemplate", finalMainTemplate);
     } else {
-      fd.append("descriptionPromptTemplate", mainTemplate);
+      fd.append("descriptionPromptTemplate", finalMainTemplate);
     }
     generateFetcher.submit(fd, { method: "post" });
   }, [
+    customPrompt,
     defaultAiProvider,
+    envAiModel,
     generateFetcher,
     generateTemplateSelection.mainTemplateId,
     generateTemplateSelection.metaDescriptionTemplateId,
     generateTemplateSelection.metaTitleTemplateId,
-    generateFormValues.additionalInformation,
-    generateFormValues.aiModel,
-    generateFormValues.language,
-    generateFormValues.seoKeyword,
     pendingGenerateContentType,
     pendingGenerateItem,
     pendingGenerateScope,
+    useCustomInstructions,
   ]);
 
   const isSaving = saveFetcher.state !== "idle";
-  const aiModelOptions = getAiModelOptions(envAiModel);
 
   const tabLabel = mainTabs[mainTabIndex]?.id || "all";
   const singularLabel = {
@@ -2446,6 +2513,11 @@ export default function ContentManagementPage() {
     const descText = truncateText(item.descriptionHtml, 90);
     const seoTitleText = truncateText(item.seoTitle, 70);
     const seoDescText = truncateText(item.seoDescription, 80);
+    const hasGeneratedContent = Boolean(
+      stripHtml(item.descriptionHtml || "") ||
+      String(item.seoTitle || "").trim() ||
+      String(item.seoDescription || "").trim()
+    );
 
     return (
       <IndexTable.Row id={item.id} key={item.id} position={idx}>
@@ -2584,7 +2656,7 @@ export default function ContentManagementPage() {
                 loading={isGenerating}
                 disabled={isGenerating || localCredits < CREDITS_PER_GENERATION}
               >
-                Generate
+                {hasGeneratedContent ? "Regenerate" : "Generate"}
               </Button>
               <Popover
                 active={isPopoverOpen}
@@ -2768,12 +2840,14 @@ export default function ContentManagementPage() {
         contentType={pendingGenerateContentType}
         generateScope={pendingGenerateScope}
         templateSelection={generateTemplateSelection}
-        aiModelOptions={aiModelOptions}
-        formValues={generateFormValues}
+        useCustomInstructions={useCustomInstructions}
+        customPrompt={customPrompt}
         previewText={generatedPreviewText}
         progress={generationProgress}
         onChange={updateGenerateTemplateSelection}
-        onFormChange={updateGenerateFormValues}
+        onUseCustomInstructionsChange={updateUseCustomInstructions}
+        onCustomPromptChange={updateCustomPrompt}
+        onResetDefaults={resetGenerateModalDefaults}
         onClose={closeGenerateModal}
         onGenerate={handleConfirmGenerate}
         onSave={handleSaveContent}
