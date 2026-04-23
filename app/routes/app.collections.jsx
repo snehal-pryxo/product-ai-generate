@@ -34,6 +34,7 @@ import {
   ChevronUpIcon,
   ChevronDownIcon,
   XIcon,
+  ExternalIcon,
 } from "@shopify/polaris-icons";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
@@ -1821,6 +1822,7 @@ export default function CollectionsPage() {
   const [queueStatusById, setQueueStatusById] = useState({});
   const [selectedCollectionProductIds, setSelectedCollectionProductIds] = useState([]);
   const queueIntervalRef = useRef(null);
+  const previousModeRef = useRef(isCollectionProductsMode);
   const [statusTabIndex, setStatusTabIndex] = useState(0);
 
   useEffect(() => {
@@ -1893,6 +1895,20 @@ export default function CollectionsPage() {
       return current.filter((id) => visibleSet.has(id));
     });
   }, [visibleCollectionProductIds]);
+
+  useEffect(() => {
+    if (previousModeRef.current === isCollectionProductsMode) {
+      return;
+    }
+
+    // Keep collection-mode and collection-product-mode selections independent.
+    setSelectedCollectionIds([]);
+    setSelectedCollectionProductIds([]);
+    setQueueStatusById({});
+    setBulkResult(null);
+    setBulkValidationMessage(null);
+    previousModeRef.current = isCollectionProductsMode;
+  }, [isCollectionProductsMode]);
   const exceedsBulkLimit = selectedCollections.length > MAX_BULK_ITEMS;
 
   const makeUrl = useCallback(
@@ -2160,16 +2176,9 @@ export default function CollectionsPage() {
       </IndexTable.Cell>
 
       <IndexTable.Cell>
-        <Text as="span" variant="bodyMd" fontWeight="medium">
-          {collection.title}
-        </Text>
-      </IndexTable.Cell>
-
-      <IndexTable.Cell>
         {isCollectionProductsMode ? (
-          <Button
-            size="slim"
-            variant="tertiary"
+          <button
+            type="button"
             onClick={() =>
               navigate(
                 makeUrl({
@@ -2178,9 +2187,71 @@ export default function CollectionsPage() {
                 }),
               )
             }
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              textAlign: "left",
+              width: "100%",
+              cursor: "pointer",
+            }}
           >
-            View
-          </Button>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
+              <div
+                style={{
+                  width: 72,
+                  height: 72,
+                  borderRadius: 10,
+                  border: "1px solid #d1d5db",
+                  background: "#f3f4f6",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  overflow: "hidden",
+                  flexShrink: 0,
+                }}
+              >
+                {collection.imageUrl ? (
+                  <img
+                    src={collection.imageUrl}
+                    alt={collection.imageAlt}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                ) : (
+                  <Text as="span" variant="bodySm" tone="subdued">No Image</Text>
+                )}
+              </div>
+              <BlockStack gap="050">
+                <Text as="span" variant="bodyMd" fontWeight="semibold">
+                  {collection.title}
+                </Text>
+                <Text as="span" variant="bodySm" tone="subdued">
+                  Last updated: {collection.updatedAt}
+                </Text>
+                <Badge tone="info">
+                  {collection.productsCount} product{collection.productsCount === 1 ? "" : "s"}
+                </Badge>
+              </BlockStack>
+            </div>
+          </button>
+        ) : (
+          <Text as="span" variant="bodyMd" fontWeight="medium">
+            {collection.title}
+          </Text>
+        )}
+      </IndexTable.Cell>
+
+      <IndexTable.Cell>
+        {isCollectionProductsMode ? (
+          <Button
+            icon={ExternalIcon}
+            variant="tertiary"
+            size="slim"
+            url={collection.adminUrl || undefined}
+            external
+            accessibilityLabel={`Open ${collection.title} in Shopify admin`}
+            disabled={!collection.adminUrl}
+          />
         ) : null}
       </IndexTable.Cell>
 
@@ -2408,8 +2479,8 @@ export default function CollectionsPage() {
                           />
                         ),
                       },
-                      { title: "Collection Name" },
-                      ...(isCollectionProductsMode ? [{ title: "View" }] : []),
+                      { title: isCollectionProductsMode ? "Collection" : "Collection Name" },
+                      ...(isCollectionProductsMode ? [{ title: "" }] : []),
                       ...(!isCollectionProductsMode
                         ? [
                             { title: "Short" },
@@ -2436,7 +2507,7 @@ export default function CollectionsPage() {
             </BlockStack>
           </Card>
 
-          {isCollectionProductsMode ? (
+          {isCollectionProductsMode && filters.productsCollectionId ? (
             <div style={{ marginTop: "16px" }}>
               <Card padding="0">
                 <BlockStack gap="0">
@@ -2445,13 +2516,7 @@ export default function CollectionsPage() {
                       Collection Products{collectionProductsTitle ? `: ${collectionProductsTitle}` : ""}
                     </Text>
                   </div>
-                  {!filters.productsCollectionId ? (
-                    <Box padding="400">
-                      <Text as="p" tone="subdued">
-                        Click `View` on any collection to load its product table here.
-                      </Text>
-                    </Box>
-                  ) : collectionProducts.length === 0 ? (
+                  {collectionProducts.length === 0 ? (
                     <Box padding="400">
                       <Text as="p" tone="subdued">
                         No products found for the selected collection.
