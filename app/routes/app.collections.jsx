@@ -2196,43 +2196,14 @@ export default function CollectionsPage() {
               cursor: "pointer",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
-              <div
-                style={{
-                  width: 72,
-                  height: 72,
-                  borderRadius: 10,
-                  border: "1px solid #d1d5db",
-                  background: "#f3f4f6",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  overflow: "hidden",
-                  flexShrink: 0,
-                }}
-              >
-                {collection.imageUrl ? (
-                  <img
-                    src={collection.imageUrl}
-                    alt={collection.imageAlt}
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                  />
-                ) : (
-                  <Text as="span" variant="bodySm" tone="subdued">No Image</Text>
-                )}
-              </div>
-              <BlockStack gap="050">
-                <Text as="span" variant="bodyMd" fontWeight="semibold">
-                  {collection.title}
-                </Text>
-                <Text as="span" variant="bodySm" tone="subdued">
-                  Last updated: {collection.updatedAt}
-                </Text>
-                <Badge tone="info">
-                  {collection.productsCount} product{collection.productsCount === 1 ? "" : "s"}
-                </Badge>
-              </BlockStack>
-            </div>
+            <BlockStack gap="050">
+              <Text as="span" variant="bodyMd" fontWeight="semibold">
+                {collection.title}
+              </Text>
+              <Badge tone="info">
+                {collection.productsCount} product{collection.productsCount === 1 ? "" : "s"}
+              </Badge>
+            </BlockStack>
           </button>
         ) : (
           <Text as="span" variant="bodyMd" fontWeight="medium">
@@ -2254,6 +2225,10 @@ export default function CollectionsPage() {
           />
         ) : null}
       </IndexTable.Cell>
+
+      {isCollectionProductsMode && (
+        <IndexTable.Cell>{renderBadge(collection.appStatus)}</IndexTable.Cell>
+      )}
 
       {!isCollectionProductsMode && (
         <IndexTable.Cell>{renderBadge(collection.descriptionStatus)}</IndexTable.Cell>
@@ -2481,6 +2456,7 @@ export default function CollectionsPage() {
                       },
                       { title: isCollectionProductsMode ? "Collection" : "Collection Name" },
                       ...(isCollectionProductsMode ? [{ title: "" }] : []),
+                      ...(isCollectionProductsMode ? [{ title: "Status" }] : []),
                       ...(!isCollectionProductsMode
                         ? [
                             { title: "Short" },
