@@ -7,7 +7,6 @@ import {
   useNavigation,
   useNavigate,
   useLocation,
-  useRouteLoaderData,
 } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
@@ -28,6 +27,7 @@ import {
   TextField,
   Box,
 } from "@shopify/polaris";
+import { AppPageHeader } from "../components/AppPageHeader";
 import {
   ProductIcon,
   CollectionIcon,
@@ -309,13 +309,11 @@ function QuickActionCard({ icon, title, description, ctaLabel, onClick }) {
 
 export default function Index() {
   const { defaultAiModel, envDefaultAiModel, shouldShowReviewPopup, hasSubmittedReview, shopOwnerName } = useLoaderData();
-  const layoutData = useRouteLoaderData("routes/app");
   const actionData = useActionData();
   const reviewFetcher = useFetcher();
   const navigation = useNavigation();
   const navigate = useNavigate();
   const location = useLocation();
-  const credits = layoutData?.credits ?? 0;
   const isSaving = navigation.state === "submitting";
 
   const [selectedModel, setSelectedModel] = useState(() =>
@@ -413,36 +411,12 @@ export default function Index() {
           </Modal.Section>
         </Modal>
 
-        <Card>
-          <div className="dashboard-welcome-card">
-            <div className="dashboard-hero-layout">
-              <BlockStack gap="100">
-                <Text as="h3" variant="headingLg">
-                  Hi {shopOwnerName} !
-                </Text>
-                <Text as="p" variant="bodyMd" tone="subdued">
-                  Manage your apps and generate high-converting AI content for your store.
-                </Text>
-              </BlockStack>
-
-              <div className="dashboard-hero-actions-col">
-                <div className="dashboard-credit-pill">
-                  <Icon source={StarFilledIcon} tone="subdued" />
-                  <Text as="span" variant="bodyMd" tone="subdued">
-                    {credits} credits.
-                  </Text>
-                  <button
-                    type="button"
-                    className="dashboard-upgrade-link"
-                    onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}
-                  >
-                    Upgrade
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Card>
+        <AppPageHeader
+          ownerName={shopOwnerName}
+          ownerLabel="Owner"
+          title={`Hi ${shopOwnerName}!`}
+          description="Manage your apps and generate high-converting AI content for your store."
+        />
 
         {actionData ? (
           <Banner tone={actionData.success ? "success" : "critical"}>
