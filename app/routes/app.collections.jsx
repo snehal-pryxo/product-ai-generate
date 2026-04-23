@@ -26,7 +26,15 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
-import { CollectionIcon, ProductIcon, SearchIcon, ChevronUpIcon, ChevronDownIcon, XIcon } from "@shopify/polaris-icons";
+import {
+  CollectionIcon,
+  ProductIcon,
+  SearchIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
+  XIcon,
+  ExternalIcon,
+} from "@shopify/polaris-icons";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import { buildCollectionContentPrompt } from "../lib/contentPromptTemplates";
@@ -201,6 +209,10 @@ const COLLECTION_LIST_QUERY = `#graphql
           handle
           descriptionHtml
           updatedAt
+          image {
+            url
+            altText
+          }
           seo {
             title
             description
@@ -320,6 +332,10 @@ function formatDate(dateValue) {
     month: "short",
     year: "numeric",
   }).format(date);
+}
+
+function toLegacyResourceId(gid) {
+  return String(gid || "").split("/").pop() || "";
 }
 
 function readFormString(formData, key) {
@@ -1205,6 +1221,8 @@ export const loader = async ({ request }) => {
       id: node.id,
       title: node.title,
       handle: node.handle,
+      imageUrl: node.image?.url || "",
+      imageAlt: node.image?.altText || `${node.title} image`,
       descriptionHtml: node.descriptionHtml || "",
       descriptionText: stripHtml(node.descriptionHtml),
       descriptionStatus: evaluateDescription(stripHtml(node.descriptionHtml)),
@@ -1217,6 +1235,9 @@ export const loader = async ({ request }) => {
       collectionType: toCollectionTypeMeta(node.ruleSet),
       productsCount: node.productsCount?.count || 0,
       updatedAt: formatDate(node.updatedAt),
+      adminUrl: toLegacyResourceId(node.id)
+        ? `https://${session.shop}/admin/collections/${toLegacyResourceId(node.id)}`
+        : "",
     };
   });
 
@@ -1558,10 +1579,55 @@ export default function CollectionsPage() {
       </IndexTable.Cell>
 
       <IndexTable.Cell>
-        <div className="collections-title-cell">
-          <Text as="span" variant="bodyMd" fontWeight="medium">
-            {collection.title}
-          </Text>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
+            <div
+              style={{
+                width: 72,
+                height: 72,
+                borderRadius: 10,
+                border: "1px solid #d1d5db",
+                background: "#f3f4f6",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                overflow: "hidden",
+                flexShrink: 0,
+              }}
+            >
+              {collection.imageUrl ? (
+                <img
+                  src={collection.imageUrl}
+                  alt={collection.imageAlt}
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
+              ) : (
+                <Text as="span" variant="bodySm" tone="subdued">No Image</Text>
+              )}
+            </div>
+            <BlockStack gap="050">
+              <div className="collections-title-cell">
+                <Text as="span" variant="bodyMd" fontWeight="medium">
+                  {collection.title}
+                </Text>
+              </div>
+              <Text as="span" variant="bodySm" tone="subdued">
+                Last updated: {collection.updatedAt}
+              </Text>
+              <InlineStack gap="100">
+                <Badge tone="info">{collection.productsCount} product{collection.productsCount === 1 ? "" : "s"}</Badge>
+              </InlineStack>
+            </BlockStack>
+          </div>
+          <Button
+            icon={ExternalIcon}
+            size="slim"
+            variant="tertiary"
+            url={collection.adminUrl || undefined}
+            external
+            accessibilityLabel={`Open ${collection.title} in Shopify admin`}
+            disabled={!collection.adminUrl}
+          />
         </div>
       </IndexTable.Cell>
 

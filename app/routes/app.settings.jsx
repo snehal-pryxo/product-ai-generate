@@ -89,17 +89,15 @@ const LANGUAGE_OPTIONS = [
   "Telugu", "Thai", "Turkish", "Ukrainian", "Urdu", "Vietnamese",
 ].map((l) => ({ label: l, value: l }));
 
-const AI_PROVIDER_OPTIONS = [
-  { label: "Auto", value: "auto" },
-  { label: "OpenAI", value: "openai" },
-  { label: "Anthropic", value: "anthropic" },
-  { label: "Ollama", value: "ollama" },
-];
-
-const LENGTH_OPTIONS = [
-  { label: "Short", value: "short" },
-  { label: "Medium", value: "medium" },
-  { label: "Long", value: "long" },
+const TONE_OPTIONS = [
+  { label: "Professional", value: "professional" },
+  { label: "Casual", value: "casual" },
+  { label: "Friendly", value: "friendly" },
+  { label: "Persuasive", value: "persuasive" },
+  { label: "Informative", value: "informative" },
+  { label: "Luxury", value: "luxury" },
+  { label: "Playful", value: "playful" },
+  { label: "Urgent", value: "urgent" },
 ];
 
 
@@ -203,16 +201,17 @@ export default function SettingsPage() {
                   helpText="Default language for all AI-generated content."
                 />
                 <Select
-                  label="AI Provider"
-                  options={AI_PROVIDER_OPTIONS}
-                  value={settings.aiProvider}
-                  onChange={update("aiProvider")}
+                  label="Tone"
+                  options={TONE_OPTIONS}
+                  value={settings.tone}
+                  onChange={update("tone")}
                 />
-                <Select
-                  label="Default Length"
-                  options={LENGTH_OPTIONS}
-                  value={settings.length}
-                  onChange={update("length")}
+                <TextField
+                  label="Global Context Keywords"
+                  value={settings.contextKeywords}
+                  onChange={update("contextKeywords")}
+                  placeholder="e.g. premium quality, trusted brand"
+                  autoComplete="off"
                 />
               </div>
             </Box>
