@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useFetcher, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
@@ -19,6 +19,7 @@ import {
   TextField,
 } from "@shopify/polaris";
 import { AppPageHeader } from "../components/AppPageHeader";
+import { RichTextEditor } from "../components/RichTextEditor";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { getDefaultGlobalSettings } from "../lib/globalSettings";
@@ -623,8 +624,7 @@ export default function BlogPage() {
   const [editingBlog, setEditingBlog] = useState(null);
   const [editTitle, setEditTitle] = useState("");
   const [editStatus, setEditStatus] = useState("draft");
-  const [editorBlockType, setEditorBlockType] = useState("p");
-  const editorRef = useRef(null);
+  const [editBody, setEditBody] = useState("");
 
   const tabItems = [
     { id: TAB_KEYS.BUSINESS, content: "Generate post ideas for my business" },
@@ -656,9 +656,8 @@ export default function BlogPage() {
   }, [blogs, selectedBlogId]);
 
   useEffect(() => {
-    if (!editingBlog || !editorRef.current) return;
-    editorRef.current.innerHTML = editingBlog.body || "";
-    setEditorBlockType("p");
+    if (!editingBlog) return;
+    setEditBody(editingBlog.body || "");
   }, [editingBlog]);
 
   useEffect(() => {
@@ -700,24 +699,6 @@ export default function BlogPage() {
       setMessage("Blog content saved.");
     }
   }, [fetcher.state, fetcher.data]);
-
-  function runEditorCommand(command, value = null) {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    document.execCommand(command, false, value);
-  }
-
-  function applyBlockType(nextType) {
-    setEditorBlockType(nextType);
-    runEditorCommand("formatBlock", nextType === "p" ? "<p>" : `<${nextType}>`);
-  }
-
-  function applyLink() {
-    if (typeof window === "undefined") return;
-    const url = window.prompt("Enter URL");
-    if (!url) return;
-    runEditorCommand("createLink", url);
-  }
 
   function submitGenerateSuggestions() {
     const payload = new FormData();
@@ -1064,51 +1045,13 @@ export default function BlogPage() {
               onChange={setEditStatus}
             />
 
-            <div style={{ border: "1px solid #d1d5db", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
-              <InlineStack gap="100" wrap>
-                <div style={{ minWidth: 180 }}>
-                  <Select
-                    label="Text style"
-                    labelHidden
-                    options={[
-                      { label: "Paragraph", value: "p" },
-                      { label: "Heading", value: "h2" },
-                      { label: "Sub heading", value: "h3" },
-                      { label: "Description", value: "h4" },
-                    ]}
-                    value={editorBlockType}
-                    onChange={applyBlockType}
-                  />
-                </div>
-                <Button size="slim" onClick={() => runEditorCommand("bold")}>B</Button>
-                <Button size="slim" onClick={() => runEditorCommand("italic")}>I</Button>
-                <Button size="slim" onClick={() => runEditorCommand("underline")}>U</Button>
-                <Button size="slim" onClick={() => runEditorCommand("insertUnorderedList")}>Bullet</Button>
-                <Button size="slim" onClick={() => runEditorCommand("insertOrderedList")}>1. List</Button>
-                <Button size="slim" onClick={() => runEditorCommand("justifyLeft")}>Left</Button>
-                <Button size="slim" onClick={() => runEditorCommand("justifyCenter")}>Center</Button>
-                <Button size="slim" onClick={() => runEditorCommand("justifyRight")}>Right</Button>
-                <Button size="slim" onClick={applyLink}>Link</Button>
-                <Button size="slim" onClick={() => runEditorCommand("unlink")}>Unlink</Button>
-                <Button size="slim" onClick={() => runEditorCommand("undo")}>Undo</Button>
-                <Button size="slim" onClick={() => runEditorCommand("redo")}>Redo</Button>
-                <Button size="slim" onClick={() => runEditorCommand("removeFormat")}>Clear</Button>
-              </InlineStack>
-              <div
-                ref={editorRef}
-                contentEditable
-                suppressContentEditableWarning
-                style={{
-                  minHeight: 380,
-                  maxHeight: 430,
-                  overflowY: "auto",
-                  padding: 16,
-                  outline: "none",
-                  fontSize: 17,
-                  lineHeight: 1.7,
-                }}
-              />
-            </div>
+            <RichTextEditor
+              value={editBody}
+              onChange={setEditBody}
+              minHeight={380}
+              maxHeight={430}
+              showSourceToggle
+            />
 
             <InlineStack align="end" gap="200">
               <Button onClick={() => setEditingBlog(null)}>Cancel</Button>
@@ -1122,7 +1065,7 @@ export default function BlogPage() {
                     payload.append("intent", "save_generated_blog");
                     payload.append("blogId", editingBlog.blogId || selectedBlogId);
                     payload.append("title", editTitle);
-                    payload.append("body", editorRef.current?.innerHTML || "");
+                    payload.append("body", editBody || "");
                     payload.append("status", editStatus);
                     payload.append("topic", editingBlog.topic || "");
                     payload.append("tabType", editingBlog.tabType || activeTabKey);
@@ -1137,7 +1080,7 @@ export default function BlogPage() {
                     payload.append("articleId", editingBlog.id);
                     payload.append("blogId", editingBlog.blogId || "");
                     payload.append("title", editTitle);
-                    payload.append("body", editorRef.current?.innerHTML || "");
+                    payload.append("body", editBody || "");
                     payload.append("status", editStatus);
                   }
 

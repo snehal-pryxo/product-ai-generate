@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { useLoaderData, useNavigate, useFetcher } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -6,6 +6,7 @@ import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { buildPageContentPrompt } from "../lib/contentPromptTemplates";
 import { TemplateLibraryModal } from "../components/TemplateLibraryModal";
+import { RichTextEditor } from "../components/RichTextEditor";
 import { readGlobalSettings } from "../lib/globalSettings";
 import {
   readStoredPagePromptTemplateSelection,
@@ -706,71 +707,6 @@ Focus on:
 - Compelling and click-worthy
 
 Format: Engaging description that drives clicks from search results.`;
-
-function RichTextEditor({ value, onChange }) {
-  const editorRef = useRef(null);
-
-  useEffect(() => {
-    if (!editorRef.current) return;
-    const next = value || "";
-    if (editorRef.current.innerHTML !== next) {
-      editorRef.current.innerHTML = next;
-    }
-  }, [value]);
-
-  const exec = useCallback((command, arg = null) => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    document.execCommand(command, false, arg);
-    onChange(editorRef.current.innerHTML || "");
-  }, [onChange]);
-
-  const handleInput = useCallback(() => {
-    if (!editorRef.current) return;
-    onChange(editorRef.current.innerHTML || "");
-  }, [onChange]);
-
-  return (
-    <div style={{ border: "1px solid #d1d5db", borderRadius: 8, overflow: "hidden", background: "#fff" }}>
-      <InlineStack gap="100" wrap>
-        <div style={{ minWidth: 180 }}>
-          <Select
-            label="Text style"
-            labelHidden
-            options={[
-              { label: "Paragraph", value: "p" },
-              { label: "Heading", value: "h2" },
-              { label: "Sub heading", value: "h3" },
-              { label: "Description", value: "h4" },
-            ]}
-            value="p"
-            onChange={(v) => exec("formatBlock", v)}
-          />
-        </div>
-        <Button size="slim" onClick={() => exec("bold")}>B</Button>
-        <Button size="slim" onClick={() => exec("italic")}>I</Button>
-        <Button size="slim" onClick={() => exec("underline")}>U</Button>
-        <Button size="slim" onClick={() => exec("insertUnorderedList")}>Bullet</Button>
-        <Button size="slim" onClick={() => exec("insertOrderedList")}>1. List</Button>
-      </InlineStack>
-      <div
-        ref={editorRef}
-        contentEditable
-        suppressContentEditableWarning
-        onInput={handleInput}
-        style={{
-          minHeight: 260,
-          maxHeight: 420,
-          overflowY: "auto",
-          padding: 16,
-          outline: "none",
-          fontSize: 16,
-          lineHeight: 1.65,
-        }}
-      />
-    </div>
-  );
-}
 
 function PageEditorModal({
   open,

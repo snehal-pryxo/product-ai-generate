@@ -39,6 +39,7 @@ import {
   PAGE_META_TITLE_TEMPLATES,
 } from "../lib/pagePromptTemplateLibrary";
 import { TemplateLibraryModal } from "../components/TemplateLibraryModal";
+import { RichTextEditor } from "../components/RichTextEditor";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import {
@@ -1624,317 +1625,6 @@ export const action = async ({ request }) => {
 };
 
 // ─── Rich Text Editor ─────────────────────────────────────────────────────────
-const tbBtnBase = {
-  padding: "3px 6px",
-  borderRadius: "4px",
-  border: "1px solid transparent",
-  background: "transparent",
-  cursor: "pointer",
-  fontSize: "13px",
-  lineHeight: "1",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  minWidth: "26px",
-};
-
-function RichTextEditor({ value, onChange }) {
-  const editorRef = useRef(null);
-  const [showSource, setShowSource] = useState(false);
-  const [sourceHtml, setSourceHtml] = useState(value || "");
-  const [linkInputOpen, setLinkInputOpen] = useState(false);
-  const [linkUrl, setLinkUrl] = useState("https://");
-  const savedSelectionRef = useRef(null);
-
-  // Sync external value into editor on mount / when value prop changes from outside
-  const lastValueRef = useRef(value);
-  const isHydratedRef = useRef(false);
-
-  useEffect(() => {
-    isHydratedRef.current = true;
-    if (editorRef.current) editorRef.current.innerHTML = normalizeGeneratedHtml(value || "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (!isHydratedRef.current) return;
-    const normalizedValue = normalizeGeneratedHtml(value || "");
-    if (lastValueRef.current !== value) {
-      lastValueRef.current = value;
-      if (!showSource && editorRef.current) {
-        editorRef.current.innerHTML = normalizedValue;
-      }
-      if (showSource) setSourceHtml(normalizedValue);
-    }
-  }, [value, showSource]);
-
-  const exec = useCallback((cmd, arg = null) => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    document.execCommand(cmd, false, arg);
-    if (onChange) onChange(editorRef.current.innerHTML || "");
-  }, [onChange]);
-
-  const handleInput = useCallback(() => {
-    if (onChange && editorRef.current) onChange(editorRef.current.innerHTML || "");
-  }, [onChange]);
-
-  const toggleSource = useCallback(() => {
-    if (!showSource) {
-      const html = editorRef.current?.innerHTML || "";
-      setSourceHtml(html);
-    } else {
-      if (editorRef.current) editorRef.current.innerHTML = sourceHtml;
-      if (onChange) onChange(sourceHtml);
-    }
-    setShowSource((s) => !s);
-  }, [showSource, sourceHtml, onChange]);
-
-  const handleSourceChange = useCallback((e) => {
-    setSourceHtml(e.target.value);
-    if (onChange) onChange(e.target.value);
-  }, [onChange]);
-
-  const openLinkInput = useCallback(() => {
-    // Save selection before opening the input
-    const sel = window?.getSelection ? window.getSelection() : null;
-    if (sel && sel.rangeCount > 0) {
-      savedSelectionRef.current = sel.getRangeAt(0).cloneRange();
-    }
-    setLinkUrl("https://");
-    setLinkInputOpen(true);
-  }, []);
-
-  const applyLink = useCallback(() => {
-    if (savedSelectionRef.current && editorRef.current) {
-      editorRef.current.focus();
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(savedSelectionRef.current);
-    }
-    if (linkUrl) exec("createLink", linkUrl);
-    setLinkInputOpen(false);
-    savedSelectionRef.current = null;
-  }, [exec, linkUrl]);
-
-  const tbBtn = (active = false) => ({
-    ...tbBtnBase,
-    background: active ? "#e3e3e3" : "transparent",
-    border: active ? "1px solid #c9cccf" : "1px solid transparent",
-  });
-
-  return (
-    <div className="content-mgmt-rich-editor" style={{ border: "1px solid #c9cccf", borderRadius: "8px", overflow: "hidden" }}>
-      {/* Toolbar */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "2px",
-          padding: "6px 8px",
-          borderBottom: "1px solid #e1e3e5",
-          background: "#f6f6f7",
-          flexWrap: "wrap",
-        }}
-      >
-        {/* Paragraph format */}
-        <select
-          onChange={(e) => exec("formatBlock", e.target.value)}
-          defaultValue="p"
-          style={{
-            fontSize: "12px",
-            border: "1px solid #c9cccf",
-            borderRadius: "4px",
-            padding: "3px 6px",
-            background: "#fff",
-            cursor: "pointer",
-            marginRight: "4px",
-          }}
-        >
-          <option value="p">Paragraph</option>
-          <option value="h1">Heading 1</option>
-          <option value="h2">Heading 2</option>
-          <option value="h3">Heading 3</option>
-          <option value="h4">Heading 4</option>
-          <option value="blockquote">Quote</option>
-        </select>
-
-        {/* Divider */}
-        <span style={{ width: "1px", height: "20px", background: "#c9cccf", margin: "0 4px" }} />
-
-        <button type="button" onMouseDown={(e) => { e.preventDefault(); exec("bold"); }} title="Bold" style={tbBtn()}>
-          <b style={{ fontSize: "13px" }}>B</b>
-        </button>
-        <button type="button" onMouseDown={(e) => { e.preventDefault(); exec("italic"); }} title="Italic" style={tbBtn()}>
-          <em style={{ fontSize: "13px" }}>I</em>
-        </button>
-        <button type="button" onMouseDown={(e) => { e.preventDefault(); exec("underline"); }} title="Underline" style={tbBtn()}>
-          <u style={{ fontSize: "13px" }}>U</u>
-        </button>
-        <button type="button" onMouseDown={(e) => { e.preventDefault(); exec("strikeThrough"); }} title="Strikethrough" style={tbBtn()}>
-          <s style={{ fontSize: "13px" }}>S</s>
-        </button>
-
-        {/* Color input */}
-        <span title="Text color" style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
-          <label style={{ ...tbBtnBase, cursor: "pointer" }} title="Text Color">
-            <span style={{ fontSize: "13px", fontWeight: 600 }}>A</span>
-            <input
-              type="color"
-              onChange={(e) => exec("foreColor", e.target.value)}
-              style={{ position: "absolute", opacity: 0, width: "26px", height: "26px", cursor: "pointer" }}
-            />
-          </label>
-        </span>
-
-        {/* Divider */}
-        <span style={{ width: "1px", height: "20px", background: "#c9cccf", margin: "0 4px" }} />
-
-        {/* Alignment */}
-        <button type="button" onMouseDown={(e) => { e.preventDefault(); exec("justifyLeft"); }} title="Align Left" style={tbBtn()}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="1" y="2" width="12" height="1.5" rx="0.75"/><rect x="1" y="5.5" width="8" height="1.5" rx="0.75"/><rect x="1" y="9" width="12" height="1.5" rx="0.75"/><rect x="1" y="12.5" width="8" height="1.5" rx="0.75"/></svg>
-        </button>
-        <button type="button" onMouseDown={(e) => { e.preventDefault(); exec("justifyCenter"); }} title="Align Center" style={tbBtn()}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="1" y="2" width="12" height="1.5" rx="0.75"/><rect x="3" y="5.5" width="8" height="1.5" rx="0.75"/><rect x="1" y="9" width="12" height="1.5" rx="0.75"/><rect x="3" y="12.5" width="8" height="1.5" rx="0.75"/></svg>
-        </button>
-        <button type="button" onMouseDown={(e) => { e.preventDefault(); exec("justifyRight"); }} title="Align Right" style={tbBtn()}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="1" y="2" width="12" height="1.5" rx="0.75"/><rect x="5" y="5.5" width="8" height="1.5" rx="0.75"/><rect x="1" y="9" width="12" height="1.5" rx="0.75"/><rect x="5" y="12.5" width="8" height="1.5" rx="0.75"/></svg>
-        </button>
-        <button type="button" onMouseDown={(e) => { e.preventDefault(); exec("justifyFull"); }} title="Justify" style={tbBtn()}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="1" y="2" width="12" height="1.5" rx="0.75"/><rect x="1" y="5.5" width="12" height="1.5" rx="0.75"/><rect x="1" y="9" width="12" height="1.5" rx="0.75"/><rect x="1" y="12.5" width="12" height="1.5" rx="0.75"/></svg>
-        </button>
-
-        {/* Divider */}
-        <span style={{ width: "1px", height: "20px", background: "#c9cccf", margin: "0 4px" }} />
-
-        {/* Lists */}
-        <button type="button" onMouseDown={(e) => { e.preventDefault(); exec("insertUnorderedList"); }} title="Bullet List" style={tbBtn()}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><circle cx="2" cy="3.25" r="1.25"/><rect x="5" y="2.5" width="8" height="1.5" rx="0.75"/><circle cx="2" cy="7" r="1.25"/><rect x="5" y="6.25" width="8" height="1.5" rx="0.75"/><circle cx="2" cy="10.75" r="1.25"/><rect x="5" y="10" width="8" height="1.5" rx="0.75"/></svg>
-        </button>
-        <button type="button" onMouseDown={(e) => { e.preventDefault(); exec("insertOrderedList"); }} title="Numbered List" style={tbBtn()}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="5" y="2.5" width="8" height="1.5" rx="0.75"/><rect x="5" y="6.25" width="8" height="1.5" rx="0.75"/><rect x="5" y="10" width="8" height="1.5" rx="0.75"/><text x="1" y="5" fontSize="4.5" fontFamily="monospace">1.</text><text x="1" y="8.75" fontSize="4.5" fontFamily="monospace">2.</text><text x="1" y="12.5" fontSize="4.5" fontFamily="monospace">3.</text></svg>
-        </button>
-
-        {/* Indent / Outdent */}
-        <button type="button" onMouseDown={(e) => { e.preventDefault(); exec("outdent"); }} title="Decrease indent" style={tbBtn()}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="1" y="2" width="12" height="1.5" rx="0.75"/><rect x="5" y="5.5" width="8" height="1.5" rx="0.75"/><rect x="1" y="9" width="12" height="1.5" rx="0.75"/><path d="M1 7l3-2v4z"/></svg>
-        </button>
-        <button type="button" onMouseDown={(e) => { e.preventDefault(); exec("indent"); }} title="Increase indent" style={tbBtn()}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="1" y="2" width="12" height="1.5" rx="0.75"/><rect x="5" y="5.5" width="8" height="1.5" rx="0.75"/><rect x="1" y="9" width="12" height="1.5" rx="0.75"/><path d="M4 5l3 2-3 2z"/></svg>
-        </button>
-
-        {/* Divider */}
-        <span style={{ width: "1px", height: "20px", background: "#c9cccf", margin: "0 4px" }} />
-
-        {/* Link */}
-        <button type="button" onMouseDown={(e) => { e.preventDefault(); openLinkInput(); }} title="Insert Link" style={tbBtn()}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5.5 8.5a3.5 3.5 0 005 0l2-2a3.5 3.5 0 00-5-5l-1 1"/>
-            <path d="M8.5 5.5a3.5 3.5 0 00-5 0l-2 2a3.5 3.5 0 005 5l1-1"/>
-          </svg>
-        </button>
-
-        {/* Unlink */}
-        <button type="button" onMouseDown={(e) => { e.preventDefault(); exec("unlink"); }} title="Remove Link" style={tbBtn()}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-            <path d="M9 5l-4 4M5.5 8.5a3.5 3.5 0 005 0l2-2a3.5 3.5 0 00-5-5"/>
-            <path d="M8.5 5.5a3.5 3.5 0 00-5 0l-2 2a3.5 3.5 0 005 5"/>
-            <line x1="1" y1="1" x2="13" y2="13"/>
-          </svg>
-        </button>
-
-        {/* Spacer */}
-        <span style={{ flex: 1 }} />
-
-        {/* Undo / Redo */}
-        <button type="button" onMouseDown={(e) => { e.preventDefault(); exec("undo"); }} title="Undo" style={tbBtn()}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2 6.5H9a3.5 3.5 0 010 7H5"/><path d="M4 4L2 6.5l2 2.5"/></svg>
-        </button>
-        <button type="button" onMouseDown={(e) => { e.preventDefault(); exec("redo"); }} title="Redo" style={tbBtn()}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 6.5H5a3.5 3.5 0 000 7H9"/><path d="M10 4l2 2.5L10 9"/></svg>
-        </button>
-
-        {/* Divider */}
-        <span style={{ width: "1px", height: "20px", background: "#c9cccf", margin: "0 4px" }} />
-
-        {/* HTML Source toggle */}
-        <button
-          type="button"
-          onMouseDown={(e) => { e.preventDefault(); toggleSource(); }}
-          title="HTML Source"
-          style={{ ...tbBtn(showSource), fontFamily: "monospace", fontWeight: 600, fontSize: "11px" }}
-        >
-          {"</>"}
-        </button>
-      </div>
-
-      {/* Inline link input */}
-      {linkInputOpen && (
-        <div
-          style={{
-            display: "flex", alignItems: "center", gap: "8px",
-            padding: "6px 10px", borderBottom: "1px solid #e1e3e5", background: "#f9fafb",
-          }}
-        >
-          <input
-            type="url"
-            value={linkUrl}
-            onChange={(e) => setLinkUrl(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") applyLink(); if (e.key === "Escape") setLinkInputOpen(false); }}
-            placeholder="https://example.com"
-            autoFocus
-            style={{ flex: 1, fontSize: "13px", border: "1px solid #c9cccf", borderRadius: "4px", padding: "4px 8px", outline: "none" }}
-          />
-          <button type="button" onClick={applyLink} style={{ ...tbBtnBase, background: "#1a1a1a", color: "#fff", border: "none", padding: "4px 10px", fontSize: "12px" }}>
-            Apply
-          </button>
-          <button type="button" onClick={() => setLinkInputOpen(false)} style={{ ...tbBtnBase, fontSize: "12px" }}>
-            Cancel
-          </button>
-        </div>
-      )}
-
-      {/* Content area */}
-      {showSource ? (
-        <textarea
-          value={sourceHtml}
-          onChange={handleSourceChange}
-          spellCheck={false}
-          style={{
-            width: "100%",
-            minHeight: "220px",
-            padding: "12px",
-            fontFamily: "monospace",
-            fontSize: "12px",
-            border: "none",
-            outline: "none",
-            resize: "vertical",
-            boxSizing: "border-box",
-            lineHeight: "1.5",
-            background: "#fafafa",
-          }}
-        />
-      ) : (
-        <div
-          ref={editorRef}
-          contentEditable
-          suppressContentEditableWarning
-          onInput={handleInput}
-          style={{
-            minHeight: "220px",
-            padding: "12px 16px",
-            outline: "none",
-            fontSize: "14px",
-            lineHeight: "1.6",
-            overflowY: "auto",
-            maxHeight: "400px",
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
 // ─── Editor Modal ─────────────────────────────────────────────────────────────
 function EditorModal({ open, item, field, contentType, onClose, onSave, isSaving }) {
   const [descHtml, setDescHtml] = useState("");
@@ -2117,6 +1807,7 @@ function GenerateTemplateModal({
 
   const handleUseTemplateFromLibrary = useCallback((templateText) => {
     if (!templateText) return;
+    const scope = templateLibraryTab === "description" ? "main" : templateLibraryTab;
     if (templateLibraryTab === "meta_title") {
       const matched = (config?.metaTitleTemplates || []).find((template) => template.template === templateText);
       onChange("metaTitleTemplateId", matched?.id || "");
@@ -2127,8 +1818,18 @@ function GenerateTemplateModal({
       const matched = (config?.mainTemplates || []).find((template) => template.template === templateText);
       onChange("mainTemplateId", matched?.id || "");
     }
+    onCustomInstructionPromptChange(scope, templateText);
+    onCustomInstructionToggle(scope, true);
     setTemplateLibraryOpen(false);
-  }, [config?.mainTemplates, config?.metaDescriptionTemplates, config?.metaTitleTemplates, onChange, templateLibraryTab]);
+  }, [
+    config?.mainTemplates,
+    config?.metaDescriptionTemplates,
+    config?.metaTitleTemplates,
+    onChange,
+    onCustomInstructionPromptChange,
+    onCustomInstructionToggle,
+    templateLibraryTab,
+  ]);
   useEffect(() => {
     if (!isHydratedRef.current || !open || !item) return;
     if (showMain) {
@@ -2280,7 +1981,7 @@ function GenerateTemplateModal({
                           checked={Boolean(scopeState.enabled)}
                           onChange={(checked) => {
                             onCustomInstructionToggle(scope, checked);
-                            if (checked && !String(scopeState.prompt || "").trim()) {
+                            if (checked) {
                               onCustomInstructionPromptChange(scope, scopeDefaultPrompt);
                             }
                           }}
