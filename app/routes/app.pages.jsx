@@ -5,6 +5,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { buildPageContentPrompt } from "../lib/contentPromptTemplates";
+import { TemplateLibraryModal } from "../components/TemplateLibraryModal";
 import { readGlobalSettings } from "../lib/globalSettings";
 import {
   readStoredPagePromptTemplateSelection,
@@ -28,12 +29,13 @@ import {
   Button,
   Select,
   TextField,
+  Checkbox,
   Banner,
   Badge,
   IndexTable,
   useIndexResourceState,
 } from "@shopify/polaris";
-import { PageIcon } from "@shopify/polaris-icons";
+import { PageIcon, ChevronUpIcon, ChevronDownIcon } from "@shopify/polaris-icons";
 
 const PAGE_CONTENT_TYPES = ["body", "meta_title", "meta_description"];
 const DEFAULT_PAGE_CONTENT_TYPES = ["body", "meta_title", "meta_description"];
@@ -625,6 +627,45 @@ const FORMAT_OPTIONS = [
   { label: "HTML", value: "HTML" },
 ];
 
+const AI_PROVIDER_OPTIONS = [
+  { label: "Auto", value: "auto" },
+  { label: "OpenAI", value: "openai" },
+  { label: "Anthropic", value: "anthropic" },
+];
+
+const DEFAULT_BODY_CUSTOM_PROMPT = `Generate high-quality page body content for the given Shopify page.
+
+Focus on:
+- Clear section structure with readable headings
+- Brand-consistent tone and language
+- Strong value proposition and trust-building copy
+- Scannable formatting with concise paragraphs
+- Conversion-focused messaging where relevant
+
+Format: Return clean HTML suitable for direct Shopify page publishing.`;
+
+const DEFAULT_META_TITLE_CUSTOM_PROMPT = `Generate SEO-optimized meta title for the given page.
+
+Requirements:
+- Primary keyword placement
+- Brand name inclusion
+- Under 60 characters
+- Compelling and descriptive
+- Search-friendly format
+
+Focus on click-through rate optimization.`;
+
+const DEFAULT_META_DESCRIPTION_CUSTOM_PROMPT = `Generate SEO-optimized meta description for given page.
+
+Focus on:
+- Primary keyword naturally included
+- Clear value proposition
+- Call to action
+- 140-160 characters max
+- Compelling and click-worthy
+
+Format: Engaging description that drives clicks from search results.`;
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function PagesPage() {
@@ -651,9 +692,12 @@ export default function PagesPage() {
   const [bulkBodyTemplate, setBulkBodyTemplate] = useState("");
   const [bulkMetaTitleTemplate, setBulkMetaTitleTemplate] = useState("");
   const [bulkMetaDescTemplate, setBulkMetaDescTemplate] = useState("");
-  const [selectedBodyTemplateId, setSelectedBodyTemplateId] = useState("");
-  const [selectedMetaTitleTemplateId, setSelectedMetaTitleTemplateId] = useState("");
-  const [selectedMetaDescTemplateId, setSelectedMetaDescTemplateId] = useState("");
+  const [useCustomBodyInstructions, setUseCustomBodyInstructions] = useState(false);
+  const [useCustomMetaTitleInstructions, setUseCustomMetaTitleInstructions] = useState(false);
+  const [useCustomMetaDescInstructions, setUseCustomMetaDescInstructions] = useState(false);
+  const [templateLibraryOpen, setTemplateLibraryOpen] = useState(false);
+  const [templateLibraryContentType, setTemplateLibraryContentType] = useState("body");
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [bulkBodyKeywords, setBulkBodyKeywords] = useState(() => readGlobalSettings().pageContentKeywords || "");
   const [bulkMetaTitleKeywords, setBulkMetaTitleKeywords] = useState(() => readGlobalSettings().pageMetaTitleKeywords || "");
   const [bulkMetaDescKeywords, setBulkMetaDescKeywords] = useState(() => readGlobalSettings().pageMetaDescKeywords || "");
@@ -663,9 +707,18 @@ export default function PagesPage() {
 
   useEffect(() => {
     const templateSelection = readStoredPagePromptTemplateSelection();
-    if (templateSelection.bodyPromptTemplate) setBulkBodyTemplate(templateSelection.bodyPromptTemplate);
-    if (templateSelection.metaTitlePromptTemplate) setBulkMetaTitleTemplate(templateSelection.metaTitlePromptTemplate);
-    if (templateSelection.metaDescriptionPromptTemplate) setBulkMetaDescTemplate(templateSelection.metaDescriptionPromptTemplate);
+    if (templateSelection.bodyPromptTemplate) {
+      setBulkBodyTemplate(templateSelection.bodyPromptTemplate);
+      setUseCustomBodyInstructions(true);
+    }
+    if (templateSelection.metaTitlePromptTemplate) {
+      setBulkMetaTitleTemplate(templateSelection.metaTitlePromptTemplate);
+      setUseCustomMetaTitleInstructions(true);
+    }
+    if (templateSelection.metaDescriptionPromptTemplate) {
+      setBulkMetaDescTemplate(templateSelection.metaDescriptionPromptTemplate);
+      setUseCustomMetaDescInstructions(true);
+    }
   }, []);
 
   function handleBulkGenerate() {
@@ -694,9 +747,9 @@ export default function PagesPage() {
     fd.append("metaTitleKeywords", bulkMetaTitleKeywords || "");
     fd.append("metaDescKeywords", bulkMetaDescKeywords || "");
     fd.append("contextKeywords", [bulkBodyKeywords, bulkMetaTitleKeywords, bulkMetaDescKeywords].filter(Boolean).join(", "));
-    fd.append("bodyPromptTemplate", bulkBodyTemplate || "");
-    fd.append("metaTitlePromptTemplate", bulkMetaTitleTemplate || "");
-    fd.append("metaDescriptionPromptTemplate", bulkMetaDescTemplate || "");
+    fd.append("bodyPromptTemplate", useCustomBodyInstructions ? (bulkBodyTemplate || "") : "");
+    fd.append("metaTitlePromptTemplate", useCustomMetaTitleInstructions ? (bulkMetaTitleTemplate || "") : "");
+    fd.append("metaDescriptionPromptTemplate", useCustomMetaDescInstructions ? (bulkMetaDescTemplate || "") : "");
     fd.append("contentTypes", JSON.stringify(bulkContentTypes));
     fd.append("aiProvider", bulkSettings.aiProvider || defaultAiProvider || "auto");
     bulkFetcher.submit(fd, { method: "post" });
@@ -877,81 +930,256 @@ export default function PagesPage() {
               </div>
             </div>
 
-            {/* Body Template Section */}
+            {/* Body Section */}
             {bulkContentTypes.includes("body") && (
               <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
                 <Text as="h3" variant="headingSm" fontWeight="semibold">Body</Text>
-                <div style={{ marginTop: "8px" }}>
-                  <Select
-                    label="Template" labelHidden
-                    options={[{ label: "— Default (no template) —", value: "" }, ...PAGE_BODY_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))]}
-                    value={selectedBodyTemplateId}
-                    onChange={(id) => { setSelectedBodyTemplateId(id); setBulkBodyTemplate(PAGE_BODY_TEMPLATES.find((t) => t.id === id)?.template || ""); }}
+                <div style={{ marginTop: "10px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <Checkbox
+                    label={<span>Use custom instructions <span style={{ color: "#f59e0b", fontSize: "14px" }}>*</span></span>}
+                    checked={useCustomBodyInstructions}
+                    onChange={(value) => {
+                      setUseCustomBodyInstructions(value);
+                      if (value) setBulkBodyTemplate(DEFAULT_BODY_CUSTOM_PROMPT);
+                    }}
                   />
+                  {!useCustomBodyInstructions && (
+                    <button
+                      onClick={() => { setTemplateLibraryContentType("body"); setTemplateLibraryOpen(true); }}
+                      style={{ padding: "6px 14px", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}
+                    >
+                      Browse Templates
+                    </button>
+                  )}
                 </div>
-                <div style={{ marginTop: "8px" }}>
-                  <TextField
-                    label="Body Keywords"
-                    value={bulkBodyKeywords}
-                    onChange={setBulkBodyKeywords}
-                    placeholder="e.g. about us, mission, values"
-                    helpText="Keywords specific to page body content"
-                    autoComplete="off"
-                  />
-                </div>
+                {useCustomBodyInstructions && (
+                  <div style={{ marginTop: "8px" }}>
+                    <Text as="p" variant="bodySm" fontWeight="semibold">Custom Prompt</Text>
+                    <div style={{ marginTop: "4px" }}>
+                      <TextField
+                        label="Custom Prompt"
+                        labelHidden
+                        multiline={8}
+                        autoSize={false}
+                        maxHeight={240}
+                        minLength={0}
+                        value={bulkBodyTemplate}
+                        onChange={setBulkBodyTemplate}
+                        autoComplete="off"
+                        placeholder="Enter custom instructions for page body generation..."
+                      />
+                    </div>
+                    <div style={{ marginTop: "8px", display: "flex", gap: "8px" }}>
+                      <button
+                        onClick={() => { setTemplateLibraryContentType("body"); setTemplateLibraryOpen(true); }}
+                        style={{ padding: "6px 14px", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}
+                      >
+                        Browse Templates
+                      </button>
+                      <button
+                        onClick={() => { setBulkBodyTemplate(DEFAULT_BODY_CUSTOM_PROMPT); setUseCustomBodyInstructions(true); }}
+                        style={{ padding: "6px 14px", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}
+                      >
+                        Reset to Default
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Meta Title Template Section */}
+            {/* Meta Title Section */}
             {bulkContentTypes.includes("meta_title") && (
               <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
                 <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Title</Text>
-                <div style={{ marginTop: "8px" }}>
-                  <Select
-                    label="Template" labelHidden
-                    options={[{ label: "— Default (no template) —", value: "" }, ...PAGE_META_TITLE_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))]}
-                    value={selectedMetaTitleTemplateId}
-                    onChange={(id) => { setSelectedMetaTitleTemplateId(id); setBulkMetaTitleTemplate(PAGE_META_TITLE_TEMPLATES.find((t) => t.id === id)?.template || ""); }}
+                <div style={{ marginTop: "10px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <Checkbox
+                    label={<span>Use custom instructions <span style={{ color: "#f59e0b", fontSize: "14px" }}>*</span></span>}
+                    checked={useCustomMetaTitleInstructions}
+                    onChange={(value) => {
+                      setUseCustomMetaTitleInstructions(value);
+                      if (value) setBulkMetaTitleTemplate(DEFAULT_META_TITLE_CUSTOM_PROMPT);
+                    }}
                   />
+                  {!useCustomMetaTitleInstructions && (
+                    <button
+                      onClick={() => { setTemplateLibraryContentType("meta_title"); setTemplateLibraryOpen(true); }}
+                      style={{ padding: "6px 14px", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}
+                    >
+                      Browse Templates
+                    </button>
+                  )}
                 </div>
-                <div style={{ marginTop: "8px" }}>
-                  <TextField
-                    label="Meta Title Keywords"
-                    value={bulkMetaTitleKeywords}
-                    onChange={setBulkMetaTitleKeywords}
-                    placeholder="e.g. official, store"
-                    helpText="Keywords specific to meta titles"
-                    autoComplete="off"
-                  />
-                </div>
+                {useCustomMetaTitleInstructions && (
+                  <div style={{ marginTop: "8px" }}>
+                    <Text as="p" variant="bodySm" fontWeight="semibold">Custom Prompt</Text>
+                    <div style={{ marginTop: "4px" }}>
+                      <TextField
+                        label="Custom Prompt"
+                        labelHidden
+                        multiline={8}
+                        autoSize={false}
+                        maxHeight={240}
+                        minLength={0}
+                        value={bulkMetaTitleTemplate}
+                        onChange={setBulkMetaTitleTemplate}
+                        autoComplete="off"
+                        placeholder="Enter custom instructions for meta title generation..."
+                      />
+                    </div>
+                    <div style={{ marginTop: "8px", display: "flex", gap: "8px" }}>
+                      <button
+                        onClick={() => { setTemplateLibraryContentType("meta_title"); setTemplateLibraryOpen(true); }}
+                        style={{ padding: "6px 14px", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}
+                      >
+                        Browse Templates
+                      </button>
+                      <button
+                        onClick={() => { setBulkMetaTitleTemplate(DEFAULT_META_TITLE_CUSTOM_PROMPT); setUseCustomMetaTitleInstructions(true); }}
+                        style={{ padding: "6px 14px", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}
+                      >
+                        Reset to Default
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Meta Description Template Section */}
+            {/* Meta Description Section */}
             {bulkContentTypes.includes("meta_description") && (
               <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
                 <Text as="h3" variant="headingSm" fontWeight="semibold">Meta Description</Text>
-                <div style={{ marginTop: "8px" }}>
-                  <Select
-                    label="Template" labelHidden
-                    options={[{ label: "— Default (no template) —", value: "" }, ...PAGE_META_DESCRIPTION_TEMPLATES.map((t) => ({ label: t.name, value: t.id }))]}
-                    value={selectedMetaDescTemplateId}
-                    onChange={(id) => { setSelectedMetaDescTemplateId(id); setBulkMetaDescTemplate(PAGE_META_DESCRIPTION_TEMPLATES.find((t) => t.id === id)?.template || ""); }}
+                <div style={{ marginTop: "10px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <Checkbox
+                    label={<span>Use custom instructions <span style={{ color: "#f59e0b", fontSize: "14px" }}>*</span></span>}
+                    checked={useCustomMetaDescInstructions}
+                    onChange={(value) => {
+                      setUseCustomMetaDescInstructions(value);
+                      if (value) setBulkMetaDescTemplate(DEFAULT_META_DESCRIPTION_CUSTOM_PROMPT);
+                    }}
                   />
+                  {!useCustomMetaDescInstructions && (
+                    <button
+                      onClick={() => { setTemplateLibraryContentType("meta_description"); setTemplateLibraryOpen(true); }}
+                      style={{ padding: "6px 14px", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}
+                    >
+                      Browse Templates
+                    </button>
+                  )}
                 </div>
-                <div style={{ marginTop: "8px" }}>
-                  <TextField
-                    label="Meta Desc Keywords"
-                    value={bulkMetaDescKeywords}
-                    onChange={setBulkMetaDescKeywords}
-                    placeholder="e.g. learn more, discover"
-                    helpText="Keywords specific to meta descriptions"
-                    autoComplete="off"
-                  />
-                </div>
+                {useCustomMetaDescInstructions && (
+                  <div style={{ marginTop: "8px" }}>
+                    <Text as="p" variant="bodySm" fontWeight="semibold">Custom Prompt</Text>
+                    <div style={{ marginTop: "4px" }}>
+                      <TextField
+                        label="Custom Prompt"
+                        labelHidden
+                        multiline={8}
+                        autoSize={false}
+                        maxHeight={240}
+                        minLength={0}
+                        value={bulkMetaDescTemplate}
+                        onChange={setBulkMetaDescTemplate}
+                        autoComplete="off"
+                        placeholder="Enter custom instructions for meta description generation..."
+                      />
+                    </div>
+                    <div style={{ marginTop: "8px", display: "flex", gap: "8px" }}>
+                      <button
+                        onClick={() => { setTemplateLibraryContentType("meta_description"); setTemplateLibraryOpen(true); }}
+                        style={{ padding: "6px 14px", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}
+                      >
+                        Browse Templates
+                      </button>
+                      <button
+                        onClick={() => { setBulkMetaDescTemplate(DEFAULT_META_DESCRIPTION_CUSTOM_PROMPT); setUseCustomMetaDescInstructions(true); }}
+                        style={{ padding: "6px 14px", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}
+                      >
+                        Reset to Default
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
+            {/* Show Advanced Settings */}
+            <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+              <button
+                onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 500, color: "#374151", display: "flex", alignItems: "center", gap: "6px", padding: 0 }}
+              >
+                <Icon source={showAdvancedSettings ? ChevronUpIcon : ChevronDownIcon} tone="subdued" />
+                {showAdvancedSettings ? "Hide" : "Show"} Advanced Settings
+              </button>
+              {showAdvancedSettings && (
+                <div style={{ marginTop: "12px" }}>
+                  <BlockStack gap="300">
+                    <Select
+                      label="Page type"
+                      options={PAGE_TYPE_OPTIONS}
+                      value={bulkSettings.pageType}
+                      onChange={(value) => setBulkSettings((current) => ({ ...current, pageType: value }))}
+                    />
+                    <Select
+                      label="AI provider"
+                      options={AI_PROVIDER_OPTIONS}
+                      value={bulkSettings.aiProvider}
+                      onChange={(value) => setBulkSettings((current) => ({ ...current, aiProvider: value }))}
+                    />
+                    <Select
+                      label="Tone"
+                      options={TONE_OPTIONS}
+                      value={bulkSettings.tone}
+                      onChange={(value) => setBulkSettings((current) => ({ ...current, tone: value }))}
+                    />
+                    <Select
+                      label="Length"
+                      options={LENGTH_OPTIONS}
+                      value={bulkSettings.length}
+                      onChange={(value) => setBulkSettings((current) => ({ ...current, length: value }))}
+                    />
+                    <Select
+                      label="Format"
+                      options={FORMAT_OPTIONS}
+                      value={bulkSettings.format}
+                      onChange={(value) => setBulkSettings((current) => ({ ...current, format: value }))}
+                    />
+                    {bulkContentTypes.includes("body") && (
+                      <TextField
+                        label="Body Keywords"
+                        value={bulkBodyKeywords}
+                        onChange={setBulkBodyKeywords}
+                        placeholder="e.g. about us, mission, values"
+                        helpText="Keywords specific to page body content"
+                        autoComplete="off"
+                      />
+                    )}
+                    {bulkContentTypes.includes("meta_title") && (
+                      <TextField
+                        label="Meta Title Keywords"
+                        value={bulkMetaTitleKeywords}
+                        onChange={setBulkMetaTitleKeywords}
+                        placeholder="e.g. official, store"
+                        helpText="Keywords specific to meta titles"
+                        autoComplete="off"
+                      />
+                    )}
+                    {bulkContentTypes.includes("meta_description") && (
+                      <TextField
+                        label="Meta Description Keywords"
+                        value={bulkMetaDescKeywords}
+                        onChange={setBulkMetaDescKeywords}
+                        placeholder="e.g. learn more, discover"
+                        helpText="Keywords specific to meta descriptions"
+                        autoComplete="off"
+                      />
+                    )}
+                  </BlockStack>
+                </div>
+              )}
+            </div>
             {bulkValidationMessage && (
               <div style={{ padding: "8px 16px" }}>
                 <Banner tone="warning"><p>{bulkValidationMessage}</p></Banner>
@@ -1035,6 +1263,35 @@ export default function PagesPage() {
         </div>
       )}
 
+      <TemplateLibraryModal
+        key={templateLibraryContentType}
+        open={templateLibraryOpen}
+        onClose={() => setTemplateLibraryOpen(false)}
+        tabs={[
+          { id: "body", label: "Body" },
+          { id: "meta_title", label: "Meta Title" },
+          { id: "meta_description", label: "Meta Description" },
+        ]}
+        initialTab={templateLibraryContentType}
+        templatesByTab={{
+          body: PAGE_BODY_TEMPLATES,
+          meta_title: PAGE_META_TITLE_TEMPLATES,
+          meta_description: PAGE_META_DESCRIPTION_TEMPLATES,
+        }}
+        onUseTemplate={(templateText) => {
+          if (templateLibraryContentType === "body") {
+            setBulkBodyTemplate(templateText);
+            setUseCustomBodyInstructions(true);
+          } else if (templateLibraryContentType === "meta_title") {
+            setBulkMetaTitleTemplate(templateText);
+            setUseCustomMetaTitleInstructions(true);
+          } else if (templateLibraryContentType === "meta_description") {
+            setBulkMetaDescTemplate(templateText);
+            setUseCustomMetaDescInstructions(true);
+          }
+        }}
+      />
+
     </Page>
   );
 }
@@ -1042,3 +1299,5 @@ export default function PagesPage() {
 export const headers = (headersArgs) => {
   return boundary.headers(headersArgs);
 };
+
+
