@@ -2198,32 +2198,41 @@ export default function CollectionsPage() {
           >
             <BlockStack gap="050">
               <Text as="span" variant="bodyMd" fontWeight="semibold">
-                {collection.title}
+                <span className="collections-name-clamp">{collection.title}</span>
               </Text>
-              <Badge tone="info">
-                {collection.productsCount} product{collection.productsCount === 1 ? "" : "s"}
-              </Badge>
+              <InlineStack gap="200" blockAlign="center">
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    padding: "3px 10px",
+                    borderRadius: "999px",
+                    background: "#bfdbfe",
+                    color: "#1e3a8a",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {collection.productsCount} product{collection.productsCount === 1 ? "" : "s"}
+                </span>
+                <Button
+                  icon={ExternalIcon}
+                  variant="tertiary"
+                  size="slim"
+                  url={collection.adminUrl || undefined}
+                  external
+                  accessibilityLabel={`Open ${collection.title} in Shopify admin`}
+                  disabled={!collection.adminUrl}
+                />
+              </InlineStack>
             </BlockStack>
           </button>
         ) : (
           <Text as="span" variant="bodyMd" fontWeight="medium">
-            {collection.title}
+            <span className="collections-name-clamp">{collection.title}</span>
           </Text>
         )}
-      </IndexTable.Cell>
-
-      <IndexTable.Cell>
-        {isCollectionProductsMode ? (
-          <Button
-            icon={ExternalIcon}
-            variant="tertiary"
-            size="slim"
-            url={collection.adminUrl || undefined}
-            external
-            accessibilityLabel={`Open ${collection.title} in Shopify admin`}
-            disabled={!collection.adminUrl}
-          />
-        ) : null}
       </IndexTable.Cell>
 
       {isCollectionProductsMode && (
@@ -2344,6 +2353,8 @@ export default function CollectionsPage() {
               style={{
                 display: "flex",
                 alignItems: "center",
+                flexWrap: "nowrap",
+                overflowX: "auto",
                 border: "1px solid #d1d5db",
                 borderRadius: "12px",
                 padding: "4px",
@@ -2454,8 +2465,7 @@ export default function CollectionsPage() {
                           />
                         ),
                       },
-                      { title: isCollectionProductsMode ? "Collection" : "Collection Name" },
-                      ...(isCollectionProductsMode ? [{ title: "" }] : []),
+                      { title: "Collection" },
                       ...(isCollectionProductsMode ? [{ title: "Status" }] : []),
                       ...(!isCollectionProductsMode
                         ? [
@@ -2956,6 +2966,15 @@ export default function CollectionsPage() {
         .collections-table-wrap .Polaris-IndexTable__Table th:nth-child(2),
         .collections-table-wrap .Polaris-IndexTable__Table td:nth-child(2) {
           padding-left: 4px;
+        }
+        .collections-name-clamp {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          white-space: normal;
+          overflow-wrap: anywhere;
+          line-height: 1.35;
         }
       `}</style>
 
