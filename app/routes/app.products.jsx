@@ -1640,7 +1640,7 @@ export default function ProductsPage() {
         {/* ── LEFT: Product List ── */}
         <div className="app-split-main" style={{ flex: "1 1 0", minWidth: "0" }}>
           {/* Products / Collections tab */}
-          <div className="app-toolbar" style={{ marginBottom: "16px" }}>
+          <div className="app-toolbar" style={{ marginBottom: "16px" ,width: "fit-content"}}>
             <div
               className="app-toolbar-fixed"
               style={{

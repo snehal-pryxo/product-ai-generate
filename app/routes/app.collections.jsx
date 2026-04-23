@@ -1733,6 +1733,10 @@ export default function CollectionsPage() {
 
       <IndexTable.Cell>{renderBadge(collection.descriptionStatus)}</IndexTable.Cell>
 
+      <IndexTable.Cell>{renderBadge(collection.seoTitle)}</IndexTable.Cell>
+
+      <IndexTable.Cell>{renderBadge(collection.seoDescription)}</IndexTable.Cell>
+
       <IndexTable.Cell>
         {isBulkGenerating && selectedCollectionIds.includes(collection.id) ? (
           <InlineStack gap="100" blockAlign="center">
@@ -1821,7 +1825,7 @@ export default function CollectionsPage() {
         {/* ── LEFT: Collection List ── */}
         <div className="app-split-main" style={{ flex: "1 1 0", minWidth: "0" }}>
           {/* ── Products / Collections tab bar ── */}
-          <div className="app-toolbar" style={{ marginBottom: "20px" }}>
+          <div className="app-toolbar" style={{ marginBottom: "20px",width: "fit-content" }}>
             <div
               className="app-toolbar-fixed"
               style={{
@@ -1939,8 +1943,10 @@ export default function CollectionsPage() {
                       },
                       { title: "Collection" },
                       { title: "Collection Products" },
-                      { title: "Short" },
-                      { title: "Status" },
+                      { title: "Description" },
+                      { title: "Meta Title" },
+                      { title: "Meta Description" },
+                      { title: "Generated" },
                     ]}
                     selectable={false}
                     loading={isSearchLoading}
