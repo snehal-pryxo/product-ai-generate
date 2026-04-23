@@ -1582,8 +1582,8 @@ export default function CollectionsPage() {
   ));
 
   const sectionTabs = [
-    { label: "Products", path: "/app/products", icon: ProductIcon },
-    { label: "Collections", path: "/app/collections", icon: CollectionIcon },
+    { id: "products", content: "Products", path: "/app/products", icon: <Icon source={ProductIcon} /> },
+    { id: "collections", content: "Collections", path: "/app/collections", icon: <Icon source={CollectionIcon} /> },
   ];
   const statusTabs = [
     { id: "all", content: "All" },
@@ -1593,6 +1593,14 @@ export default function CollectionsPage() {
   const activeSectionPath = location.pathname.startsWith("/app/collections")
     ? "/app/collections"
     : "/app/products";
+  const sectionTabIndex = sectionTabs.findIndex((tab) => tab.path === activeSectionPath);
+  const handleSectionTabChange = useCallback(
+    (selectedTabIndex) => {
+      const nextPath = selectedTabIndex === 1 ? "/app/collections" : "/app/products";
+      navigate({ pathname: nextPath, search: location.search });
+    },
+    [navigate, location.search],
+  );
 
   return (
     <Page fullWidth>
@@ -1656,49 +1664,13 @@ export default function CollectionsPage() {
         <div className="app-split-main" style={{ flex: "1 1 0", minWidth: "0" }}>
           {/* ── Products / Collections tab bar ── */}
           <div className="app-toolbar" style={{ marginBottom: "20px" }}>
-            <div
-              className="app-toolbar-fixed"
-              style={{
-                display: "flex",
-                alignItems: "stretch",
-                border: "1px solid #d1d5db",
-                borderRadius: "12px",
-                overflow: "hidden",
-                background: "#fff",
-                width: "fit-content",
-              }}
-            >
-              {sectionTabs.map((tab, index) => {
-                const isActive = activeSectionPath === tab.path;
-                return (
-                <button
-                  key={tab.label}
-                  type="button"
-                  onClick={() => navigate({ pathname: tab.path, search: location.search })}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "6px",
-                    minWidth: "140px",
-                    padding: "8px 16px",
-                    border: "none",
-                    borderRight: index < sectionTabs.length - 1 ? "1px solid #e5e7eb" : "none",
-                    background: isActive ? "#000000" : "#e5e7eb",
-                    color: isActive ? "#ffffff" : "#374151",
-                    fontWeight: isActive ? 600 : 500,
-                    fontSize: "13px",
-                    cursor: "pointer",
-                  }}
-                >
-                  <span style={{ display: "inline-flex", color: isActive ? "#ffffff" : "#6b7280" }}>
-                    <Icon source={tab.icon} />
-                  </span>
-                  {tab.label}
-                </button>
-                );
-              })}
-              <div style={{ flex: "1 1 auto", background: "#ffffff" }} />
+            <div className="app-toolbar-fixed" style={{ maxWidth: "360px" }}>
+              <Tabs
+                tabs={sectionTabs}
+                selected={sectionTabIndex >= 0 ? sectionTabIndex : 0}
+                onSelect={handleSectionTabChange}
+                fitted
+              />
             </div>
           </div>
 
