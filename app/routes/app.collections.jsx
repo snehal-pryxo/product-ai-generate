@@ -2976,6 +2976,10 @@ export default function CollectionsPage() {
           overflow-wrap: anywhere;
           line-height: 1.35;
         }
+        .app-toolbar-fixed button,
+        .app-toolbar .Polaris-Tabs__Title {
+          font-size: 14px !important;
+        }
       `}</style>
 
       {/* ── Generation Results Table ── */}
