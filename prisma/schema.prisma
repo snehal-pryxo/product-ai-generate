@@ -198,3 +198,29 @@ model CollectionProductGeneratedContent {
   @@index([shop, collectionId, updatedAt], map: "CollectionProductGeneratedContent_shop_collection_updatedAt_idx")
   @@map("collection_product_generated_contents")
 }
+
+model BlogGeneratedContent {
+  id             BigInt   @id @default(autoincrement())
+  shop           String
+  blogId         String?
+  articleId      String
+  title          String   @db.VarChar(255)
+  summary        String?  @db.Text
+  bodyHtml       String?  @db.LongText
+  status         String?  @db.VarChar(32)
+  language       String?
+  tone           String?
+  lengthOption   String?
+  targetAudience String?
+  tabType        String?  @db.VarChar(64)
+  topic          String?  @db.VarChar(255)
+  promotion      String?
+  holiday        String?
+  productUrl     String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([shop, articleId], map: "BlogGeneratedContent_shop_articleId_key")
+  @@index([shop, updatedAt], map: "BlogGeneratedContent_shop_updatedAt_idx")
+  @@map("blog_generated_contents")
+}

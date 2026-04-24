@@ -761,28 +761,48 @@ async function upsertBlogGeneratedRecord({
   holiday,
   productUrl,
 }) {
-  await db.$executeRaw`
-    INSERT INTO blog_generated_contents
-      (shop, blogId, articleId, title, summary, bodyHtml, status, language, tone, lengthOption, targetAudience, tabType, topic, promotion, holiday, productUrl)
-    VALUES
-      (${shop}, ${blogId}, ${articleId}, ${title}, ${summary}, ${bodyHtml}, ${status}, ${language}, ${tone}, ${lengthOption}, ${targetAudience}, ${tabType}, ${topic}, ${promotion}, ${holiday}, ${productUrl})
-    ON DUPLICATE KEY UPDATE
-      blogId = VALUES(blogId),
-      title = VALUES(title),
-      summary = VALUES(summary),
-      bodyHtml = VALUES(bodyHtml),
-      status = VALUES(status),
-      language = VALUES(language),
-      tone = VALUES(tone),
-      lengthOption = VALUES(lengthOption),
-      targetAudience = VALUES(targetAudience),
-      tabType = VALUES(tabType),
-      topic = VALUES(topic),
-      promotion = VALUES(promotion),
-      holiday = VALUES(holiday),
-      productUrl = VALUES(productUrl),
-      updatedAt = CURRENT_TIMESTAMP(3)
-  `;
+  await db.blogGeneratedContent.upsert({
+    where: {
+      shop_articleId: {
+        shop,
+        articleId,
+      },
+    },
+    create: {
+      shop,
+      blogId: blogId || null,
+      articleId,
+      title,
+      summary: summary || null,
+      bodyHtml: bodyHtml || null,
+      status: status || null,
+      language: language || null,
+      tone: tone || null,
+      lengthOption: lengthOption || null,
+      targetAudience: targetAudience || null,
+      tabType: tabType || null,
+      topic: topic || null,
+      promotion: promotion || null,
+      holiday: holiday || null,
+      productUrl: productUrl || null,
+    },
+    update: {
+      blogId: blogId || null,
+      title,
+      summary: summary || null,
+      bodyHtml: bodyHtml || null,
+      status: status || null,
+      language: language || null,
+      tone: tone || null,
+      lengthOption: lengthOption || null,
+      targetAudience: targetAudience || null,
+      tabType: tabType || null,
+      topic: topic || null,
+      promotion: promotion || null,
+      holiday: holiday || null,
+      productUrl: productUrl || null,
+    },
+  });
 }
 
 export const loader = async ({ request }) => {
@@ -807,9 +827,15 @@ export const loader = async ({ request }) => {
   const blogs = [];
   let after = null;
   while (true) {
-    const response = await admin.graphql(BLOGS_QUERY, { variables: { first: 100, after } });
-    const json = await response.json();
-    const connection = json?.data?.blogs;
+    let connection = null;
+    try {
+      const response = await admin.graphql(BLOGS_QUERY, { variables: { first: 100, after } });
+      const json = await response.json();
+      connection = json?.data?.blogs || null;
+    } catch (error) {
+      console.error("Failed to load blogs", error);
+      break;
+    }
     const edges = connection?.edges || [];
 
     for (const edge of edges) {
@@ -831,9 +857,15 @@ export const loader = async ({ request }) => {
   const articles = [];
   after = null;
   while (true) {
-    const response = await admin.graphql(ARTICLES_QUERY, { variables: { first: 100, after } });
-    const json = await response.json();
-    const connection = json?.data?.articles;
+    let connection = null;
+    try {
+      const response = await admin.graphql(ARTICLES_QUERY, { variables: { first: 100, after } });
+      const json = await response.json();
+      connection = json?.data?.articles || null;
+    } catch (error) {
+      console.error("Failed to load articles", error);
+      break;
+    }
     const edges = connection?.edges || [];
 
     for (const edge of edges) {
@@ -943,28 +975,35 @@ export const action = async ({ request }) => {
       };
     }
 
-    const response = await admin.graphql(ARTICLE_CREATE_MUTATION, {
-      variables: {
-        article: {
-          blogId,
-          title,
-          body,
-          author: {
-            name: getDefaultAuthorName(session.shop),
+    let article;
+    try {
+      const response = await admin.graphql(ARTICLE_CREATE_MUTATION, {
+        variables: {
+          article: {
+            blogId,
+            title,
+            body,
+            author: {
+              name: getDefaultAuthorName(session.shop),
+            },
+            isPublished: status === "published",
           },
-          isPublished: status === "published",
         },
-      },
-    });
+      });
 
-    const json = await response.json();
-    const payload = json?.data?.articleCreate;
-    const errors = payload?.userErrors || [];
-    if (errors.length) {
-      return { ok: false, intent, error: errors.map((e) => e.message).join(", ") };
+      const json = await response.json();
+      const payload = json?.data?.articleCreate;
+      const errors = payload?.userErrors || [];
+      if (errors.length) {
+        return { ok: false, intent, error: errors.map((e) => e.message).join(", ") };
+      }
+      if (!payload?.article) {
+        return { ok: false, intent, error: "Shopify did not return a created article." };
+      }
+      article = normalizeArticle(payload.article);
+    } catch (error) {
+      return { ok: false, intent, error: error?.message || "Failed to create article." };
     }
-
-    const article = normalizeArticle(payload.article);
     await upsertBlogGeneratedRecord({
       shop: session.shop,
       blogId,
@@ -1033,15 +1072,6 @@ export const action = async ({ request }) => {
     const productUrl = normalizeProductUrl(formData.get("productUrl"));
     if (!articleId) return { ok: false, intent, error: "Missing article id." };
 
-    const creditBalance = await getOrCreateShopCredits(session.shop);
-    if ((creditBalance?.credits ?? 0) < BLOG_BODY_CREDIT_COST) {
-      return {
-        ok: false,
-        intent,
-        error: buildInsufficientCreditsError(BLOG_BODY_CREDIT_COST, creditBalance?.credits ?? 0),
-      };
-    }
-
     let title = seed || "Updated Shopify article";
     let body = "";
     const seedTopic =
@@ -1088,30 +1118,6 @@ export const action = async ({ request }) => {
         productUrl,
       });
     }
-    const creditSnapshot = await deductCredits({
-      shopDomain: session.shop,
-      creditsUsed: BLOG_BODY_CREDIT_COST,
-    });
-
-    try {
-      await db.generatedContentLog.create({
-        data: {
-          shop: session.shop,
-          productId: articleId,
-          productTitle: title,
-          intent: "blog_regenerate",
-          resourceType: "blog",
-          language,
-          tone,
-          generatedDescription: body,
-          creditsUsed: BLOG_BODY_CREDIT_COST,
-          appliedToProduct: false,
-        },
-      });
-    } catch (_) {
-      // Non-critical logging failure should not block response.
-    }
-
     return {
       ok: true,
       intent,
@@ -1122,9 +1128,7 @@ export const action = async ({ request }) => {
         body,
         status,
       },
-      creditsUsed: BLOG_BODY_CREDIT_COST,
-      newCredits: creditSnapshot.credits,
-      creditsUsedTotal: creditSnapshot.creditsUsedTotal,
+      creditsUsed: 0,
     };
   }
 
@@ -1134,28 +1138,47 @@ export const action = async ({ request }) => {
     const title = cleanText(formData.get("title"));
     const body = String(formData.get("body") || "").trim();
     const status = cleanText(formData.get("status")) || "draft";
+    const consumeCreditOnSave = String(formData.get("consumeCreditOnSave") || "") === "1";
 
     if (!articleId) return { ok: false, intent, error: "Missing article id." };
     if (!title) return { ok: false, intent, error: "Title is required." };
 
-    const response = await admin.graphql(ARTICLE_UPDATE_MUTATION, {
-      variables: {
-        id: articleId,
-        article: {
-          title,
-          body,
-          isPublished: status === "published",
-        },
-      },
-    });
-    const json = await response.json();
-    const payload = json?.data?.articleUpdate;
-    const errors = payload?.userErrors || [];
-    if (errors.length) {
-      return { ok: false, intent, error: errors.map((e) => e.message).join(", ") };
+    if (consumeCreditOnSave) {
+      const creditBalance = await getOrCreateShopCredits(session.shop);
+      if ((creditBalance?.credits ?? 0) < BLOG_BODY_CREDIT_COST) {
+        return {
+          ok: false,
+          intent,
+          error: buildInsufficientCreditsError(BLOG_BODY_CREDIT_COST, creditBalance?.credits ?? 0),
+        };
+      }
     }
 
-    const article = normalizeArticle(payload.article);
+    let article;
+    try {
+      const response = await admin.graphql(ARTICLE_UPDATE_MUTATION, {
+        variables: {
+          id: articleId,
+          article: {
+            title,
+            body,
+            isPublished: status === "published",
+          },
+        },
+      });
+      const json = await response.json();
+      const payload = json?.data?.articleUpdate;
+      const errors = payload?.userErrors || [];
+      if (errors.length) {
+        return { ok: false, intent, error: errors.map((e) => e.message).join(", ") };
+      }
+      if (!payload?.article) {
+        return { ok: false, intent, error: "Shopify did not return an updated article." };
+      }
+      article = normalizeArticle(payload.article);
+    } catch (error) {
+      return { ok: false, intent, error: error?.message || "Failed to update article." };
+    }
     await upsertBlogGeneratedRecord({
       shop: session.shop,
       blogId: blogId || article.blogId,
@@ -1175,7 +1198,40 @@ export const action = async ({ request }) => {
       productUrl: cleanText(formData.get("productUrl")),
     });
 
-    return { ok: true, intent, article };
+    let creditSnapshot = null;
+    if (consumeCreditOnSave) {
+      creditSnapshot = await deductCredits({
+        shopDomain: session.shop,
+        creditsUsed: BLOG_BODY_CREDIT_COST,
+      });
+      try {
+        await db.generatedContentLog.create({
+          data: {
+            shop: session.shop,
+            productId: article.id,
+            productTitle: article.title,
+            intent: "blog_regenerate",
+            resourceType: "blog",
+            language,
+            tone: cleanText(formData.get("tone")) || null,
+            generatedDescription: body,
+            creditsUsed: BLOG_BODY_CREDIT_COST,
+            appliedToProduct: true,
+          },
+        });
+      } catch (_) {
+        // Non-critical logging failure should not block response.
+      }
+    }
+
+    return {
+      ok: true,
+      intent,
+      article,
+      creditsUsed: consumeCreditOnSave ? BLOG_BODY_CREDIT_COST : 0,
+      newCredits: creditSnapshot?.credits,
+      creditsUsedTotal: creditSnapshot?.creditsUsedTotal,
+    };
   }
 
   return { ok: false, intent, error: "Unknown action." };
@@ -1402,6 +1458,7 @@ export default function BlogPage() {
     payload.append("promotion", promotion);
     payload.append("holiday", holiday);
     payload.append("productUrl", productUrl);
+    payload.append("consumeCreditOnSave", "1");
     fetcher.submit(payload, { method: "post" });
   }
 

@@ -890,6 +890,9 @@ export const action = async ({ request }) => {
       const descriptionPromptTemplate = readFormString(formData, "descriptionPromptTemplate");
       const metaTitlePromptTemplate = readFormString(formData, "metaTitlePromptTemplate");
       const metaDescriptionPromptTemplate = readFormString(formData, "metaDescriptionPromptTemplate");
+      const useCustomDescInstructions = readFormString(formData, "useCustomDescInstructions") === "1";
+      const useCustomMetaTitleInstructions = readFormString(formData, "useCustomMetaTitleInstructions") === "1";
+      const useCustomMetaDescInstructions = readFormString(formData, "useCustomMetaDescInstructions") === "1";
       const aiProvider = readFormString(formData, "aiProvider") || "auto";
       const addTitleAsHeadingFlag = !!readFormString(formData, "addTitleAsHeading");
       const preserveOldDescriptionFlag = !!readFormString(formData, "preserveOldDescription");
@@ -899,6 +902,24 @@ export const action = async ({ request }) => {
         PRODUCT_CONTENT_TYPES,
         DEFAULT_PRODUCT_CONTENT_TYPES,
       );
+      if (selectedContentTypes.includes("description") && !descriptionPromptTemplate.trim()) {
+        return { ok: false, intent, error: "Description template/custom instructions are required." };
+      }
+      if (selectedContentTypes.includes("description") && !useCustomDescInstructions) {
+        return { ok: false, intent, error: "Enable 'Use custom instructions' for Description." };
+      }
+      if (selectedContentTypes.includes("meta_title") && !metaTitlePromptTemplate.trim()) {
+        return { ok: false, intent, error: "Meta title template/custom instructions are required." };
+      }
+      if (selectedContentTypes.includes("meta_title") && !useCustomMetaTitleInstructions) {
+        return { ok: false, intent, error: "Enable 'Use custom instructions' for Meta title." };
+      }
+      if (selectedContentTypes.includes("meta_description") && !metaDescriptionPromptTemplate.trim()) {
+        return { ok: false, intent, error: "Meta description template/custom instructions are required." };
+      }
+      if (selectedContentTypes.includes("meta_description") && !useCustomMetaDescInstructions) {
+        return { ok: false, intent, error: "Enable 'Use custom instructions' for Meta description." };
+      }
       const shouldUpdateDescription = selectedContentTypes.includes("description");
       const shouldUpdateMetaTitle = selectedContentTypes.includes("meta_title");
       const shouldUpdateMetaDescription = selectedContentTypes.includes("meta_description");
@@ -1381,6 +1402,36 @@ export default function ProductsPage() {
       setBulkValidationMessage(MAX_BULK_PRODUCT_SELECTION_ERROR);
       return;
     }
+    if (bulkContentTypes.includes("description")) {
+      if (!useCustomDescInstructions) {
+        setBulkValidationMessage("Enable 'Use custom instructions' for Description.");
+        return;
+      }
+      if (!String(bulkDescTemplate || "").trim()) {
+        setBulkValidationMessage("Description template/custom instructions are required.");
+        return;
+      }
+    }
+    if (bulkContentTypes.includes("meta_title")) {
+      if (!useCustomMetaTitleInstructions) {
+        setBulkValidationMessage("Enable 'Use custom instructions' for Meta title.");
+        return;
+      }
+      if (!String(bulkMetaTitleTemplate || "").trim()) {
+        setBulkValidationMessage("Meta title template/custom instructions are required.");
+        return;
+      }
+    }
+    if (bulkContentTypes.includes("meta_description")) {
+      if (!useCustomMetaDescInstructions) {
+        setBulkValidationMessage("Enable 'Use custom instructions' for Meta description.");
+        return;
+      }
+      if (!String(bulkMetaDescTemplate || "").trim()) {
+        setBulkValidationMessage("Meta description template/custom instructions are required.");
+        return;
+      }
+    }
 
     setBulkValidationMessage(null);
     setBulkResult(null);
@@ -1428,6 +1479,9 @@ export default function ProductsPage() {
     payload.append("descriptionPromptTemplate", useCustomDescInstructions ? (bulkDescTemplate || "") : "");
     payload.append("metaTitlePromptTemplate", useCustomMetaTitleInstructions ? (bulkMetaTitleTemplate || "") : "");
     payload.append("metaDescriptionPromptTemplate", useCustomMetaDescInstructions ? (bulkMetaDescTemplate || "") : "");
+    payload.append("useCustomDescInstructions", useCustomDescInstructions ? "1" : "0");
+    payload.append("useCustomMetaTitleInstructions", useCustomMetaTitleInstructions ? "1" : "0");
+    payload.append("useCustomMetaDescInstructions", useCustomMetaDescInstructions ? "1" : "0");
     payload.append("contentTypes", JSON.stringify(bulkContentTypes));
     payload.append("aiProvider", bulkSettings.aiProvider);
     payload.append("addTitleAsHeading", addTitleAsHeading ? "1" : "");

@@ -1131,6 +1131,42 @@ export const action = async ({ request }) => {
     const shouldGenerateMain = generateScope === "all" || generateScope === "main";
     const shouldGenerateMetaTitle = generateScope === "all" || generateScope === "meta_title";
     const shouldGenerateMetaDescription = generateScope === "all" || generateScope === "meta_description";
+    const customMainEnabled = String(formData.get("customMainEnabled") || "") === "1";
+    const customMetaTitleEnabled = String(formData.get("customMetaTitleEnabled") || "") === "1";
+    const customMetaDescriptionEnabled = String(formData.get("customMetaDescriptionEnabled") || "") === "1";
+    const customMainPrompt = String(formData.get("customMainPrompt") || "").trim();
+    const customMetaTitlePrompt = String(formData.get("customMetaTitlePrompt") || "").trim();
+    const customMetaDescriptionPrompt = String(formData.get("customMetaDescriptionPrompt") || "").trim();
+    const mainPromptTemplateValue =
+      contentType === "pages" ? templateOverrides.bodyPromptTemplate : templateOverrides.descriptionPromptTemplate;
+
+    if (shouldGenerateMain && !String(mainPromptTemplateValue || "").trim()) {
+      return { ok: false, intent, error: "Main template/custom instructions are required." };
+    }
+    if (shouldGenerateMetaTitle && !String(templateOverrides.metaTitlePromptTemplate || "").trim()) {
+      return { ok: false, intent, error: "Meta title template/custom instructions are required." };
+    }
+    if (shouldGenerateMetaDescription && !String(templateOverrides.metaDescriptionPromptTemplate || "").trim()) {
+      return { ok: false, intent, error: "Meta description template/custom instructions are required." };
+    }
+    if (shouldGenerateMain && !customMainEnabled) {
+      return { ok: false, intent, error: "Enable 'Use custom instructions' for main content." };
+    }
+    if (shouldGenerateMetaTitle && !customMetaTitleEnabled) {
+      return { ok: false, intent, error: "Enable 'Use custom instructions' for meta title." };
+    }
+    if (shouldGenerateMetaDescription && !customMetaDescriptionEnabled) {
+      return { ok: false, intent, error: "Enable 'Use custom instructions' for meta description." };
+    }
+    if (shouldGenerateMain && !customMainPrompt) {
+      return { ok: false, intent, error: "Main custom instructions are required." };
+    }
+    if (shouldGenerateMetaTitle && !customMetaTitlePrompt) {
+      return { ok: false, intent, error: "Meta title custom instructions are required." };
+    }
+    if (shouldGenerateMetaDescription && !customMetaDescriptionPrompt) {
+      return { ok: false, intent, error: "Meta description custom instructions are required." };
+    }
 
     try {
       const prompt = buildPrompt(contentType, item, templateOverrides, generateScope, {
@@ -2443,6 +2479,42 @@ export default function ContentManagementPage() {
     const shouldGenerateMain = pendingGenerateScope === "all" || pendingGenerateScope === "main";
     const shouldGenerateMetaTitle = pendingGenerateScope === "all" || pendingGenerateScope === "meta_title";
     const shouldGenerateMetaDescription = pendingGenerateScope === "all" || pendingGenerateScope === "meta_description";
+    if (shouldGenerateMain && !String(mainTemplate || "").trim()) {
+      setErrorMessage("Select a main template before generating.");
+      return;
+    }
+    if (shouldGenerateMetaTitle && !String(metaTitleTemplate || "").trim()) {
+      setErrorMessage("Select a meta title template before generating.");
+      return;
+    }
+    if (shouldGenerateMetaDescription && !String(metaDescriptionTemplate || "").trim()) {
+      setErrorMessage("Select a meta description template before generating.");
+      return;
+    }
+    if (shouldGenerateMain && !customInstructions?.main?.enabled) {
+      setErrorMessage("Enable 'Use custom instructions' for main content.");
+      return;
+    }
+    if (shouldGenerateMetaTitle && !customInstructions?.meta_title?.enabled) {
+      setErrorMessage("Enable 'Use custom instructions' for meta title.");
+      return;
+    }
+    if (shouldGenerateMetaDescription && !customInstructions?.meta_description?.enabled) {
+      setErrorMessage("Enable 'Use custom instructions' for meta description.");
+      return;
+    }
+    if (shouldGenerateMain && !String(customInstructions?.main?.prompt || "").trim()) {
+      setErrorMessage("Main custom instructions are required.");
+      return;
+    }
+    if (shouldGenerateMetaTitle && !String(customInstructions?.meta_title?.prompt || "").trim()) {
+      setErrorMessage("Meta title custom instructions are required.");
+      return;
+    }
+    if (shouldGenerateMetaDescription && !String(customInstructions?.meta_description?.prompt || "").trim()) {
+      setErrorMessage("Meta description custom instructions are required.");
+      return;
+    }
     const finalMainTemplate = applyCustomInstructions(mainTemplate, shouldGenerateMain, customInstructions?.main);
     const finalMetaTitleTemplate = applyCustomInstructions(metaTitleTemplate, shouldGenerateMetaTitle, customInstructions?.meta_title);
     const finalMetaDescriptionTemplate = applyCustomInstructions(
@@ -2465,6 +2537,12 @@ export default function ContentManagementPage() {
     fd.append("aiModel", envAiModel || DEFAULT_AI_MODEL);
     fd.append("metaTitlePromptTemplate", finalMetaTitleTemplate);
     fd.append("metaDescriptionPromptTemplate", finalMetaDescriptionTemplate);
+    fd.append("customMainEnabled", customInstructions?.main?.enabled ? "1" : "0");
+    fd.append("customMetaTitleEnabled", customInstructions?.meta_title?.enabled ? "1" : "0");
+    fd.append("customMetaDescriptionEnabled", customInstructions?.meta_description?.enabled ? "1" : "0");
+    fd.append("customMainPrompt", String(customInstructions?.main?.prompt || ""));
+    fd.append("customMetaTitlePrompt", String(customInstructions?.meta_title?.prompt || ""));
+    fd.append("customMetaDescriptionPrompt", String(customInstructions?.meta_description?.prompt || ""));
     if (config?.mainPromptKey === "bodyPromptTemplate") {
       fd.append("bodyPromptTemplate", finalMainTemplate);
     } else {

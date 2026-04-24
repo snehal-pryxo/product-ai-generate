@@ -374,12 +374,33 @@ export const action = async ({ request }) => {
     const bodyPromptTemplate = formData.get("bodyPromptTemplate") || "";
     const metaTitlePromptTemplate = formData.get("metaTitlePromptTemplate") || "";
     const metaDescriptionPromptTemplate = formData.get("metaDescriptionPromptTemplate") || "";
+    const useCustomBodyInstructions = String(formData.get("useCustomBodyInstructions") || "") === "1";
+    const useCustomMetaTitleInstructions = String(formData.get("useCustomMetaTitleInstructions") || "") === "1";
+    const useCustomMetaDescInstructions = String(formData.get("useCustomMetaDescInstructions") || "") === "1";
     const aiProvider = formData.get("aiProvider") || "auto";
     const selectedContentTypes = parseSelectedContentTypes(
       formData.get("contentTypes"),
       PAGE_CONTENT_TYPES,
       DEFAULT_PAGE_CONTENT_TYPES,
     );
+    if (selectedContentTypes.includes("body") && !String(bodyPromptTemplate || "").trim()) {
+      return { success: false, intent, error: "Body template/custom instructions are required." };
+    }
+    if (selectedContentTypes.includes("body") && !useCustomBodyInstructions) {
+      return { success: false, intent, error: "Enable 'Use custom instructions' for Body." };
+    }
+    if (selectedContentTypes.includes("meta_title") && !String(metaTitlePromptTemplate || "").trim()) {
+      return { success: false, intent, error: "Meta title template/custom instructions are required." };
+    }
+    if (selectedContentTypes.includes("meta_title") && !useCustomMetaTitleInstructions) {
+      return { success: false, intent, error: "Enable 'Use custom instructions' for Meta title." };
+    }
+    if (selectedContentTypes.includes("meta_description") && !String(metaDescriptionPromptTemplate || "").trim()) {
+      return { success: false, intent, error: "Meta description template/custom instructions are required." };
+    }
+    if (selectedContentTypes.includes("meta_description") && !useCustomMetaDescInstructions) {
+      return { success: false, intent, error: "Enable 'Use custom instructions' for Meta description." };
+    }
     const shouldUpdateBody = selectedContentTypes.includes("body");
     const shouldUpdateMetaTitle = selectedContentTypes.includes("meta_title");
     const shouldUpdateMetaDescription = selectedContentTypes.includes("meta_description");
@@ -829,6 +850,36 @@ export default function PagesPage() {
       setBulkValidationMessage("Select at least one page to generate content for.");
       return;
     }
+    if (bulkContentTypes.includes("body")) {
+      if (!useCustomBodyInstructions) {
+        setBulkValidationMessage("Enable 'Use custom instructions' for Body.");
+        return;
+      }
+      if (!String(bulkBodyTemplate || "").trim()) {
+        setBulkValidationMessage("Body template/custom instructions are required.");
+        return;
+      }
+    }
+    if (bulkContentTypes.includes("meta_title")) {
+      if (!useCustomMetaTitleInstructions) {
+        setBulkValidationMessage("Enable 'Use custom instructions' for Meta title.");
+        return;
+      }
+      if (!String(bulkMetaTitleTemplate || "").trim()) {
+        setBulkValidationMessage("Meta title template/custom instructions are required.");
+        return;
+      }
+    }
+    if (bulkContentTypes.includes("meta_description")) {
+      if (!useCustomMetaDescInstructions) {
+        setBulkValidationMessage("Enable 'Use custom instructions' for Meta description.");
+        return;
+      }
+      if (!String(bulkMetaDescTemplate || "").trim()) {
+        setBulkValidationMessage("Meta description template/custom instructions are required.");
+        return;
+      }
+    }
     setBulkValidationMessage(null);
     setBulkResult(null);
     const selectedPages = localPages.filter((p) => selectedResources.includes(p.id));
@@ -853,6 +904,9 @@ export default function PagesPage() {
     fd.append("bodyPromptTemplate", useCustomBodyInstructions ? (bulkBodyTemplate || "") : "");
     fd.append("metaTitlePromptTemplate", useCustomMetaTitleInstructions ? (bulkMetaTitleTemplate || "") : "");
     fd.append("metaDescriptionPromptTemplate", useCustomMetaDescInstructions ? (bulkMetaDescTemplate || "") : "");
+    fd.append("useCustomBodyInstructions", useCustomBodyInstructions ? "1" : "0");
+    fd.append("useCustomMetaTitleInstructions", useCustomMetaTitleInstructions ? "1" : "0");
+    fd.append("useCustomMetaDescInstructions", useCustomMetaDescInstructions ? "1" : "0");
     fd.append("contentTypes", JSON.stringify(bulkContentTypes));
     fd.append("aiProvider", bulkSettings.aiProvider || defaultAiProvider || "auto");
     bulkFetcher.submit(fd, { method: "post" });
