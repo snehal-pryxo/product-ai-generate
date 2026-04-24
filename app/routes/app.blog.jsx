@@ -218,8 +218,21 @@ function getWordTarget(lengthOption) {
   return "600-800";
 }
 
-function buildBlogHtml({ title, topic, tone, audience, promotion, holiday, tabType, language }) {
+function getWordRange(lengthOption) {
+  if (lengthOption === "long") return { min: 800, max: 1200 };
+  if (lengthOption === "short") return { min: 500, max: 600 };
+  return { min: 600, max: 800 };
+}
+
+function countWords(value) {
+  const plain = stripHtml(value || "");
+  if (!plain) return 0;
+  return plain.split(" ").filter(Boolean).length;
+}
+
+function buildBlogHtml({ title, topic, tone, audience, promotion, holiday, tabType, language, postLength = "medium" }) {
   const primaryTopic = cleanText(topic) || cleanText(title);
+  const wordRange = getWordRange(postLength);
   const contextLine = [
     promotion && promotion !== "No promotion" ? `Promotion: ${promotion}.` : "",
     holiday && holiday !== "Choose a holiday to promote" ? `Holiday context: ${holiday}.` : "",
@@ -227,7 +240,7 @@ function buildBlogHtml({ title, topic, tone, audience, promotion, holiday, tabTy
     .filter(Boolean)
     .join(" ");
 
-  return [
+  const sections = [
     `<h1>${title}</h1>`,
     `<p>This ${tone.toLowerCase()} blog post is tailored for ${audience.toLowerCase()} in ${language} and focuses on ${primaryTopic.toLowerCase()}.</p>`,
     `<h2>Why ${primaryTopic} matters now</h2>`,
@@ -237,9 +250,26 @@ function buildBlogHtml({ title, topic, tone, audience, promotion, holiday, tabTy
     "<h3>Quick checklist</h3>",
     "<ul><li>Define one measurable goal</li><li>Align copy with real buyer intent</li><li>Use clear, benefit-led structure</li></ul>",
     contextLine ? `<p>${contextLine}</p>` : "",
-  ]
-    .filter(Boolean)
-    .join("");
+  ].filter(Boolean);
+
+  const expansionParagraph =
+    `<p>For ${audience.toLowerCase()} shoppers, ${primaryTopic.toLowerCase()} content should highlight practical benefits, trust signals, specific use cases, and a clear call to action that supports confident purchase decisions.</p>`;
+  let html = sections.join("");
+  let totalWords = countWords(html);
+  let safety = 0;
+  while (totalWords < wordRange.min && safety < 80) {
+    html = `${html}${expansionParagraph}`;
+    totalWords = countWords(html);
+    safety += 1;
+  }
+  return html;
+}
+
+function getGeneratedContentPreview(body, maxLength = 220) {
+  const plain = stripHtml(body || "");
+  if (!plain) return "-";
+  if (plain.length <= maxLength) return plain;
+  return `${plain.slice(0, maxLength).trim()}...`;
 }
 
 function createSuggestionSet({ tabType, topic, tone, postLength, targetAudience, promotion, holiday, language }) {
@@ -274,6 +304,7 @@ function createSuggestionSet({ tabType, topic, tone, postLength, targetAudience,
         holiday,
         tabType,
         language,
+        postLength,
       }),
       tone,
       postLength,
@@ -924,7 +955,7 @@ export default function BlogPage() {
     <Page fullWidth>
       <BlockStack gap="400">
         <AppPageHeader
-          title="Blogs"
+          title="Blogs Generator"
           description="Create, regenerate, edit, and publish SEO-friendly blog content for your Shopify store."
         />
         {message ? (
@@ -1022,49 +1053,55 @@ export default function BlogPage() {
                     </Text>
                   </InlineStack>
 
-                  {suggestions.slice(0, visibleSuggestionCount).map((suggestion) => (
-                    <Card key={suggestion.id}>
-                      <BlockStack gap="300">
-                        <Text as="h4" variant="headingMd">{suggestion.title}</Text>
-                        <Text as="p" variant="bodyMd" tone="subdued">{suggestion.summary}</Text>
-                        <InlineStack gap="200" wrap>
-                          <Badge>{suggestion.tone}</Badge>
-                          <Badge>{suggestion.targetAudience}</Badge>
-                          <Badge>{suggestion.postLength}</Badge>
-                        </InlineStack>
-                        <div className="blog-generator-card-actions">
-                          <div className="blog-generator-card-status">
-                            <Select
-                              label="Status"
-                              options={[
-                                { label: "Draft", value: "draft" },
-                                { label: "Published", value: "published" },
-                              ]}
-                              value={suggestion.status || "draft"}
-                              onChange={(nextStatus) =>
-                                setSuggestions((prev) => prev.map((item) => (item.id === suggestion.id ? { ...item, status: nextStatus } : item)))
-                              }
-                            />
-                          </div>
+                  <div className="blog-generated-grid">
+                    {suggestions.slice(0, visibleSuggestionCount).map((suggestion) => (
+                      <Card key={suggestion.id}>
+                        <BlockStack gap="300">
+                          <Text as="h4" variant="headingMd">{suggestion.title}</Text>
+                          <Text as="p" variant="bodyMd" tone="subdued">{suggestion.summary}</Text>
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            {getGeneratedContentPreview(suggestion.body)}
+                          </Text>
                           <InlineStack gap="200" wrap>
-                            <Button onClick={() => openSuggestionEditor(suggestion)}>Open in editor</Button>
-                            <Button
-                              variant="primary"
-                              onClick={() => saveSuggestionDirectly(suggestion)}
-                              disabled={!selectedBlogId || fetcher.state !== "idle" || blogs.length === 0}
-                              loading={
-                                fetcher.state !== "idle" &&
-                                String(fetcher.formData?.get("intent")) === "save_generated_blog" &&
-                                String(fetcher.formData?.get("title")) === suggestion.title
-                              }
-                            >
-                              Save blog
-                            </Button>
+                            <Badge>{suggestion.tone}</Badge>
+                            <Badge>{suggestion.targetAudience}</Badge>
+                            <Badge>{suggestion.postLength}</Badge>
+                            <Badge tone="info">{getWordTarget(suggestion.postLength)} words</Badge>
                           </InlineStack>
-                        </div>
-                      </BlockStack>
-                    </Card>
-                  ))}
+                          <div className="blog-generator-card-actions">
+                            <div className="blog-generator-card-status">
+                              <Select
+                                label="Status"
+                                options={[
+                                  { label: "Draft", value: "draft" },
+                                  { label: "Published", value: "published" },
+                                ]}
+                                value={suggestion.status || "draft"}
+                                onChange={(nextStatus) =>
+                                  setSuggestions((prev) => prev.map((item) => (item.id === suggestion.id ? { ...item, status: nextStatus } : item)))
+                                }
+                              />
+                            </div>
+                            <InlineStack gap="200" wrap>
+                              <Button onClick={() => openSuggestionEditor(suggestion)}>Open in editor</Button>
+                              <Button
+                                variant="primary"
+                                onClick={() => saveSuggestionDirectly(suggestion)}
+                                disabled={!selectedBlogId || fetcher.state !== "idle" || blogs.length === 0}
+                                loading={
+                                  fetcher.state !== "idle" &&
+                                  String(fetcher.formData?.get("intent")) === "save_generated_blog" &&
+                                  String(fetcher.formData?.get("title")) === suggestion.title
+                                }
+                              >
+                                Save blog
+                              </Button>
+                            </InlineStack>
+                          </div>
+                        </BlockStack>
+                      </Card>
+                    ))}
+                  </div>
 
                   {visibleSuggestionCount < suggestions.length ? (
                     <InlineStack align="center">
@@ -1196,13 +1233,24 @@ export default function BlogPage() {
           grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 12px;
         }
+        .blog-generated-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 12px;
+        }
         @media (max-width: 900px) {
           .blog-generator-fields {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          .blog-generated-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
           }
         }
         @media (max-width: 640px) {
           .blog-generator-fields {
+            grid-template-columns: 1fr;
+          }
+          .blog-generated-grid {
             grid-template-columns: 1fr;
           }
         }
