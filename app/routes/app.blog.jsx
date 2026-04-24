@@ -30,6 +30,8 @@ import {
 } from "../lib/credits.server";
 
 const BLOG_BODY_CREDIT_COST = 1;
+const BLOG_OPENAI_MODEL = (process.env.OPENAI_MODEL || "gpt-4o-mini").trim();
+const BLOG_ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
 
 const BLOGS_QUERY = `#graphql
   query BlogList($first: Int!, $after: String) {
@@ -195,6 +197,15 @@ function cleanText(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function stripHtml(value) {
   return String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
@@ -230,37 +241,105 @@ function countWords(value) {
   return plain.split(" ").filter(Boolean).length;
 }
 
+function plainTextToHtml(text) {
+  const lines = String(text || "")
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (!lines.length) return "";
+  return lines.map((line) => `<p>${escapeHtml(line)}</p>`).join("");
+}
+
+function normalizeBodyHtml(body) {
+  const value = String(body || "").trim();
+  if (!value) return "";
+  if (/<\/?[a-z][\s\S]*>/i.test(value)) return value;
+  return plainTextToHtml(value);
+}
+
+function parseAiJson(rawText) {
+  if (!rawText) return null;
+  try {
+    return JSON.parse(rawText);
+  } catch {
+    const match = String(rawText).match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    try {
+      return JSON.parse(match[0]);
+    } catch {
+      return null;
+    }
+  }
+}
+
 function buildBlogHtml({ title, topic, tone, audience, promotion, holiday, tabType, language, postLength = "medium" }) {
-  const primaryTopic = cleanText(topic) || cleanText(title);
+  const primaryTopic = cleanText(topic) || cleanText(title) || "Shopify growth";
+  const safeTitle = escapeHtml(cleanText(title) || primaryTopic);
+  const safeTopic = escapeHtml(primaryTopic);
+  const safeTone = escapeHtml(cleanText(tone) || "Casual");
+  const safeAudience = escapeHtml(cleanText(audience) || "Everyone");
+  const safeLanguage = escapeHtml(cleanText(language) || "English");
+  const safePromotion = escapeHtml(cleanText(promotion));
+  const safeHoliday = escapeHtml(cleanText(holiday));
   const wordRange = getWordRange(postLength);
-  const contextLine = [
-    promotion && promotion !== "No promotion" ? `Promotion: ${promotion}.` : "",
-    holiday && holiday !== "Choose a holiday to promote" ? `Holiday context: ${holiday}.` : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
   const sections = [
-    `<h1>${title}</h1>`,
-    `<p>This ${tone.toLowerCase()} blog post is tailored for ${audience.toLowerCase()} in ${language} and focuses on ${primaryTopic.toLowerCase()}.</p>`,
-    `<h2>Why ${primaryTopic} matters now</h2>`,
-    `<p>${primaryTopic} helps merchants improve discoverability, conversion intent, and customer trust when the message is specific and actionable.</p>`,
-    tabType === TAB_KEYS.HOLIDAY ? "<h2>Holiday activation strategy</h2>" : "<h2>Execution strategy</h2>",
-    "<p>Start with a clear value proposition, support it with practical examples, and close with a direct call to action your audience can act on today.</p>",
-    "<h3>Quick checklist</h3>",
-    "<ul><li>Define one measurable goal</li><li>Align copy with real buyer intent</li><li>Use clear, benefit-led structure</li></ul>",
-    contextLine ? `<p>${contextLine}</p>` : "",
-  ].filter(Boolean);
+    `<h1>${safeTitle}</h1>`,
+    `<p>This ${safeTone.toLowerCase()} article is written for ${safeAudience.toLowerCase()} readers in ${safeLanguage}. It focuses on practical ways to improve performance with ${safeTopic.toLowerCase()} and turn interest into real store results.</p>`,
+    `<h2>What ${safeTopic} means for your store</h2>`,
+    `<p>${safeTopic} can improve discoverability, trust, and conversion when your content is clear, structured, and aligned with customer intent. The goal is to make decision-making easy for shoppers while keeping your brand voice consistent.</p>`,
+    `<h2>Step-by-step strategy you can apply today</h2>`,
+    `<ol>
+      <li>Define one measurable outcome such as higher click-through rate or better conversion.</li>
+      <li>Map core customer questions and answer them with clear benefit-driven messaging.</li>
+      <li>Use headings, short paragraphs, and comparison points so content is easy to scan.</li>
+      <li>Finish with a direct call to action that tells readers what to do next.</li>
+    </ol>`,
+    `<h3>Common mistakes to avoid</h3>`,
+    `<ul>
+      <li>Writing generic content that does not match buyer intent.</li>
+      <li>Overusing keywords and reducing readability.</li>
+      <li>Skipping proof points such as outcomes, specifics, or examples.</li>
+      <li>Ending without a clear next action.</li>
+    </ul>`,
+  ];
 
-  const expansionParagraph =
-    `<p>For ${audience.toLowerCase()} shoppers, ${primaryTopic.toLowerCase()} content should highlight practical benefits, trust signals, specific use cases, and a clear call to action that supports confident purchase decisions.</p>`;
+  if (tabType === TAB_KEYS.HOLIDAY && safeHoliday && safeHoliday !== "Choose a holiday to promote") {
+    sections.push(
+      `<h2>${safeHoliday} campaign angle</h2>`,
+      `<p>For ${safeHoliday}, lead with urgency and relevance. Highlight what is limited, who the offer is for, and why acting now benefits the customer. Keep the message timely, specific, and easy to redeem.</p>`,
+    );
+  }
+
+  if (safePromotion && safePromotion !== "No promotion") {
+    sections.push(
+      `<h2>Promotion messaging framework</h2>`,
+      `<p>Position the offer as a clear value exchange: what the customer gets, how long it lasts, and what action unlocks the benefit. Repeat the core offer naturally in headings and supporting copy.</p>`,
+      `<p><strong>Promotion in focus:</strong> ${safePromotion}</p>`,
+    );
+  }
+
+  sections.push(
+    `<h2>Conclusion</h2>`,
+    `<p>Strong ${safeTopic.toLowerCase()} content is specific, actionable, and customer-focused. Keep refining structure, proof points, and calls to action to steadily improve your results.</p>`,
+  );
+
+  const expansionPool = [
+    `<p>When writing for ${safeAudience.toLowerCase()} readers, prioritize clarity over complexity. Every paragraph should answer a real question and move the reader closer to action.</p>`,
+    `<p>Add practical examples tied to ${safeTopic.toLowerCase()} so readers can immediately apply what they learn. Concrete examples outperform abstract advice in both engagement and conversion.</p>`,
+    `<p>Use internal consistency across headings, body copy, and CTA language. A consistent message improves trust and makes the journey from discovery to purchase more predictable.</p>`,
+    `<p>Review your draft for readability: short sentences, active voice, and clear transitions. This makes long-form content easier to scan on mobile devices.</p>`,
+    `<p>Before publishing, validate that your primary keyword appears naturally in the title, opening paragraph, and at least one subheading without keyword stuffing.</p>`,
+    `<p>After publishing, monitor performance and iterate. Improving one section at a time often yields better outcomes than rewriting everything at once.</p>`,
+  ];
+
   let html = sections.join("");
   let totalWords = countWords(html);
-  let safety = 0;
-  while (totalWords < wordRange.min && safety < 80) {
-    html = `${html}${expansionParagraph}`;
+  let poolIndex = 0;
+  while (totalWords < wordRange.min && poolIndex < 120) {
+    html = `${html}${expansionPool[poolIndex % expansionPool.length]}`;
     totalWords = countWords(html);
-    safety += 1;
+    poolIndex += 1;
   }
   return html;
 }
@@ -296,6 +375,174 @@ function createSuggestionSet({ tabType, topic, tone, postLength, targetAudience,
       title,
       summary,
       body: buildBlogHtml({
+        title,
+        topic: baseTopic,
+        tone,
+        audience: targetAudience,
+        promotion,
+        holiday,
+        tabType,
+        language,
+        postLength,
+      }),
+      tone,
+      postLength,
+      targetAudience,
+      promotion,
+      holiday,
+      topic: baseTopic,
+      status: "draft",
+    };
+  });
+}
+
+async function generateSuggestionsWithOpenAI(prompt, apiKey) {
+  if (!apiKey) throw new Error("OpenAI API key is not configured.");
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: BLOG_OPENAI_MODEL,
+      temperature: 0.7,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an expert Shopify blog copywriter. Always return valid JSON only, with no markdown and no explanations.",
+        },
+        { role: "user", content: prompt },
+      ],
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error?.message || `OpenAI request failed with status ${response.status}.`);
+  }
+  const content = data?.choices?.[0]?.message?.content || "";
+  const parsed = parseAiJson(content);
+  if (!parsed) throw new Error("OpenAI returned invalid JSON.");
+  return parsed;
+}
+
+async function generateSuggestionsWithAnthropic(prompt, apiKey) {
+  if (!apiKey) throw new Error("Anthropic API key is not configured.");
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: BLOG_ANTHROPIC_MODEL,
+      max_tokens: 4096,
+      system:
+        "You are an expert Shopify blog copywriter. Always return valid JSON only, with no markdown and no explanations.",
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error?.message || `Anthropic request failed with status ${response.status}.`);
+  }
+  const content = data?.content?.[0]?.text || "";
+  const parsed = parseAiJson(content);
+  if (!parsed) throw new Error("Anthropic returned invalid JSON.");
+  return parsed;
+}
+
+async function generateBlogSuggestionsWithAI({
+  tabType,
+  topic,
+  tone,
+  postLength,
+  targetAudience,
+  promotion,
+  holiday,
+  language,
+  aiProvider = "auto",
+  openaiApiKey,
+  anthropicApiKey,
+  count = 6,
+}) {
+  const baseTopic = cleanText(topic) || "Shopify growth";
+  const { min, max } = getWordRange(postLength);
+  const safeCount = Math.max(1, Math.min(count || 6, 6));
+  const prompt = `
+Generate ${safeCount} unique Shopify blog suggestions.
+
+Context:
+- Topic: ${baseTopic}
+- Tone: ${tone}
+- Audience: ${targetAudience}
+- Language: ${language}
+- Length target per blog: ${min}-${max} words
+- Tab type: ${tabType}
+- Promotion: ${promotion || "None"}
+- Holiday: ${holiday || "None"}
+
+Requirements:
+- Return valid JSON only in this format:
+{
+  "suggestions": [
+    {
+      "title": "...",
+      "summary": "...",
+      "bodyHtml": "<h1>...</h1><p>...</p>..."
+    }
+  ]
+}
+- bodyHtml must include semantic HTML with headings, paragraphs, and at least one list.
+- Keep content natural, specific, and useful (not repetitive filler).
+- Ensure each suggestion is clearly different from the others.
+`;
+
+  const providerOrder =
+    aiProvider === "openai"
+      ? ["openai"]
+      : aiProvider === "anthropic"
+        ? ["anthropic"]
+        : ["openai", "anthropic"];
+
+  let parsed = null;
+  let lastError = null;
+
+  for (const provider of providerOrder) {
+    try {
+      if (provider === "openai") {
+        parsed = await generateSuggestionsWithOpenAI(prompt, openaiApiKey);
+      } else if (provider === "anthropic") {
+        parsed = await generateSuggestionsWithAnthropic(prompt, anthropicApiKey);
+      }
+      if (parsed) break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (!parsed) {
+    throw lastError || new Error("No AI provider available for blog suggestions.");
+  }
+
+  const items = Array.isArray(parsed?.suggestions) ? parsed.suggestions : [];
+  if (!items.length) throw new Error("AI did not return suggestions.");
+
+  return items.slice(0, safeCount).map((item, index) => {
+    const title = cleanText(item?.title) || `${baseTopic} Guide ${index + 1}`;
+    const summary =
+      cleanText(item?.summary) ||
+      `${tone} ${getWordTarget(postLength)} words blog for ${targetAudience.toLowerCase()} about ${baseTopic.toLowerCase()}.`;
+    const bodyHtml = normalizeBodyHtml(item?.bodyHtml || item?.body || item?.content || "");
+    return {
+      id: `${Date.now()}-${index}`,
+      tabType,
+      title,
+      summary,
+      body: bodyHtml || buildBlogHtml({
         title,
         topic: baseTopic,
         tone,
@@ -387,7 +634,7 @@ export const loader = async ({ request }) => {
 
   const shopRecord = await db.shop.findUnique({
     where: { shop: session.shop },
-    select: { globalSettingsJson: true },
+    select: { globalSettingsJson: true, defaultAiProvider: true, openaiApiKey: true, anthropicApiKey: true },
   });
 
   let parsedSettings = {};
@@ -484,16 +731,34 @@ export const action = async ({ request }) => {
           ? `${promotion} promotion blog ideas`
           : "Business growth ideas");
 
-    const suggestions = createSuggestionSet({
-      tabType,
-      topic: seedTopic,
-      tone,
-      postLength,
-      targetAudience,
-      promotion,
-      holiday,
-      language,
-    });
+    let suggestions = [];
+    try {
+      suggestions = await generateBlogSuggestionsWithAI({
+        tabType,
+        topic: seedTopic,
+        tone,
+        postLength,
+        targetAudience,
+        promotion,
+        holiday,
+        language,
+        aiProvider: cleanText(shopRecord?.defaultAiProvider) || "auto",
+        openaiApiKey: cleanText(shopRecord?.openaiApiKey) || process.env.OPENAI_API_KEY,
+        anthropicApiKey: cleanText(shopRecord?.anthropicApiKey) || process.env.ANTHROPIC_API_KEY,
+        count: 6,
+      });
+    } catch (_) {
+      suggestions = createSuggestionSet({
+        tabType,
+        topic: seedTopic,
+        tone,
+        postLength,
+        targetAudience,
+        promotion,
+        holiday,
+        language,
+      });
+    }
 
     return { ok: true, intent, suggestions };
   }
@@ -603,17 +868,43 @@ export const action = async ({ request }) => {
       };
     }
 
-    const title = seed || "Updated Shopify article";
-    const body = buildBlogHtml({
-      title,
-      topic: seed || "Shopify growth",
-      tone: "Casual",
-      audience: "Everyone",
-      promotion: "No promotion",
-      holiday: "",
-      tabType: TAB_KEYS.BUSINESS,
-      language,
-    });
+    let title = seed || "Updated Shopify article";
+    let body = "";
+    try {
+      const [generated] = await generateBlogSuggestionsWithAI({
+        tabType: TAB_KEYS.BUSINESS,
+        topic: seed || "Shopify growth",
+        tone: "Casual",
+        postLength: "medium",
+        targetAudience: "Everyone",
+        promotion: "No promotion",
+        holiday: "",
+        language,
+        aiProvider: cleanText(shopRecord?.defaultAiProvider) || "auto",
+        openaiApiKey: cleanText(shopRecord?.openaiApiKey) || process.env.OPENAI_API_KEY,
+        anthropicApiKey: cleanText(shopRecord?.anthropicApiKey) || process.env.ANTHROPIC_API_KEY,
+        count: 1,
+      });
+      if (generated) {
+        title = generated.title || title;
+        body = generated.body || "";
+      }
+    } catch (_) {
+      // fall back below
+    }
+    if (!body) {
+      body = buildBlogHtml({
+        title,
+        topic: seed || "Shopify growth",
+        tone: "Casual",
+        audience: "Everyone",
+        promotion: "No promotion",
+        holiday: "",
+        tabType: TAB_KEYS.BUSINESS,
+        language,
+        postLength: "medium",
+      });
+    }
 
     const response = await admin.graphql(ARTICLE_UPDATE_MUTATION, {
       variables: {
