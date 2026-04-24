@@ -249,6 +249,16 @@ function normalizePostLength(value, fallback = "medium") {
   return fallback;
 }
 
+function getDefaultAuthorName(shopDomain) {
+  const raw = cleanText(shopDomain).split(".myshopify.com")[0] || "";
+  const words = raw
+    .split(/[-_\s]+/)
+    .map((part) => cleanText(part))
+    .filter(Boolean);
+  if (!words.length) return "Shop Nova";
+  return words.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+}
+
 function countWords(value) {
   const plain = stripHtml(value || "");
   if (!plain) return 0;
@@ -935,6 +945,9 @@ export const action = async ({ request }) => {
           blogId,
           title,
           body,
+          author: {
+            name: getDefaultAuthorName(session.shop),
+          },
           isPublished: status === "published",
         },
       },
