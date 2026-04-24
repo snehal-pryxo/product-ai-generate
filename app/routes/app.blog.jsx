@@ -1020,6 +1020,8 @@ export const action = async ({ request }) => {
 
   if (intent === "regenerate_blog") {
     const articleId = cleanText(formData.get("articleId"));
+    const blogId = cleanText(formData.get("blogId"));
+    const status = cleanText(formData.get("status")) || "draft";
     const seed = cleanText(formData.get("seed"));
     const tabType = cleanText(formData.get("tabType")) || TAB_KEYS.BUSINESS;
     const topic = cleanText(formData.get("topic"));
@@ -1086,24 +1088,6 @@ export const action = async ({ request }) => {
         productUrl,
       });
     }
-
-    const response = await admin.graphql(ARTICLE_UPDATE_MUTATION, {
-      variables: {
-        id: articleId,
-        article: {
-          title,
-          body,
-        },
-      },
-    });
-    const json = await response.json();
-    const payload = json?.data?.articleUpdate;
-    const errors = payload?.userErrors || [];
-    if (errors.length) {
-      return { ok: false, intent, error: errors.map((e) => e.message).join(", ") };
-    }
-
-    const article = normalizeArticle(payload.article);
     const creditSnapshot = await deductCredits({
       shopDomain: session.shop,
       creditsUsed: BLOG_BODY_CREDIT_COST,
@@ -1113,15 +1097,15 @@ export const action = async ({ request }) => {
       await db.generatedContentLog.create({
         data: {
           shop: session.shop,
-          productId: article.id,
-          productTitle: article.title,
+          productId: articleId,
+          productTitle: title,
           intent: "blog_regenerate",
           resourceType: "blog",
           language,
           tone,
           generatedDescription: body,
           creditsUsed: BLOG_BODY_CREDIT_COST,
-          appliedToProduct: true,
+          appliedToProduct: false,
         },
       });
     } catch (_) {
@@ -1131,7 +1115,13 @@ export const action = async ({ request }) => {
     return {
       ok: true,
       intent,
-      article,
+      generated: {
+        articleId,
+        blogId,
+        title,
+        body,
+        status,
+      },
       creditsUsed: BLOG_BODY_CREDIT_COST,
       newCredits: creditSnapshot.credits,
       creditsUsedTotal: creditSnapshot.creditsUsedTotal,
@@ -1213,6 +1203,8 @@ export default function BlogPage() {
   const [visibleSuggestionCount, setVisibleSuggestionCount] = useState(3);
   const [regenerateTarget, setRegenerateTarget] = useState(null);
   const [isRegenerateModalOpen, setIsRegenerateModalOpen] = useState(false);
+  const [regenerateTitle, setRegenerateTitle] = useState("");
+  const [regenerateStatus, setRegenerateStatus] = useState("draft");
   const [regenerateBody, setRegenerateBody] = useState("");
 
   const [editingBlog, setEditingBlog] = useState(null);
@@ -1269,6 +1261,18 @@ export default function BlogPage() {
       return;
     }
 
+    if (fetcher.data.intent === "regenerate_blog") {
+      if (fetcher.data.generated) {
+        setRegenerateTitle(fetcher.data.generated.title || regenerateTitle);
+        setRegenerateBody(fetcher.data.generated.body || "");
+        setRegenerateStatus(fetcher.data.generated.status || "draft");
+      }
+      setMessage(
+        `Blog regenerated successfully.${typeof fetcher.data.creditsUsed === "number" ? ` ${fetcher.data.creditsUsed} credit used${typeof fetcher.data.newCredits === "number" ? `. Remaining: ${fetcher.data.newCredits}` : ""}.` : ""}`,
+      );
+      return;
+    }
+
     const nextArticle = fetcher.data.article;
     if (!nextArticle) return;
 
@@ -1286,17 +1290,13 @@ export default function BlogPage() {
       setEditingBlog(null);
     }
 
-    if (fetcher.data.intent === "regenerate_blog") {
-      setMessage(
-        `Blog regenerated successfully.${typeof fetcher.data.creditsUsed === "number" ? ` ${fetcher.data.creditsUsed} credit used${typeof fetcher.data.newCredits === "number" ? `. Remaining: ${fetcher.data.newCredits}` : ""}.` : ""}`,
-      );
-      setIsRegenerateModalOpen(false);
-      setRegenerateTarget(null);
-      setRegenerateBody("");
-    }
-
     if (fetcher.data.intent === "save_blog_content") {
       setEditingBlog(null);
+      setIsRegenerateModalOpen(false);
+      setRegenerateTarget(null);
+      setRegenerateTitle("");
+      setRegenerateStatus("draft");
+      setRegenerateBody("");
       setMessage("Blog content saved.");
     }
   }, [fetcher.state, fetcher.data]);
@@ -1358,7 +1358,10 @@ export default function BlogPage() {
     setRegenerateTarget({
       articleId: article.id,
       seed: article.title,
+      blogId: article.blogId,
     });
+    setRegenerateTitle(article.title || "");
+    setRegenerateStatus(article.publishedAt ? "published" : "draft");
     setRegenerateBody(article.body || "");
     setIsRegenerateModalOpen(true);
   }
@@ -1368,7 +1371,9 @@ export default function BlogPage() {
     const payload = new FormData();
     payload.append("intent", "regenerate_blog");
     payload.append("articleId", regenerateTarget.articleId);
+    payload.append("blogId", regenerateTarget.blogId || "");
     payload.append("seed", regenerateTarget.seed || "");
+    payload.append("status", regenerateStatus);
     payload.append("tabType", activeTabKey);
     payload.append("topic", topic);
     payload.append("tone", tone);
@@ -1378,6 +1383,25 @@ export default function BlogPage() {
     payload.append("holiday", holiday);
     payload.append("productUrl", productUrl);
     payload.append("currentBody", regenerateBody || "");
+    fetcher.submit(payload, { method: "post" });
+  }
+
+  function saveRegeneratedBlogFromModal() {
+    if (!regenerateTarget?.articleId) return;
+    const payload = new FormData();
+    payload.append("intent", "save_blog_content");
+    payload.append("articleId", regenerateTarget.articleId);
+    payload.append("blogId", regenerateTarget.blogId || "");
+    payload.append("title", regenerateTitle || regenerateTarget.seed || "");
+    payload.append("body", regenerateBody || "");
+    payload.append("status", regenerateStatus);
+    payload.append("tabType", activeTabKey);
+    payload.append("tone", tone);
+    payload.append("postLength", postLength);
+    payload.append("targetAudience", targetAudience);
+    payload.append("promotion", promotion);
+    payload.append("holiday", holiday);
+    payload.append("productUrl", productUrl);
     fetcher.submit(payload, { method: "post" });
   }
 
@@ -1700,6 +1724,8 @@ export default function BlogPage() {
         onClose={() => {
           setIsRegenerateModalOpen(false);
           setRegenerateTarget(null);
+          setRegenerateTitle("");
+          setRegenerateStatus("draft");
           setRegenerateBody("");
         }}
         title="Regenerate Blog"
@@ -1755,6 +1781,16 @@ export default function BlogPage() {
 
             <BlockStack gap="200">
               <Text as="h4" variant="headingSm">Current blog description</Text>
+              <TextField label="Title" value={regenerateTitle} onChange={setRegenerateTitle} autoComplete="off" />
+              <Select
+                label="Status"
+                options={[
+                  { label: "Draft", value: "draft" },
+                  { label: "Published", value: "published" },
+                ]}
+                value={regenerateStatus}
+                onChange={setRegenerateStatus}
+              />
               <RichTextEditor
                 value={regenerateBody}
                 onChange={setRegenerateBody}
@@ -1769,6 +1805,8 @@ export default function BlogPage() {
                 onClick={() => {
                   setIsRegenerateModalOpen(false);
                   setRegenerateTarget(null);
+                  setRegenerateTitle("");
+                  setRegenerateStatus("draft");
                   setRegenerateBody("");
                 }}
               >
@@ -1780,7 +1818,15 @@ export default function BlogPage() {
                 disabled={!regenerateTarget?.articleId}
                 loading={fetcher.state !== "idle" && String(fetcher.formData?.get("intent")) === "regenerate_blog"}
               >
-                {`Regenerate (${BLOG_BODY_CREDIT_COST} credit${BLOG_BODY_CREDIT_COST > 1 ? "s" : ""})`}
+                Regenerate
+              </Button>
+              <Button
+                variant="primary"
+                onClick={saveRegeneratedBlogFromModal}
+                disabled={!regenerateTarget?.articleId}
+                loading={fetcher.state !== "idle" && String(fetcher.formData?.get("intent")) === "save_blog_content"}
+              >
+                Save
               </Button>
             </InlineStack>
           </BlockStack>
