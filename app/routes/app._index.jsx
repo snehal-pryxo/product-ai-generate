@@ -539,6 +539,58 @@ export default function Index() {
   const navigate = useNavigate();
   const location = useLocation();
   const isSaving = navigation.state === "submitting";
+  const formattedGeneratedWords = Number(generatedWords || 0).toLocaleString("en-US");
+  const formattedTimeSaved = Number(timeSavedHours || 0).toLocaleString("en-US", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
+  const kpiItems = [
+    { id: "generated", label: "Generated", value: `${formattedGeneratedWords} words`, icon: ProductIcon },
+    { id: "timeSaved", label: "Time Saved", value: `${formattedTimeSaved} hours`, icon: ChartVerticalIcon },
+    { id: "credits", label: "Credits left", value: String(creditsLeft ?? 0), icon: CollectionIcon },
+    { id: "plan", label: "Current Plan", value: currentPlan || "FREE", icon: PageIcon },
+  ];
+  const generateBreakdown = [
+    {
+      id: "product",
+      title: "Product Generate",
+      subtitle: "Description, Meta title, Meta Description",
+      count:
+        generationStats.product.description +
+        generationStats.product.metaTitle +
+        generationStats.product.metaDescription,
+    },
+    {
+      id: "collection",
+      title: "Collection Generate",
+      subtitle: "Description, Meta title, Meta Description",
+      count:
+        generationStats.collection.description +
+        generationStats.collection.metaTitle +
+        generationStats.collection.metaDescription,
+    },
+    {
+      id: "collectionProduct",
+      title: "Collection Product Generate",
+      subtitle: "Description, Meta title, Meta Description",
+      count:
+        generationStats.collectionProduct.description +
+        generationStats.collectionProduct.metaTitle +
+        generationStats.collectionProduct.metaDescription,
+    },
+    {
+      id: "pages",
+      title: "Pages Generate",
+      subtitle: "Body Content, Meta title, Meta Description",
+      count: generationStats.page.body + generationStats.page.metaTitle + generationStats.page.metaDescription,
+    },
+    {
+      id: "blog",
+      title: "Blog Generate",
+      subtitle: "Content Generate",
+      count: generationStats.blog.content,
+    },
+  ];
 
   const [selectedModel, setSelectedModel] = useState(() =>
     typeof defaultAiModel === "string" && defaultAiModel.trim() ? defaultAiModel.trim() : "gpt-4o-mini",
@@ -642,53 +694,31 @@ export default function Index() {
           description="Manage your apps and generate high-converting AI content for your store."
         />
 
-        <Card>
-          <Grid columns={{ xs: 1, sm: 2, md: 4, lg: 4, xl: 4 }}>
-            <Grid.Cell>
-              <Box padding="400">
+        <Card padding="0">
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            }}
+          >
+            {kpiItems.map((item, index) => (
+              <div
+                key={item.id}
+                style={{
+                  padding: "20px 24px",
+                  borderRight: index < kpiItems.length - 1 ? "1px solid #e5e7eb" : "none",
+                }}
+              >
                 <BlockStack gap="100">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <Text as="p" variant="headingSm">Generated</Text>
-                    <Icon source={ProductIcon} tone="base" />
+                  <InlineStack align="space-between" blockAlign="center" wrap={false}>
+                    <Text as="p" variant="headingSm">{item.label}</Text>
+                    <Icon source={item.icon} tone="subdued" />
                   </InlineStack>
-                  <Text as="p" variant="headingMd">{generatedWords} words</Text>
+                  <Text as="p" variant="headingMd">{item.value}</Text>
                 </BlockStack>
-              </Box>
-            </Grid.Cell>
-            <Grid.Cell>
-              <Box padding="400">
-                <BlockStack gap="100">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <Text as="p" variant="headingSm">Time Saved</Text>
-                    <Icon source={ChartVerticalIcon} tone="base" />
-                  </InlineStack>
-                  <Text as="p" variant="headingMd">{timeSavedHours} hours</Text>
-                </BlockStack>
-              </Box>
-            </Grid.Cell>
-            <Grid.Cell>
-              <Box padding="400">
-                <BlockStack gap="100">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <Text as="p" variant="headingSm">Credits left</Text>
-                    <Icon source={CollectionIcon} tone="base" />
-                  </InlineStack>
-                  <Text as="p" variant="headingMd">{creditsLeft}</Text>
-                </BlockStack>
-              </Box>
-            </Grid.Cell>
-            <Grid.Cell>
-              <Box padding="400">
-                <BlockStack gap="100">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <Text as="p" variant="headingSm">Current Plan</Text>
-                    <Icon source={PageIcon} tone="base" />
-                  </InlineStack>
-                  <Text as="p" variant="headingMd">{currentPlan}</Text>
-                </BlockStack>
-              </Box>
-            </Grid.Cell>
-          </Grid>
+              </div>
+            ))}
+          </div>
         </Card>
 
         {actionData ? (
@@ -721,55 +751,35 @@ export default function Index() {
           <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 2 }}>
             <Card>
               <BlockStack gap="300">
-                <InlineStack gap="200" blockAlign="center">
-                  <Icon source={AppsIcon} tone="base" />
-                  <Text as="h2" variant="headingMd">Generate content</Text>
+                <InlineStack align="space-between" blockAlign="center">
+                  <InlineStack gap="200" blockAlign="center">
+                    <Icon source={AppsIcon} tone="base" />
+                    <Text as="h2" variant="headingMd">Generate content</Text>
+                  </InlineStack>
+                  <Badge tone="info">
+                    {generateBreakdown.reduce((sum, row) => sum + Number(row.count || 0), 0)}
+                  </Badge>
                 </InlineStack>
 
-                <BlockStack gap="150">
-                  <InlineStack align="space-between" blockAlign="start" wrap={false}>
-                    <BlockStack gap="050">
-                      <Text as="p" variant="bodyMd" fontWeight="semibold">Product Generate</Text>
-                      <Text as="p" variant="bodySm" tone="subdued">Description, Meta title, Meta Description</Text>
-                    </BlockStack>
-                    <Badge tone="info">
-                      {generationStats.product.description + generationStats.product.metaTitle + generationStats.product.metaDescription}
-                    </Badge>
-                  </InlineStack>
-                  <InlineStack align="space-between" blockAlign="start" wrap={false}>
-                    <BlockStack gap="050">
-                      <Text as="p" variant="bodyMd" fontWeight="semibold">Collection Generate</Text>
-                      <Text as="p" variant="bodySm" tone="subdued">Description, Meta title, Meta Description</Text>
-                    </BlockStack>
-                    <Badge tone="info">
-                      {generationStats.collection.description + generationStats.collection.metaTitle + generationStats.collection.metaDescription}
-                    </Badge>
-                  </InlineStack>
-                  <InlineStack align="space-between" blockAlign="start" wrap={false}>
-                    <BlockStack gap="050">
-                      <Text as="p" variant="bodyMd" fontWeight="semibold">Collection Product Generate</Text>
-                      <Text as="p" variant="bodySm" tone="subdued">Description, Meta title, Meta Description</Text>
-                    </BlockStack>
-                    <Badge tone="info">
-                      {generationStats.collectionProduct.description + generationStats.collectionProduct.metaTitle + generationStats.collectionProduct.metaDescription}
-                    </Badge>
-                  </InlineStack>
-                  <InlineStack align="space-between" blockAlign="start" wrap={false}>
-                    <BlockStack gap="050">
-                      <Text as="p" variant="bodyMd" fontWeight="semibold">Pages Generate</Text>
-                      <Text as="p" variant="bodySm" tone="subdued">Body Content, Meta title, Meta Description</Text>
-                    </BlockStack>
-                    <Badge tone="info">
-                      {generationStats.page.body + generationStats.page.metaTitle + generationStats.page.metaDescription}
-                    </Badge>
-                  </InlineStack>
-                  <InlineStack align="space-between" blockAlign="start" wrap={false}>
-                    <BlockStack gap="050">
-                      <Text as="p" variant="bodyMd" fontWeight="semibold">Blog Generate</Text>
-                      <Text as="p" variant="bodySm" tone="subdued">Content Generate</Text>
-                    </BlockStack>
-                    <Badge tone="info">{generationStats.blog.content}</Badge>
-                  </InlineStack>
+                <BlockStack gap="100">
+                  {generateBreakdown.map((row, idx) => (
+                    <div
+                      key={row.id}
+                      style={{
+                        borderBottom: idx < generateBreakdown.length - 1 ? "1px solid #eef0f3" : "none",
+                        paddingBottom: idx < generateBreakdown.length - 1 ? "10px" : "0",
+                        marginBottom: idx < generateBreakdown.length - 1 ? "2px" : "0",
+                      }}
+                    >
+                      <InlineStack align="space-between" blockAlign="start" wrap={false}>
+                        <BlockStack gap="050">
+                          <Text as="p" variant="bodyMd" fontWeight="semibold">{row.title}</Text>
+                          <Text as="p" variant="bodySm" tone="subdued">{row.subtitle}</Text>
+                        </BlockStack>
+                        <Badge tone="info">{row.count}</Badge>
+                      </InlineStack>
+                    </div>
+                  ))}
                 </BlockStack>
               </BlockStack>
             </Card>
@@ -777,14 +787,14 @@ export default function Index() {
 
           <Grid.Cell>
             <Card>
-              <div style={{ minHeight: 220, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ minHeight: 248, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <BlockStack gap="200" inlineAlign="center">
                   <InlineStack gap="200" blockAlign="center">
                     <Icon source={ChartVerticalIcon} tone="base" />
                     <Text as="h2" variant="headingMd">Time saved</Text>
                   </InlineStack>
                   <InlineStack gap="100" blockAlign="end">
-                    <Text as="span" variant="heading2xl">{timeSavedHours}</Text>
+                    <Text as="span" variant="heading2xl">{formattedTimeSaved}</Text>
                     <Text as="span" variant="bodyMd" tone="subdued">hours</Text>
                   </InlineStack>
                 </BlockStack>
