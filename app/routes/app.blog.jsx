@@ -23,6 +23,13 @@ import { RichTextEditor } from "../components/RichTextEditor";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { getDefaultGlobalSettings } from "../lib/globalSettings";
+import {
+  buildInsufficientCreditsError,
+  deductCredits,
+  getOrCreateShopCredits,
+} from "../lib/credits.server";
+
+const BLOG_BODY_CREDIT_COST = 1;
 
 const BLOGS_QUERY = `#graphql
   query BlogList($first: Int!, $after: String) {
@@ -470,6 +477,15 @@ export const action = async ({ request }) => {
     if (!title) return { ok: false, intent, error: "Title is required." };
     if (!body) return { ok: false, intent, error: "Content is required." };
 
+    const creditBalance = await getOrCreateShopCredits(session.shop);
+    if ((creditBalance?.credits ?? 0) < BLOG_BODY_CREDIT_COST) {
+      return {
+        ok: false,
+        intent,
+        error: buildInsufficientCreditsError(BLOG_BODY_CREDIT_COST, creditBalance?.credits ?? 0),
+      };
+    }
+
     const response = await admin.graphql(ARTICLE_CREATE_MUTATION, {
       variables: {
         blogId,
@@ -508,13 +524,53 @@ export const action = async ({ request }) => {
       productUrl: cleanText(formData.get("productUrl")),
     });
 
-    return { ok: true, intent, article };
+    const creditSnapshot = await deductCredits({
+      shopDomain: session.shop,
+      creditsUsed: BLOG_BODY_CREDIT_COST,
+    });
+
+    try {
+      await db.generatedContentLog.create({
+        data: {
+          shop: session.shop,
+          productId: article.id,
+          productTitle: article.title,
+          intent: "blog_generate",
+          resourceType: "blog",
+          language,
+          tone: cleanText(formData.get("tone")) || "Casual",
+          generatedDescription: body,
+          creditsUsed: BLOG_BODY_CREDIT_COST,
+          appliedToProduct: true,
+        },
+      });
+    } catch (_) {
+      // Non-critical logging failure should not block response.
+    }
+
+    return {
+      ok: true,
+      intent,
+      article,
+      creditsUsed: BLOG_BODY_CREDIT_COST,
+      newCredits: creditSnapshot.credits,
+      creditsUsedTotal: creditSnapshot.creditsUsedTotal,
+    };
   }
 
   if (intent === "regenerate_blog") {
     const articleId = cleanText(formData.get("articleId"));
     const seed = cleanText(formData.get("seed"));
     if (!articleId) return { ok: false, intent, error: "Missing article id." };
+
+    const creditBalance = await getOrCreateShopCredits(session.shop);
+    if ((creditBalance?.credits ?? 0) < BLOG_BODY_CREDIT_COST) {
+      return {
+        ok: false,
+        intent,
+        error: buildInsufficientCreditsError(BLOG_BODY_CREDIT_COST, creditBalance?.credits ?? 0),
+      };
+    }
 
     const title = seed || "Updated Shopify article";
     const body = buildBlogHtml({
@@ -544,7 +600,39 @@ export const action = async ({ request }) => {
       return { ok: false, intent, error: errors.map((e) => e.message).join(", ") };
     }
 
-    return { ok: true, intent, article: normalizeArticle(payload.article) };
+    const article = normalizeArticle(payload.article);
+    const creditSnapshot = await deductCredits({
+      shopDomain: session.shop,
+      creditsUsed: BLOG_BODY_CREDIT_COST,
+    });
+
+    try {
+      await db.generatedContentLog.create({
+        data: {
+          shop: session.shop,
+          productId: article.id,
+          productTitle: article.title,
+          intent: "blog_regenerate",
+          resourceType: "blog",
+          language,
+          tone: "Casual",
+          generatedDescription: body,
+          creditsUsed: BLOG_BODY_CREDIT_COST,
+          appliedToProduct: true,
+        },
+      });
+    } catch (_) {
+      // Non-critical logging failure should not block response.
+    }
+
+    return {
+      ok: true,
+      intent,
+      article,
+      creditsUsed: BLOG_BODY_CREDIT_COST,
+      newCredits: creditSnapshot.credits,
+      creditsUsedTotal: creditSnapshot.creditsUsedTotal,
+    };
   }
 
   if (intent === "save_blog_content") {
@@ -685,13 +773,17 @@ export default function BlogPage() {
     });
 
     if (fetcher.data.intent === "save_generated_blog") {
-      setMessage("Blog saved to Shopify and database.");
+      setMessage(
+        `Blog saved to Shopify and database.${typeof fetcher.data.creditsUsed === "number" ? ` ${fetcher.data.creditsUsed} credit used${typeof fetcher.data.newCredits === "number" ? `. Remaining: ${fetcher.data.newCredits}` : ""}.` : ""}`,
+      );
       setShowGenerator(false);
       setEditingBlog(null);
     }
 
     if (fetcher.data.intent === "regenerate_blog") {
-      setMessage("Blog regenerated successfully.");
+      setMessage(
+        `Blog regenerated successfully.${typeof fetcher.data.creditsUsed === "number" ? ` ${fetcher.data.creditsUsed} credit used${typeof fetcher.data.newCredits === "number" ? `. Remaining: ${fetcher.data.newCredits}` : ""}.` : ""}`,
+      );
     }
 
     if (fetcher.data.intent === "save_blog_content") {
