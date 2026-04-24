@@ -295,14 +295,19 @@ function normalizeProductUrl(value) {
   }
 }
 
-function appendBusinessProductLink(bodyHtml, tabType, productUrl) {
+function appendProductCtaAndLink(bodyHtml, productUrl) {
   const normalizedBody = normalizeBodyHtml(bodyHtml || "");
   const normalizedUrl = normalizeProductUrl(productUrl);
-  if (tabType !== TAB_KEYS.BUSINESS || !normalizedUrl) return normalizedBody;
+  if (!normalizedUrl) return normalizedBody;
 
-  const linkHtml = `<p><a href="${escapeHtml(normalizedUrl)}" target="_blank" rel="noopener noreferrer">Shop Now</a></p>`;
-  if (/>\s*Shop Now\s*<\/a>/i.test(normalizedBody)) return normalizedBody;
-  return `${normalizedBody}${linkHtml}`;
+  if (/>\s*Shop\s*Now\s*<\/a>/i.test(normalizedBody) || />\s*Product\s*Link\s*<\/a>/i.test(normalizedBody)) {
+    return normalizedBody;
+  }
+
+  const escapedUrl = escapeHtml(normalizedUrl);
+  const ctaHtml = `<p><a href="${escapedUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:10px 16px;background:#111827;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;">Shop Now</a></p>`;
+  const productLinkHtml = `<p><a href="${escapedUrl}" target="_blank" rel="noopener noreferrer">Product Link</a></p>`;
+  return `${normalizedBody}${ctaHtml}${productLinkHtml}`;
 }
 
 function parseAiJson(rawText) {
@@ -456,7 +461,7 @@ function buildBlogHtml({ title, topic, tone, audience, promotion, holiday, tabTy
     break;
   }
 
-  return appendBusinessProductLink(html, tabType, productUrl);
+  return appendProductCtaAndLink(html, productUrl);
 }
 
 function ensureBlogBodyWordRange({
@@ -472,7 +477,7 @@ function ensureBlogBodyWordRange({
   postLength = "medium",
   productUrl = "",
 }) {
-  const normalized = appendBusinessProductLink(body || "", tabType, productUrl);
+  const normalized = appendProductCtaAndLink(body || "", productUrl);
   const { min, max } = getWordRange(postLength);
   const words = countWords(normalized);
   if (normalized && words >= min && words <= max) return normalized;
