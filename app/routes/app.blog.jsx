@@ -255,7 +255,7 @@ function getDefaultAuthorName(shopDomain) {
     .split(/[-_\s]+/)
     .map((part) => cleanText(part))
     .filter(Boolean);
-  if (!words.length) return "Shop Nova";
+  if (!words.length) return "Shop Now";
   return words.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
 }
 
@@ -305,7 +305,7 @@ function appendProductCtaAndLink(bodyHtml, productUrl) {
   }
 
   const escapedUrl = escapeHtml(normalizedUrl);
-  const ctaHtml = `<p><a href="${escapedUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:10px 16px;background:#111827;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;">Shop Now</a></p>`;
+  const ctaHtml = `<p><a href="${escapedUrl}" target="_blank" rel="noopener noreferrer">Shop Now</a></p>`;
   return `${normalizedBody}${ctaHtml}`;
 }
 
