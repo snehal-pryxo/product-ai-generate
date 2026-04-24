@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Button, InlineStack, Select, Text } from "@shopify/polaris";
+import { InlineStack, Select, Text } from "@shopify/polaris";
 
 function looksLikeHtml(value) {
   return /<\/?[a-z][\s\S]*>/i.test(value || "");
@@ -221,9 +221,24 @@ export function RichTextEditor({
     setShowSource(false);
   }, [showSource, sourceHtml, emitChange]);
 
+  const ToolButton = ({ onClick, label, children, isActive = false, width = 34 }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={`app-rich-text-editor__tool-btn${isActive ? " is-active" : ""}`}
+      style={{ width }}
+    >
+      {children}
+    </button>
+  );
+
+  const ToolDivider = () => <span className="app-rich-text-editor__tool-divider" aria-hidden="true" />;
+
   return (
     <div className="app-rich-text-editor" style={{ border: "1px solid #d1d5db", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
-      <div style={{ padding: 8, borderBottom: "1px solid #e5e7eb", background: "#f6f6f7" }}>
+      <div className="app-rich-text-editor__toolbar">
         <InlineStack gap="100" wrap={false}>
           <div style={{ minWidth: 150 }}>
             <Select
@@ -240,12 +255,12 @@ export function RichTextEditor({
               onChange={applyBlockType}
             />
           </div>
-          <Text as="span" tone="subdued">|</Text>
-          <Button size="slim" onClick={() => exec("bold")} accessibilityLabel="Bold">B</Button>
-          <Button size="slim" onClick={() => exec("italic")} accessibilityLabel="Italic"><i>I</i></Button>
-          <Button size="slim" onClick={() => exec("underline")} accessibilityLabel="Underline"><u>U</u></Button>
-          <div style={{ position: "relative", width: 34, height: 28 }}>
-            <Button size="slim" onClick={() => {}} accessibilityLabel="Text color">A</Button>
+          <ToolDivider />
+          <ToolButton onClick={() => exec("bold")} label="Bold"><strong>B</strong></ToolButton>
+          <ToolButton onClick={() => exec("italic")} label="Italic"><span style={{ fontStyle: "italic" }}>I</span></ToolButton>
+          <ToolButton onClick={() => exec("underline")} label="Underline"><span style={{ textDecoration: "underline" }}>U</span></ToolButton>
+          <div style={{ position: "relative", width: 34, height: 32 }}>
+            <ToolButton onClick={() => {}} label="Text color">A</ToolButton>
             <input
               type="color"
               value={textColor}
@@ -259,26 +274,54 @@ export function RichTextEditor({
               aria-label="Pick text color"
             />
           </div>
-          <Text as="span" tone="subdued">|</Text>
-          <Button size="slim" onClick={() => exec("justifyLeft")} accessibilityLabel="Align left">Left</Button>
-          <Button size="slim" onClick={() => exec("justifyCenter")} accessibilityLabel="Align center">Center</Button>
-          <Button size="slim" onClick={() => exec("justifyRight")} accessibilityLabel="Align right">Right</Button>
-          <Text as="span" tone="subdued">|</Text>
-          <Button size="slim" onClick={applyLink} accessibilityLabel="Insert link">Link</Button>
-          <Button size="slim" onClick={applyImage} accessibilityLabel="Insert image">Image</Button>
-          <Button size="slim" onClick={insertTable} accessibilityLabel="Insert table">Table</Button>
-          <Text as="span" tone="subdued">|</Text>
-          <Button size="slim" onClick={() => exec("insertUnorderedList")} accessibilityLabel="Bullet list">Bullet</Button>
-          <Button size="slim" onClick={() => exec("insertOrderedList")} accessibilityLabel="Numbered list">1. List</Button>
-          <Button size="slim" onClick={() => exec("outdent")} accessibilityLabel="Outdent">Outdent</Button>
-          <Button size="slim" onClick={() => exec("indent")} accessibilityLabel="Indent">Indent</Button>
-          <Text as="span" tone="subdued">|</Text>
-          <Button size="slim" onClick={() => exec("unlink")} accessibilityLabel="Remove link">Unlink</Button>
-          <Button size="slim" onClick={() => exec("removeFormat")} accessibilityLabel="Clear format">Clear</Button>
-          <Button size="slim" onClick={() => exec("undo")} accessibilityLabel="Undo">Undo</Button>
-          <Button size="slim" onClick={() => exec("redo")} accessibilityLabel="Redo">Redo</Button>
+          <ToolDivider />
+          <ToolButton onClick={() => exec("justifyLeft")} label="Align left">
+            <svg viewBox="0 0 20 20" width="16" height="16"><path d="M3 5h12M3 9h9M3 13h12M3 17h9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
+          </ToolButton>
+          <ToolButton onClick={() => exec("justifyCenter")} label="Align center">
+            <svg viewBox="0 0 20 20" width="16" height="16"><path d="M4 5h12M6 9h8M4 13h12M6 17h8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
+          </ToolButton>
+          <ToolButton onClick={() => exec("justifyRight")} label="Align right">
+            <svg viewBox="0 0 20 20" width="16" height="16"><path d="M5 5h12M8 9h9M5 13h12M8 17h9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
+          </ToolButton>
+          <ToolDivider />
+          <ToolButton onClick={applyLink} label="Insert link">
+            <svg viewBox="0 0 20 20" width="16" height="16"><path d="M7.5 12.5l-1.5 1.5a3 3 0 104.2 4.2l1.6-1.6M12.5 7.5l1.5-1.5a3 3 0 10-4.2-4.2L8.2 3.4M7 10h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" fill="none"/></svg>
+          </ToolButton>
+          <ToolButton onClick={applyImage} label="Insert image">
+            <svg viewBox="0 0 20 20" width="16" height="16"><rect x="3" y="4" width="14" height="12" rx="2" stroke="currentColor" fill="none" strokeWidth="1.6"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><path d="M4.5 14l3.5-3.5 2.5 2.2 2.2-2.2 2.8 3" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round"/></svg>
+          </ToolButton>
+          <ToolButton onClick={insertTable} label="Insert table">
+            <svg viewBox="0 0 20 20" width="16" height="16"><rect x="3" y="4" width="14" height="12" rx="1" stroke="currentColor" fill="none" strokeWidth="1.6"/><path d="M3 9.5h14M8 4v12M13 4v12" stroke="currentColor" strokeWidth="1.2"/></svg>
+          </ToolButton>
+          <ToolDivider />
+          <ToolButton onClick={() => exec("insertUnorderedList")} label="Bullet list">
+            <svg viewBox="0 0 20 20" width="16" height="16"><circle cx="4.5" cy="6" r="1.2" fill="currentColor"/><circle cx="4.5" cy="10" r="1.2" fill="currentColor"/><circle cx="4.5" cy="14" r="1.2" fill="currentColor"/><path d="M8 6h8M8 10h8M8 14h8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
+          </ToolButton>
+          <ToolButton onClick={() => exec("insertOrderedList")} label="Numbered list">
+            <svg viewBox="0 0 20 20" width="16" height="16"><path d="M3.2 6h2M3.2 10h2M3.2 14h2M8 6h8M8 10h8M8 14h8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
+          </ToolButton>
+          <ToolButton onClick={() => exec("outdent")} label="Outdent">
+            <svg viewBox="0 0 20 20" width="16" height="16"><path d="M8 6h9M8 10h9M8 14h9M3 10h4M5 8l-2 2 2 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" fill="none"/></svg>
+          </ToolButton>
+          <ToolButton onClick={() => exec("indent")} label="Indent">
+            <svg viewBox="0 0 20 20" width="16" height="16"><path d="M3 6h9M3 10h9M3 14h9M12 10h4M14 8l2 2-2 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" fill="none"/></svg>
+          </ToolButton>
+          <ToolDivider />
+          <ToolButton onClick={() => exec("unlink")} label="Remove link">
+            <svg viewBox="0 0 20 20" width="16" height="16"><path d="M4 4l12 12M7.5 12.5l-1.5 1.5a3 3 0 104.2 4.2l1.6-1.6M12.5 7.5l1.5-1.5a3 3 0 10-4.2-4.2L8.2 3.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" fill="none"/></svg>
+          </ToolButton>
+          <ToolButton onClick={() => exec("removeFormat")} label="Clear formatting">Tx</ToolButton>
+          <ToolButton onClick={() => exec("undo")} label="Undo">
+            <svg viewBox="0 0 20 20" width="16" height="16"><path d="M7 6L3 10l4 4M4 10h7a4 4 0 010 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" fill="none"/></svg>
+          </ToolButton>
+          <ToolButton onClick={() => exec("redo")} label="Redo">
+            <svg viewBox="0 0 20 20" width="16" height="16"><path d="M13 6l4 4-4 4M16 10H9a4 4 0 000 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" fill="none"/></svg>
+          </ToolButton>
           {showSourceToggle ? (
-            <Button size="slim" onClick={toggleSourceMode}>{showSource ? "Editor" : "</>"}</Button>
+            <ToolButton onClick={toggleSourceMode} label={showSource ? "Editor mode" : "HTML source"} width={42}>
+              {"</>"}
+            </ToolButton>
           ) : null}
         </InlineStack>
       </div>
@@ -325,6 +368,44 @@ export function RichTextEditor({
         />
       )}
       <style>{`
+        .app-rich-text-editor__toolbar {
+          padding: 8px;
+          border-bottom: 1px solid #e5e7eb;
+          background: #f6f6f7;
+          overflow-x: auto;
+          overflow-y: hidden;
+        }
+        .app-rich-text-editor__tool-btn {
+          height: 32px;
+          min-width: 32px;
+          border-radius: 8px;
+          border: 1px solid #d1d5db;
+          background: #ffffff;
+          color: #374151;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: background 120ms ease, border-color 120ms ease;
+        }
+        .app-rich-text-editor__tool-btn:hover {
+          background: #f3f4f6;
+          border-color: #9ca3af;
+        }
+        .app-rich-text-editor__tool-btn.is-active {
+          background: #e5e7eb;
+          border-color: #6b7280;
+          color: #111827;
+        }
+        .app-rich-text-editor__tool-divider {
+          width: 1px;
+          height: 22px;
+          background: #d1d5db;
+          margin: 0 2px;
+          flex: 0 0 auto;
+        }
         .app-rich-text-editor [contenteditable="true"] h1,
         .app-rich-text-editor [contenteditable="true"] h2,
         .app-rich-text-editor [contenteditable="true"] h3,

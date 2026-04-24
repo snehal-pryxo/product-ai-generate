@@ -772,6 +772,24 @@ export const loader = async ({ request }) => {
     }
   }
 
+  const creditsUsageByType = logRows.reduce(
+    (acc, row) => {
+      const used = Number(row.creditsUsed || 0);
+      if (!used) return acc;
+      if (row.resourceType === "collection") {
+        acc.collections += used;
+      } else if (row.resourceType === "page") {
+        acc.pages += used;
+      } else if (row.resourceType === "collection_product") {
+        acc.collection_products += used;
+      } else {
+        acc.products += used;
+      }
+      return acc;
+    },
+    { products: 0, collections: 0, collection_products: 0, pages: 0 },
+  );
+
   const resolveCreditsUsed = (contentType, itemId) => {
     if (!itemId) return 0;
     if (contentType === "products") {
@@ -1054,6 +1072,7 @@ export const loader = async ({ request }) => {
     credits,
     defaultAiProvider,
     envAiModel,
+    creditsUsageByType,
     hasOpenaiKey: !!(shopData?.openaiApiKey || process.env.OPENAI_API_KEY),
     hasAnthropicKey: !!(shopData?.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
   };
@@ -2077,7 +2096,7 @@ function statusBadge(status) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ContentManagementPage() {
-  const { tab, filter, items, credits, defaultAiProvider, envAiModel } = useLoaderData();
+  const { tab, filter, items, credits, defaultAiProvider, envAiModel, creditsUsageByType } = useLoaderData();
   const navigate = useNavigate();
   const shopify = useAppBridge();
   const generateFetcher = useFetcher();
@@ -2109,6 +2128,9 @@ export default function ContentManagementPage() {
   const [generatingId, setGeneratingId] = useState(null);
   const [localItems, setLocalItems] = useState(items);
   const [localCredits, setLocalCredits] = useState(credits);
+  const [localCreditsUsageByType, setLocalCreditsUsageByType] = useState(
+    creditsUsageByType || { products: 0, collections: 0, collection_products: 0, pages: 0 },
+  );
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
@@ -2129,6 +2151,11 @@ export default function ContentManagementPage() {
     setLocalCredits(credits);
   }, [credits]);
 
+  useEffect(() => {
+    if (!isHydratedRef.current) return;
+    setLocalCreditsUsageByType(creditsUsageByType || { products: 0, collections: 0, collection_products: 0, pages: 0 });
+  }, [creditsUsageByType]);
+
   // Handle generate response
   useEffect(() => {
     if (!isHydratedRef.current) return;
@@ -2139,6 +2166,13 @@ export default function ContentManagementPage() {
     setGenerationProgress(100);
     if (data.ok) {
       setLocalCredits(data.newCredits);
+      const usedCredits = Number(data.creditsUsed || 0);
+      if (usedCredits > 0) {
+        setLocalCreditsUsageByType((prev) => ({
+          ...prev,
+          [pendingGenerateContentType]: Number(prev?.[pendingGenerateContentType] || 0) + usedCredits,
+        }));
+      }
       setLocalItems((prev) =>
         prev.map((it) =>
           it.id === data.itemId
@@ -2164,7 +2198,7 @@ export default function ContentManagementPage() {
       setErrorMessage(data.error || "Generation failed.");
       setGenerationProgress(0);
     }
-  }, [generateFetcher.state, generateFetcher.data, pendingGenerateScope]);
+  }, [generateFetcher.state, generateFetcher.data, pendingGenerateScope, pendingGenerateContentType]);
 
   useEffect(() => {
     if (!isHydratedRef.current) return undefined;
@@ -2654,6 +2688,18 @@ export default function ContentManagementPage() {
             </Text>
           </Banner>
         )}
+
+        <Card>
+          <BlockStack gap="200">
+            <Text variant="headingSm" as="h3">Credits Used (By Content Type)</Text>
+            <InlineStack gap="200" wrap>
+              <Badge tone="info">Product: {localCreditsUsageByType.products || 0}</Badge>
+              <Badge tone="info">Collection: {localCreditsUsageByType.collections || 0}</Badge>
+              <Badge tone="info">Collection Product: {localCreditsUsageByType.collection_products || 0}</Badge>
+              <Badge tone="info">Page: {localCreditsUsageByType.pages || 0}</Badge>
+            </InlineStack>
+          </BlockStack>
+        </Card>
 
         {/* Main tabs: Products | Collections | Pages | Blog */}
         <Card padding="0">
