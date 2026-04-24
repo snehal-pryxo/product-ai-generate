@@ -972,16 +972,10 @@ export default function BlogPage() {
                       onChange={setSelectedBlogId}
                       disabled={blogs.length === 0}
                     />
-                    <Box padding="300" borderWidth="025" borderColor="border" borderRadius="300" background="bg-surface">
-                      <BlockStack gap="050">
-                        <Text as="p" variant="bodySm" tone="subdued">Output language</Text>
-                        <Text as="p" variant="bodyMd" fontWeight="semibold">{settingsLanguage}</Text>
-                      </BlockStack>
-                    </Box>
                   </div>
 
                   <div className="blog-generator-tabs-wrap">
-                    <Tabs tabs={tabItems} selected={activeTab} onSelect={setActiveTab} fitted />
+                    <Tabs tabs={tabItems} selected={activeTab} onSelect={setActiveTab} />
                   </div>
                 </BlockStack>
               </Box>
@@ -1212,7 +1206,7 @@ export default function BlogPage() {
       <style>{`
         .blog-generator-meta-grid {
           display: grid;
-          grid-template-columns: minmax(0, 1.8fr) minmax(220px, 1fr);
+          grid-template-columns: minmax(0, 1fr);
           gap: 12px;
           align-items: end;
         }
@@ -1221,16 +1215,23 @@ export default function BlogPage() {
           border-radius: 12px;
           padding: 4px;
           background: #f9fafb;
+          width: fit-content;
+          max-width: 100%;
         }
         .blog-generator-fields {
           display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 12px;
         }
         @media (max-width: 900px) {
           .blog-generator-meta-grid {
             grid-template-columns: 1fr;
           }
+          .blog-generator-fields {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+        @media (max-width: 640px) {
           .blog-generator-fields {
             grid-template-columns: 1fr;
           }
