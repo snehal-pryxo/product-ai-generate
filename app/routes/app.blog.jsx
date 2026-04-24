@@ -1471,12 +1471,6 @@ export default function BlogPage() {
                           <Text as="p" variant="bodySm" tone="subdued">
                             {getGeneratedContentPreview(suggestion.body)}
                           </Text>
-                          <InlineStack gap="200" wrap>
-                            <Badge>{suggestion.tone}</Badge>
-                            <Badge>{suggestion.targetAudience}</Badge>
-                            <Badge>{suggestion.postLength}</Badge>
-                            <Badge tone="info">{getWordTarget(suggestion.postLength)} words</Badge>
-                          </InlineStack>
                           <div className="blog-generator-card-actions">
                             <div className="blog-generator-card-status">
                               <Select
