@@ -2189,28 +2189,6 @@ export default function ProductsPage() {
               </Text>
             </div>
 
-            {selectedProducts.length > 0 && (
-              <div style={{ padding: "8px 16px", borderTop: "1px solid var(--p-color-border)" }}>
-                <BlockStack gap="100">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <Text as="p" variant="bodySm" fontWeight="semibold">Queue Progress</Text>
-                    {isBulkGenerating && <Spinner size="small" />}
-                  </InlineStack>
-                  {selectedProducts.slice(0, 10).map((product) => {
-                    const status = queueStatusById[product.id] || "queued";
-                    const tone = status === "completed" ? "success" : status === "failed" ? "critical" : status === "processing" ? "attention" : "info";
-                    const label = status === "processing" ? "Processing" : status === "completed" ? "Completed" : status === "failed" ? "Failed" : "Queued";
-                    return (
-                      <InlineStack key={product.id} align="space-between" blockAlign="center">
-                        <Text as="span" variant="bodySm" tone="subdued">{product.title}</Text>
-                        <Badge tone={tone}>{label}</Badge>
-                      </InlineStack>
-                    );
-                  })}
-                </BlockStack>
-              </div>
-            )}
-
             {/* Validation error */}
             {bulkValidationMessage && (
               <div style={{ padding: "8px 16px" }}>

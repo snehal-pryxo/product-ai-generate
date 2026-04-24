@@ -2936,28 +2936,6 @@ export default function CollectionsPage() {
               </Text>
             </div>
 
-            {selectedCollections.length > 0 && (
-              <div style={{ padding: "8px 16px", borderTop: "1px solid var(--p-color-border)" }}>
-                <BlockStack gap="100">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <Text as="p" variant="bodySm" fontWeight="semibold">Queue Progress</Text>
-                    {isBulkGenerating && <Spinner size="small" />}
-                  </InlineStack>
-                  {selectedCollections.slice(0, 10).map((collection) => {
-                    const status = queueStatusById[collection.id] || "queued";
-                    const tone = status === "completed" ? "success" : status === "failed" ? "critical" : status === "processing" ? "attention" : "info";
-                    const label = status === "processing" ? "Processing" : status === "completed" ? "Completed" : status === "failed" ? "Failed" : "Queued";
-                    return (
-                      <InlineStack key={collection.id} align="space-between" blockAlign="center">
-                        <Text as="span" variant="bodySm" tone="subdued">{collection.title}</Text>
-                        <Badge tone={tone}>{label}</Badge>
-                      </InlineStack>
-                    );
-                  })}
-                </BlockStack>
-              </div>
-            )}
-
             {/* Validation error */}
             {bulkValidationMessage && (
               <div style={{ padding: "8px 16px" }}>

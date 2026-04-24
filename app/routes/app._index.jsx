@@ -633,10 +633,10 @@ export default function Index() {
             {kpiItems.map((item, index) => (
               <div key={item.id} className="dashboard-kpi-cell" style={{ borderRight: index < kpiItems.length - 1 ? "1px solid #e5e7eb" : "none" }}>
                 <BlockStack gap="100" align="start">
-                  <InlineStack align="start" gap="150" blockAlign="center" wrap={false} className="dashboard-kpi-heading-row">
+                  <div className="dashboard-kpi-heading-row">
                     <Icon source={item.icon} tone="subdued" />
                     <Text as="p" variant="headingSm">{item.label}</Text>
-                  </InlineStack>
+                  </div>
                   <Text as="p" variant="headingMd">{item.value}</Text>
                 </BlockStack>
               </div>
@@ -861,8 +861,12 @@ export default function Index() {
           text-align: left;
         }
         .dashboard-kpi-heading-row {
-          width: max-content;
+          display: inline-flex;
+          align-items: center;
           justify-content: flex-start;
+          gap: 8px;
+          width: fit-content;
+          white-space: nowrap;
         }
       `}</style>
       </div>
