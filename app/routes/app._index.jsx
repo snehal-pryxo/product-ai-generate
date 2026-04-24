@@ -629,22 +629,11 @@ export default function Index() {
         />
 
         <Card padding="0">
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            }}
-          >
+          <div className="dashboard-kpi-grid">
             {kpiItems.map((item, index) => (
-              <div
-                key={item.id}
-                style={{
-                  padding: "20px 24px",
-                  borderRight: index < kpiItems.length - 1 ? "1px solid #e5e7eb" : "none",
-                }}
-              >
-                <BlockStack gap="100">
-                  <InlineStack align="start" gap="150" blockAlign="center" wrap={false}>
+              <div key={item.id} className="dashboard-kpi-cell" style={{ borderRight: index < kpiItems.length - 1 ? "1px solid #e5e7eb" : "none" }}>
+                <BlockStack gap="100" align="start">
+                  <InlineStack align="start" gap="150" blockAlign="center" wrap={false} className="dashboard-kpi-heading-row">
                     <Icon source={item.icon} tone="subdued" />
                     <Text as="p" variant="headingSm">{item.label}</Text>
                   </InlineStack>
@@ -862,6 +851,20 @@ export default function Index() {
 
         <Box paddingBlockEnd="800" />
       </BlockStack>
+      <style>{`
+        .dashboard-kpi-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        }
+        .dashboard-kpi-cell {
+          padding: 20px 24px;
+          text-align: left;
+        }
+        .dashboard-kpi-heading-row {
+          width: max-content;
+          justify-content: flex-start;
+        }
+      `}</style>
       </div>
     </Page>
   );

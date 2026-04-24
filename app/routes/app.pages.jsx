@@ -730,7 +730,7 @@ function PageEditorModal({
       title={`Edit Page: ${page.title}`}
       primaryAction={{ content: loading ? "Saving..." : "Save", onAction: onSave, loading }}
       secondaryActions={[{ content: "Cancel", onAction: onClose }]}
-      large
+      size="large"
     >
       <Modal.Section>
         <BlockStack gap="300">

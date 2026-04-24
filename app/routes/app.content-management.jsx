@@ -15,6 +15,7 @@ import {
   InlineStack,
   Modal,
   Page,
+  Pagination,
   Popover,
   ProgressBar,
   Select,
@@ -56,6 +57,7 @@ const FETCH_BATCH_SIZE = 250;
 const DEFAULT_AI_MODEL = "gpt-4o-mini";
 const DEFAULT_OLLAMA_MODEL = "llama3.2:1b";
 const DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434";
+const CONTENT_TABLE_PAGE_SIZE = 10;
 const OPENAI_RATE_LIMIT_RETRY_DELAY_MS = 20000;
 const OPENAI_RATE_LIMIT_ERROR_PATTERN = /rate limit|too many requests|429/i;
 const OPENAI_QUOTA_ERROR_PATTERN = /quota|billing|insufficient_quota/i;
@@ -2131,6 +2133,7 @@ export default function ContentManagementPage() {
   const [localCreditsUsageByType, setLocalCreditsUsageByType] = useState(
     creditsUsageByType || { products: 0, collections: 0, collection_products: 0, pages: 0 },
   );
+  const [currentPage, setCurrentPage] = useState(1);
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
@@ -2145,6 +2148,11 @@ export default function ContentManagementPage() {
     setLocalItems(items);
   }, [items]);
 
+  useEffect(() => {
+    if (!isHydratedRef.current) return;
+    setCurrentPage(1);
+  }, [tab, filter]);
+
   // Sync credits from loader (only after hydration to prevent hydration mismatch)
   useEffect(() => {
     if (!isHydratedRef.current) return;
@@ -2155,6 +2163,12 @@ export default function ContentManagementPage() {
     if (!isHydratedRef.current) return;
     setLocalCreditsUsageByType(creditsUsageByType || { products: 0, collections: 0, collection_products: 0, pages: 0 });
   }, [creditsUsageByType]);
+
+  useEffect(() => {
+    if (!isHydratedRef.current) return;
+    const totalPages = Math.max(1, Math.ceil(localItems.length / CONTENT_TABLE_PAGE_SIZE));
+    setCurrentPage((prev) => Math.min(prev, totalPages));
+  }, [localItems.length]);
 
   // Handle generate response
   useEffect(() => {
@@ -2473,10 +2487,18 @@ export default function ContentManagementPage() {
     { title: "Description" },
     { title: "SEO Title" },
     { title: "SEO Description" },
+    { title: "Credits Used" },
     { title: "Generate" },
   ];
 
-  const rowMarkup = localItems.map((item, idx) => {
+  const totalItems = localItems.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / CONTENT_TABLE_PAGE_SIZE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * CONTENT_TABLE_PAGE_SIZE;
+  const endIndex = Math.min(startIndex + CONTENT_TABLE_PAGE_SIZE, totalItems);
+  const paginatedItems = localItems.slice(startIndex, endIndex);
+
+  const rowMarkup = paginatedItems.map((item, idx) => {
     const isGenerating = generatingId === item.id;
     const effectiveContentType = item.contentType || tab;
     const scopeOptions = getGenerateScopeOptions(effectiveContentType);
@@ -2491,7 +2513,7 @@ export default function ContentManagementPage() {
     );
 
     return (
-      <IndexTable.Row id={item.id} key={item.id} position={idx}>
+      <IndexTable.Row id={item.id} key={item.id} position={startIndex + idx}>
         {/* Name */}
         <IndexTable.Cell>
           <InlineStack gap="200" blockAlign="center" wrap={false}>
@@ -2593,6 +2615,11 @@ export default function ContentManagementPage() {
               <Text variant="bodySm" as="span" tone="subdued">—</Text>
             </button>
           )}
+        </IndexTable.Cell>
+
+        {/* Credits Used */}
+        <IndexTable.Cell>
+          <Badge tone="info">{Number(item.creditsUsed || 0)}</Badge>
         </IndexTable.Cell>
 
         {/* Generate button */}
@@ -2736,14 +2763,30 @@ export default function ContentManagementPage() {
               </Text>
             </EmptyState>
           ) : (
-            <IndexTable
-              resourceName={{ singular: singularLabel, plural: tabLabel }}
-              itemCount={localItems.length}
-              headings={headings}
-              selectable={false}
-            >
-              {rowMarkup}
-            </IndexTable>
+            <>
+              <IndexTable
+                resourceName={{ singular: singularLabel, plural: tabLabel }}
+                itemCount={totalItems}
+                headings={headings}
+                selectable={false}
+              >
+                {rowMarkup}
+              </IndexTable>
+              <Box padding="300" borderBlockStartWidth="025" borderColor="border">
+                <InlineStack align="space-between" blockAlign="center">
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Showing {totalItems === 0 ? 0 : startIndex + 1}-{endIndex} of {totalItems}
+                  </Text>
+                  <Pagination
+                    hasPrevious={safeCurrentPage > 1}
+                    onPrevious={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    hasNext={safeCurrentPage < totalPages}
+                    onNext={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                    label={`Page ${safeCurrentPage} of ${totalPages}`}
+                  />
+                </InlineStack>
+              </Box>
+            </>
           )}
         </Card>
 
