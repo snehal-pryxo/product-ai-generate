@@ -524,6 +524,49 @@ export default function Index() {
     },
   ];
   const totalGenerateCount = generateBreakdown.reduce((sum, row) => sum + Number(row.count || 0), 0);
+  const specificCountBoxes = [
+    {
+      id: "product",
+      title: "Product",
+      rows: [
+        { label: "Descriptions", value: generationStats.product.description },
+        { label: "Meta Titles", value: generationStats.product.metaTitle },
+        { label: "Meta Descriptions", value: generationStats.product.metaDescription },
+      ],
+    },
+    {
+      id: "collection",
+      title: "Collection",
+      rows: [
+        { label: "Descriptions", value: generationStats.collection.description },
+        { label: "Meta Titles", value: generationStats.collection.metaTitle },
+        { label: "Meta Descriptions", value: generationStats.collection.metaDescription },
+      ],
+    },
+    {
+      id: "collectionProduct",
+      title: "Collection Product",
+      rows: [
+        { label: "Descriptions", value: generationStats.collectionProduct.description },
+        { label: "Meta Titles", value: generationStats.collectionProduct.metaTitle },
+        { label: "Meta Descriptions", value: generationStats.collectionProduct.metaDescription },
+      ],
+    },
+    {
+      id: "pages",
+      title: "Pages",
+      rows: [
+        { label: "Body Content", value: generationStats.page.body },
+        { label: "Meta Titles", value: generationStats.page.metaTitle },
+        { label: "Meta Descriptions", value: generationStats.page.metaDescription },
+      ],
+    },
+    {
+      id: "blog",
+      title: "Blog",
+      rows: [{ label: "Content Generated", value: generationStats.blog.content }],
+    },
+  ];
 
   const [selectedModel, setSelectedModel] = useState(() =>
     typeof defaultAiModel === "string" && defaultAiModel.trim() ? defaultAiModel.trim() : "gpt-4o-mini",
@@ -690,6 +733,47 @@ export default function Index() {
             </InlineStack>
           </BlockStack>
         </Card>
+
+        <BlockStack gap="200">
+          <Text as="h2" variant="headingMd">Specific Generated Count</Text>
+          <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 3, xl: 3 }}>
+            {specificCountBoxes.map((box) => (
+              <Grid.Cell key={box.id}>
+                <Card>
+                  <BlockStack gap="200">
+                    <Text as="h3" variant="headingSm">{box.title}</Text>
+                    <BlockStack gap="100">
+                      {box.rows.map((row) => (
+                        <InlineStack key={row.label} align="space-between" blockAlign="center" wrap={false}>
+                          <Text as="span" variant="bodySm" tone="subdued">{row.label}</Text>
+                          <div
+                            style={{
+                              minWidth: "30px",
+                              height: "28px",
+                              padding: "0 10px",
+                              borderRadius: "10px",
+                              background: "#dbeafe",
+                              color: "#1e3a8a",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontWeight: 700,
+                              fontSize: "16px",
+                              lineHeight: 1,
+                              flexShrink: 0,
+                            }}
+                          >
+                            {row.value}
+                          </div>
+                        </InlineStack>
+                      ))}
+                    </BlockStack>
+                  </BlockStack>
+                </Card>
+              </Grid.Cell>
+            ))}
+          </Grid>
+        </BlockStack>
 
         <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
           <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 2 }}>
