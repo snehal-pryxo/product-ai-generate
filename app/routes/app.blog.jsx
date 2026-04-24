@@ -1505,39 +1505,23 @@ export default function BlogPage() {
                         <BlockStack gap="300">
                           <Text as="h4" variant="headingMd">{suggestion.title}</Text>
                           <Text as="p" variant="bodyMd" tone="subdued">{suggestion.summary}</Text>
-                          <Text as="p" variant="bodySm" tone="subdued">
-                            {getGeneratedContentPreview(suggestion.body)}
-                          </Text>
-                          <div className="blog-generator-card-actions">
-                            <div className="blog-generator-card-status">
-                              <Select
-                                label="Status"
-                                options={[
-                                  { label: "Draft", value: "draft" },
-                                  { label: "Published", value: "published" },
-                                ]}
-                                value={suggestion.status || "draft"}
-                                onChange={(nextStatus) =>
-                                  setSuggestions((prev) => prev.map((item) => (item.id === suggestion.id ? { ...item, status: nextStatus } : item)))
-                                }
-                              />
-                            </div>
-                            <InlineStack gap="200" wrap>
-                              <Button onClick={() => openSuggestionEditor(suggestion)}>Open in editor</Button>
-                              <Button
-                                variant="primary"
-                                onClick={() => saveSuggestionDirectly(suggestion)}
-                                disabled={!selectedBlogId || fetcher.state !== "idle" || blogs.length === 0}
-                                loading={
-                                  fetcher.state !== "idle" &&
-                                  String(fetcher.formData?.get("intent")) === "save_generated_blog" &&
-                                  String(fetcher.formData?.get("title")) === suggestion.title
-                                }
-                              >
-                                Save blog
-                              </Button>
-                            </InlineStack>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => openSuggestionEditor(suggestion)}
+                            style={{
+                              background: "transparent",
+                              border: "none",
+                              padding: 0,
+                              margin: 0,
+                              textAlign: "left",
+                              cursor: "pointer",
+                              width: "100%",
+                            }}
+                          >
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              {getGeneratedContentPreview(suggestion.body)}
+                            </Text>
+                          </button>
                         </BlockStack>
                       </Card>
                     ))}
