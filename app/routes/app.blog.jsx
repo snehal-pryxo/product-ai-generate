@@ -1212,6 +1212,7 @@ export default function BlogPage() {
   const [suggestions, setSuggestions] = useState([]);
   const [visibleSuggestionCount, setVisibleSuggestionCount] = useState(3);
   const [regenerateTarget, setRegenerateTarget] = useState(null);
+  const [isRegenerateModalOpen, setIsRegenerateModalOpen] = useState(false);
 
   const [editingBlog, setEditingBlog] = useState(null);
   const [editTitle, setEditTitle] = useState("");
@@ -1288,6 +1289,7 @@ export default function BlogPage() {
       setMessage(
         `Blog regenerated successfully.${typeof fetcher.data.creditsUsed === "number" ? ` ${fetcher.data.creditsUsed} credit used${typeof fetcher.data.newCredits === "number" ? `. Remaining: ${fetcher.data.newCredits}` : ""}.` : ""}`,
       );
+      setIsRegenerateModalOpen(false);
       setRegenerateTarget(null);
     }
 
@@ -1355,6 +1357,7 @@ export default function BlogPage() {
       articleId: article.id,
       seed: article.title,
     });
+    setIsRegenerateModalOpen(true);
   }
 
   function submitRegenerateFromModal() {
@@ -1688,7 +1691,15 @@ export default function BlogPage() {
         </Modal.Section>
       </Modal>
 
-      <Modal open={Boolean(regenerateTarget)} onClose={() => setRegenerateTarget(null)} title="Regenerate Blog" size="large">
+      <Modal
+        open={isRegenerateModalOpen}
+        onClose={() => {
+          setIsRegenerateModalOpen(false);
+          setRegenerateTarget(null);
+        }}
+        title="Regenerate Blog"
+        size="large"
+      >
         <Modal.Section>
           <BlockStack gap="300">
             <Text as="p" variant="bodyMd" tone="subdued">
@@ -1708,10 +1719,18 @@ export default function BlogPage() {
             </div>
 
             <InlineStack align="end" gap="200">
-              <Button onClick={() => setRegenerateTarget(null)}>Cancel</Button>
+              <Button
+                onClick={() => {
+                  setIsRegenerateModalOpen(false);
+                  setRegenerateTarget(null);
+                }}
+              >
+                Cancel
+              </Button>
               <Button
                 variant="primary"
                 onClick={submitRegenerateFromModal}
+                disabled={!regenerateTarget?.articleId}
                 loading={fetcher.state !== "idle" && String(fetcher.formData?.get("intent")) === "regenerate_blog"}
               >
                 Regenerate
