@@ -272,6 +272,29 @@ function normalizeBodyHtml(body) {
   return plainTextToHtml(value);
 }
 
+function normalizeProductUrl(value) {
+  const raw = cleanText(value);
+  if (!raw) return "";
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const parsed = new URL(withProtocol);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+
+function appendBusinessProductLink(bodyHtml, tabType, productUrl) {
+  const normalizedBody = normalizeBodyHtml(bodyHtml || "");
+  const normalizedUrl = normalizeProductUrl(productUrl);
+  if (tabType !== TAB_KEYS.BUSINESS || !normalizedUrl) return normalizedBody;
+
+  const linkHtml = `<p><a href="${escapeHtml(normalizedUrl)}" target="_blank" rel="noopener noreferrer">Shop Nova</a></p>`;
+  if (/>\s*Shop Nova\s*<\/a>/i.test(normalizedBody)) return normalizedBody;
+  return `${normalizedBody}${linkHtml}`;
+}
+
 function parseAiJson(rawText) {
   if (!rawText) return null;
   try {
@@ -287,7 +310,7 @@ function parseAiJson(rawText) {
   }
 }
 
-function buildBlogHtml({ title, topic, tone, audience, promotion, holiday, tabType, language, postLength = "medium" }) {
+function buildBlogHtml({ title, topic, tone, audience, promotion, holiday, tabType, language, postLength = "medium", productUrl = "" }) {
   const primaryTopic = cleanText(topic) || cleanText(title) || "Shopify growth";
   const safeTitle = escapeHtml(cleanText(title) || primaryTopic);
   const safeTopic = escapeHtml(primaryTopic);
@@ -423,7 +446,7 @@ function buildBlogHtml({ title, topic, tone, audience, promotion, holiday, tabTy
     break;
   }
 
-  return html;
+  return appendBusinessProductLink(html, tabType, productUrl);
 }
 
 function ensureBlogBodyWordRange({
@@ -437,8 +460,9 @@ function ensureBlogBodyWordRange({
   tabType,
   language,
   postLength = "medium",
+  productUrl = "",
 }) {
-  const normalized = normalizeBodyHtml(body || "");
+  const normalized = appendBusinessProductLink(body || "", tabType, productUrl);
   const { min, max } = getWordRange(postLength);
   const words = countWords(normalized);
   if (normalized && words >= min && words <= max) return normalized;
@@ -452,6 +476,7 @@ function ensureBlogBodyWordRange({
     tabType,
     language,
     postLength,
+    productUrl,
   });
 }
 
@@ -462,7 +487,7 @@ function getGeneratedContentPreview(body, maxLength = 220) {
   return `${plain.slice(0, maxLength).trim()}...`;
 }
 
-function createSuggestionSet({ tabType, topic, tone, postLength, targetAudience, promotion, holiday, language }) {
+function createSuggestionSet({ tabType, topic, tone, postLength, targetAudience, promotion, holiday, language, productUrl }) {
   const baseTopic = cleanText(topic) || "Shopify growth";
   const words = getWordTarget(postLength);
   const labels = [
@@ -495,6 +520,7 @@ function createSuggestionSet({ tabType, topic, tone, postLength, targetAudience,
         tabType,
         language,
         postLength,
+        productUrl,
       }),
       tone,
       postLength,
@@ -502,6 +528,7 @@ function createSuggestionSet({ tabType, topic, tone, postLength, targetAudience,
       promotion,
       holiday,
       topic: baseTopic,
+      productUrl: normalizeProductUrl(productUrl),
       status: "draft",
     };
   });
@@ -575,6 +602,7 @@ async function generateBlogSuggestionsWithAI({
   promotion,
   holiday,
   language,
+  productUrl,
   aiProvider = "auto",
   openaiApiKey,
   anthropicApiKey,
@@ -658,6 +686,7 @@ Requirements:
       tabType,
       language,
       postLength,
+      productUrl,
     });
     return {
       id: `${Date.now()}-${index}`,
@@ -671,6 +700,7 @@ Requirements:
       promotion,
       holiday,
       topic: baseTopic,
+      productUrl: normalizeProductUrl(productUrl),
       status: "draft",
     };
   });
@@ -832,6 +862,7 @@ export const action = async ({ request }) => {
     const targetAudience = cleanText(formData.get("targetAudience")) || "Everyone";
     const promotion = cleanText(formData.get("promotion")) || "No promotion";
     const holiday = cleanText(formData.get("holiday")) || "Choose a holiday to promote";
+    const productUrl = normalizeProductUrl(formData.get("productUrl"));
 
     if (tabType === TAB_KEYS.CUSTOM && !topic) {
       return { ok: false, intent, error: "Post topic is required for custom post." };
@@ -856,6 +887,7 @@ export const action = async ({ request }) => {
         promotion,
         holiday,
         language,
+        productUrl,
         aiProvider: cleanText(shopRecord?.defaultAiProvider) || "auto",
         openaiApiKey: cleanText(shopRecord?.openaiApiKey) || process.env.OPENAI_API_KEY,
         anthropicApiKey: cleanText(shopRecord?.anthropicApiKey) || process.env.ANTHROPIC_API_KEY,
@@ -871,6 +903,7 @@ export const action = async ({ request }) => {
         promotion,
         holiday,
         language,
+        productUrl,
       });
     }
 
@@ -973,6 +1006,7 @@ export const action = async ({ request }) => {
     const seed = cleanText(formData.get("seed"));
     const tone = normalizeToneValue(formData.get("tone"), defaultTone);
     const postLength = normalizePostLength(formData.get("postLength"), "medium");
+    const productUrl = normalizeProductUrl(formData.get("productUrl"));
     if (!articleId) return { ok: false, intent, error: "Missing article id." };
 
     const creditBalance = await getOrCreateShopCredits(session.shop);
@@ -996,6 +1030,7 @@ export const action = async ({ request }) => {
         promotion: "No promotion",
         holiday: "",
         language,
+        productUrl,
         aiProvider: cleanText(shopRecord?.defaultAiProvider) || "auto",
         openaiApiKey: cleanText(shopRecord?.openaiApiKey) || process.env.OPENAI_API_KEY,
         anthropicApiKey: cleanText(shopRecord?.anthropicApiKey) || process.env.ANTHROPIC_API_KEY,
@@ -1019,6 +1054,7 @@ export const action = async ({ request }) => {
         tabType: TAB_KEYS.BUSINESS,
         language,
         postLength,
+        productUrl,
       });
     }
 
@@ -1279,7 +1315,7 @@ export default function BlogPage() {
     payload.append("targetAudience", suggestion.targetAudience || targetAudience);
     payload.append("promotion", suggestion.promotion || promotion);
     payload.append("holiday", suggestion.holiday || holiday);
-    payload.append("productUrl", productUrl);
+    payload.append("productUrl", suggestion.productUrl || productUrl);
     fetcher.submit(payload, { method: "post" });
   }
 
@@ -1348,6 +1384,7 @@ export default function BlogPage() {
                 payload.append("seed", article.title);
                 payload.append("tone", tone);
                 payload.append("postLength", postLength);
+                payload.append("productUrl", productUrl);
                 fetcher.submit(payload, { method: "post" });
               }}
               disabled={fetcher.state !== "idle"}
