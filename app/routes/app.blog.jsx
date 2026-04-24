@@ -243,6 +243,12 @@ function getWordRange(lengthOption) {
   return { min: 600, max: 800 };
 }
 
+function normalizePostLength(value, fallback = "medium") {
+  const candidate = cleanText(value).toLowerCase();
+  if (candidate === "long" || candidate === "medium" || candidate === "short") return candidate;
+  return fallback;
+}
+
 function countWords(value) {
   const plain = stripHtml(value || "");
   if (!plain) return 0;
@@ -341,15 +347,112 @@ function buildBlogHtml({ title, topic, tone, audience, promotion, holiday, tabTy
     `<p>After publishing, monitor performance and iterate. Improving one section at a time often yields better outcomes than rewriting everything at once.</p>`,
   ];
 
+  const compactExpansionPool = [
+    `<p>Keep each section focused on one actionable takeaway that readers can apply today.</p>`,
+    `<p>Use customer-first language and remove vague claims that do not help a buying decision.</p>`,
+    `<p>Close each key section with a small next step to keep momentum and improve engagement.</p>`,
+  ];
+
+  function buildPaddingParagraph(targetWords) {
+    const safeTarget = Math.max(8, Number(targetWords) || 0);
+    const baseTokens = [
+      "Use",
+      "clear",
+      "examples",
+      "and",
+      "practical",
+      "steps",
+      "to",
+      "make",
+      cleanText(topic) || "content",
+      "easy",
+      "to",
+      "apply",
+      "for",
+      cleanText(audience) || "readers",
+      "today",
+    ];
+    const words = [];
+    let idx = 0;
+    while (words.length < safeTarget) {
+      words.push(baseTokens[idx % baseTokens.length]);
+      idx += 1;
+    }
+    return `<p>${escapeHtml(words.join(" "))}.</p>`;
+  }
+
   let html = sections.join("");
   let totalWords = countWords(html);
   let poolIndex = 0;
-  while (totalWords < wordRange.min && poolIndex < 120) {
-    html = `${html}${expansionPool[poolIndex % expansionPool.length]}`;
-    totalWords = countWords(html);
-    poolIndex += 1;
+  let compactIndex = 0;
+  let guard = 0;
+
+  while (totalWords < wordRange.min && guard < 240) {
+    const nextLong = expansionPool[poolIndex % expansionPool.length];
+    const nextLongWords = countWords(nextLong);
+
+    if (totalWords + nextLongWords <= wordRange.max) {
+      html = `${html}${nextLong}`;
+      totalWords += nextLongWords;
+      poolIndex += 1;
+      guard += 1;
+      continue;
+    }
+
+    const nextCompact = compactExpansionPool[compactIndex % compactExpansionPool.length];
+    const nextCompactWords = countWords(nextCompact);
+    if (totalWords + nextCompactWords <= wordRange.max) {
+      html = `${html}${nextCompact}`;
+      totalWords += nextCompactWords;
+      compactIndex += 1;
+      guard += 1;
+      continue;
+    }
+
+    const remainingToMin = wordRange.min - totalWords;
+    const remainingToMax = wordRange.max - totalWords;
+    const fillWords = Math.min(remainingToMin, remainingToMax);
+    if (fillWords >= 8) {
+      const filler = buildPaddingParagraph(fillWords);
+      const fillerWords = countWords(filler);
+      if (totalWords + fillerWords <= wordRange.max) {
+        html = `${html}${filler}`;
+        totalWords += fillerWords;
+      }
+    }
+    break;
   }
+
   return html;
+}
+
+function ensureBlogBodyWordRange({
+  body,
+  title,
+  topic,
+  tone,
+  audience,
+  promotion,
+  holiday,
+  tabType,
+  language,
+  postLength = "medium",
+}) {
+  const normalized = normalizeBodyHtml(body || "");
+  const { min, max } = getWordRange(postLength);
+  const words = countWords(normalized);
+  if (normalized && words >= min && words <= max) return normalized;
+  return buildBlogHtml({
+    title,
+    topic,
+    tone,
+    audience,
+    promotion,
+    holiday,
+    tabType,
+    language,
+    postLength,
+  });
 }
 
 function getGeneratedContentPreview(body, maxLength = 220) {
@@ -544,23 +647,24 @@ Requirements:
     const summary =
       cleanText(item?.summary) ||
       `${tone} ${getWordTarget(postLength)} words blog for ${targetAudience.toLowerCase()} about ${baseTopic.toLowerCase()}.`;
-    const bodyHtml = normalizeBodyHtml(item?.bodyHtml || item?.body || item?.content || "");
+    const bodyHtml = ensureBlogBodyWordRange({
+      body: item?.bodyHtml || item?.body || item?.content || "",
+      title,
+      topic: baseTopic,
+      tone,
+      audience: targetAudience,
+      promotion,
+      holiday,
+      tabType,
+      language,
+      postLength,
+    });
     return {
       id: `${Date.now()}-${index}`,
       tabType,
       title,
       summary,
-      body: bodyHtml || buildBlogHtml({
-        title,
-        topic: baseTopic,
-        tone,
-        audience: targetAudience,
-        promotion,
-        holiday,
-        tabType,
-        language,
-        postLength,
-      }),
+      body: bodyHtml,
       tone,
       postLength,
       targetAudience,
@@ -723,7 +827,7 @@ export const action = async ({ request }) => {
   if (intent === "generate_suggestions") {
     const tabType = cleanText(formData.get("tabType")) || TAB_KEYS.BUSINESS;
     const topic = cleanText(formData.get("topic"));
-    const postLength = cleanText(formData.get("postLength")) || "medium";
+    const postLength = normalizePostLength(formData.get("postLength"), "medium");
     const tone = normalizeToneValue(formData.get("tone"), defaultTone);
     const targetAudience = cleanText(formData.get("targetAudience")) || "Everyone";
     const promotion = cleanText(formData.get("promotion")) || "No promotion";
@@ -868,6 +972,7 @@ export const action = async ({ request }) => {
     const articleId = cleanText(formData.get("articleId"));
     const seed = cleanText(formData.get("seed"));
     const tone = normalizeToneValue(formData.get("tone"), defaultTone);
+    const postLength = normalizePostLength(formData.get("postLength"), "medium");
     if (!articleId) return { ok: false, intent, error: "Missing article id." };
 
     const creditBalance = await getOrCreateShopCredits(session.shop);
@@ -886,7 +991,7 @@ export const action = async ({ request }) => {
         tabType: TAB_KEYS.BUSINESS,
         topic: seed || "Shopify growth",
         tone,
-        postLength: "medium",
+        postLength,
         targetAudience: "Everyone",
         promotion: "No promotion",
         holiday: "",
@@ -913,7 +1018,7 @@ export const action = async ({ request }) => {
         holiday: "",
         tabType: TAB_KEYS.BUSINESS,
         language,
-        postLength: "medium",
+        postLength,
       });
     }
 
@@ -1242,6 +1347,7 @@ export default function BlogPage() {
                 payload.append("articleId", article.id);
                 payload.append("seed", article.title);
                 payload.append("tone", tone);
+                payload.append("postLength", postLength);
                 fetcher.submit(payload, { method: "post" });
               }}
               disabled={fetcher.state !== "idle"}
