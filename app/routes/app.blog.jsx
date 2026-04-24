@@ -736,6 +736,13 @@ export default function BlogPage() {
     () => blogs.find((blog) => blog.id === selectedBlogId)?.title || "",
     [blogs, selectedBlogId],
   );
+  const blogOptions = useMemo(
+    () =>
+      blogs.length
+        ? blogs.map((blog) => ({ label: blog.title, value: blog.id }))
+        : [{ label: "No blog available", value: "" }],
+    [blogs],
+  );
 
   useEffect(() => {
     if (!selectedBlogId && blogs?.[0]?.id) {
@@ -942,66 +949,73 @@ export default function BlogPage() {
             <BlockStack gap="500">
               <InlineStack align="space-between" blockAlign="center">
                 <Text as="h2" variant="headingLg">
-                  Blog post generation
+                  Create Blog
                 </Text>
                 <Button onClick={() => setShowGenerator(false)}>Back to list</Button>
               </InlineStack>
               <Box padding="400" background="bg-surface-secondary" borderRadius="300" borderWidth="025" borderColor="border">
-                <div className="blog-generator-hero">
-                  <div className="blog-generator-hero-icon">AI</div>
+                <BlockStack gap="300">
                   <BlockStack gap="150">
                     <Text as="h3" variant="headingMd">
-                      Generate high-quality blog ideas
+                      AI-powered blog generation
                     </Text>
                     <Text as="p" variant="bodyMd" tone="subdued">
-                      Use AI to generate suggestions, review content, edit format, and save directly to Shopify.
+                      Choose a generation type, fill in fields, and create ready-to-publish blog drafts for Shopify.
                     </Text>
                   </BlockStack>
-                </div>
+
+                  <div className="blog-generator-meta-grid">
+                    <Select
+                      label="Blog destination"
+                      options={blogOptions}
+                      value={selectedBlogId}
+                      onChange={setSelectedBlogId}
+                      disabled={blogs.length === 0}
+                    />
+                    <Box padding="300" borderWidth="025" borderColor="border" borderRadius="300" background="bg-surface">
+                      <BlockStack gap="050">
+                        <Text as="p" variant="bodySm" tone="subdued">Output language</Text>
+                        <Text as="p" variant="bodyMd" fontWeight="semibold">{settingsLanguage}</Text>
+                      </BlockStack>
+                    </Box>
+                  </div>
+
+                  <div className="blog-generator-tabs-wrap">
+                    <Tabs tabs={tabItems} selected={activeTab} onSelect={setActiveTab} fitted />
+                  </div>
+                </BlockStack>
               </Box>
-
-              <BlockStack gap="100">
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Language from global settings: {settingsLanguage}
-                </Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Blog destination: {selectedBlogTitle || "No blog available"}
-                </Text>
-              </BlockStack>
-
-              <div className="blog-generator-tabs-wrap">
-                <Tabs tabs={tabItems} selected={activeTab} onSelect={setActiveTab} fitted />
-              </div>
 
               <Box padding="300" borderWidth="025" borderColor="border" borderRadius="300">
                 <BlockStack gap="300">
                   {activeTabKey === TAB_KEYS.HOLIDAY ? (
                     <div className="blog-generator-fields">
-                      <Select label="Select holiday" options={holidayOptions} value={holiday} onChange={setHoliday} />
+                      <Select label="Holiday" options={holidayOptions} value={holiday} onChange={setHoliday} />
+                      <Select label="Promotion" options={promotionOptions} value={promotion} onChange={setPromotion} />
                       <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                       <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                       <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                      <Select label="Select promotion" options={promotionOptions} value={promotion} onChange={setPromotion} />
-                      <TextField label="Select product to promote" value={productUrl} onChange={setProductUrl} autoComplete="off" placeholder="Add a product or category URL" />
+                      <TextField label="Product URL" value={productUrl} onChange={setProductUrl} autoComplete="off" placeholder="https://yourstore.com/products/..." />
                     </div>
                   ) : null}
 
                   {activeTabKey === TAB_KEYS.PROMOTION ? (
                     <div className="blog-generator-fields">
-                      <Select label="Select promotion" options={promotionOptions} value={promotion} onChange={setPromotion} />
-                      <TextField label="Select product to promote" value={productUrl} onChange={setProductUrl} autoComplete="off" placeholder="Add a product or category URL" />
+                      <Select label="Promotion" options={promotionOptions} value={promotion} onChange={setPromotion} />
                       <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                       <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
+                      <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
+                      <TextField label="Product URL" value={productUrl} onChange={setProductUrl} autoComplete="off" placeholder="https://yourstore.com/products/..." />
                     </div>
                   ) : null}
 
                   {activeTabKey === TAB_KEYS.CUSTOM ? (
                     <div className="blog-generator-fields">
-                      <TextField label="Post topic" value={topic} onChange={setTopic} autoComplete="off" placeholder="Write a topic for your post" />
+                      <TextField label="Post topic" value={topic} onChange={setTopic} autoComplete="off" placeholder="Write a specific topic for your post" />
                       <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                       <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                       <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                      <TextField label="Select product to promote" value={productUrl} onChange={setProductUrl} autoComplete="off" placeholder="Add a product or category URL" />
+                      <TextField label="Product URL" value={productUrl} onChange={setProductUrl} autoComplete="off" placeholder="https://yourstore.com/products/..." />
                     </div>
                   ) : null}
 
@@ -1010,15 +1024,16 @@ export default function BlogPage() {
                       <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                       <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                       <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                      <TextField label="Select product to promote (optional)" value={productUrl} onChange={setProductUrl} autoComplete="off" placeholder="Add a product or category URL" />
+                      <TextField label="Product URL (optional)" value={productUrl} onChange={setProductUrl} autoComplete="off" placeholder="https://yourstore.com/products/..." />
                     </div>
                   ) : null}
 
-                  <InlineStack>
+                  <InlineStack align="start">
                     <Button
                       variant="primary"
                       onClick={submitGenerateSuggestions}
                       loading={fetcher.state !== "idle" && String(fetcher.formData?.get("intent")) === "generate_suggestions"}
+                      disabled={blogs.length === 0}
                     >
                       Generate suggestions
                     </Button>
@@ -1127,7 +1142,7 @@ export default function BlogPage() {
         )}
       </BlockStack>
 
-      <Modal open={Boolean(editingBlog)} onClose={() => setEditingBlog(null)} title="Blog Text Editor" large>
+      <Modal open={Boolean(editingBlog)} onClose={() => setEditingBlog(null)} title="Blog Text Editor" size="large">
         <Modal.Section>
           <BlockStack gap="300">
             <TextField label="Title" value={editTitle} onChange={setEditTitle} autoComplete="off" />
@@ -1193,6 +1208,34 @@ export default function BlogPage() {
           </BlockStack>
         </Modal.Section>
       </Modal>
+
+      <style>{`
+        .blog-generator-meta-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1.8fr) minmax(220px, 1fr);
+          gap: 12px;
+          align-items: end;
+        }
+        .blog-generator-tabs-wrap {
+          border: 1px solid #e5e7eb;
+          border-radius: 12px;
+          padding: 4px;
+          background: #f9fafb;
+        }
+        .blog-generator-fields {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+        }
+        @media (max-width: 900px) {
+          .blog-generator-meta-grid {
+            grid-template-columns: 1fr;
+          }
+          .blog-generator-fields {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
     </Page>
   );
 }
@@ -1200,4 +1243,3 @@ export default function BlogPage() {
 export const headers = (headersArgs) => {
   return boundary.headers(headersArgs);
 };
-

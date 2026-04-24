@@ -2497,7 +2497,7 @@ export default function ContentManagementPage() {
 
   const headings = [
     { title: "Item" },
-    { title: "Credits Used" },
+    { title: "Credits" },
     { title: "Description" },
     { title: "SEO Title" },
     { title: "SEO Description" },
@@ -2729,7 +2729,7 @@ export default function ContentManagementPage() {
           </Banner>
         )}
 
-        <Card>
+        {/* <Card>
           <BlockStack gap="200">
             <Text variant="headingSm" as="h3">Credits Used (By Content Type)</Text>
             <InlineStack gap="200" wrap>
@@ -2739,7 +2739,7 @@ export default function ContentManagementPage() {
               <Badge tone="info">Page: {localCreditsUsageByType.pages || 0}</Badge>
             </InlineStack>
           </BlockStack>
-        </Card>
+        </Card> */}
 
         {/* Main tabs: Products | Collections | Pages | Blog */}
         <Card padding="0">
