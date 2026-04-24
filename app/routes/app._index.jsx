@@ -31,10 +31,8 @@ import { AppPageHeader } from "../components/AppPageHeader";
 import {
   ProductIcon,
   CollectionIcon,
-  BlogIcon,
   PageIcon,
   ChartVerticalIcon,
-  SettingsIcon,
   StarFilledIcon,
   ExternalIcon,
   EmailIcon,
@@ -453,73 +451,6 @@ const PARTNER_APPS = [
   },
 ];
 
-function DashboardFeatureCard({ icon, title, desc, url, badge, badgeTone }) {
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  return (
-    <Card>
-      <BlockStack gap="300">
-        <InlineStack align="space-between" blockAlign="start">
-          <InlineStack align="start" gap="200" blockAlign="center">
-            <Icon source={icon} tone="base" />
-            <Text as="h3" variant="headingSm">
-              {title}
-            </Text>
-          </InlineStack>
-          {badge ? <Badge tone={badgeTone}>{badge}</Badge> : null}
-        </InlineStack>
-        <Text as="p" variant="bodySm" tone="subdued">
-          {desc}
-        </Text>
-        <InlineStack align="start">
-          <Button size="slim" onClick={() => navigate({ pathname: url, search: location.search })}>
-            Open
-          </Button>
-        </InlineStack>
-      </BlockStack>
-    </Card>
-  );
-}
-
-function QuickActionCard({ icon, title, description, ctaLabel, onClick }) {
-  return (
-    <Card>
-      <div style={{ minHeight: 150, display: "flex", flexDirection: "column" }}>
-        <BlockStack gap="300">
-          <InlineStack gap="200" blockAlign="center">
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
-                background: "#f6f6f7",
-                border: "1px solid #e1e3e5",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Icon source={icon} tone="subdued" />
-            </div>
-            <Text as="h3" variant="headingMd">
-              {title}
-            </Text>
-          </InlineStack>
-          <Text as="p" variant="bodyMd" tone="subdued">
-            {description}
-          </Text>
-        </BlockStack>
-        <div style={{ marginTop: "auto", paddingTop: 14 }}>
-          <Button size="slim" onClick={onClick}>
-            {ctaLabel}
-          </Button>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
 export default function Index() {
   const {
     defaultAiModel,
@@ -591,6 +522,7 @@ export default function Index() {
       count: generationStats.blog.content,
     },
   ];
+  const totalGenerateCount = generateBreakdown.reduce((sum, row) => sum + Number(row.count || 0), 0);
 
   const [selectedModel, setSelectedModel] = useState(() =>
     typeof defaultAiModel === "string" && defaultAiModel.trim() ? defaultAiModel.trim() : "gpt-4o-mini",
@@ -710,7 +642,7 @@ export default function Index() {
                 }}
               >
                 <BlockStack gap="100">
-                  <InlineStack align="space-between" blockAlign="center" wrap={false}>
+                  <InlineStack align="start" gap="150" blockAlign="center" wrap={false}>
                     <Text as="p" variant="headingSm">{item.label}</Text>
                     <Icon source={item.icon} tone="subdued" />
                   </InlineStack>
@@ -727,26 +659,6 @@ export default function Index() {
           </Banner>
         ) : null}
 
-        <BlockStack gap="300">
-          <InlineStack align="space-between" blockAlign="center">
-            <BlockStack gap="100">
-              <Text variant="headingMd" as="h2">
-                Generate Content
-              </Text>
-              <Text variant="bodySm" tone="subdued">
-                Choose a content type to start generating.
-              </Text>
-            </BlockStack>
-          </InlineStack>
-          <Grid columns={{ xs: 1, sm: 2, md: 2, lg: 4, xl: 4 }}>
-            {CONTENT_FEATURES.map((item) => (
-              <Grid.Cell key={item.title}>
-                <DashboardFeatureCard {...item} />
-              </Grid.Cell>
-            ))}
-          </Grid>
-        </BlockStack>
-
         <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
           <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 2 }}>
             <Card>
@@ -756,9 +668,23 @@ export default function Index() {
                     <Icon source={AppsIcon} tone="base" />
                     <Text as="h2" variant="headingMd">Generate content</Text>
                   </InlineStack>
-                  <Badge tone="info">
-                    {generateBreakdown.reduce((sum, row) => sum + Number(row.count || 0), 0)}
-                  </Badge>
+                  <div
+                    style={{
+                      minWidth: "44px",
+                      height: "30px",
+                      padding: "0 12px",
+                      borderRadius: "999px",
+                      background: "#dbeafe",
+                      color: "#1e3a8a",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontWeight: 700,
+                      fontSize: "20px",
+                    }}
+                  >
+                    {totalGenerateCount}
+                  </div>
                 </InlineStack>
 
                 <BlockStack gap="100">
@@ -776,7 +702,25 @@ export default function Index() {
                           <Text as="p" variant="bodyMd" fontWeight="semibold">{row.title}</Text>
                           <Text as="p" variant="bodySm" tone="subdued">{row.subtitle}</Text>
                         </BlockStack>
-                        <Badge tone="info">{row.count}</Badge>
+                        <div
+                          style={{
+                            minWidth: "32px",
+                            height: "32px",
+                            padding: "0 10px",
+                            borderRadius: "12px",
+                            background: "#dbeafe",
+                            color: "#1e3a8a",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontWeight: 700,
+                            fontSize: "18px",
+                            lineHeight: 1,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {row.count}
+                        </div>
                       </InlineStack>
                     </div>
                   ))}
@@ -800,63 +744,6 @@ export default function Index() {
                 </BlockStack>
               </div>
             </Card>
-          </Grid.Cell>
-        </Grid>
-
-        <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
-          <Grid.Cell>
-            <div style={{ height: "100%" }}>
-              <QuickActionCard
-                icon={ChartVerticalIcon}
-                title="Analytics"
-                description="Track usage, SEO performance, and generation trends."
-                ctaLabel="Open analytics"
-                onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}
-              />
-            </div>
-          </Grid.Cell>
-
-          <Grid.Cell>
-            <div style={{ height: "100%" }}>
-              <QuickActionCard
-                icon={SettingsIcon}
-                title="Settings"
-                description="Configure defaults for templates, language, and generation behavior."
-                ctaLabel="Open settings"
-                onClick={() => navigate({ pathname: "/app/settings", search: location.search })}
-              />
-            </div>
-          </Grid.Cell>
-
-          <Grid.Cell>
-            <div style={{ height: "100%" }}>
-              <Card>
-                <div style={{ minHeight: 150, display: "flex", flexDirection: "column" }}>
-                  <BlockStack gap="300">
-                    <BlockStack gap="100">
-                      <Text variant="headingMd" as="h2">
-                        Default AI Model
-                      </Text>
-                      <Text variant="bodySm" tone="subdued">
-                        This model will be used for all generation tasks.
-                      </Text>
-                    </BlockStack>
-                    <Form method="post">
-                      <input type="hidden" name="intent" value="save_settings" />
-                      <input type="hidden" name="defaultAiModel" value={selectedModel} />
-                      <BlockStack gap="200">
-                        <Select label="AI model" options={aiModelOptions} value={selectedModel} onChange={setSelectedModel} />
-                      </BlockStack>
-                      <div style={{ marginTop: 14, display: "flex", justifyContent: "start" }}>
-                        <Button size="slim" submit variant="primary" loading={isSaving} disabled={isSaving}>
-                          {isSaving ? "Saving..." : "Save model"}
-                        </Button>
-                      </div>
-                    </Form>
-                  </BlockStack>
-                </div>
-              </Card>
-            </div>
           </Grid.Cell>
         </Grid>
 
