@@ -721,12 +721,15 @@ export default function Index() {
 
         <Card>
           <BlockStack gap="400">
-            <InlineStack className="dashboard-inline-title" align="start" gap="200" blockAlign="center" wrap={false}>
+            <div
+              className="dashboard-inline-title"
+              style={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-start", gap: "8px", width: "fit-content" }}
+            >
               <Icon source={AppsIcon} tone="base" />
               <Text as="h2" variant="headingMd">
                 Boost store performance with our apps
               </Text>
-            </InlineStack>
+            </div>
             <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
               {PARTNER_APPS.map((app) => (
                 <Grid.Cell key={app.title}>
