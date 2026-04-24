@@ -290,8 +290,8 @@ function appendBusinessProductLink(bodyHtml, tabType, productUrl) {
   const normalizedUrl = normalizeProductUrl(productUrl);
   if (tabType !== TAB_KEYS.BUSINESS || !normalizedUrl) return normalizedBody;
 
-  const linkHtml = `<p><a href="${escapeHtml(normalizedUrl)}" target="_blank" rel="noopener noreferrer">Shop Nova</a></p>`;
-  if (/>\s*Shop Nova\s*<\/a>/i.test(normalizedBody)) return normalizedBody;
+  const linkHtml = `<p><a href="${escapeHtml(normalizedUrl)}" target="_blank" rel="noopener noreferrer">Shop Now</a></p>`;
+  if (/>\s*Shop Now\s*<\/a>/i.test(normalizedBody)) return normalizedBody;
   return `${normalizedBody}${linkHtml}`;
 }
 
@@ -1502,27 +1502,26 @@ export default function BlogPage() {
                   <div className="blog-generated-grid">
                     {suggestions.slice(0, visibleSuggestionCount).map((suggestion) => (
                       <Card key={suggestion.id}>
-                        <BlockStack gap="300">
-                          <Text as="h4" variant="headingMd">{suggestion.title}</Text>
-                          <Text as="p" variant="bodyMd" tone="subdued">{suggestion.summary}</Text>
-                          <button
-                            type="button"
-                            onClick={() => openSuggestionEditor(suggestion)}
-                            style={{
-                              background: "transparent",
-                              border: "none",
-                              padding: 0,
-                              margin: 0,
-                              textAlign: "left",
-                              cursor: "pointer",
-                              width: "100%",
-                            }}
-                          >
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => openSuggestionEditor(suggestion)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              openSuggestionEditor(suggestion);
+                            }
+                          }}
+                          style={{ cursor: "pointer" }}
+                        >
+                          <BlockStack gap="300">
+                            <Text as="h4" variant="headingMd">{suggestion.title}</Text>
+                            <Text as="p" variant="bodyMd" tone="subdued">{suggestion.summary}</Text>
                             <Text as="p" variant="bodySm" tone="subdued">
                               {getGeneratedContentPreview(suggestion.body)}
                             </Text>
-                          </button>
-                        </BlockStack>
+                          </BlockStack>
+                        </div>
                       </Card>
                     ))}
                   </div>
