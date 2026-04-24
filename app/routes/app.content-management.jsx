@@ -81,7 +81,6 @@ function creditsForGenerateScope(scope) {
 function getGenerateScopeOptions(contentType) {
   const mainLabel = contentType === "pages" ? "Content" : "Description";
   return [
-    { value: "all", label: "All" },
     { value: "main", label: mainLabel },
     { value: "meta_title", label: "Meta Title" },
     { value: "meta_description", label: "Meta Description" },
@@ -769,9 +768,8 @@ export const loader = async ({ request }) => {
           ? "pages"
           : "products";
     if (!itemId) continue;
-    if (!logCreditsMapByType[type].has(itemId)) {
-      logCreditsMapByType[type].set(itemId, creditsUsed);
-    }
+    const existing = Number(logCreditsMapByType[type].get(itemId) || 0);
+    logCreditsMapByType[type].set(itemId, existing + creditsUsed);
   }
 
   const creditsUsageByType = logRows.reduce(
@@ -795,13 +793,19 @@ export const loader = async ({ request }) => {
   const resolveCreditsUsed = (contentType, itemId) => {
     if (!itemId) return 0;
     if (contentType === "products") {
-      return productCreditsMap.get(itemId) ?? logCreditsMapByType.products.get(itemId) ?? 0;
+      const tableCredits = Number(productCreditsMap.get(itemId) || 0);
+      const logCredits = Number(logCreditsMapByType.products.get(itemId) || 0);
+      return Math.max(tableCredits, logCredits);
     }
     if (contentType === "collections") {
-      return collectionCreditsMap.get(itemId) ?? logCreditsMapByType.collections.get(itemId) ?? 0;
+      const tableCredits = Number(collectionCreditsMap.get(itemId) || 0);
+      const logCredits = Number(logCreditsMapByType.collections.get(itemId) || 0);
+      return Math.max(tableCredits, logCredits);
     }
     if (contentType === "pages") {
-      return pageCreditsMap.get(itemId) ?? logCreditsMapByType.pages.get(itemId) ?? 0;
+      const tableCredits = Number(pageCreditsMap.get(itemId) || 0);
+      const logCredits = Number(logCreditsMapByType.pages.get(itemId) || 0);
+      return Math.max(tableCredits, logCredits);
     }
     return 0;
   };
@@ -1233,7 +1237,6 @@ export const action = async ({ request }) => {
         aiModel: generated.aiModel || null,
         seoTitle: seoTitle || null,
         seoDescription: seoDescription || null,
-        creditsUsed: creditsToUse,
       };
 
       try {
@@ -1256,6 +1259,7 @@ export const action = async ({ request }) => {
               : null,
             descriptionHtml: descHtml || null,
             ...commonUpsertData,
+            creditsUsed: creditsToUse,
             appliedToProduct: true,
           };
           const updateData = {
@@ -1272,7 +1276,7 @@ export const action = async ({ request }) => {
               ? { metaDescriptionPromptTemplate: templateOverrides.metaDescriptionPromptTemplate || null }
               : {}),
             ...commonUpsertData,
-            creditsUsed: creditsToUse,
+            creditsUsed: { increment: creditsToUse },
             appliedToProduct: true,
           };
           await db.productGeneratedContent.upsert({
@@ -1299,6 +1303,7 @@ export const action = async ({ request }) => {
               : null,
             descriptionHtml: descHtml || null,
             ...commonUpsertData,
+            creditsUsed: creditsToUse,
             appliedToCollection: true,
           };
           const updateData = {
@@ -1315,7 +1320,7 @@ export const action = async ({ request }) => {
               ? { metaDescriptionPromptTemplate: templateOverrides.metaDescriptionPromptTemplate || null }
               : {}),
             ...commonUpsertData,
-            creditsUsed: creditsToUse,
+            creditsUsed: { increment: creditsToUse },
             appliedToCollection: true,
           };
           await db.collectionGeneratedContent.upsert({
@@ -1350,6 +1355,7 @@ export const action = async ({ request }) => {
                 : null,
               descriptionHtml: descHtml || null,
               ...commonUpsertData,
+              creditsUsed: creditsToUse,
               appliedToProduct: true,
             };
             const updateData = {
@@ -1366,7 +1372,7 @@ export const action = async ({ request }) => {
                 ? { metaDescriptionPromptTemplate: templateOverrides.metaDescriptionPromptTemplate || null }
                 : {}),
               ...commonUpsertData,
-              creditsUsed: creditsToUse,
+              creditsUsed: { increment: creditsToUse },
               appliedToProduct: true,
             };
             await db.collectionProductGeneratedContent.upsert({
@@ -1393,6 +1399,7 @@ export const action = async ({ request }) => {
               : null,
             bodyHtml: descHtml || null,
             ...commonUpsertData,
+            creditsUsed: creditsToUse,
             appliedToPage: true,
           };
           const updateData = {
@@ -1409,7 +1416,7 @@ export const action = async ({ request }) => {
               ? { metaDescriptionPromptTemplate: templateOverrides.metaDescriptionPromptTemplate || null }
               : {}),
             ...commonUpsertData,
-            creditsUsed: creditsToUse,
+            creditsUsed: { increment: creditsToUse },
             appliedToPage: true,
           };
           await db.pageGeneratedContent.upsert({
@@ -2190,7 +2197,13 @@ export default function ContentManagementPage() {
       setLocalItems((prev) =>
         prev.map((it) =>
           it.id === data.itemId
-            ? { ...it, descriptionHtml: data.descriptionHtml, seoTitle: data.seoTitle, seoDescription: data.seoDescription }
+            ? {
+                ...it,
+                descriptionHtml: data.descriptionHtml,
+                seoTitle: data.seoTitle,
+                seoDescription: data.seoDescription,
+                creditsUsed: Number(it.creditsUsed || 0) + usedCredits,
+              }
             : it
         )
       );
@@ -2484,10 +2497,10 @@ export default function ContentManagementPage() {
 
   const headings = [
     { title: "Item" },
+    { title: "Credits Used" },
     { title: "Description" },
     { title: "SEO Title" },
     { title: "SEO Description" },
-    { title: "Credits Used" },
     { title: "Generate" },
   ];
 
@@ -2531,6 +2544,11 @@ export default function ContentManagementPage() {
               ) : null}
             </div>
           </InlineStack>
+        </IndexTable.Cell>
+
+        {/* Credits Used */}
+        <IndexTable.Cell>
+          <Badge tone="info">{Number(item.creditsUsed || 0)}</Badge>
         </IndexTable.Cell>
 
         {/* Description – clickable to open editor */}
@@ -2615,11 +2633,6 @@ export default function ContentManagementPage() {
               <Text variant="bodySm" as="span" tone="subdued">—</Text>
             </button>
           )}
-        </IndexTable.Cell>
-
-        {/* Credits Used */}
-        <IndexTable.Cell>
-          <Badge tone="info">{Number(item.creditsUsed || 0)}</Badge>
         </IndexTable.Cell>
 
         {/* Generate button */}
