@@ -31,6 +31,7 @@ import { AppPageHeader } from "../components/AppPageHeader";
 import {
   ProductIcon,
   CollectionIcon,
+  BlogIcon,
   PageIcon,
   ChartVerticalIcon,
   StarFilledIcon,
