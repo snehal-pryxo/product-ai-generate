@@ -300,14 +300,13 @@ function appendProductCtaAndLink(bodyHtml, productUrl) {
   const normalizedUrl = normalizeProductUrl(productUrl);
   if (!normalizedUrl) return normalizedBody;
 
-  if (/>\s*Shop\s*Now\s*<\/a>/i.test(normalizedBody) || />\s*Product\s*Link\s*<\/a>/i.test(normalizedBody)) {
+  if (/>\s*Shop\s*Now\s*<\/a>/i.test(normalizedBody)) {
     return normalizedBody;
   }
 
   const escapedUrl = escapeHtml(normalizedUrl);
   const ctaHtml = `<p><a href="${escapedUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:10px 16px;background:#111827;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;">Shop Now</a></p>`;
-  const productLinkHtml = `<p><a href="${escapedUrl}" target="_blank" rel="noopener noreferrer">Product Link</a></p>`;
-  return `${normalizedBody}${ctaHtml}${productLinkHtml}`;
+  return `${normalizedBody}${ctaHtml}`;
 }
 
 function parseAiJson(rawText) {
