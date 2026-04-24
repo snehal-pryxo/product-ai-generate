@@ -1213,6 +1213,7 @@ export default function BlogPage() {
   const [visibleSuggestionCount, setVisibleSuggestionCount] = useState(3);
   const [regenerateTarget, setRegenerateTarget] = useState(null);
   const [isRegenerateModalOpen, setIsRegenerateModalOpen] = useState(false);
+  const [regenerateBody, setRegenerateBody] = useState("");
 
   const [editingBlog, setEditingBlog] = useState(null);
   const [editTitle, setEditTitle] = useState("");
@@ -1291,6 +1292,7 @@ export default function BlogPage() {
       );
       setIsRegenerateModalOpen(false);
       setRegenerateTarget(null);
+      setRegenerateBody("");
     }
 
     if (fetcher.data.intent === "save_blog_content") {
@@ -1357,6 +1359,7 @@ export default function BlogPage() {
       articleId: article.id,
       seed: article.title,
     });
+    setRegenerateBody(article.body || "");
     setIsRegenerateModalOpen(true);
   }
 
@@ -1374,6 +1377,7 @@ export default function BlogPage() {
     payload.append("promotion", promotion);
     payload.append("holiday", holiday);
     payload.append("productUrl", productUrl);
+    payload.append("currentBody", regenerateBody || "");
     fetcher.submit(payload, { method: "post" });
   }
 
@@ -1438,7 +1442,7 @@ export default function BlogPage() {
               onClick={() => openRegenerateModal(article)}
               disabled={fetcher.state !== "idle"}
             >
-              Regenerate
+              {`Regenerate (${BLOG_BODY_CREDIT_COST} credit${BLOG_BODY_CREDIT_COST > 1 ? "s" : ""})`}
             </Button>
           </IndexTable.Cell>
         </IndexTable.Row>
@@ -1696,6 +1700,7 @@ export default function BlogPage() {
         onClose={() => {
           setIsRegenerateModalOpen(false);
           setRegenerateTarget(null);
+          setRegenerateBody("");
         }}
         title="Regenerate Blog"
         size="large"
@@ -1718,11 +1723,23 @@ export default function BlogPage() {
               <TextField label="Product URL (optional)" value={productUrl} onChange={setProductUrl} autoComplete="off" placeholder="https://yourstore.com/products/..." />
             </div>
 
+            <BlockStack gap="200">
+              <Text as="h4" variant="headingSm">Current blog description</Text>
+              <RichTextEditor
+                value={regenerateBody}
+                onChange={setRegenerateBody}
+                minHeight={220}
+                maxHeight={320}
+                showSourceToggle
+              />
+            </BlockStack>
+
             <InlineStack align="end" gap="200">
               <Button
                 onClick={() => {
                   setIsRegenerateModalOpen(false);
                   setRegenerateTarget(null);
+                  setRegenerateBody("");
                 }}
               >
                 Cancel
@@ -1733,7 +1750,7 @@ export default function BlogPage() {
                 disabled={!regenerateTarget?.articleId}
                 loading={fetcher.state !== "idle" && String(fetcher.formData?.get("intent")) === "regenerate_blog"}
               >
-                Regenerate
+                {`Regenerate (${BLOG_BODY_CREDIT_COST} credit${BLOG_BODY_CREDIT_COST > 1 ? "s" : ""})`}
               </Button>
             </InlineStack>
           </BlockStack>
