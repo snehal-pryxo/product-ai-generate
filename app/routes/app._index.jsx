@@ -503,12 +503,12 @@ export default function Index() {
 
         <Card>
           <BlockStack gap="400">
-            <div className="dashboard-inline-title">
+            <InlineStack className="dashboard-inline-title" gap="200" blockAlign="center" wrap={false}>
               <Icon source={AppsIcon} tone="base" />
               <Text as="h2" variant="headingMd">
                 Boost store performance with our apps
               </Text>
-            </div>
+            </InlineStack>
             <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
               {PARTNER_APPS.map((app) => (
                 <Grid.Cell key={app.title}>
@@ -572,12 +572,12 @@ export default function Index() {
               <Grid.Cell>
                 <Card>
                   <BlockStack gap="200">
-                    <div className="dashboard-inline-title">
+                    <InlineStack className="dashboard-inline-title" gap="200" blockAlign="center" wrap={false}>
                       <Icon source={EmailIcon} tone="base" />
                       <Text as="h3" variant="headingSm">
                         Support ticket
                       </Text>
-                    </div>
+                    </InlineStack>
                     <Text as="p" variant="bodySm" tone="subdued">
                       Reach our team during office hours for issue resolution and guidance.
                     </Text>
@@ -596,12 +596,12 @@ export default function Index() {
               <Grid.Cell>
                 <Card>
                   <BlockStack gap="200">
-                    <div className="dashboard-inline-title">
+                    <InlineStack className="dashboard-inline-title" gap="200" blockAlign="center" wrap={false}>
                       <Icon source={QuestionCircleIcon} tone="base" />
                       <Text as="h3" variant="headingSm">
                         Knowledge base
                       </Text>
-                    </div>
+                    </InlineStack>
                     <Text as="p" variant="bodySm" tone="subdued">
                       Browse setup guides and troubleshooting docs.
                     </Text>
