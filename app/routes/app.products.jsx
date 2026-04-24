@@ -1827,6 +1827,37 @@ export default function ProductsPage() {
               </BlockStack>
             </div>
 
+            {/* Section Tabs (Products / Collections / Collection Product) */}
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
+                {sectionTabs.map((tab, index) => {
+                  const isSelected = tab.id === activeSectionId;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => handleSectionTabChange(index)}
+                      style={{
+                        padding: "5px 14px",
+                        borderRadius: "20px",
+                        border: isSelected ? "2px solid #1a1a1a" : "1px solid #d1d5db",
+                        background: isSelected ? "#1a1a1a" : "#fff",
+                        color: isSelected ? "#fff" : "#374151",
+                        cursor: "pointer",
+                        fontSize: "13px",
+                        fontWeight: isSelected ? 600 : 400,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "5px",
+                      }}
+                    >
+                      {isSelected && <span style={{ fontSize: "11px" }}>✓</span>}
+                      {tab.content}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Content Type Pills */}
             <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>

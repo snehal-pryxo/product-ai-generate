@@ -58,6 +58,7 @@ export const loader = async ({ request }) => {
       reviewPromptDismissedAt: true,
       ownerName: true,
       name: true,
+      credits: true,
     },
   });
 
@@ -85,12 +86,224 @@ export const loader = async ({ request }) => {
     fallbackOwnerName ||
     "Shop Owner";
 
+  const countWords = (value) => {
+    const plain = String(value || "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!plain) return 0;
+    return plain.split(" ").filter(Boolean).length;
+  };
+
+  const [productGeneratedRows, collectionGeneratedRows, collectionProductGeneratedRows, pageGeneratedRows] =
+    await Promise.all([
+      db.productGeneratedContent.findMany({
+        where: { shop: session.shop },
+        select: { descriptionHtml: true, seoTitle: true, seoDescription: true },
+      }),
+      db.collectionGeneratedContent.findMany({
+        where: { shop: session.shop },
+        select: { descriptionHtml: true, seoTitle: true, seoDescription: true },
+      }),
+      db.collectionProductGeneratedContent.findMany({
+        where: { shop: session.shop },
+        select: { descriptionHtml: true, seoTitle: true, seoDescription: true },
+      }),
+      db.pageGeneratedContent.findMany({
+        where: { shop: session.shop },
+        select: { bodyHtml: true, seoTitle: true, seoDescription: true },
+      }),
+    ]);
+
+  let blogGeneratedRows = [];
+  try {
+    blogGeneratedRows = await db.$queryRaw`
+      SELECT bodyHtml
+      FROM blog_generated_contents
+      WHERE shop = ${session.shop}
+    `;
+  } catch {
+    blogGeneratedRows = [];
+  }
+
+  const [productDescriptionCount, productMetaTitleCount, productMetaDescriptionCount] = await Promise.all([
+    db.productGeneratedContent.count({
+      where: {
+        shop: session.shop,
+        AND: [{ descriptionHtml: { not: null } }, { descriptionHtml: { not: "" } }],
+      },
+    }),
+    db.productGeneratedContent.count({
+      where: {
+        shop: session.shop,
+        AND: [{ seoTitle: { not: null } }, { seoTitle: { not: "" } }],
+      },
+    }),
+    db.productGeneratedContent.count({
+      where: {
+        shop: session.shop,
+        AND: [{ seoDescription: { not: null } }, { seoDescription: { not: "" } }],
+      },
+    }),
+  ]);
+
+  const [collectionDescriptionCount, collectionMetaTitleCount, collectionMetaDescriptionCount] = await Promise.all([
+    db.collectionGeneratedContent.count({
+      where: {
+        shop: session.shop,
+        AND: [{ descriptionHtml: { not: null } }, { descriptionHtml: { not: "" } }],
+      },
+    }),
+    db.collectionGeneratedContent.count({
+      where: {
+        shop: session.shop,
+        AND: [{ seoTitle: { not: null } }, { seoTitle: { not: "" } }],
+      },
+    }),
+    db.collectionGeneratedContent.count({
+      where: {
+        shop: session.shop,
+        AND: [{ seoDescription: { not: null } }, { seoDescription: { not: "" } }],
+      },
+    }),
+  ]);
+
+  const [
+    collectionProductDescriptionCount,
+    collectionProductMetaTitleCount,
+    collectionProductMetaDescriptionCount,
+  ] = await Promise.all([
+    db.collectionProductGeneratedContent.count({
+      where: {
+        shop: session.shop,
+        AND: [{ descriptionHtml: { not: null } }, { descriptionHtml: { not: "" } }],
+      },
+    }),
+    db.collectionProductGeneratedContent.count({
+      where: {
+        shop: session.shop,
+        AND: [{ seoTitle: { not: null } }, { seoTitle: { not: "" } }],
+      },
+    }),
+    db.collectionProductGeneratedContent.count({
+      where: {
+        shop: session.shop,
+        AND: [{ seoDescription: { not: null } }, { seoDescription: { not: "" } }],
+      },
+    }),
+  ]);
+
+  const [pageBodyCount, pageMetaTitleCount, pageMetaDescriptionCount] = await Promise.all([
+    db.pageGeneratedContent.count({
+      where: {
+        shop: session.shop,
+        AND: [{ bodyHtml: { not: null } }, { bodyHtml: { not: "" } }],
+      },
+    }),
+    db.pageGeneratedContent.count({
+      where: {
+        shop: session.shop,
+        AND: [{ seoTitle: { not: null } }, { seoTitle: { not: "" } }],
+      },
+    }),
+    db.pageGeneratedContent.count({
+      where: {
+        shop: session.shop,
+        AND: [{ seoDescription: { not: null } }, { seoDescription: { not: "" } }],
+      },
+    }),
+  ]);
+
+  const blogContentCount = blogGeneratedRows.filter((row) => String(row?.bodyHtml || "").trim()).length;
+
+  const generatedWords =
+    productGeneratedRows.reduce(
+      (sum, row) =>
+        sum +
+        countWords(row.descriptionHtml) +
+        countWords(row.seoTitle) +
+        countWords(row.seoDescription),
+      0,
+    ) +
+    collectionGeneratedRows.reduce(
+      (sum, row) =>
+        sum +
+        countWords(row.descriptionHtml) +
+        countWords(row.seoTitle) +
+        countWords(row.seoDescription),
+      0,
+    ) +
+    collectionProductGeneratedRows.reduce(
+      (sum, row) =>
+        sum +
+        countWords(row.descriptionHtml) +
+        countWords(row.seoTitle) +
+        countWords(row.seoDescription),
+      0,
+    ) +
+    pageGeneratedRows.reduce(
+      (sum, row) =>
+        sum + countWords(row.bodyHtml) + countWords(row.seoTitle) + countWords(row.seoDescription),
+      0,
+    ) +
+    blogGeneratedRows.reduce((sum, row) => sum + countWords(row?.bodyHtml), 0);
+
+  const generationStats = {
+    product: {
+      description: productDescriptionCount,
+      metaTitle: productMetaTitleCount,
+      metaDescription: productMetaDescriptionCount,
+    },
+    collection: {
+      description: collectionDescriptionCount,
+      metaTitle: collectionMetaTitleCount,
+      metaDescription: collectionMetaDescriptionCount,
+    },
+    collectionProduct: {
+      description: collectionProductDescriptionCount,
+      metaTitle: collectionProductMetaTitleCount,
+      metaDescription: collectionProductMetaDescriptionCount,
+    },
+    page: {
+      body: pageBodyCount,
+      metaTitle: pageMetaTitleCount,
+      metaDescription: pageMetaDescriptionCount,
+    },
+    blog: {
+      content: blogContentCount,
+    },
+  };
+
+  const totalGeneratedPieces =
+    productDescriptionCount +
+    productMetaTitleCount +
+    productMetaDescriptionCount +
+    collectionDescriptionCount +
+    collectionMetaTitleCount +
+    collectionMetaDescriptionCount +
+    collectionProductDescriptionCount +
+    collectionProductMetaTitleCount +
+    collectionProductMetaDescriptionCount +
+    pageBodyCount +
+    pageMetaTitleCount +
+    pageMetaDescriptionCount +
+    blogContentCount;
+
+  const timeSavedHours = Number((generatedWords / 600).toFixed(1));
+  const creditsLeft = Number(shopData?.credits ?? 0);
+  const currentPlan = String(process.env.APP_CURRENT_PLAN || process.env.DEFAULT_PLAN_NAME || "FREE").toUpperCase();
+
   return {
     defaultAiModel: shopData?.defaultAiModel || envDefaultAiModel,
     envDefaultAiModel,
     shouldShowReviewPopup,
     hasSubmittedReview: Boolean(shopData?.reviewSubmittedAt),
     shopOwnerName,
+    generationStats,
+    timeSavedHours,
+    generatedWords,
+    creditsLeft,
+    currentPlan,
   };
 };
 
@@ -308,7 +521,18 @@ function QuickActionCard({ icon, title, description, ctaLabel, onClick }) {
 }
 
 export default function Index() {
-  const { defaultAiModel, envDefaultAiModel, shouldShowReviewPopup, hasSubmittedReview, shopOwnerName } = useLoaderData();
+  const {
+    defaultAiModel,
+    envDefaultAiModel,
+    shouldShowReviewPopup,
+    hasSubmittedReview,
+    shopOwnerName,
+    generationStats,
+    timeSavedHours,
+    generatedWords,
+    creditsLeft,
+    currentPlan,
+  } = useLoaderData();
   const actionData = useActionData();
   const reviewFetcher = useFetcher();
   const navigation = useNavigation();
@@ -418,6 +642,55 @@ export default function Index() {
           description="Manage your apps and generate high-converting AI content for your store."
         />
 
+        <Card>
+          <Grid columns={{ xs: 1, sm: 2, md: 4, lg: 4, xl: 4 }}>
+            <Grid.Cell>
+              <Box padding="400">
+                <BlockStack gap="100">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text as="p" variant="headingSm">Generated</Text>
+                    <Icon source={ProductIcon} tone="base" />
+                  </InlineStack>
+                  <Text as="p" variant="headingMd">{generatedWords} words</Text>
+                </BlockStack>
+              </Box>
+            </Grid.Cell>
+            <Grid.Cell>
+              <Box padding="400">
+                <BlockStack gap="100">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text as="p" variant="headingSm">Time Saved</Text>
+                    <Icon source={ChartVerticalIcon} tone="base" />
+                  </InlineStack>
+                  <Text as="p" variant="headingMd">{timeSavedHours} hours</Text>
+                </BlockStack>
+              </Box>
+            </Grid.Cell>
+            <Grid.Cell>
+              <Box padding="400">
+                <BlockStack gap="100">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text as="p" variant="headingSm">Credits left</Text>
+                    <Icon source={CollectionIcon} tone="base" />
+                  </InlineStack>
+                  <Text as="p" variant="headingMd">{creditsLeft}</Text>
+                </BlockStack>
+              </Box>
+            </Grid.Cell>
+            <Grid.Cell>
+              <Box padding="400">
+                <BlockStack gap="100">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text as="p" variant="headingSm">Current Plan</Text>
+                    <Icon source={PageIcon} tone="base" />
+                  </InlineStack>
+                  <Text as="p" variant="headingMd">{currentPlan}</Text>
+                </BlockStack>
+              </Box>
+            </Grid.Cell>
+          </Grid>
+        </Card>
+
         {actionData ? (
           <Banner tone={actionData.success ? "success" : "critical"}>
             <p>{actionData.message}</p>
@@ -443,6 +716,82 @@ export default function Index() {
             ))}
           </Grid>
         </BlockStack>
+
+        <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
+          <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 2 }}>
+            <Card>
+              <BlockStack gap="300">
+                <InlineStack gap="200" blockAlign="center">
+                  <Icon source={AppsIcon} tone="base" />
+                  <Text as="h2" variant="headingMd">Generate content</Text>
+                </InlineStack>
+
+                <BlockStack gap="150">
+                  <InlineStack align="space-between" blockAlign="start" wrap={false}>
+                    <BlockStack gap="050">
+                      <Text as="p" variant="bodyMd" fontWeight="semibold">Product Generate</Text>
+                      <Text as="p" variant="bodySm" tone="subdued">Description, Meta title, Meta Description</Text>
+                    </BlockStack>
+                    <Badge tone="info">
+                      {generationStats.product.description + generationStats.product.metaTitle + generationStats.product.metaDescription}
+                    </Badge>
+                  </InlineStack>
+                  <InlineStack align="space-between" blockAlign="start" wrap={false}>
+                    <BlockStack gap="050">
+                      <Text as="p" variant="bodyMd" fontWeight="semibold">Collection Generate</Text>
+                      <Text as="p" variant="bodySm" tone="subdued">Description, Meta title, Meta Description</Text>
+                    </BlockStack>
+                    <Badge tone="info">
+                      {generationStats.collection.description + generationStats.collection.metaTitle + generationStats.collection.metaDescription}
+                    </Badge>
+                  </InlineStack>
+                  <InlineStack align="space-between" blockAlign="start" wrap={false}>
+                    <BlockStack gap="050">
+                      <Text as="p" variant="bodyMd" fontWeight="semibold">Collection Product Generate</Text>
+                      <Text as="p" variant="bodySm" tone="subdued">Description, Meta title, Meta Description</Text>
+                    </BlockStack>
+                    <Badge tone="info">
+                      {generationStats.collectionProduct.description + generationStats.collectionProduct.metaTitle + generationStats.collectionProduct.metaDescription}
+                    </Badge>
+                  </InlineStack>
+                  <InlineStack align="space-between" blockAlign="start" wrap={false}>
+                    <BlockStack gap="050">
+                      <Text as="p" variant="bodyMd" fontWeight="semibold">Pages Generate</Text>
+                      <Text as="p" variant="bodySm" tone="subdued">Body Content, Meta title, Meta Description</Text>
+                    </BlockStack>
+                    <Badge tone="info">
+                      {generationStats.page.body + generationStats.page.metaTitle + generationStats.page.metaDescription}
+                    </Badge>
+                  </InlineStack>
+                  <InlineStack align="space-between" blockAlign="start" wrap={false}>
+                    <BlockStack gap="050">
+                      <Text as="p" variant="bodyMd" fontWeight="semibold">Blog Generate</Text>
+                      <Text as="p" variant="bodySm" tone="subdued">Content Generate</Text>
+                    </BlockStack>
+                    <Badge tone="info">{generationStats.blog.content}</Badge>
+                  </InlineStack>
+                </BlockStack>
+              </BlockStack>
+            </Card>
+          </Grid.Cell>
+
+          <Grid.Cell>
+            <Card>
+              <div style={{ minHeight: 220, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <BlockStack gap="200" inlineAlign="center">
+                  <InlineStack gap="200" blockAlign="center">
+                    <Icon source={ChartVerticalIcon} tone="base" />
+                    <Text as="h2" variant="headingMd">Time saved</Text>
+                  </InlineStack>
+                  <InlineStack gap="100" blockAlign="end">
+                    <Text as="span" variant="heading2xl">{timeSavedHours}</Text>
+                    <Text as="span" variant="bodyMd" tone="subdued">hours</Text>
+                  </InlineStack>
+                </BlockStack>
+              </div>
+            </Card>
+          </Grid.Cell>
+        </Grid>
 
         <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
           <Grid.Cell>
@@ -572,12 +921,15 @@ export default function Index() {
               <Grid.Cell>
                 <Card>
                   <BlockStack gap="200">
-                    <InlineStack className="dashboard-inline-title" align="start" gap="200" blockAlign="center" wrap={false}>
-                      <Icon source={EmailIcon} tone="base" style={{ margin:"unset !important" }}  />
+                    <div
+                      className="dashboard-inline-title"
+                      style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: "8px", width: "fit-content" }}
+                    >
+                      <Icon source={EmailIcon} tone="base" />
                       <Text as="h3" variant="headingSm">
                         Support ticket
                       </Text>
-                    </InlineStack>
+                    </div>
                     <Text as="p" variant="bodySm" tone="subdued">
                       Reach our team during office hours for issue resolution and guidance.
                     </Text>
@@ -596,12 +948,15 @@ export default function Index() {
               <Grid.Cell>
                 <Card>
                   <BlockStack gap="200">
-                    <InlineStack className="dashboard-inline-title" align="start" gap="200" blockAlign="center" wrap={false}>
-                      <Icon source={QuestionCircleIcon} tone="base" style={{ margin:"unset !important" }} />
+                    <div
+                      className="dashboard-inline-title"
+                      style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: "8px", width: "fit-content" }}
+                    >
+                      <Icon source={QuestionCircleIcon} tone="base" />
                       <Text as="h3" variant="headingSm">
                         Knowledge base
                       </Text>
-                    </InlineStack>
+                    </div>
                     <Text as="p" variant="bodySm" tone="subdued">
                       Browse setup guides and troubleshooting docs.
                     </Text>
