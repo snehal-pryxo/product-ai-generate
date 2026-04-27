@@ -2289,13 +2289,17 @@ export default function CollectionsPage() {
           ? ` ${response.creditsUsed} credits used${typeof response.newCredits === "number" ? `. Remaining: ${response.newCredits}` : ""}.`
           : "";
       shopify.toast.show(`Bulk generate complete: ${response.succeeded}/${response.total} updated.${creditsMessage}`);
+      if (isCollectionProductsMode) {
+        window.setTimeout(() => navigate("/app/content-management?tab=collection_products&filter=all"), 600);
+        return;
+      }
       if (typeof window !== "undefined") {
         window.setTimeout(() => window.location.reload(), 600);
       }
       return;
     }
     setBulkValidationMessage(response.error || "Bulk generation failed.");
-  }, [bulkFetcher.state, bulkFetcher.data, revalidator, shopify]);
+  }, [bulkFetcher.state, bulkFetcher.data, isCollectionProductsMode, navigate, revalidator, shopify]);
 
   useEffect(() => () => {
     if (queueIntervalRef.current) clearInterval(queueIntervalRef.current);
