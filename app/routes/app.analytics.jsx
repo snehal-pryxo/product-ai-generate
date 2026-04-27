@@ -1,11 +1,11 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { useLoaderData, useSearchParams, useNavigate } from "react-router";
+import { useLoaderData, useSearchParams, useNavigate, useLocation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import {
-  Page, Card, BlockStack, InlineStack, Text, Badge, Divider, Box, Grid, Button, Layout, Icon, Select,
+  Page, Card, BlockStack, InlineStack, Text, Badge, Divider, Box, Grid, Button, Layout, Icon, Select, Tabs,
 } from "@shopify/polaris";
 import { AppPageHeader } from "../components/AppPageHeader";
 import {
@@ -322,7 +322,7 @@ function CalendarMonth({ year, month, rangeStart, rangeEnd, hoverEnd, onDayClick
 // dropdown is portaled into that div so Card overflow:hidden doesn't clip it
 
 function DateRangePicker({ rangeParam, startDate, endDate, containerRef }) {
-  const [, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [open, setOpen] = useState(false);
   const [offset, setOffset] = useState({ top: 0, right: 0 });
   const btnRef  = useRef(null);
@@ -390,15 +390,18 @@ function DateRangePicker({ rangeParam, startDate, endDate, containerRef }) {
   };
 
   const handleApply = () => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("startDate");
+    nextParams.delete("endDate");
+
     if (preset !== "custom") {
-      setSearchParams({ range: preset });
+      nextParams.set("range", preset);
     } else {
-      const p = new URLSearchParams();
-      p.set("range", "custom");
-      p.set("startDate", pickerStart);
-      p.set("endDate", pickerEnd || pickerStart);
-      setSearchParams(p);
+      nextParams.set("range", "custom");
+      nextParams.set("startDate", pickerStart);
+      nextParams.set("endDate", pickerEnd || pickerStart);
     }
+    setSearchParams(nextParams);
     setOpen(false);
   };
 
@@ -770,7 +773,7 @@ function HBar({ label, value, total, color = "#008060" }) {
   );
 }
 
-function StatTile({ title, total, withSeoTitle, withSeoDesc, url, color, icon }) {
+function StatTile({ title, total, withSeoTitle, withSeoDesc, onManage, color, icon }) {
   const pct  = total > 0 ? Math.round(((withSeoTitle + withSeoDesc) / (total * 2)) * 100) : 0;
   const tone = pct >= 70 ? "success" : pct >= 40 ? "warning" : total === 0 ? "info" : "critical";
   return (
@@ -793,7 +796,7 @@ function StatTile({ title, total, withSeoTitle, withSeoDesc, url, color, icon })
             <HBar label="SEO Title"       value={withSeoTitle} total={total} color={color} />
             <HBar label="SEO Description" value={withSeoDesc}  total={total} color={color} />
           </BlockStack>
-          <Button url={url} size="slim" variant="secondary">Manage</Button>
+          <Button onClick={onManage} size="slim" variant="secondary">Manage</Button>
         </BlockStack>
       </div>
     </Card>
@@ -929,6 +932,7 @@ export default function AnalyticsPage() {
   } = useLoaderData();
 
   const navigate = useNavigate();
+  const location = useLocation();
   const [selectedDate, setSelectedDate] = useState(null);
   const [resourceFilter, setResourceFilter] = useState("all");
   const [generateTypeFilter, setGenerateTypeFilter] = useState("all");
@@ -1002,13 +1006,26 @@ export default function AnalyticsPage() {
   const coverageColor = seoScore >= 70 ? "#008060" : seoScore >= 40 ? "#B98900" : "#C9201F";
   const bestDay      = Math.max(...filteredDailyActivity.map(d => d.count), 0);
   const activeDays   = filteredDailyActivity.filter(d => d.count > 0).length;
+  const navigateInApp = useCallback((pathname) => {
+    navigate({ pathname, search: location.search });
+  }, [location.search, navigate]);
+  const selectedResourceTabIndex = Math.max(
+    RESOURCE_TABS.findIndex((tab) => tab.id === resourceFilter),
+    0,
+  );
+  const handleResourceTabChange = useCallback((selectedTabIndex) => {
+    const nextTab = RESOURCE_TABS[selectedTabIndex];
+    if (!nextTab) return;
+    setResourceFilter(nextTab.id);
+    setSelectedDate(null);
+  }, []);
 
   return (
     <Page
       fullWidth
       title="SEO Analytics"
       subtitle="Track SEO health and AI content generation across your store"
-      backAction={{ content: "Dashboard", onAction: () => navigate("/app") }}
+      backAction={{ content: "Dashboard", onAction: () => navigateInApp("/app") }}
     >
       <BlockStack gap="600">
         <AppPageHeader
@@ -1062,24 +1079,13 @@ export default function AnalyticsPage() {
                 flexWrap: "wrap",
               }}
             >
-              <InlineStack gap="200" wrap>
-                {RESOURCE_TABS.map((tab) => {
-                  const isActive = resourceFilter === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => {
-                        setResourceFilter(tab.id);
-                        setSelectedDate(null);
-                      }}
-                      className={`content-mgmt-tab-btn${isActive ? " content-mgmt-tab-btn--active" : ""}`}
-                    >
-                      {tab.content}
-                    </button>
-                  );
-                })}
-              </InlineStack>
+              <div className="analytics-resource-tabs" aria-label="Generation resource filter">
+                <Tabs
+                  tabs={RESOURCE_TABS}
+                  selected={selectedResourceTabIndex}
+                  onSelect={handleResourceTabChange}
+                />
+              </div>
 
               <div style={{ minWidth: 220, flex: "1 1 260px", maxWidth: 320 }}>
                 <Select
@@ -1121,7 +1127,14 @@ export default function AnalyticsPage() {
                   ) : actions.slice(0, 4).map((item, i) => (
                     <div key={i} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 12px", borderRadius: "6px", border: "1px solid #e4e5e7", background: "#ffffff", cursor: "pointer" }}>
                       <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#C9201F", flexShrink: 0 }} />
-                      <a href={item.url} style={{ fontSize: "14px", fontWeight: 500, color: "#1a1a1a", textDecoration: "none", flex: 1 }}>
+                      <a
+                        href={`${item.url}${location.search}`}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          navigateInApp(item.url);
+                        }}
+                        style={{ fontSize: "14px", fontWeight: 500, color: "#1a1a1a", textDecoration: "none", flex: 1 }}
+                      >
                         {item.label}
                       </a>
                     </div>
@@ -1167,7 +1180,7 @@ export default function AnalyticsPage() {
             { title: "Blog Articles", total: articles.total,    wt: articles.withSeoTitle,    wd: articles.withSeoDesc,    url: "/app/blog",        color: "#E07D10", icon: BlogIcon       },
           ].map(({ title, total, wt, wd, url, color, icon }) => (
             <Grid.Cell key={title} columnSpan={{ xs: 6, sm: 6, md: 3, lg: 3, xl: 3 }}>
-              <StatTile title={title} total={total} withSeoTitle={wt} withSeoDesc={wd} url={url} color={color} icon={icon} />
+              <StatTile title={title} total={total} withSeoTitle={wt} withSeoDesc={wd} onManage={() => navigateInApp(url)} color={color} icon={icon} />
             </Grid.Cell>
           ))}
         </Grid>
@@ -1214,8 +1227,8 @@ export default function AnalyticsPage() {
                 </BlockStack>
                 <Divider />
                 <BlockStack gap="200">
-                  <Button url="/app/products" size="slim" variant="secondary">Generate Products</Button>
-                  <Button url="/app/blog"     size="slim" variant="secondary">Generate Blog</Button>
+                  <Button onClick={() => navigateInApp("/app/products")} size="slim" variant="secondary">Generate Products</Button>
+                  <Button onClick={() => navigateInApp("/app/blog")}     size="slim" variant="secondary">Generate Blog</Button>
                 </BlockStack>
               </BlockStack>
             </Card>
@@ -1252,6 +1265,67 @@ export default function AnalyticsPage() {
 
       </BlockStack>
       <Box paddingBlockEnd="800" />
+      <style>{`
+        .analytics-resource-tabs {
+          max-width: 100%;
+          overflow-x: auto;
+          scrollbar-width: none;
+        }
+        .analytics-resource-tabs::-webkit-scrollbar {
+          display: none;
+        }
+        .analytics-resource-tabs .Polaris-Tabs {
+          display: inline-flex;
+          width: auto;
+          min-width: max-content;
+          border: 1px solid #d1d5db;
+          border-radius: 12px;
+          background: #f3f4f6;
+          padding: 3px;
+        }
+        .analytics-resource-tabs .Polaris-Tabs__Wrapper {
+          padding: 0 !important;
+        }
+        .analytics-resource-tabs .Polaris-Tabs__Outer,
+        .analytics-resource-tabs .Polaris-Tabs__Wrapper,
+        .analytics-resource-tabs .Polaris-Tabs__TabContainer {
+          margin: 0;
+        }
+        .analytics-resource-tabs .Polaris-Tabs__Tab {
+          min-height: 34px;
+          border-radius: 9px;
+          padding: 0 12px;
+        }
+        .analytics-resource-tabs .Polaris-Tabs__Title {
+          font-size: 13px;
+          font-weight: 600;
+          color: #4b5563;
+        }
+        .analytics-resource-tabs .Polaris-Tabs__Tab--active,
+        .analytics-resource-tabs .Polaris-Tabs__Tab--active:hover,
+        .analytics-resource-tabs .Polaris-Tabs__Tab--active:focus {
+          background: #ffffff;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+        }
+        .analytics-resource-tabs .Polaris-Tabs__Tab--active .Polaris-Tabs__Title {
+          color: #111827;
+        }
+        @media (max-width: 640px) {
+          .analytics-resource-tabs {
+            width: 100%;
+          }
+          .analytics-resource-tabs .Polaris-Tabs {
+            width: 100%;
+            min-width: 0;
+          }
+          .analytics-resource-tabs .Polaris-Tabs__Wrapper {
+            width: 100%;
+          }
+          .analytics-resource-tabs .Polaris-Tabs__Tab {
+            padding: 0 10px;
+          }
+        }
+      `}</style>
     </Page>
   );
 }
