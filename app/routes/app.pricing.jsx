@@ -292,6 +292,7 @@ export default function PricingPage() {
                           One-time purchase
                         </Text>
                       </BlockStack>
+                      
                       <Form method="post">
                         <input type="hidden" name="intent" value="buy_credits" />
                         <input type="hidden" name="packageKey" value={creditPackage.key} />
