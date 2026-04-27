@@ -32,6 +32,25 @@ export function buildAppReturnUrl(request, params = {}) {
   return returnUrl.toString();
 }
 
+async function readGraphqlPayload(response, fieldName) {
+  const json = await response.json();
+  if (Array.isArray(json?.errors) && json.errors.length > 0) {
+    throw new Error(json.errors.map((error) => error.message).join(" "));
+  }
+
+  const payload = json?.data?.[fieldName];
+  const errors = payload?.userErrors || [];
+  if (errors.length > 0) {
+    throw new Error(errors.map((error) => error.message).join(" "));
+  }
+
+  if (!payload) {
+    throw new Error("Shopify did not return a billing response.");
+  }
+
+  return payload;
+}
+
 export async function createRecurringSubscription({ admin, request, shop, plan }) {
   const response = await admin.graphql(
     `#graphql
@@ -40,12 +59,14 @@ export async function createRecurringSubscription({ admin, request, shop, plan }
         $returnUrl: URL!
         $lineItems: [AppSubscriptionLineItemInput!]!
         $test: Boolean
+        $replacementBehavior: AppSubscriptionReplacementBehavior
       ) {
         appSubscriptionCreate(
           name: $name
           returnUrl: $returnUrl
           lineItems: $lineItems
           test: $test
+          replacementBehavior: $replacementBehavior
         ) {
           userErrors {
             field
@@ -64,6 +85,7 @@ export async function createRecurringSubscription({ admin, request, shop, plan }
         name: `Content AI - ${plan.name}`,
         returnUrl: buildAppReturnUrl(request, { type: "subscription", plan: plan.key }),
         test: getBillingTestMode(),
+        replacementBehavior: "APPLY_IMMEDIATELY",
         lineItems: [
           {
             plan: {
@@ -81,12 +103,7 @@ export async function createRecurringSubscription({ admin, request, shop, plan }
     },
   );
 
-  const json = await response.json();
-  const payload = json?.data?.appSubscriptionCreate;
-  const errors = payload?.userErrors || [];
-  if (errors.length > 0) {
-    throw new Error(errors.map((error) => error.message).join(" "));
-  }
+  const payload = await readGraphqlPayload(response, "appSubscriptionCreate");
 
   const subscriptionId = payload?.appSubscription?.id;
   await db.billingSubscription.create({
@@ -144,12 +161,7 @@ export async function createExtraCreditPurchase({ admin, request, shop, creditPa
     },
   );
 
-  const json = await response.json();
-  const payload = json?.data?.appPurchaseOneTimeCreate;
-  const errors = payload?.userErrors || [];
-  if (errors.length > 0) {
-    throw new Error(errors.map((error) => error.message).join(" "));
-  }
+  const payload = await readGraphqlPayload(response, "appPurchaseOneTimeCreate");
 
   const purchaseId = payload?.appPurchaseOneTime?.id;
   await db.billingCreditPurchase.create({

@@ -1,4 +1,5 @@
-import { Form, redirect, useActionData, useLoaderData, useNavigation, useRouteLoaderData } from "react-router";
+import { useEffect } from "react";
+import { Form, useActionData, useLoaderData, useNavigation, useRouteLoaderData } from "react-router";
 import {
   Badge,
   Banner,
@@ -75,7 +76,7 @@ export const action = async ({ request }) => {
       if (!confirmationUrl) {
         return { success: false, message: "Shopify did not return a billing approval URL." };
       }
-      return redirect(confirmationUrl);
+      return { success: true, confirmationUrl };
     }
 
     if (intent === "buy_credits") {
@@ -95,7 +96,7 @@ export const action = async ({ request }) => {
       if (!confirmationUrl) {
         return { success: false, message: "Shopify did not return a credit approval URL." };
       }
-      return redirect(confirmationUrl);
+      return { success: true, confirmationUrl };
     }
   } catch (error) {
     return {
@@ -145,6 +146,11 @@ export default function PricingPage() {
         : billingSuccess === "false"
           ? false
           : null;
+
+  useEffect(() => {
+    if (!actionData?.confirmationUrl) return;
+    window.open(actionData.confirmationUrl, "_top");
+  }, [actionData?.confirmationUrl]);
 
   return (
     <Page title="Pricing" fullWidth>
