@@ -286,6 +286,18 @@ export default function SettingsPage() {
 
         <Box paddingBlockEnd="800" />
       </BlockStack>
+      <style>{`
+        .app-form-grid-3 {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        @media (max-width: 760px) {
+          .app-form-grid-3 {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
     </Page>
   );
 }
