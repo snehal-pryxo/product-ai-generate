@@ -888,7 +888,12 @@ export const action = async ({ request }) => {
 
   const shopRecord = await db.shop.findUnique({
     where: { shop: session.shop },
-    select: { globalSettingsJson: true },
+    select: {
+      globalSettingsJson: true,
+      defaultAiProvider: true,
+      openaiApiKey: true,
+      anthropicApiKey: true,
+    },
   });
   let parsedSettings = {};
   try {

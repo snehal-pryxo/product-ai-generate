@@ -104,3 +104,28 @@ export async function deductCredits({ shopDomain, creditsUsed }) {
     creditsUsedTotal: snapshot?.creditsUsedTotal ?? 0,
   };
 }
+
+export async function refundCredits({ shopDomain, creditsRefunded }) {
+  if (!creditsRefunded || creditsRefunded <= 0) {
+    return getOrCreateShopCredits(shopDomain);
+  }
+
+  await getOrCreateShopCredits(shopDomain);
+
+  const snapshot = await db.shop.update({
+    where: { shop: shopDomain },
+    data: {
+      credits: { increment: creditsRefunded },
+      creditsUsedTotal: { decrement: creditsRefunded },
+    },
+    select: {
+      credits: true,
+      creditsUsedTotal: true,
+    },
+  });
+
+  return {
+    credits: snapshot?.credits ?? 0,
+    creditsUsedTotal: snapshot?.creditsUsedTotal ?? 0,
+  };
+}

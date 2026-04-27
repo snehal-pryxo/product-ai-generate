@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useFetcher, useLoaderData, useNavigate } from "react-router";
+import { useFetcher, useLoaderData, useLocation, useNavigate } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
@@ -100,6 +100,7 @@ export default function SettingsPage() {
   const saveFetcher = useFetcher();
   const shopify = useAppBridge();
   const navigate = useNavigate();
+  const location = useLocation();
   const [settings, setSettings] = useState(() => normalizeGlobalSettings(initialSettings));
   const [saved, setSaved] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
@@ -140,6 +141,9 @@ export default function SettingsPage() {
     payload.append("settingsJson", JSON.stringify(settings));
     saveFetcher.submit(payload, { method: "post" });
   }
+  function navigateInApp(pathname) {
+    navigate({ pathname, search: location.search });
+  }
 
   return (
     <Page
@@ -150,7 +154,7 @@ export default function SettingsPage() {
         onAction: handleSave,
         disabled: isSaving,
       }}
-      secondaryActions={[{ content: "Back", onAction: () => navigate("/app") }]}
+      secondaryActions={[{ content: "Back", onAction: () => navigateInApp("/app") }]}
     >
       <BlockStack gap="600">
         <AppPageHeader

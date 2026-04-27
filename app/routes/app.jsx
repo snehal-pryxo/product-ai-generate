@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Outlet, useFetchers, useLoaderData, useNavigation, useRouteError } from "react-router";
+import { Outlet, useFetchers, useLoaderData, useLocation, useNavigation, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider as ShopifyAppProvider } from "@shopify/shopify-app-react-router/react";
 import { AppProvider as PolarisProvider, Spinner, Text } from "@shopify/polaris";
@@ -44,8 +44,8 @@ function normalizeCustomTemplates(value) {
 }
 
 export const loader = async ({ request }) => {
-  const { session } = await authenticate.admin(request);
-  await refreshMonthlyPlanCredits(session.shop);
+  const { admin, session } = await authenticate.admin(request);
+  await refreshMonthlyPlanCredits(session.shop, admin);
   const shopData = await db.shop.findUnique({
     where: { shop: session.shop },
     select: {
@@ -97,9 +97,20 @@ export const loader = async ({ request }) => {
 
 export default function App() {
   const { apiKey, globalSettings, templateSelections, customTemplates } = useLoaderData();
+  const location = useLocation();
   const navigation = useNavigation();
   const fetchers = useFetchers();
   const isBusy = navigation.state !== "idle" || fetchers.some((fetcher) => fetcher.state !== "idle");
+  const appContextSearch = (() => {
+    const current = new URLSearchParams(location.search);
+    const next = new URLSearchParams();
+    ["shop", "host", "embedded"].forEach((key) => {
+      const value = current.get(key);
+      if (value) next.set(key, value);
+    });
+    const query = next.toString();
+    return query ? `?${query}` : "";
+  })();
 
   useEffect(() => {
     // Keep localStorage mirrored with DB values for client-side pages using local settings utilities.
@@ -116,14 +127,14 @@ export default function App() {
     <PolarisProvider i18n={enTranslations}>
       <ShopifyAppProvider embedded apiKey={apiKey}>
         <s-app-nav>
-          <s-link href="/app/products">Bulk Generator</s-link>
-          <s-link href="/app/pages">Pages Generator</s-link>
-          <s-link href="/app/blog">Blogs Generator</s-link>
-          <s-link href="/app/content-management">Content Management</s-link>
-          <s-link href="/app/template">Template</s-link>
-          <s-link href="/app/analytics">Analytics</s-link>
-          <s-link href="/app/pricing">Pricing</s-link>
-          <s-link href="/app/settings">Settings</s-link>
+          <s-link href={`/app/products${appContextSearch}`}>Bulk Generator</s-link>
+          <s-link href={`/app/pages${appContextSearch}`}>Pages Generator</s-link>
+          <s-link href={`/app/blog${appContextSearch}`}>Blogs Generator</s-link>
+          <s-link href={`/app/content-management${appContextSearch}`}>Content Management</s-link>
+          <s-link href={`/app/template${appContextSearch}`}>Template</s-link>
+          <s-link href={`/app/analytics${appContextSearch}`}>Analytics</s-link>
+          <s-link href={`/app/pricing${appContextSearch}`}>Pricing</s-link>
+          <s-link href={`/app/settings${appContextSearch}`}>Settings</s-link>
         </s-app-nav>
         {isBusy && (
           <div

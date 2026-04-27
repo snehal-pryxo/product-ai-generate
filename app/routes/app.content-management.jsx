@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import { useFetcher, useLoaderData, useNavigate } from "react-router";
+import { useFetcher, useLoaderData, useLocation, useNavigate } from "react-router";
 import {
   Badge,
   Banner,
@@ -49,8 +49,6 @@ import {
   buildPageContentPrompt,
 } from "../lib/contentPromptTemplates";
 import { buildInsufficientCreditsError, deductCredits } from "../lib/credits.server";
-/* global process */
-
 // ─── Constants ───────────────────────────────────────────────────────────────
 const CREDITS_PER_GENERATION = 3;
 const FETCH_BATCH_SIZE = 250;
@@ -2152,6 +2150,7 @@ function statusBadge(status) {
 export default function ContentManagementPage() {
   const { tab, filter, items, credits, defaultAiProvider, envAiModel, creditsUsageByType } = useLoaderData();
   const navigate = useNavigate();
+  const location = useLocation();
   const shopify = useAppBridge();
   const generateFetcher = useFetcher();
   const saveFetcher = useFetcher();
@@ -2346,15 +2345,28 @@ export default function ContentManagementPage() {
     { id: "empty", content: "Empty" },
   ];
   const filterTabIndex = filterTabs.findIndex((t) => t.id === filter);
+  const buildContextSearch = useCallback(
+    (params) => {
+      const current = new URLSearchParams(location.search);
+      const next = new URLSearchParams(params);
+      ["shop", "host", "embedded"].forEach((key) => {
+        const value = current.get(key);
+        if (value && !next.has(key)) next.set(key, value);
+      });
+      const query = next.toString();
+      return query ? `?${query}` : "";
+    },
+    [location.search],
+  );
 
   const handleMainTabChange = useCallback(
-    (idx) => navigate(`?tab=${mainTabs[idx].id}&filter=all`),
-    [navigate]
+    (idx) => navigate(buildContextSearch({ tab: mainTabs[idx].id, filter: "all" })),
+    [buildContextSearch, navigate]
   );
 
   const handleFilterTabChange = useCallback(
-    (idx) => navigate(`?tab=${tab}&filter=${filterTabs[idx].id}`),
-    [navigate, tab]
+    (idx) => navigate(buildContextSearch({ tab, filter: filterTabs[idx].id })),
+    [buildContextSearch, navigate, tab]
   );
 
   const openEditor = useCallback((item, field = "description") => {
@@ -2807,7 +2819,7 @@ export default function ContentManagementPage() {
         <InlineStack gap="200" blockAlign="center">
           <button
             type="button"
-            onClick={() => navigate("/app/analytics")}
+            onClick={() => navigate({ pathname: "/app/analytics", search: buildContextSearch({}) })}
             style={{
               padding: "6px 14px",
               borderRadius: "8px",

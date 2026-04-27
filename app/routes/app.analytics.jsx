@@ -294,20 +294,27 @@ function CalendarMonth({ year, month, rangeStart, rangeEnd, hoverEnd, onDayClick
           return (
             <div
               key={idx}
-              style={{ background: cellBg, position: "relative", height: 34, cursor: day ? "pointer" : "default" }}
-              onClick={() => day && onDayClick(ds)}
+              style={{ background: cellBg, position: "relative", height: 34 }}
               onMouseEnter={() => day && onDayHover(ds)}
             >
               {day && (
-                <div style={{
-                  position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
-                  width: 28, height: 28, borderRadius: "50%",
-                  background: showCircle ? "#1A1A1A" : "transparent",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 13, fontWeight: showCircle ? 700 : 400,
-                  color: showCircle ? "white" : "#202223",
-                  ...(isToday && !showCircle ? { border: "1px solid #C9CCCF" } : {}),
-                }}>{day}</div>
+                <button
+                  type="button"
+                  onClick={() => onDayClick(ds)}
+                  style={{
+                    position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+                    width: 28, height: 28, borderRadius: "50%",
+                    border: isToday && !showCircle ? "1px solid #C9CCCF" : "1px solid transparent",
+                    background: showCircle ? "#1A1A1A" : "transparent",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 13, fontWeight: showCircle ? 700 : 400,
+                    color: showCircle ? "white" : "#202223",
+                    cursor: "pointer",
+                    padding: 0,
+                  }}
+                >
+                  {day}
+                </button>
               )}
             </div>
           );

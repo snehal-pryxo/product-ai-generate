@@ -53,9 +53,8 @@ import {
   creditsForContentTypes,
   deductCredits,
   parseSelectedContentTypes,
+  refundCredits,
 } from "../lib/credits.server";
-/* global process */
-
 const FETCH_BATCH_SIZE = 250;
 const BULK_GENERATE_INTENT = "bulk_generate";
 const COLLECTION_PRODUCTS_MODE = "collection-products";
@@ -1179,6 +1178,14 @@ export const action = async ({ request }) => {
           };
         }
 
+        let reservedCredits = availableCredits;
+        let reservedCreditsUsedTotal = shopData?.creditsUsedTotal ?? 0;
+        if (requiredCredits > 0) {
+          const creditSnapshot = await deductCredits({ shopDomain: session.shop, creditsUsed: requiredCredits });
+          reservedCredits = creditSnapshot.credits;
+          reservedCreditsUsedTotal = creditSnapshot.creditsUsedTotal;
+        }
+
         const collectionResults = await Promise.allSettled(
           collectionsWithProducts.map(async (collection) => {
             const productResults = await Promise.allSettled(
@@ -1366,17 +1373,18 @@ export const action = async ({ request }) => {
         ), 0);
 
         const creditsUsed = succeededProducts * creditsPerItem;
-        let newCredits = availableCredits;
-        let creditsUsedTotal = shopData?.creditsUsedTotal ?? 0;
+        const creditsToRefund = requiredCredits - creditsUsed;
+        let newCredits = reservedCredits;
+        let creditsUsedTotal = reservedCreditsUsedTotal;
         let creditWarning = null;
 
-        if (creditsUsed > 0) {
+        if (creditsToRefund > 0) {
           try {
-            const creditSnapshot = await deductCredits({ shopDomain: session.shop, creditsUsed });
+            const creditSnapshot = await refundCredits({ shopDomain: session.shop, creditsRefunded: creditsToRefund });
             newCredits = creditSnapshot.credits;
             creditsUsedTotal = creditSnapshot.creditsUsedTotal;
           } catch (creditError) {
-            creditWarning = creditError?.message || "Credits could not be updated automatically.";
+            creditWarning = creditError?.message || "Unused credits could not be refunded automatically.";
           }
         }
 
@@ -1451,6 +1459,14 @@ export const action = async ({ request }) => {
           intent,
           error: buildInsufficientCreditsError(requiredCredits, availableCredits),
         };
+      }
+
+      let reservedCredits = availableCredits;
+      let reservedCreditsUsedTotal = shopData?.creditsUsedTotal ?? 0;
+      if (requiredCredits > 0) {
+        const creditSnapshot = await deductCredits({ shopDomain: session.shop, creditsUsed: requiredCredits });
+        reservedCredits = creditSnapshot.credits;
+        reservedCreditsUsedTotal = creditSnapshot.creditsUsedTotal;
       }
 
       const results = await Promise.allSettled(
@@ -1609,17 +1625,18 @@ export const action = async ({ request }) => {
       const succeeded = results.filter((r) => r.status === "fulfilled").length;
       const failed = results.filter((r) => r.status === "rejected").length;
       const creditsUsed = succeeded * creditsPerItem;
-      let newCredits = availableCredits;
-      let creditsUsedTotal = shopData?.creditsUsedTotal ?? 0;
+      const creditsToRefund = requiredCredits - creditsUsed;
+      let newCredits = reservedCredits;
+      let creditsUsedTotal = reservedCreditsUsedTotal;
       let creditWarning = null;
 
-      if (creditsUsed > 0) {
+      if (creditsToRefund > 0) {
         try {
-          const creditSnapshot = await deductCredits({ shopDomain: session.shop, creditsUsed });
+          const creditSnapshot = await refundCredits({ shopDomain: session.shop, creditsRefunded: creditsToRefund });
           newCredits = creditSnapshot.credits;
           creditsUsedTotal = creditSnapshot.creditsUsedTotal;
         } catch (creditError) {
-          creditWarning = creditError?.message || "Credits could not be updated automatically.";
+          creditWarning = creditError?.message || "Unused credits could not be refunded automatically.";
         }
       }
 
@@ -2110,14 +2127,32 @@ export default function CollectionsPage() {
 
   const makeUrl = useCallback(
     ({ search = searchValue.trim(), productsCollectionId = filters.productsCollectionId } = {}) => {
+      const current = new URLSearchParams(location.search);
       const params = new URLSearchParams();
+      ["shop", "host", "embedded"].forEach((key) => {
+        const value = current.get(key);
+        if (value) params.set(key, value);
+      });
       if (isCollectionProductsMode) params.set("mode", COLLECTION_PRODUCTS_MODE);
       if (search) params.set("q", search);
       if (productsCollectionId) params.set("productsCollectionId", productsCollectionId);
       const query = params.toString();
       return query ? `?${query}` : "";
     },
-    [filters.productsCollectionId, isCollectionProductsMode, searchValue],
+    [filters.productsCollectionId, isCollectionProductsMode, location.search, searchValue],
+  );
+  const navigateInApp = useCallback(
+    (pathname, search = "") => {
+      const current = new URLSearchParams(location.search);
+      const next = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
+      ["shop", "host", "embedded"].forEach((key) => {
+        const value = current.get(key);
+        if (value && !next.has(key)) next.set(key, value);
+      });
+      const query = next.toString();
+      navigate({ pathname, search: query ? `?${query}` : "" });
+    },
+    [location.search, navigate],
   );
 
   useEffect(() => {
@@ -2291,7 +2326,7 @@ export default function CollectionsPage() {
           : "";
       shopify.toast.show(`Bulk generate complete: ${response.succeeded}/${response.total} updated.${creditsMessage}`);
       if (isCollectionProductsMode) {
-        window.setTimeout(() => navigate("/app/content-management?tab=collection_products&filter=all"), 600);
+        window.setTimeout(() => navigateInApp("/app/content-management", "?tab=collection_products&filter=all"), 600);
         return;
       }
       if (typeof window !== "undefined") {
@@ -2300,7 +2335,7 @@ export default function CollectionsPage() {
       return;
     }
     setBulkValidationMessage(response.error || "Bulk generation failed.");
-  }, [bulkFetcher.state, bulkFetcher.data, isCollectionProductsMode, navigate, revalidator, shopify]);
+  }, [bulkFetcher.state, bulkFetcher.data, isCollectionProductsMode, navigateInApp, revalidator, shopify]);
 
   useEffect(() => () => {
     if (queueIntervalRef.current) clearInterval(queueIntervalRef.current);
@@ -2531,9 +2566,9 @@ export default function CollectionsPage() {
     (selectedTabIndex) => {
       const nextTab = sectionTabs[selectedTabIndex];
       if (!nextTab?.to) return;
-      navigate(nextTab.to);
+      navigateInApp(nextTab.to.pathname, nextTab.to.search);
     },
-    [navigate, sectionTabs],
+    [navigateInApp, sectionTabs],
   );
 
   return (
@@ -2561,7 +2596,7 @@ export default function CollectionsPage() {
           </div>
           <InlineStack gap="200" blockAlign="center">
             <Text as="span" variant="headingSm" tone="subdued">{credits} credits.</Text>
-            <Button onClick={() => navigate("/app/pricing")} variant="secondary">
+            <Button onClick={() => navigateInApp("/app/pricing")} variant="secondary">
               Upgrade
             </Button>
           </InlineStack>

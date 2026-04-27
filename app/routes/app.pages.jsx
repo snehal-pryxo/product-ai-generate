@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import { useLoaderData, useNavigate, useFetcher } from "react-router";
+import { useLoaderData, useNavigate, useFetcher, useLocation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
@@ -20,6 +20,7 @@ import {
   creditsForContentTypes,
   deductCredits,
   parseSelectedContentTypes,
+  refundCredits,
 } from "../lib/credits.server";
 import {
   Page,
@@ -419,6 +420,14 @@ export const action = async ({ request }) => {
       };
     }
 
+    let reservedCredits = availableCredits;
+    let reservedCreditsUsedTotal = shopData?.creditsUsedTotal ?? 0;
+    if (requiredCredits > 0) {
+      const creditSnapshot = await deductCredits({ shopDomain: session.shop, creditsUsed: requiredCredits });
+      reservedCredits = creditSnapshot.credits;
+      reservedCreditsUsedTotal = creditSnapshot.creditsUsedTotal;
+    }
+
     const results = await Promise.allSettled(
       bulkPages.map(async (p) => {
         const input = buildGenerationPrompt({
@@ -518,17 +527,18 @@ export const action = async ({ request }) => {
     const succeeded = results.filter((r) => r.status === "fulfilled").length;
     const failed = results.filter((r) => r.status === "rejected").length;
     const creditsUsed = succeeded * creditsPerItem;
-    let newCredits = availableCredits;
-    let creditsUsedTotal = shopData?.creditsUsedTotal ?? 0;
+    const creditsToRefund = requiredCredits - creditsUsed;
+    let newCredits = reservedCredits;
+    let creditsUsedTotal = reservedCreditsUsedTotal;
     let creditWarning = null;
 
-    if (creditsUsed > 0) {
+    if (creditsToRefund > 0) {
       try {
-        const creditSnapshot = await deductCredits({ shopDomain: session.shop, creditsUsed });
+        const creditSnapshot = await refundCredits({ shopDomain: session.shop, creditsRefunded: creditsToRefund });
         newCredits = creditSnapshot.credits;
         creditsUsedTotal = creditSnapshot.creditsUsedTotal;
       } catch (creditError) {
-        creditWarning = creditError?.message || "Credits could not be updated automatically.";
+        creditWarning = creditError?.message || "Unused credits could not be refunded automatically.";
       }
     }
 
@@ -741,6 +751,7 @@ function PageEditorModal({
 export default function PagesPage() {
   const { pages, defaultAiProvider, credits } = useLoaderData();
   const navigate = useNavigate();
+  const location = useLocation();
   const shopify = useAppBridge();
 
   const bulkFetcher = useFetcher();
@@ -777,6 +788,19 @@ export default function PagesPage() {
   const [editBody, setEditBody] = useState("");
   const [editSeoTitle, setEditSeoTitle] = useState("");
   const [editSeoDescription, setEditSeoDescription] = useState("");
+  const navigateInApp = useCallback(
+    (pathname, search = "") => {
+      const current = new URLSearchParams(location.search);
+      const next = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
+      ["shop", "host", "embedded"].forEach((key) => {
+        const value = current.get(key);
+        if (value && !next.has(key)) next.set(key, value);
+      });
+      const query = next.toString();
+      navigate({ pathname, search: query ? `?${query}` : "" });
+    },
+    [location.search, navigate],
+  );
 
   const { selectedResources, allResourcesSelected, handleSelectionChange } =
     useIndexResourceState(localPages);
@@ -878,11 +902,11 @@ export default function PagesPage() {
           ? ` ${data.creditsUsed} credits used${typeof data.newCredits === "number" ? `. Remaining: ${data.newCredits}` : ""}.`
           : "";
       shopify.toast.show(`Generated ${data.succeeded}/${data.total} pages successfully.${creditsMessage}`);
-      navigate("/app/content-management?tab=pages&filter=all");
+      navigateInApp("/app/content-management", "?tab=pages&filter=all");
     } else {
       setBulkValidationMessage(data.error || "Bulk generation failed.");
     }
-  }, [bulkFetcher.data, bulkFetcher.state, navigate, shopify]);
+  }, [bulkFetcher.data, bulkFetcher.state, navigateInApp, shopify]);
 
   function openPageEditor(page) {
     setEditingPage(page);
@@ -958,7 +982,7 @@ export default function PagesPage() {
             {/* Credits badge */}
             <button
               type="button"
-              onClick={() => navigate("/app/analytics")}
+              onClick={() => navigateInApp("/app/analytics")}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -983,7 +1007,7 @@ export default function PagesPage() {
               <span>{credits} credits.</span>
               <span style={{ color: "#000000" }}>Upgrade</span>
             </button>
-            <Button onClick={() => navigate("/app")} variant="secondary" size="slim">← Dashboard</Button>
+            <Button onClick={() => navigateInApp("/app")} variant="secondary" size="slim">← Dashboard</Button>
           </div>
         </div>
       </div>

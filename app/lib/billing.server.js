@@ -137,6 +137,14 @@ export async function createRecurringSubscription({ admin, request, shop, plan }
   const payload = await readGraphqlPayload(response, "appSubscriptionCreate");
 
   const subscriptionId = payload?.appSubscription?.id;
+  await db.billingSubscription.updateMany({
+    where: {
+      shop,
+      creditedAt: null,
+      status: { in: ["PENDING", "UNKNOWN"] },
+    },
+    data: { status: "SUPERSEDED" },
+  });
   await db.billingSubscription.create({
     data: {
       shop,
@@ -258,6 +266,7 @@ export async function activateSubscription({ admin, shop, planKey }) {
       shop,
       planKey,
       creditedAt: null,
+      status: { not: "SUPERSEDED" },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -370,12 +379,13 @@ export async function activateExtraCreditPurchase({ admin, shop, packageKey }) {
   };
 }
 
-export async function refreshMonthlyPlanCredits(shop) {
+export async function refreshMonthlyPlanCredits(shop, admin = null) {
   const row = await db.shop.findUnique({
     where: { shop },
     select: {
       billingPlanKey: true,
       billingPlanCredits: true,
+      billingSubscriptionId: true,
       billingSubscriptionStatus: true,
       billingCreditsRenewedAt: true,
     },
@@ -383,6 +393,20 @@ export async function refreshMonthlyPlanCredits(shop) {
 
   if (!row || row.billingPlanKey === "free" || row.billingSubscriptionStatus !== "ACTIVE") {
     return null;
+  }
+
+  if (admin && row.billingSubscriptionId) {
+    const subscription = await fetchSubscriptionStatus(admin, row.billingSubscriptionId);
+    const liveStatus = subscription?.status || "UNKNOWN";
+    if (liveStatus !== row.billingSubscriptionStatus) {
+      await db.shop.update({
+        where: { shop },
+        data: { billingSubscriptionStatus: liveStatus },
+      });
+    }
+    if (!ACTIVE_STATUSES.has(liveStatus)) {
+      return null;
+    }
   }
 
   const lastRenewedAt = row.billingCreditsRenewedAt ? new Date(row.billingCreditsRenewedAt) : null;

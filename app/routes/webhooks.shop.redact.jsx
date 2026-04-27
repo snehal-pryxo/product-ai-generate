@@ -14,7 +14,13 @@ export const action = async ({ request }) => {
   try {
     await db.$transaction([
       db.generatedContentLog.deleteMany({ where: { shop } }),
+      db.productGeneratedContent.deleteMany({ where: { shop } }),
+      db.pageGeneratedContent.deleteMany({ where: { shop } }),
       db.collectionGeneratedContent.deleteMany({ where: { shop } }),
+      db.collectionProductGeneratedContent.deleteMany({ where: { shop } }),
+      db.blogGeneratedContent.deleteMany({ where: { shop } }),
+      db.billingSubscription.deleteMany({ where: { shop } }),
+      db.billingCreditPurchase.deleteMany({ where: { shop } }),
       db.session.deleteMany({ where: { shop } }),
       db.shop.deleteMany({ where: { shop } }),
     ]);

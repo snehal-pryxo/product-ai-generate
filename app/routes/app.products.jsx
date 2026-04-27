@@ -45,9 +45,8 @@ import {
   creditsForContentTypes,
   deductCredits,
   parseSelectedContentTypes,
+  refundCredits,
 } from "../lib/credits.server";
-/* global process */
-
 const FETCH_BATCH_SIZE = 250;
 const STATUS_FILTERS = ["all", "active", "draft"];
 const BULK_GENERATE_INTENT = "bulk_generate";
@@ -953,6 +952,14 @@ export const action = async ({ request }) => {
         };
       }
 
+      let reservedCredits = availableCredits;
+      let reservedCreditsUsedTotal = shopData?.creditsUsedTotal ?? 0;
+      if (requiredCredits > 0) {
+        const creditSnapshot = await deductCredits({ shopDomain: session.shop, creditsUsed: requiredCredits });
+        reservedCredits = creditSnapshot.credits;
+        reservedCreditsUsedTotal = creditSnapshot.creditsUsedTotal;
+      }
+
       const results = await Promise.allSettled(
         bulkProducts.map(async (p) => {
           const generated = await generateContent(
@@ -1067,17 +1074,18 @@ export const action = async ({ request }) => {
       const succeeded = results.filter((r) => r.status === "fulfilled").length;
       const failed = results.filter((r) => r.status === "rejected").length;
       const creditsUsed = succeeded * creditsPerItem;
-      let newCredits = availableCredits;
-      let creditsUsedTotal = shopData?.creditsUsedTotal ?? 0;
+      const creditsToRefund = requiredCredits - creditsUsed;
+      let newCredits = reservedCredits;
+      let creditsUsedTotal = reservedCreditsUsedTotal;
       let creditWarning = null;
 
-      if (creditsUsed > 0) {
+      if (creditsToRefund > 0) {
         try {
-          const creditSnapshot = await deductCredits({ shopDomain: session.shop, creditsUsed });
+          const creditSnapshot = await refundCredits({ shopDomain: session.shop, creditsRefunded: creditsToRefund });
           newCredits = creditSnapshot.credits;
           creditsUsedTotal = creditSnapshot.creditsUsedTotal;
         } catch (creditError) {
-          creditWarning = creditError?.message || "Credits could not be updated automatically.";
+          creditWarning = creditError?.message || "Unused credits could not be refunded automatically.";
         }
       }
 
@@ -1300,6 +1308,7 @@ export default function ProductsPage() {
   const { filters, products, collections, defaultAiProvider, credits, shopOwnerName } = useLoaderData();
   const navigation = useNavigation();
   const navigate = useNavigate();
+  const location = useLocation();
   const revalidator = useRevalidator();
   const bulkFetcher = useFetcher();
   const shopify = useAppBridge();
@@ -1428,14 +1437,32 @@ export default function ProductsPage() {
 
   const makeUrl = useCallback(
     ({ status = filters.status, search = searchValue.trim(), collectionId = filters.collectionId } = {}) => {
+      const current = new URLSearchParams(location.search);
       const params = new URLSearchParams();
+      ["shop", "host", "embedded"].forEach((key) => {
+        const value = current.get(key);
+        if (value) params.set(key, value);
+      });
       if (search) params.set("q", search);
       if (status && status !== "all") params.set("status", status);
       if (collectionId) params.set("collectionId", collectionId);
       const query = params.toString();
       return query ? `?${query}` : "";
     },
-    [filters.status, filters.collectionId, searchValue],
+    [filters.status, filters.collectionId, location.search, searchValue],
+  );
+  const navigateInApp = useCallback(
+    (pathname, search = "") => {
+      const current = new URLSearchParams(location.search);
+      const next = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
+      ["shop", "host", "embedded"].forEach((key) => {
+        const value = current.get(key);
+        if (value && !next.has(key)) next.set(key, value);
+      });
+      const query = next.toString();
+      navigate({ pathname, search: query ? `?${query}` : "" });
+    },
+    [location.search, navigate],
   );
 
   useEffect(() => {
@@ -1684,7 +1711,6 @@ export default function ProductsPage() {
     [],
   );
 
-  const location = useLocation();
   const sectionMode = new URLSearchParams(location.search).get("mode");
   const sectionTabs = [
     { id: "products", content: "Products", to: { pathname: "/app/products", search: "" } },
@@ -1708,9 +1734,9 @@ export default function ProductsPage() {
     (selectedTabIndex) => {
       const nextTab = sectionTabs[selectedTabIndex];
       if (!nextTab?.to) return;
-      navigate(nextTab.to);
+      navigateInApp(nextTab.to.pathname, nextTab.to.search);
     },
-    [navigate, sectionTabs],
+    [navigateInApp, sectionTabs],
   );
 
   return (
@@ -1738,7 +1764,7 @@ export default function ProductsPage() {
           </div>
           <InlineStack gap="200" blockAlign="center">
             <Text as="span" variant="headingSm" tone="subdued">{credits} credits.</Text>
-            <Button onClick={() => navigate("/app/pricing")} variant="secondary">
+            <Button onClick={() => navigateInApp("/app/pricing")} variant="secondary">
               Upgrade
             </Button>
           </InlineStack>

@@ -1,4 +1,4 @@
-import { Link, redirect, useLoaderData } from "react-router";
+import { Link, redirect, useLoaderData, useLocation } from "react-router";
 import { Banner, BlockStack, Box, Button, Card, InlineStack, Page, Text } from "@shopify/polaris";
 import { authenticate, unauthenticated } from "../shopify.server";
 import {
@@ -61,6 +61,7 @@ export const loader = async ({ request }) => {
 
 export default function BillingReturnPage() {
   const data = useLoaderData();
+  const location = useLocation();
 
   return (
     <Page title="Billing">
@@ -78,7 +79,7 @@ export default function BillingReturnPage() {
                 Return to pricing to review your plan and credit balance.
               </Text>
             </BlockStack>
-            <Link to="/app/pricing">
+            <Link to={{ pathname: "/app/pricing", search: location.search }}>
               <Button variant="primary">Back to pricing</Button>
             </Link>
           </InlineStack>
