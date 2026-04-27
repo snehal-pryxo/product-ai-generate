@@ -358,8 +358,7 @@ export function RichTextEditor({
           onInput={handleInput}
           style={{
             minHeight,
-            maxHeight,
-            overflowY: "auto",
+            overflowY: "visible",
             padding: 16,
             outline: "none",
             fontSize: 15,

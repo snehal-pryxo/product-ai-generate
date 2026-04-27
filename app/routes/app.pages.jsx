@@ -1502,6 +1502,7 @@ export default function PagesPage() {
           meta_title: PAGE_META_TITLE_TEMPLATES,
           meta_description: PAGE_META_DESCRIPTION_TEMPLATES,
         }}
+        usageCount={selectedResources.length}
         onUseTemplate={(templateText) => {
           if (templateLibraryContentType === "body") {
             setBulkBodyTemplate(templateText);
