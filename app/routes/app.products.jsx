@@ -1310,8 +1310,6 @@ export default function ProductsPage() {
   const [bulkMetaDescTemplate, setBulkMetaDescTemplate] = useState(() => initialBulkSessionState.bulkMetaDescTemplate || "");
   const [bulkMetaTitleTemplate, setBulkMetaTitleTemplate] = useState(() => initialBulkSessionState.bulkMetaTitleTemplate || "");
   const [bulkDescKeywords, setBulkDescKeywords] = useState(() => readGlobalSettings().productDescKeywords || "");
-  const [bulkMetaTitleKeywords, setBulkMetaTitleKeywords] = useState(() => readGlobalSettings().productMetaTitleKeywords || "");
-  const [bulkMetaDescKeywords, setBulkMetaDescKeywords] = useState(() => readGlobalSettings().productMetaDescKeywords || "");
   const [bulkSettings, setBulkSettings] = useState(() => {
     const gs = readGlobalSettings();
     return {
@@ -1533,9 +1531,7 @@ export default function ProductsPage() {
     payload.append("length", bulkSettings.length);
     payload.append("format", bulkSettings.format);
     payload.append("descKeywords", bulkDescKeywords || "");
-    payload.append("metaTitleKeywords", bulkMetaTitleKeywords || "");
-    payload.append("metaDescKeywords", bulkMetaDescKeywords || "");
-    const allKeywords = [bulkDescKeywords, bulkMetaTitleKeywords, bulkMetaDescKeywords].filter(Boolean).join(", ");
+    const allKeywords = [bulkDescKeywords].filter(Boolean).join(", ");
     payload.append("contextKeywords", allKeywords);
     payload.append("descriptionPromptTemplate", useCustomDescInstructions ? (bulkDescTemplate || "") : "");
     payload.append("metaTitlePromptTemplate", useCustomMetaTitleInstructions ? (bulkMetaTitleTemplate || "") : "");
@@ -1551,8 +1547,6 @@ export default function ProductsPage() {
     bulkFetcher.submit(payload, { method: "post" });
   }, [
     bulkDescKeywords,
-    bulkMetaTitleKeywords,
-    bulkMetaDescKeywords,
     bulkDescTemplate,
     bulkMetaDescTemplate,
     bulkMetaTitleTemplate,
@@ -1601,11 +1595,13 @@ export default function ProductsPage() {
           ? ` ${response.creditsUsed} credits used${typeof response.newCredits === "number" ? `. Remaining: ${response.newCredits}` : ""}.`
           : "";
       shopify.toast.show(`Bulk generate complete: ${response.succeeded}/${response.total} updated.${creditsMessage}`);
-      navigate("/app/content-management?tab=products&filter=all");
+      if (typeof window !== "undefined") {
+        window.setTimeout(() => window.location.reload(), 600);
+      }
       return;
     }
     setBulkValidationMessage(response.error || "Bulk generation failed.");
-  }, [bulkFetcher.state, bulkFetcher.data, navigate, revalidator, shopify]);
+  }, [bulkFetcher.state, bulkFetcher.data, revalidator, shopify]);
 
   useEffect(() => () => {
     if (queueIntervalRef.current) clearInterval(queueIntervalRef.current);
@@ -2176,26 +2172,6 @@ export default function ProductsPage() {
               {showAdvancedSettings && (
                 <div style={{ marginTop: "12px" }}>
                   <BlockStack gap="300">
-                    {bulkContentTypes.includes("meta_description") && (
-                      <TextField
-                        label="Meta Description Keywords"
-                        value={bulkMetaDescKeywords}
-                        onChange={setBulkMetaDescKeywords}
-                        placeholder="e.g. fast shipping, handmade"
-                        helpText="Keywords specific to meta descriptions"
-                        autoComplete="off"
-                      />
-                    )}
-                    {bulkContentTypes.includes("meta_title") && (
-                      <TextField
-                        label="Meta Title Keywords"
-                        value={bulkMetaTitleKeywords}
-                        onChange={setBulkMetaTitleKeywords}
-                        placeholder="e.g. buy, shop, best"
-                        helpText="Keywords specific to meta titles"
-                        autoComplete="off"
-                      />
-                    )}
                     <div style={{ display: "flex", flexDirection: "column", gap: "14px", paddingTop: "4px" }}>
                       <div>
                         <Checkbox

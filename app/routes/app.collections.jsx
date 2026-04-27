@@ -1776,10 +1776,31 @@ export const loader = async ({ request }) => {
   if (productsCollectionId) {
     const fetched = await fetchCollectionProducts(admin, productsCollectionId);
     collectionProductsTitle = fetched.collectionTitle;
+    const collectionProductGeneratedContentByProductId = new Map();
+    if (fetched.products.length > 0) {
+      const collectionProductGeneratedContents = await db.collectionProductGeneratedContent.findMany({
+        where: {
+          shop: session.shop,
+          collectionId: productsCollectionId,
+          productId: { in: fetched.products.map((node) => node.id) },
+        },
+        select: {
+          productId: true,
+          appliedToProduct: true,
+          updatedAt: true,
+        },
+      });
+
+      collectionProductGeneratedContents.forEach((entry) => {
+        collectionProductGeneratedContentByProductId.set(entry.productId, entry);
+      });
+    }
     collectionProducts = fetched.products.map((node) => ({
       id: node.id,
       title: node.title,
       status: toProductStatusMeta(node.status),
+      appStatus: toAppGenerationStatusMeta(collectionProductGeneratedContentByProductId.get(node.id)),
+      generatedTime: formatRelativeGenerationTime(collectionProductGeneratedContentByProductId.get(node.id)?.updatedAt),
       descriptionHtml: node.descriptionHtml || "",
       seoTitleValue: node.seoTitleValue || "",
       seoDescriptionValue: node.seoDescriptionValue || "",
@@ -2089,12 +2110,13 @@ export default function CollectionsPage() {
   const makeUrl = useCallback(
     ({ search = searchValue.trim(), productsCollectionId = filters.productsCollectionId } = {}) => {
       const params = new URLSearchParams();
+      if (isCollectionProductsMode) params.set("mode", COLLECTION_PRODUCTS_MODE);
       if (search) params.set("q", search);
       if (productsCollectionId) params.set("productsCollectionId", productsCollectionId);
       const query = params.toString();
       return query ? `?${query}` : "";
     },
-    [filters.productsCollectionId, searchValue],
+    [filters.productsCollectionId, isCollectionProductsMode, searchValue],
   );
 
   useEffect(() => {
@@ -2267,15 +2289,13 @@ export default function CollectionsPage() {
           ? ` ${response.creditsUsed} credits used${typeof response.newCredits === "number" ? `. Remaining: ${response.newCredits}` : ""}.`
           : "";
       shopify.toast.show(`Bulk generate complete: ${response.succeeded}/${response.total} updated.${creditsMessage}`);
-      navigate(
-        isCollectionProductsMode
-          ? "/app/content-management?tab=collection_products&filter=all"
-          : "/app/content-management?tab=collections&filter=all",
-      );
+      if (typeof window !== "undefined") {
+        window.setTimeout(() => window.location.reload(), 600);
+      }
       return;
     }
     setBulkValidationMessage(response.error || "Bulk generation failed.");
-  }, [bulkFetcher.state, bulkFetcher.data, isCollectionProductsMode, navigate, revalidator, shopify]);
+  }, [bulkFetcher.state, bulkFetcher.data, revalidator, shopify]);
 
   useEffect(() => () => {
     if (queueIntervalRef.current) clearInterval(queueIntervalRef.current);
@@ -2720,7 +2740,8 @@ export default function CollectionsPage() {
                             ),
                           },
                           { title: "Product" },
-                          { title: "Shopify Status" },
+                          { title: "App Status" },
+                          { title: "Generated In" },
                         ]}
                         selectable={false}
                       >
@@ -2739,7 +2760,21 @@ export default function CollectionsPage() {
                                 {product.title}
                               </Text>
                             </IndexTable.Cell>
-                            <IndexTable.Cell>{renderBadge(product.status)}</IndexTable.Cell>
+                            <IndexTable.Cell>
+                              {isBulkGenerating && selectedCollectionProductIds.includes(product.id) ? (
+                                <InlineStack gap="100" blockAlign="center">
+                                  <Spinner size="small" />
+                                  <Text as="span" tone="subdued">Generating...</Text>
+                                </InlineStack>
+                              ) : (
+                                renderBadge(product.appStatus)
+                              )}
+                            </IndexTable.Cell>
+                            <IndexTable.Cell>
+                              <Text as="span" variant="bodySm" tone="subdued">
+                                {product.generatedTime || "-"}
+                              </Text>
+                            </IndexTable.Cell>
                           </IndexTable.Row>
                         ))}
                       </IndexTable>
