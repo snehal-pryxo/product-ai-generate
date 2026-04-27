@@ -1926,26 +1926,57 @@ export default function CollectionsPage() {
   );
 
   useEffect(() => {
+    if (!isCollectionProductsMode || visibleCollectionProductIds.length === 0) {
+      return;
+    }
+
     setSelectedCollectionProductIds((current) => {
       const visibleSet = new Set(visibleCollectionProductIds);
       return current.filter((id) => visibleSet.has(id));
     });
-  }, [visibleCollectionProductIds]);
+  }, [isCollectionProductsMode, visibleCollectionProductIds]);
 
   useEffect(() => {
     if (previousModeRef.current === isCollectionProductsMode) {
       return;
     }
 
-    // Keep collection-mode and collection-product-mode selections independent.
-    setSelectedCollectionIds([]);
-    setSelectedCollectionProductIds([]);
     setQueueStatusById({});
     setBulkResult(null);
     setBulkValidationMessage(null);
     previousModeRef.current = isCollectionProductsMode;
   }, [isCollectionProductsMode]);
-  const exceedsBulkLimit = selectedCollections.length > MAX_BULK_ITEMS;
+
+  const activeProductsCollection = useMemo(
+    () =>
+      collections.find((collection) => collection.id === filters.productsCollectionId) ||
+      filteredCollections.find((collection) => collection.id === filters.productsCollectionId) ||
+      null,
+    [collections, filteredCollections, filters.productsCollectionId],
+  );
+
+  const targetCollectionsForBulk = useMemo(() => {
+    if (!isCollectionProductsMode) {
+      return selectedCollections;
+    }
+
+    if (selectedCollections.length > 0) {
+      return selectedCollections;
+    }
+
+    if (activeProductsCollection && selectedCollectionProductIds.length > 0) {
+      return [activeProductsCollection];
+    }
+
+    return [];
+  }, [
+    activeProductsCollection,
+    isCollectionProductsMode,
+    selectedCollectionProductIds.length,
+    selectedCollections,
+  ]);
+
+  const exceedsBulkLimit = targetCollectionsForBulk.length > MAX_BULK_ITEMS;
 
   const makeUrl = useCallback(
     ({ search = searchValue.trim(), productsCollectionId = filters.productsCollectionId } = {}) => {
@@ -1974,11 +2005,15 @@ export default function CollectionsPage() {
   }, []);
 
   const handleBulkGenerate = useCallback(() => {
-    if (selectedCollections.length === 0) {
-      setBulkValidationMessage(MIN_BULK_COLLECTION_SELECTION_ERROR);
+    if (targetCollectionsForBulk.length === 0) {
+      setBulkValidationMessage(
+        isCollectionProductsMode
+          ? "Select at least one collection product for bulk generation."
+          : MIN_BULK_COLLECTION_SELECTION_ERROR,
+      );
       return;
     }
-    if (selectedCollections.length > MAX_BULK_ITEMS) {
+    if (targetCollectionsForBulk.length > MAX_BULK_ITEMS) {
       setBulkValidationMessage(MAX_BULK_COLLECTION_SELECTION_ERROR);
       return;
     }
@@ -2016,7 +2051,7 @@ export default function CollectionsPage() {
     setBulkValidationMessage(null);
     setBulkResult(null);
     const initialQueueState = {};
-    selectedCollections.forEach((collection, index) => {
+    targetCollectionsForBulk.forEach((collection, index) => {
       initialQueueState[collection.id] = index === 0 ? "processing" : "queued";
     });
     setQueueStatusById(initialQueueState);
@@ -2026,11 +2061,11 @@ export default function CollectionsPage() {
       processingIndex += 1;
       setQueueStatusById((prev) => {
         const next = { ...prev };
-        if (selectedCollections[processingIndex - 1] && next[selectedCollections[processingIndex - 1].id] === "processing") {
-          next[selectedCollections[processingIndex - 1].id] = "queued";
+        if (targetCollectionsForBulk[processingIndex - 1] && next[targetCollectionsForBulk[processingIndex - 1].id] === "processing") {
+          next[targetCollectionsForBulk[processingIndex - 1].id] = "queued";
         }
-        if (selectedCollections[processingIndex] && next[selectedCollections[processingIndex].id] === "queued") {
-          next[selectedCollections[processingIndex].id] = "processing";
+        if (targetCollectionsForBulk[processingIndex] && next[targetCollectionsForBulk[processingIndex].id] === "queued") {
+          next[targetCollectionsForBulk[processingIndex].id] = "processing";
         }
         return next;
       });
@@ -2040,7 +2075,7 @@ export default function CollectionsPage() {
     payload.append("intent", BULK_GENERATE_INTENT);
     payload.append("bulkMode", isCollectionProductsMode ? COLLECTION_PRODUCTS_MODE : "collections");
     payload.append("collections", JSON.stringify(
-      selectedCollections.map((c) => ({
+      targetCollectionsForBulk.map((c) => ({
         id: c.id,
         title: c.title,
         descriptionHtml: c.descriptionHtml,
@@ -2080,7 +2115,6 @@ export default function CollectionsPage() {
     bulkContentTypes,
     bulkFetcher,
     bulkSettings,
-    selectedCollections,
     outputLanguage,
     useCustomDescInstructions,
     useCustomMetaDescInstructions,
@@ -2090,8 +2124,8 @@ export default function CollectionsPage() {
     removeImagesFromDescription,
     filters.productsCollectionId,
     isCollectionProductsMode,
-    selectedCollections,
     selectedCollectionProductIds,
+    targetCollectionsForBulk,
   ]);
 
   const isBulkGenerating = bulkFetcher.state !== "idle";
@@ -2140,14 +2174,20 @@ export default function CollectionsPage() {
   }, []);
 
   useEffect(() => {
-    if (selectedCollections.length > MAX_BULK_ITEMS) {
+    if (targetCollectionsForBulk.length > MAX_BULK_ITEMS) {
       if (bulkValidationMessage !== MAX_BULK_COLLECTION_SELECTION_ERROR) {
         setBulkValidationMessage(MAX_BULK_COLLECTION_SELECTION_ERROR);
       }
       return;
     }
 
-    if (selectedCollections.length > 0 && bulkValidationMessage === MIN_BULK_COLLECTION_SELECTION_ERROR) {
+    if (
+      targetCollectionsForBulk.length > 0 &&
+      (
+        bulkValidationMessage === MIN_BULK_COLLECTION_SELECTION_ERROR ||
+        bulkValidationMessage === "Select at least one collection product for bulk generation."
+      )
+    ) {
       setBulkValidationMessage(null);
       return;
     }
@@ -2155,7 +2195,7 @@ export default function CollectionsPage() {
     if (bulkValidationMessage === MAX_BULK_COLLECTION_SELECTION_ERROR) {
       setBulkValidationMessage(null);
     }
-  }, [bulkValidationMessage, selectedCollections.length]);
+  }, [bulkValidationMessage, targetCollectionsForBulk.length]);
 
   const updateBulkField = (field) => (value) =>
     setBulkSettings((prev) => ({ ...prev, [field]: value }));
@@ -2165,7 +2205,7 @@ export default function CollectionsPage() {
       return selectedCollections.length;
     }
 
-    return selectedCollections.reduce((sum, collection) => {
+    return targetCollectionsForBulk.reduce((sum, collection) => {
       if (
         filters.productsCollectionId &&
         filters.productsCollectionId === collection.id &&
@@ -2179,8 +2219,39 @@ export default function CollectionsPage() {
     filters.productsCollectionId,
     isCollectionProductsMode,
     selectedCollectionProductIds.length,
-    selectedCollections,
+    selectedCollections.length,
+    targetCollectionsForBulk,
   ]);
+
+  const collectionTemplateSummary = useMemo(() => {
+    const selectedTemplates = [
+      bulkContentTypes.includes("description") && useCustomDescInstructions && bulkDescTemplate.trim()
+        ? "Description"
+        : null,
+      bulkContentTypes.includes("meta_description") && useCustomMetaDescInstructions && bulkMetaDescTemplate.trim()
+        ? "Meta Description"
+        : null,
+      bulkContentTypes.includes("meta_title") && useCustomMetaTitleInstructions && bulkMetaTitleTemplate.trim()
+        ? "Meta Title"
+        : null,
+    ].filter(Boolean);
+
+    return selectedTemplates.length > 0 ? selectedTemplates.join(", ") : "No template selected";
+  }, [
+    bulkContentTypes,
+    bulkDescTemplate,
+    bulkMetaDescTemplate,
+    bulkMetaTitleTemplate,
+    useCustomDescInstructions,
+    useCustomMetaDescInstructions,
+    useCustomMetaTitleInstructions,
+  ]);
+
+  const selectedTargetLabel = isCollectionProductsMode ? "Collection Product Selected" : "Collection Selected";
+  const selectedTemplateLabel = isCollectionProductsMode
+    ? "Collection Product Template Selected"
+    : "Collection Template Selected";
+  const selectedTargetCount = isCollectionProductsMode ? estimatedTargetItems : selectedCollections.length;
 
 
   const allVisibleSelected =
@@ -2625,6 +2696,32 @@ export default function CollectionsPage() {
               </BlockStack>
             </div>
 
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)", background: "#f9fafb" }}>
+              <BlockStack gap="200">
+                <InlineStack align="space-between" blockAlign="center" gap="200">
+                  <Text as="span" variant="bodySm" fontWeight="semibold">{selectedTargetLabel}</Text>
+                  <Badge tone={selectedTargetCount > 0 ? "success" : "attention"}>
+                    {selectedTargetCount}
+                  </Badge>
+                </InlineStack>
+                <InlineStack align="space-between" blockAlign="center" gap="200">
+                  <Text as="span" variant="bodySm" fontWeight="semibold">{selectedTemplateLabel}</Text>
+                  <Text as="span" variant="bodySm" tone={collectionTemplateSummary === "No template selected" ? "subdued" : undefined}>
+                    {collectionTemplateSummary}
+                  </Text>
+                </InlineStack>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => { setTemplateLibraryContentType("description"); setTemplateLibraryOpen(true); }}
+                    style={{ padding: "6px 14px", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}
+                  >
+                    Select Template
+                  </button>
+                </div>
+              </BlockStack>
+            </div>
+
             {/* Content Type Pills */}
             <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
              
@@ -2949,7 +3046,7 @@ export default function CollectionsPage() {
                 style={{ width: "fit-content" }}
                 variant="primary"
                 onClick={handleBulkGenerate}
-                disabled={isBulkGenerating || selectedCollections.length === 0 || exceedsBulkLimit}
+                disabled={isBulkGenerating || targetCollectionsForBulk.length === 0 || exceedsBulkLimit}
                 loading={isBulkGenerating}
                 tone="success"
               >

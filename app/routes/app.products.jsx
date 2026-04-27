@@ -1364,6 +1364,29 @@ export default function ProductsPage() {
     () => filteredProducts.filter((product) => selectedProductIds.includes(product.id)),
     [filteredProducts, selectedProductIds],
   );
+  const productTemplateSummary = useMemo(() => {
+    const selectedTemplates = [
+      bulkContentTypes.includes("description") && useCustomDescInstructions && bulkDescTemplate.trim()
+        ? "Description"
+        : null,
+      bulkContentTypes.includes("meta_description") && useCustomMetaDescInstructions && bulkMetaDescTemplate.trim()
+        ? "Meta Description"
+        : null,
+      bulkContentTypes.includes("meta_title") && useCustomMetaTitleInstructions && bulkMetaTitleTemplate.trim()
+        ? "Meta Title"
+        : null,
+    ].filter(Boolean);
+
+    return selectedTemplates.length > 0 ? selectedTemplates.join(", ") : "No template selected";
+  }, [
+    bulkContentTypes,
+    bulkDescTemplate,
+    bulkMetaDescTemplate,
+    bulkMetaTitleTemplate,
+    useCustomDescInstructions,
+    useCustomMetaDescInstructions,
+    useCustomMetaTitleInstructions,
+  ]);
   const exceedsBulkLimit = selectedProducts.length > MAX_BULK_ITEMS;
 
   const makeUrl = useCallback(
@@ -1878,6 +1901,32 @@ export default function ProductsPage() {
                     bulkContentTypes.includes("meta_title") ? "Meta Titles" : null,
                   ].filter(Boolean).join(", ")} will be generated for {selectedProducts.length} product{selectedProducts.length !== 1 ? "s" : ""}
                 </Text>
+              </BlockStack>
+            </div>
+
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)", background: "#f9fafb" }}>
+              <BlockStack gap="200">
+                <InlineStack align="space-between" blockAlign="center" gap="200">
+                  <Text as="span" variant="bodySm" fontWeight="semibold">Product Selected</Text>
+                  <Badge tone={selectedProducts.length > 0 ? "success" : "attention"}>
+                    {selectedProducts.length}
+                  </Badge>
+                </InlineStack>
+                <InlineStack align="space-between" blockAlign="center" gap="200">
+                  <Text as="span" variant="bodySm" fontWeight="semibold">Product Template Selected</Text>
+                  <Text as="span" variant="bodySm" tone={productTemplateSummary === "No template selected" ? "subdued" : undefined}>
+                    {productTemplateSummary}
+                  </Text>
+                </InlineStack>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => { setTemplateLibraryContentType("description"); setTemplateLibraryOpen(true); }}
+                    style={{ padding: "6px 14px", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}
+                  >
+                    Select Template
+                  </button>
+                </div>
               </BlockStack>
             </div>
 
