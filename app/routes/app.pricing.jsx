@@ -297,7 +297,6 @@ export default function PricingPage() {
               </InlineStack>
             ) : null}
           </BlockStack>
-
           <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
             {extraCreditPackages.map((creditPackage) => {
               const loading = isSubmitting && activePackageKey === creditPackage.key;
@@ -316,7 +315,7 @@ export default function PricingPage() {
                           One-time purchase
                         </Text>
                       </BlockStack>
-                      
+
                       <Form method="post">
                         <input type="hidden" name="intent" value="buy_credits" />
                         <input type="hidden" name="packageKey" value={creditPackage.key} />
