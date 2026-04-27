@@ -1260,6 +1260,31 @@ const bulkInitialSettings = {
   aiProvider: "auto",
 };
 
+const PRODUCT_BULK_SESSION_KEY = "product-ai-generate:products-bulk-state";
+
+function readBulkSessionState(key) {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeBulkSessionState(key, value) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore private browsing or storage quota failures.
+  }
+}
+
+function readArrayState(value, fallback = []) {
+  return Array.isArray(value) ? value : fallback;
+}
+
 export default function ProductsPage() {
   const { filters, products, collections, defaultAiProvider, credits, shopOwnerName } = useLoaderData();
   const navigation = useNavigation();
@@ -1267,11 +1292,13 @@ export default function ProductsPage() {
   const revalidator = useRevalidator();
   const bulkFetcher = useFetcher();
   const shopify = useAppBridge();
+  const initialBulkSessionStateRef = useRef(readBulkSessionState(PRODUCT_BULK_SESSION_KEY));
+  const initialBulkSessionState = initialBulkSessionStateRef.current;
   const [searchValue, setSearchValue] = useState(filters.search);
   const [fallbackProducts, setFallbackProducts] = useState(products);
-  const [bulkDescTemplate, setBulkDescTemplate] = useState("");
-  const [bulkMetaDescTemplate, setBulkMetaDescTemplate] = useState("");
-  const [bulkMetaTitleTemplate, setBulkMetaTitleTemplate] = useState("");
+  const [bulkDescTemplate, setBulkDescTemplate] = useState(() => initialBulkSessionState.bulkDescTemplate || "");
+  const [bulkMetaDescTemplate, setBulkMetaDescTemplate] = useState(() => initialBulkSessionState.bulkMetaDescTemplate || "");
+  const [bulkMetaTitleTemplate, setBulkMetaTitleTemplate] = useState(() => initialBulkSessionState.bulkMetaTitleTemplate || "");
   const [bulkDescKeywords, setBulkDescKeywords] = useState(() => readGlobalSettings().productDescKeywords || "");
   const [bulkMetaTitleKeywords, setBulkMetaTitleKeywords] = useState(() => readGlobalSettings().productMetaTitleKeywords || "");
   const [bulkMetaDescKeywords, setBulkMetaDescKeywords] = useState(() => readGlobalSettings().productMetaDescKeywords || "");
@@ -1285,9 +1312,11 @@ export default function ProductsPage() {
     };
   });
   const [bulkResult, setBulkResult] = useState(null);
-  const [selectedProductIds, setSelectedProductIds] = useState([]);
+  const [selectedProductIds, setSelectedProductIds] = useState(() => readArrayState(initialBulkSessionState.selectedProductIds));
   const [bulkValidationMessage, setBulkValidationMessage] = useState(null);
-  const [bulkContentTypes, setBulkContentTypes] = useState(["description"]);
+  const [bulkContentTypes, setBulkContentTypes] = useState(() =>
+    readArrayState(initialBulkSessionState.bulkContentTypes, ["description"]),
+  );
   const [selectedDescTemplateId, setSelectedDescTemplateId] = useState(
     () => PRODUCT_DESCRIPTION_TEMPLATES[0]?.id || ""
   );
@@ -1298,9 +1327,9 @@ export default function ProductsPage() {
     () => PRODUCT_META_TITLE_TEMPLATES[0]?.id || ""
   );
   const bulkResultHandledRef = useRef(false);
-  const [useCustomDescInstructions, setUseCustomDescInstructions] = useState(false);
-  const [useCustomMetaDescInstructions, setUseCustomMetaDescInstructions] = useState(false);
-  const [useCustomMetaTitleInstructions, setUseCustomMetaTitleInstructions] = useState(false);
+  const [useCustomDescInstructions, setUseCustomDescInstructions] = useState(() => !!initialBulkSessionState.useCustomDescInstructions);
+  const [useCustomMetaDescInstructions, setUseCustomMetaDescInstructions] = useState(() => !!initialBulkSessionState.useCustomMetaDescInstructions);
+  const [useCustomMetaTitleInstructions, setUseCustomMetaTitleInstructions] = useState(() => !!initialBulkSessionState.useCustomMetaTitleInstructions);
   const [templateLibraryOpen, setTemplateLibraryOpen] = useState(false);
   const [templateLibraryContentType, setTemplateLibraryContentType] = useState("description");
   const [outputLanguage, setOutputLanguage] = useState(() => readGlobalSettings().language || "English");
@@ -1314,15 +1343,37 @@ export default function ProductsPage() {
 
   useEffect(() => {
     const templateSelection = readStoredProductPromptTemplateSelection();
-    if (templateSelection.metaTitlePromptTemplate) {
+    if (!initialBulkSessionState.useCustomMetaTitleInstructions && templateSelection.metaTitlePromptTemplate) {
       setBulkMetaTitleTemplate(templateSelection.metaTitlePromptTemplate);
       setUseCustomMetaTitleInstructions(true);
     }
-    if (templateSelection.metaDescriptionPromptTemplate) {
+    if (!initialBulkSessionState.useCustomMetaDescInstructions && templateSelection.metaDescriptionPromptTemplate) {
       setBulkMetaDescTemplate(templateSelection.metaDescriptionPromptTemplate);
       setUseCustomMetaDescInstructions(true);
     }
-  }, []);
+  }, [initialBulkSessionState]);
+
+  useEffect(() => {
+    writeBulkSessionState(PRODUCT_BULK_SESSION_KEY, {
+      selectedProductIds,
+      bulkContentTypes,
+      bulkDescTemplate,
+      bulkMetaDescTemplate,
+      bulkMetaTitleTemplate,
+      useCustomDescInstructions,
+      useCustomMetaDescInstructions,
+      useCustomMetaTitleInstructions,
+    });
+  }, [
+    bulkContentTypes,
+    bulkDescTemplate,
+    bulkMetaDescTemplate,
+    bulkMetaTitleTemplate,
+    selectedProductIds,
+    useCustomDescInstructions,
+    useCustomMetaDescInstructions,
+    useCustomMetaTitleInstructions,
+  ]);
 
   useEffect(() => {
     setSearchValue(filters.search);

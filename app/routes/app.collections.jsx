@@ -1793,6 +1793,34 @@ const bulkInitialSettings = {
   aiProvider: "auto",
 };
 
+const COLLECTION_BULK_SESSION_KEYS = {
+  collections: "product-ai-generate:collections-bulk-state",
+  collectionProducts: "product-ai-generate:collection-products-bulk-state",
+};
+
+function readBulkSessionState(key) {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeBulkSessionState(key, value) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore private browsing or storage quota failures.
+  }
+}
+
+function readArrayState(value, fallback = []) {
+  return Array.isArray(value) ? value : fallback;
+}
+
 export default function CollectionsPage() {
   const {
     filters,
@@ -1819,11 +1847,16 @@ export default function CollectionsPage() {
   const revalidator = useRevalidator();
   const bulkFetcher = useFetcher();
   const shopify = useAppBridge();
+  const collectionBulkSessionKey = isCollectionProductsMode
+    ? COLLECTION_BULK_SESSION_KEYS.collectionProducts
+    : COLLECTION_BULK_SESSION_KEYS.collections;
+  const initialBulkSessionStateRef = useRef(readBulkSessionState(collectionBulkSessionKey));
+  const initialBulkSessionState = initialBulkSessionStateRef.current;
   const [searchValue, setSearchValue] = useState(filters.search);
   const [fallbackCollections, setFallbackCollections] = useState(collections);
-  const [bulkDescTemplate, setBulkDescTemplate] = useState("");
-  const [bulkMetaDescTemplate, setBulkMetaDescTemplate] = useState("");
-  const [bulkMetaTitleTemplate, setBulkMetaTitleTemplate] = useState("");
+  const [bulkDescTemplate, setBulkDescTemplate] = useState(() => initialBulkSessionState.bulkDescTemplate || "");
+  const [bulkMetaDescTemplate, setBulkMetaDescTemplate] = useState(() => initialBulkSessionState.bulkMetaDescTemplate || "");
+  const [bulkMetaTitleTemplate, setBulkMetaTitleTemplate] = useState(() => initialBulkSessionState.bulkMetaTitleTemplate || "");
   const [bulkSettings, setBulkSettings] = useState(() => {
     const gs = readGlobalSettings();
     return {
@@ -1834,9 +1867,11 @@ export default function CollectionsPage() {
     };
   });
   const [bulkResult, setBulkResult] = useState(null);
-  const [selectedCollectionIds, setSelectedCollectionIds] = useState([]);
+  const [selectedCollectionIds, setSelectedCollectionIds] = useState(() => readArrayState(initialBulkSessionState.selectedCollectionIds));
   const [bulkValidationMessage, setBulkValidationMessage] = useState(null);
-  const [bulkContentTypes, setBulkContentTypes] = useState(["description"]);
+  const [bulkContentTypes, setBulkContentTypes] = useState(() =>
+    readArrayState(initialBulkSessionState.bulkContentTypes, ["description"]),
+  );
   const [selectedDescTemplateId, setSelectedDescTemplateId] = useState("");
   const [selectedMetaDescTemplateId, setSelectedMetaDescTemplateId] = useState("");
   const [selectedMetaTitleTemplateId, setSelectedMetaTitleTemplateId] = useState("");
@@ -1844,9 +1879,9 @@ export default function CollectionsPage() {
   const [bulkDescKeywords, setBulkDescKeywords] = useState(() => readGlobalSettings().collectionDescKeywords || "");
   const [bulkMetaTitleKeywords, setBulkMetaTitleKeywords] = useState(() => readGlobalSettings().collectionMetaTitleKeywords || "");
   const [bulkMetaDescKeywords, setBulkMetaDescKeywords] = useState(() => readGlobalSettings().collectionMetaDescKeywords || "");
-  const [useCustomDescInstructions, setUseCustomDescInstructions] = useState(false);
-  const [useCustomMetaDescInstructions, setUseCustomMetaDescInstructions] = useState(false);
-  const [useCustomMetaTitleInstructions, setUseCustomMetaTitleInstructions] = useState(false);
+  const [useCustomDescInstructions, setUseCustomDescInstructions] = useState(() => !!initialBulkSessionState.useCustomDescInstructions);
+  const [useCustomMetaDescInstructions, setUseCustomMetaDescInstructions] = useState(() => !!initialBulkSessionState.useCustomMetaDescInstructions);
+  const [useCustomMetaTitleInstructions, setUseCustomMetaTitleInstructions] = useState(() => !!initialBulkSessionState.useCustomMetaTitleInstructions);
   const [templateLibraryOpen, setTemplateLibraryOpen] = useState(false);
   const [templateLibraryContentType, setTemplateLibraryContentType] = useState("description");
   const [outputLanguage, setOutputLanguage] = useState(() => readGlobalSettings().language || "English");
@@ -1856,22 +1891,24 @@ export default function CollectionsPage() {
   const [preserveOldDescription, setPreserveOldDescription] = useState(false);
   const [removeImagesFromDescription, setRemoveImagesFromDescription] = useState(false);
   const [queueStatusById, setQueueStatusById] = useState({});
-  const [selectedCollectionProductIds, setSelectedCollectionProductIds] = useState([]);
+  const [selectedCollectionProductIds, setSelectedCollectionProductIds] = useState(() =>
+    readArrayState(initialBulkSessionState.selectedCollectionProductIds),
+  );
   const queueIntervalRef = useRef(null);
   const previousModeRef = useRef(isCollectionProductsMode);
   const [statusTabIndex, setStatusTabIndex] = useState(0);
 
   useEffect(() => {
     const templateSelection = readStoredCollectionPromptTemplateSelection();
-    if (templateSelection.metaTitlePromptTemplate) {
+    if (!initialBulkSessionState.useCustomMetaTitleInstructions && templateSelection.metaTitlePromptTemplate) {
       setBulkMetaTitleTemplate(templateSelection.metaTitlePromptTemplate);
       setUseCustomMetaTitleInstructions(true);
     }
-    if (templateSelection.metaDescriptionPromptTemplate) {
+    if (!initialBulkSessionState.useCustomMetaDescInstructions && templateSelection.metaDescriptionPromptTemplate) {
       setBulkMetaDescTemplate(templateSelection.metaDescriptionPromptTemplate);
       setUseCustomMetaDescInstructions(true);
     }
-  }, []);
+  }, [initialBulkSessionState]);
 
   useEffect(() => {
     setSearchValue(filters.search);
@@ -1941,11 +1978,76 @@ export default function CollectionsPage() {
       return;
     }
 
+    const previousKey = previousModeRef.current
+      ? COLLECTION_BULK_SESSION_KEYS.collectionProducts
+      : COLLECTION_BULK_SESSION_KEYS.collections;
+
+    writeBulkSessionState(previousKey, {
+      selectedCollectionIds,
+      selectedCollectionProductIds,
+      bulkContentTypes,
+      bulkDescTemplate,
+      bulkMetaDescTemplate,
+      bulkMetaTitleTemplate,
+      useCustomDescInstructions,
+      useCustomMetaDescInstructions,
+      useCustomMetaTitleInstructions,
+    });
+
+    const nextState = readBulkSessionState(collectionBulkSessionKey);
+    setSelectedCollectionIds(readArrayState(nextState.selectedCollectionIds));
+    setSelectedCollectionProductIds(readArrayState(nextState.selectedCollectionProductIds));
+    setBulkContentTypes(readArrayState(nextState.bulkContentTypes, ["description"]));
+    setBulkDescTemplate(nextState.bulkDescTemplate || "");
+    setBulkMetaDescTemplate(nextState.bulkMetaDescTemplate || "");
+    setBulkMetaTitleTemplate(nextState.bulkMetaTitleTemplate || "");
+    setUseCustomDescInstructions(!!nextState.useCustomDescInstructions);
+    setUseCustomMetaDescInstructions(!!nextState.useCustomMetaDescInstructions);
+    setUseCustomMetaTitleInstructions(!!nextState.useCustomMetaTitleInstructions);
+    setTemplateLibraryOpen(false);
+    setTemplateLibraryContentType("description");
     setQueueStatusById({});
     setBulkResult(null);
     setBulkValidationMessage(null);
     previousModeRef.current = isCollectionProductsMode;
-  }, [isCollectionProductsMode]);
+  }, [
+    bulkContentTypes,
+    bulkDescTemplate,
+    bulkMetaDescTemplate,
+    bulkMetaTitleTemplate,
+    collectionBulkSessionKey,
+    isCollectionProductsMode,
+    selectedCollectionIds,
+    selectedCollectionProductIds,
+    useCustomDescInstructions,
+    useCustomMetaDescInstructions,
+    useCustomMetaTitleInstructions,
+  ]);
+
+  useEffect(() => {
+    writeBulkSessionState(collectionBulkSessionKey, {
+      selectedCollectionIds,
+      selectedCollectionProductIds,
+      bulkContentTypes,
+      bulkDescTemplate,
+      bulkMetaDescTemplate,
+      bulkMetaTitleTemplate,
+      useCustomDescInstructions,
+      useCustomMetaDescInstructions,
+      useCustomMetaTitleInstructions,
+    });
+  }, [
+    bulkContentTypes,
+    bulkDescTemplate,
+    bulkMetaDescTemplate,
+    bulkMetaTitleTemplate,
+    collectionBulkSessionKey,
+    selectedCollectionIds,
+    selectedCollectionProductIds,
+    useCustomDescInstructions,
+    useCustomMetaDescInstructions,
+    useCustomMetaTitleInstructions,
+  ]);
 
   const activeProductsCollection = useMemo(
     () =>
@@ -1957,10 +2059,6 @@ export default function CollectionsPage() {
 
   const targetCollectionsForBulk = useMemo(() => {
     if (!isCollectionProductsMode) {
-      return selectedCollections;
-    }
-
-    if (selectedCollections.length > 0) {
       return selectedCollections;
     }
 
