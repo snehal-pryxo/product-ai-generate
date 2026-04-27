@@ -2946,7 +2946,7 @@ export default function CollectionsPage() {
             {/* Generate Button */}
             <div style={{ padding: "12px 16px" }}>
               <Button
-                fullWidth
+                style={{ width: "fit-content" }}
                 variant="primary"
                 onClick={handleBulkGenerate}
                 disabled={isBulkGenerating || selectedCollections.length === 0 || exceedsBulkLimit}

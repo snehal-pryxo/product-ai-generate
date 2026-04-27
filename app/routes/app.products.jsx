@@ -2199,7 +2199,7 @@ export default function ProductsPage() {
             {/* Generate Button */}
             <div style={{ padding: "12px 16px" }}>
               <Button
-                fullWidth
+                style={{ width: "fit-content" }}
                 variant="primary"
                 onClick={handleBulkGenerate}
                 disabled={isBulkGenerating || selectedProducts.length === 0 || exceedsBulkLimit}
