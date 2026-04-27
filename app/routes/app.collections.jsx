@@ -532,6 +532,23 @@ function normalizeGeneratedHtml(value) {
   return toStructuredHtml(text);
 }
 
+function normalizeHeadingText(value) {
+  return stripHtml(value).replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function withSingleTitleHeading(html, title) {
+  const normalizedTitle = normalizeHeadingText(title);
+  if (!normalizedTitle) return html || "";
+
+  const bodyWithoutDuplicateTitleHeadings = (html || "")
+    .replace(/<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]>/gi, (match, headingText) =>
+      normalizeHeadingText(headingText) === normalizedTitle ? "" : match,
+    )
+    .trim();
+
+  return `<h2>${escapeHtml(title)}</h2>${bodyWithoutDuplicateTitleHeadings}`;
+}
+
 function buildGenerationPrompt({
   title,
   descriptionText,
@@ -1204,9 +1221,6 @@ export const action = async ({ request }) => {
                       .replace(/<img\b[^>]*>/gi, "")
                       .replace(/<figure\b[^>]*>[\s\S]*?<\/figure>/gi, "");
                   }
-                  if (addTitleAsHeadingFlag && product.title) {
-                    nextDescription = `<h2>${product.title.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</h2>${nextDescription}`;
-                  }
                   if (preserveOldDescriptionFlag && product.descriptionHtml) {
                     const oldHtml = removeImagesFlag
                       ? product.descriptionHtml
@@ -1214,6 +1228,9 @@ export const action = async ({ request }) => {
                         .replace(/<figure\b[^>]*>[\s\S]*?<\/figure>/gi, "")
                       : product.descriptionHtml;
                     nextDescription = nextDescription + oldHtml;
+                  }
+                  if (addTitleAsHeadingFlag && product.title) {
+                    nextDescription = withSingleTitleHeading(nextDescription, product.title);
                   }
                 }
 
@@ -1473,14 +1490,14 @@ export const action = async ({ request }) => {
             if (removeImagesFlag) {
               nextDescription = nextDescription.replace(/<img\b[^>]*>/gi, "").replace(/<figure\b[^>]*>[\s\S]*?<\/figure>/gi, "");
             }
-            if (addTitleAsHeadingFlag && c.title) {
-              nextDescription = `<h2>${c.title.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</h2>${nextDescription}`;
-            }
             if (preserveOldDescriptionFlag && c.descriptionHtml) {
               const oldHtml = removeImagesFlag
                 ? c.descriptionHtml.replace(/<img\b[^>]*>/gi, "").replace(/<figure\b[^>]*>[\s\S]*?<\/figure>/gi, "")
                 : c.descriptionHtml;
               nextDescription = nextDescription + oldHtml;
+            }
+            if (addTitleAsHeadingFlag && c.title) {
+              nextDescription = withSingleTitleHeading(nextDescription, c.title);
             }
           }
           const nextSeoTitle = shouldUpdateMetaTitle
@@ -2321,37 +2338,6 @@ export default function CollectionsPage() {
     targetCollectionsForBulk,
   ]);
 
-  const collectionTemplateSummary = useMemo(() => {
-    const selectedTemplates = [
-      bulkContentTypes.includes("description") && useCustomDescInstructions && bulkDescTemplate.trim()
-        ? "Description"
-        : null,
-      bulkContentTypes.includes("meta_description") && useCustomMetaDescInstructions && bulkMetaDescTemplate.trim()
-        ? "Meta Description"
-        : null,
-      bulkContentTypes.includes("meta_title") && useCustomMetaTitleInstructions && bulkMetaTitleTemplate.trim()
-        ? "Meta Title"
-        : null,
-    ].filter(Boolean);
-
-    return selectedTemplates.length > 0 ? selectedTemplates.join(", ") : "No template selected";
-  }, [
-    bulkContentTypes,
-    bulkDescTemplate,
-    bulkMetaDescTemplate,
-    bulkMetaTitleTemplate,
-    useCustomDescInstructions,
-    useCustomMetaDescInstructions,
-    useCustomMetaTitleInstructions,
-  ]);
-
-  const selectedTargetLabel = isCollectionProductsMode ? "Collection Product Selected" : "Collection Selected";
-  const selectedTemplateLabel = isCollectionProductsMode
-    ? "Collection Product Template Selected"
-    : "Collection Template Selected";
-  const selectedTargetCount = isCollectionProductsMode ? estimatedTargetItems : selectedCollections.length;
-
-
   const allVisibleSelected =
     visibleCollectionIds.length > 0 && selectedCollectionIds.length === visibleCollectionIds.length;
   const selectionIndeterminate =
@@ -2794,32 +2780,6 @@ export default function CollectionsPage() {
               </BlockStack>
             </div>
 
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)", background: "#f9fafb" }}>
-              <BlockStack gap="200">
-                <InlineStack align="space-between" blockAlign="center" gap="200">
-                  <Text as="span" variant="bodySm" fontWeight="semibold">{selectedTargetLabel}</Text>
-                  <Badge tone={selectedTargetCount > 0 ? "success" : "attention"}>
-                    {selectedTargetCount}
-                  </Badge>
-                </InlineStack>
-                <InlineStack align="space-between" blockAlign="center" gap="200">
-                  <Text as="span" variant="bodySm" fontWeight="semibold">{selectedTemplateLabel}</Text>
-                  <Text as="span" variant="bodySm" tone={collectionTemplateSummary === "No template selected" ? "subdued" : undefined}>
-                    {collectionTemplateSummary}
-                  </Text>
-                </InlineStack>
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => { setTemplateLibraryContentType("description"); setTemplateLibraryOpen(true); }}
-                    style={{ padding: "6px 14px", background: "#fff", border: "1px solid #d1d5db", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}
-                  >
-                    Select Template
-                  </button>
-                </div>
-              </BlockStack>
-            </div>
-
             {/* Content Type Pills */}
             <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
              
@@ -3078,12 +3038,16 @@ export default function CollectionsPage() {
                     <div style={{ display: "flex", flexDirection: "column", gap: "14px", paddingTop: "4px" }}>
                       <div>
                         <Checkbox
-                          label={<span style={{ fontWeight: 600, fontSize: "13px" }}>Add Collection Title as heading tag in the description</span>}
+                          label={
+                            <span style={{ fontWeight: 600, fontSize: "13px" }}>
+                              Add {isCollectionProductsMode ? "Product" : "Collection"} Title as heading tag in the description
+                            </span>
+                          }
                           checked={addTitleAsHeading}
                           onChange={(v) => setAddTitleAsHeading(v)}
                         />
                         <p style={{ margin: "4px 0 0 24px", fontSize: "12px", color: "#6b7280", lineHeight: "1.45" }}>
-                          This will add your Collection Title as the main heading in the description.
+                          This will add your {isCollectionProductsMode ? "Product" : "Collection"} Title as the main heading in the description.
                         </p>
                       </div>
                       <div>
