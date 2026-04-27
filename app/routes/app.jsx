@@ -7,7 +7,7 @@ import enTranslations from "@shopify/polaris/locales/en.json";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { refreshMonthlyPlanCredits } from "../lib/billing.server";
-import { getDefaultGlobalSettings, writeGlobalSettings } from "../lib/globalSettings";
+import { normalizeStoredGlobalSettings, writeGlobalSettings } from "../lib/globalSettings";
 import {
   getEmptyTemplateSelection,
   writeStoredProductPromptTemplateSelection,
@@ -24,9 +24,7 @@ import {
 const CUSTOM_TEMPLATES_KEY = "custom_prompt_templates_v1";
 
 function normalizeGlobalSettings(value) {
-  const defaults = getDefaultGlobalSettings();
-  const input = value && typeof value === "object" ? value : {};
-  return { ...defaults, ...input };
+  return normalizeStoredGlobalSettings(value);
 }
 
 function normalizeTemplateSelections(value) {

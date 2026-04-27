@@ -16,15 +16,13 @@ import {
   Box,
 } from "@shopify/polaris";
 import {
-  getDefaultGlobalSettings,
+  normalizeStoredGlobalSettings,
   writeGlobalSettings,
 } from "../lib/globalSettings";
 import { AppPageHeader } from "../components/AppPageHeader";
 
 function normalizeGlobalSettings(value) {
-  const defaults = getDefaultGlobalSettings();
-  const input = value && typeof value === "object" ? value : {};
-  const merged = { ...defaults, ...input };
+  const merged = normalizeStoredGlobalSettings(value);
 
   return Object.fromEntries(
     Object.entries(merged).map(([key, v]) => [key, typeof v === "string" ? v : String(v ?? "")]),
@@ -280,26 +278,6 @@ export default function SettingsPage() {
                   <TextField label="Content words" type="number" value={settings.pageContentWords} onChange={update("pageContentWords")} autoComplete="off" />
                   <TextField label="Meta Title words" type="number" value={settings.pageMetaTitleWords} onChange={update("pageMetaTitleWords")} autoComplete="off" />
                   <TextField label="Meta Description words" type="number" value={settings.pageMetaDescWords} onChange={update("pageMetaDescWords")} autoComplete="off" />
-                </div>
-              </Box>
-            </BlockStack>
-
-            <Divider />
-
-            {/* Blog */}
-            <BlockStack gap="300">
-              <Text as="p" variant="bodyMd" fontWeight="semibold">Blog</Text>
-              <Box
-                background="bg-surface-secondary"
-                borderColor="border"
-                borderWidth="025"
-                borderRadius="300"
-                padding="300"
-              >
-                <div className="app-form-grid-3" style={{ gap: "12px" }}>
-                  <TextField label="Content words" type="number" value={settings.blogContentWords} onChange={update("blogContentWords")} autoComplete="off" />
-                  <TextField label="Meta Title words" type="number" value={settings.blogMetaTitleWords} onChange={update("blogMetaTitleWords")} autoComplete="off" />
-                  <TextField label="Meta Description words" type="number" value={settings.blogMetaDescWords} onChange={update("blogMetaDescWords")} autoComplete="off" />
                 </div>
               </Box>
             </BlockStack>

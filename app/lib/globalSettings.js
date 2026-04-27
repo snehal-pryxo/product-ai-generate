@@ -11,9 +11,6 @@ const DEFAULTS = {
   pageContentWords: "450",
   pageMetaTitleWords: "60",
   pageMetaDescWords: "160",
-  blogContentWords: "600",
-  blogMetaTitleWords: "60",
-  blogMetaDescWords: "160",
   tone: "professional",
   length: "medium",
   aiProvider: "auto",
@@ -45,20 +42,27 @@ const DEFAULTS = {
   blogMetaDescTemplateId: "",
 };
 
+export function normalizeStoredGlobalSettings(settings) {
+  const input = settings && typeof settings === "object" ? settings : {};
+  return Object.fromEntries(
+    Object.entries(DEFAULTS).map(([key, defaultValue]) => [key, input[key] ?? defaultValue]),
+  );
+}
+
 export function readGlobalSettings() {
-  if (typeof window === "undefined") return { ...DEFAULTS };
+  if (typeof window === "undefined") return normalizeStoredGlobalSettings();
   try {
     const raw = window.localStorage.getItem(GLOBAL_SETTINGS_KEY);
-    if (!raw) return { ...DEFAULTS };
+    if (!raw) return normalizeStoredGlobalSettings();
     const parsed = JSON.parse(raw);
-    return { ...DEFAULTS, ...parsed };
+    return normalizeStoredGlobalSettings(parsed);
   } catch {
-    return { ...DEFAULTS };
+    return normalizeStoredGlobalSettings();
   }
 }
 
 export function writeGlobalSettings(settings) {
-  const merged = { ...DEFAULTS, ...settings };
+  const merged = normalizeStoredGlobalSettings(settings);
   if (typeof window !== "undefined") {
     window.localStorage.setItem(GLOBAL_SETTINGS_KEY, JSON.stringify(merged));
   }
@@ -66,5 +70,5 @@ export function writeGlobalSettings(settings) {
 }
 
 export function getDefaultGlobalSettings() {
-  return { ...DEFAULTS };
+  return normalizeStoredGlobalSettings();
 }
