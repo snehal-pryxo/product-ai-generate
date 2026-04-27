@@ -377,6 +377,14 @@ function normalizeGeneratedHtml(value) {
   return toStructuredHtml(text);
 }
 
+function sortByNewestGenerated(items) {
+  return [...items].sort((a, b) => {
+    const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+    const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+    return bTime - aTime;
+  });
+}
+
 function canUseOllamaFallback() {
   const baseUrl = (process.env.OLLAMA_BASE_URL || "").trim();
   const enabledValue = (process.env.ENABLE_OLLAMA_FALLBACK || "").trim();
@@ -1070,6 +1078,7 @@ export const loader = async ({ request }) => {
       (item) => !item.seoTitle || !item.seoDescription
     );
   }
+  items = sortByNewestGenerated(items);
 
   return {
     tab,
@@ -2177,6 +2186,7 @@ export default function ContentManagementPage() {
     creditsUsageByType || { products: 0, collections: 0, collection_products: 0, pages: 0 },
   );
   const [currentPage, setCurrentPage] = useState(1);
+  const [tableSearchValue, setTableSearchValue] = useState("");
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
@@ -2196,6 +2206,11 @@ export default function ContentManagementPage() {
     setCurrentPage(1);
   }, [tab, filter]);
 
+  useEffect(() => {
+    if (!isHydratedRef.current) return;
+    setCurrentPage(1);
+  }, [tableSearchValue]);
+
   // Sync credits from loader (only after hydration to prevent hydration mismatch)
   useEffect(() => {
     if (!isHydratedRef.current) return;
@@ -2211,7 +2226,7 @@ export default function ContentManagementPage() {
     if (!isHydratedRef.current) return;
     const totalPages = Math.max(1, Math.ceil(localItems.length / CONTENT_TABLE_PAGE_SIZE));
     setCurrentPage((prev) => Math.min(prev, totalPages));
-  }, [localItems.length]);
+  }, [localItems.length, tableSearchValue]);
 
   // Handle generate response
   useEffect(() => {
@@ -2231,16 +2246,19 @@ export default function ContentManagementPage() {
         }));
       }
       setLocalItems((prev) =>
-        prev.map((it) =>
-          it.id === data.itemId
-            ? {
-                ...it,
-                descriptionHtml: data.descriptionHtml,
-                seoTitle: data.seoTitle,
-                seoDescription: data.seoDescription,
-                creditsUsed: Number(it.creditsUsed || 0) + usedCredits,
-              }
-            : it
+        sortByNewestGenerated(
+          prev.map((it) =>
+            it.id === data.itemId
+              ? {
+                  ...it,
+                  descriptionHtml: data.descriptionHtml,
+                  seoTitle: data.seoTitle,
+                  seoDescription: data.seoDescription,
+                  creditsUsed: Number(it.creditsUsed || 0) + usedCredits,
+                  updatedAt: new Date().toISOString(),
+                }
+              : it
+          ),
         )
       );
       if (pendingGenerateScope === "main") {
@@ -2287,10 +2305,18 @@ export default function ContentManagementPage() {
     if (!data || data.intent !== "save_content") return;
     if (data.ok) {
       setLocalItems((prev) =>
-        prev.map((it) =>
-          it.id === data.itemId
-            ? { ...it, descriptionHtml: data.descriptionHtml, seoTitle: data.seoTitle, seoDescription: data.seoDescription }
-            : it
+        sortByNewestGenerated(
+          prev.map((it) =>
+            it.id === data.itemId
+              ? {
+                  ...it,
+                  descriptionHtml: data.descriptionHtml,
+                  seoTitle: data.seoTitle,
+                  seoDescription: data.seoDescription,
+                  updatedAt: new Date().toISOString(),
+                }
+              : it
+          ),
         )
       );
       if (editorOpen) setEditorOpen(false);
@@ -2582,12 +2608,30 @@ export default function ContentManagementPage() {
     { title: "Generate" },
   ];
 
-  const totalItems = localItems.length;
+  const normalizedTableSearch = tableSearchValue.trim().toLowerCase();
+  const visibleItems = normalizedTableSearch
+    ? localItems.filter((item) => {
+        const haystack = [
+          item.title,
+          item.collectionTitle,
+          stripHtml(item.descriptionHtml || ""),
+          item.seoTitle,
+          item.seoDescription,
+          item.status,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(normalizedTableSearch);
+      })
+    : localItems;
+
+  const totalItems = visibleItems.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / CONTENT_TABLE_PAGE_SIZE));
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const startIndex = (safeCurrentPage - 1) * CONTENT_TABLE_PAGE_SIZE;
   const endIndex = Math.min(startIndex + CONTENT_TABLE_PAGE_SIZE, totalItems);
-  const paginatedItems = localItems.slice(startIndex, endIndex);
+  const paginatedItems = visibleItems.slice(startIndex, endIndex);
 
   const rowMarkup = paginatedItems.map((item, idx) => {
     const isGenerating = generatingId === item.id;
@@ -2836,17 +2880,30 @@ export default function ContentManagementPage() {
                 selected={filterTabIndex < 0 ? 0 : filterTabIndex}
                 onSelect={handleFilterTabChange}
               />
+
+              <TextField
+                label="Search table"
+                labelHidden
+                value={tableSearchValue}
+                onChange={setTableSearchValue}
+                clearButton
+                onClearButtonClick={() => setTableSearchValue("")}
+                placeholder={`Search ${singularLabel.toLowerCase()} content...`}
+                autoComplete="off"
+              />
             </BlockStack>
           </Box>
 
           {/* Table */}
-          {localItems.length === 0 ? (
+          {visibleItems.length === 0 ? (
             <EmptyState
               heading={`No AI-generated ${tabLabel} found`}
               image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
             >
               <Text as="p">
-                {filter === "empty"
+                {normalizedTableSearch
+                  ? `No ${tabLabel} records match "${tableSearchValue.trim()}".`
+                  : filter === "empty"
                   ? `No AI-generated ${tabLabel} items match empty content filter.`
                   : filter === "unoptimized"
                   ? `No AI-generated ${tabLabel} items match unoptimized filter.`

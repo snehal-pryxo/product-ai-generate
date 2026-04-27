@@ -1281,21 +1281,14 @@ const PRODUCT_BULK_SESSION_KEY = "product-ai-generate:products-bulk-state";
 
 function readBulkSessionState(key) {
   if (typeof window === "undefined") return {};
-  try {
-    const raw = window.sessionStorage.getItem(key);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
+  window.__productAiGenerateBulkState = window.__productAiGenerateBulkState || {};
+  return window.__productAiGenerateBulkState[key] || {};
 }
 
 function writeBulkSessionState(key, value) {
   if (typeof window === "undefined") return;
-  try {
-    window.sessionStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // Ignore private browsing or storage quota failures.
-  }
+  window.__productAiGenerateBulkState = window.__productAiGenerateBulkState || {};
+  window.__productAiGenerateBulkState[key] = value;
 }
 
 function readArrayState(value, fallback = []) {
