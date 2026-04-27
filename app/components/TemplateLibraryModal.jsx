@@ -150,7 +150,11 @@ const TEMPLATE_CATEGORIES = {
   "page-mt-trust": "Brand & About",
 };
 
-function getCategory(templateId) {
+function getCategory(templateOrId) {
+  if (templateOrId && typeof templateOrId === "object" && templateOrId.category) {
+    return templateOrId.category;
+  }
+  const templateId = typeof templateOrId === "string" ? templateOrId : templateOrId?.id;
   return TEMPLATE_CATEGORIES[templateId] || "General";
 }
 
@@ -194,7 +198,7 @@ function PreviewPanel({
     return currentTabTemplates[0] || null;
   }, [previewTabId, previewTemplateByTab, templatesByTab]);
 
-  const category = currentTemplate ? getCategory(currentTemplate.id) : "General";
+  const category = currentTemplate ? getCategory(currentTemplate) : "General";
   const length = getLengthLabel(currentTemplate?.template || "");
   const isDescriptionPreview = previewTabId === "description";
   const isMetaPreview = previewTabId === "meta_description" || previewTabId === "meta_title";
@@ -390,13 +394,18 @@ export function TemplateLibraryModal({ open, onClose, tabs, initialTab, template
   const currentTemplates = templatesByTab[activeTab] || [];
 
   // Derive categories
-  const categoriesSet = new Set(currentTemplates.map((t) => getCategory(t.id)));
+  const categoriesSet = new Set(currentTemplates.map((t) => getCategory(t)));
   const categories = ["All", ...[...categoriesSet].sort()];
+  const categoryCounts = currentTemplates.reduce((counts, template) => {
+    const category = getCategory(template);
+    counts.set(category, (counts.get(category) || 0) + 1);
+    return counts;
+  }, new Map());
 
   const filtered =
     selectedCategory === "All"
       ? currentTemplates
-      : currentTemplates.filter((t) => getCategory(t.id) === selectedCategory);
+      : currentTemplates.filter((t) => getCategory(t) === selectedCategory);
 
   function handleTabChange(tabId) {
     setActiveTab(tabId);
@@ -466,7 +475,7 @@ export function TemplateLibraryModal({ open, onClose, tabs, initialTab, template
                           variant={selectedCategory === cat ? "primary" : "secondary"}
                           onClick={() => setSelectedCategory(cat)}
                         >
-                          {cat}
+                          {cat} ({cat === "All" ? currentTemplates.length : categoryCounts.get(cat) || 0})
                         </Button>
                       ))}
                     </BlockStack>
