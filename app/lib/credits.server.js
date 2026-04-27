@@ -1,4 +1,5 @@
 import db from "../db.server";
+import { refreshMonthlyPlanCredits } from "./billing.server";
 
 export const DEFAULT_FREE_CREDITS = 100;
 export const CREDITS_PER_CONTENT_FIELD = 1;
@@ -44,6 +45,8 @@ export function creditsForBatch(contentTypes, itemsCount) {
 }
 
 export async function getOrCreateShopCredits(shopDomain) {
+  await refreshMonthlyPlanCredits(shopDomain);
+
   const row = await db.shop.upsert({
     where: { shop: shopDomain },
     update: {},

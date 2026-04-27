@@ -31,7 +31,7 @@ export function AppPageHeader({ title, description, ownerName, ownerLabel = "Own
               {credits} credits.
             </Text>
             <Button
-              onClick={() => navigate({ pathname: "/app/analytics", search: location.search })}
+              onClick={() => navigate({ pathname: "/app/pricing", search: location.search })}
               variant="secondary"
             >
               Upgrade

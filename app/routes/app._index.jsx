@@ -58,6 +58,7 @@ export const loader = async ({ request }) => {
       ownerName: true,
       name: true,
       credits: true,
+      billingPlanName: true,
     },
   });
 
@@ -290,7 +291,7 @@ export const loader = async ({ request }) => {
 
   const timeSavedHours = Number((generatedWords / 600).toFixed(1));
   const creditsLeft = Number(shopData?.credits ?? 0);
-  const currentPlan = String(process.env.APP_CURRENT_PLAN || process.env.DEFAULT_PLAN_NAME || "FREE").toUpperCase();
+  const currentPlan = String(shopData?.billingPlanName || "Free").toUpperCase();
 
   return {
     defaultAiModel: shopData?.defaultAiModel || envDefaultAiModel,

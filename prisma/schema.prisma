@@ -55,6 +55,14 @@ model shop {
   defaultAiModel          String?   @default("gpt-4o-mini") @db.VarChar(100)
   credits                 Int       @default(100)
   creditsUsedTotal        Int       @default(0)
+  billingPlanKey          String?   @default("free") @db.VarChar(32)
+  billingPlanName         String?   @default("Free") @db.VarChar(100)
+  billingPlanCredits      Int       @default(100)
+  billingPlanPrice        Decimal?  @db.Decimal(10, 2)
+  billingSubscriptionId   String?   @db.VarChar(255)
+  billingSubscriptionStatus String? @db.VarChar(32)
+  billingPlanActivatedAt  DateTime?
+  billingCreditsRenewedAt DateTime?
   reviewSubmittedAt       DateTime?
   reviewPromptDismissedAt DateTime?
   reviewRating            Int?
@@ -62,6 +70,40 @@ model shop {
   globalSettingsJson      String?   @db.LongText
   templateSelectionsJson  String?   @db.LongText
   customPromptTemplatesJson String? @db.LongText
+}
+
+model BillingSubscription {
+  id             BigInt    @id @default(autoincrement())
+  shop           String
+  planKey        String    @db.VarChar(32)
+  planName       String    @db.VarChar(100)
+  credits        Int
+  price          Decimal   @db.Decimal(10, 2)
+  subscriptionId String?   @unique(map: "BillingSubscription_subscriptionId_key") @db.VarChar(255)
+  status         String    @default("PENDING") @db.VarChar(32)
+  creditedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([shop, createdAt], map: "BillingSubscription_shop_createdAt_idx")
+  @@map("billing_subscriptions")
+}
+
+model BillingCreditPurchase {
+  id          BigInt    @id @default(autoincrement())
+  shop        String
+  packageKey  String    @db.VarChar(32)
+  name        String    @db.VarChar(100)
+  credits     Int
+  price       Decimal   @db.Decimal(10, 2)
+  purchaseId  String?   @unique(map: "BillingCreditPurchase_purchaseId_key") @db.VarChar(255)
+  status      String    @default("PENDING") @db.VarChar(32)
+  creditedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([shop, createdAt], map: "BillingCreditPurchase_shop_createdAt_idx")
+  @@map("billing_credit_purchases")
 }
 
 model GeneratedContentLog {

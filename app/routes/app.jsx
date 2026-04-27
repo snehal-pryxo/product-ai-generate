@@ -6,6 +6,7 @@ import { AppProvider as PolarisProvider, Spinner, Text } from "@shopify/polaris"
 import enTranslations from "@shopify/polaris/locales/en.json";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
+import { refreshMonthlyPlanCredits } from "../lib/billing.server";
 import { getDefaultGlobalSettings, writeGlobalSettings } from "../lib/globalSettings";
 import {
   getEmptyTemplateSelection,
@@ -46,6 +47,7 @@ function normalizeCustomTemplates(value) {
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
+  await refreshMonthlyPlanCredits(session.shop);
   const shopData = await db.shop.findUnique({
     where: { shop: session.shop },
     select: {
@@ -54,6 +56,10 @@ export const loader = async ({ request }) => {
       customPromptTemplatesJson: true,
       credits: true,
       creditsUsedTotal: true,
+      billingPlanKey: true,
+      billingPlanName: true,
+      billingPlanCredits: true,
+      billingSubscriptionStatus: true,
     },
   });
 
@@ -84,6 +90,10 @@ export const loader = async ({ request }) => {
     customTemplates: normalizeCustomTemplates(parsedCustomTemplates),
     credits: shopData?.credits ?? 100,
     creditsUsedTotal: shopData?.creditsUsedTotal ?? 0,
+    billingPlanKey: shopData?.billingPlanKey || "free",
+    billingPlanName: shopData?.billingPlanName || "Free",
+    billingPlanCredits: shopData?.billingPlanCredits ?? 100,
+    billingSubscriptionStatus: shopData?.billingSubscriptionStatus || null,
   };
 };
 
@@ -114,6 +124,7 @@ export default function App() {
           <s-link href="/app/content-management">Content Management</s-link>
           <s-link href="/app/template">Template</s-link>
           <s-link href="/app/analytics">Analytics</s-link>
+          <s-link href="/app/pricing">Pricing</s-link>
           <s-link href="/app/settings">Settings</s-link>
         </s-app-nav>
         {isBusy && (
