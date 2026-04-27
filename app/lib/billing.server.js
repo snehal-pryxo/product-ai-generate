@@ -25,7 +25,11 @@ export function getAppBaseUrl(request) {
 export function buildAppReturnUrl(request, params = {}) {
   const requestUrl = new URL(request.url);
   const returnUrl = new URL("/app/billing", getAppBaseUrl(request));
-  ["shop", "host", "embedded"].forEach((key) => {
+  const shop = params.shop || requestUrl.searchParams.get("shop");
+  if (shop) {
+    returnUrl.searchParams.set("shop", String(shop));
+  }
+  ["host"].forEach((key) => {
     const value = requestUrl.searchParams.get(key);
     if (value) {
       returnUrl.searchParams.set(key, value);
@@ -90,7 +94,7 @@ export async function createRecurringSubscription({ admin, request, shop, plan }
     {
       variables: {
         name: `Content AI - ${plan.name}`,
-        returnUrl: buildAppReturnUrl(request, { type: "subscription", plan: plan.key }),
+        returnUrl: buildAppReturnUrl(request, { type: "subscription", plan: plan.key, shop }),
         test: getBillingTestMode(),
         replacementBehavior: "APPLY_IMMEDIATELY",
         lineItems: [
@@ -158,7 +162,7 @@ export async function createExtraCreditPurchase({ admin, request, shop, creditPa
     {
       variables: {
         name: `Content AI - ${creditPackage.name}`,
-        returnUrl: buildAppReturnUrl(request, { type: "credits", package: creditPackage.key }),
+        returnUrl: buildAppReturnUrl(request, { type: "credits", package: creditPackage.key, shop }),
         test: getBillingTestMode(),
         price: {
           amount: creditPackage.price,

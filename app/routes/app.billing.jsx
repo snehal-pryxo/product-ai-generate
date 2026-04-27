@@ -1,6 +1,6 @@
 import { Link, redirect, useLoaderData } from "react-router";
 import { Banner, BlockStack, Box, Button, Card, InlineStack, Page, Text } from "@shopify/polaris";
-import { authenticate } from "../shopify.server";
+import { authenticate, unauthenticated } from "../shopify.server";
 import {
   activateExtraCreditPurchase,
   activateSubscription,
@@ -18,9 +18,16 @@ function buildEmbeddedRedirect(pathname, sourceUrl) {
 }
 
 export const loader = async ({ request }) => {
-  const { admin, session } = await authenticate.admin(request);
   const url = new URL(request.url);
-  const type = String(url.searchParams.get("type") || "");
+  const shopParam = String(url.searchParams.get("shop") || "").trim();
+  const authContext = shopParam
+    ? await unauthenticated.admin(shopParam)
+    : await authenticate.admin(request);
+  const { admin, session } = authContext;
+  const type =
+    String(url.searchParams.get("type") || "") ||
+    (url.searchParams.get("plan") ? "subscription" : "") ||
+    (url.searchParams.get("package") ? "credits" : "");
 
   let result = { success: false, message: "Unknown billing return type." };
   if (type === "subscription") {

@@ -504,9 +504,7 @@ export default function Index() {
   const kpiItems = [
     { id: "generated", label: "Generated", value: `${formattedGeneratedWords} words`, icon: ProductIcon },
     { id: "timeSaved", label: "Time Saved", value: `${formattedTimeSaved} hours`, icon: ChartVerticalIcon },
-    { id: "totalCredits", label: "Total Credits", value: formattedTotalCredits, icon: CollectionIcon },
     { id: "credits", label: "Available Credits", value: formattedCreditsLeft, icon: CollectionIcon },
-    { id: "debitedCredits", label: "Debited Credits", value: formattedCreditsUsed, icon: ChartVerticalIcon },
     { id: "plan", label: "Current Plan", value: currentPlanWithPrice, icon: PageIcon },
   ];
   const specificCountBoxes = [
