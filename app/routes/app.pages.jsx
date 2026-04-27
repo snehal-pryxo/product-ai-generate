@@ -28,7 +28,6 @@ import {
   Icon,
   Text,
   Button,
-  Select,
   TextField,
   Checkbox,
   Banner,
@@ -38,7 +37,7 @@ import {
   Modal,
   InlineStack,
 } from "@shopify/polaris";
-import { PageIcon, ChevronUpIcon, ChevronDownIcon } from "@shopify/polaris-icons";
+import { PageIcon } from "@shopify/polaris-icons";
 
 const PAGE_CONTENT_TYPES = ["body", "meta_title", "meta_description"];
 const DEFAULT_PAGE_CONTENT_TYPES = ["body", "meta_title", "meta_description"];
@@ -620,48 +619,6 @@ export const action = async ({ request }) => {
 
 // ─── Options ─────────────────────────────────────────────────────────────────
 
-const PAGE_TYPE_OPTIONS = [
-  { label: "About Us", value: "About Us" },
-  { label: "Contact", value: "Contact" },
-  { label: "FAQ", value: "FAQ" },
-  { label: "Privacy Policy", value: "Privacy Policy" },
-  { label: "Terms of Service", value: "Terms of Service" },
-  { label: "Shipping Policy", value: "Shipping Policy" },
-  { label: "Refund Policy", value: "Refund Policy" },
-  { label: "Landing Page", value: "Landing Page" },
-  { label: "Blog Landing", value: "Blog Landing" },
-  { label: "Custom", value: "Custom" },
-];
-
-
-const TONE_OPTIONS = [
-  { label: "Professional", value: "professional" },
-  { label: "Friendly", value: "friendly" },
-  { label: "Casual", value: "casual" },
-  { label: "Formal", value: "formal" },
-  { label: "Enthusiastic", value: "enthusiastic" },
-  { label: "Informative", value: "informative" },
-];
-
-const LENGTH_OPTIONS = [
-  { label: "Short", value: "short" },
-  { label: "Medium", value: "medium" },
-  { label: "Long", value: "long" },
-];
-
-const FORMAT_OPTIONS = [
-  { label: "Paragraphs", value: "paragraphs" },
-  { label: "Bullet points", value: "bullet points" },
-  { label: "Headings + paragraphs", value: "headings and paragraphs" },
-  { label: "HTML", value: "HTML" },
-];
-
-const AI_PROVIDER_OPTIONS = [
-  { label: "Auto", value: "auto" },
-  { label: "OpenAI", value: "openai" },
-  { label: "Anthropic", value: "anthropic" },
-];
-
 const DEFAULT_BODY_CUSTOM_PROMPT = `Generate premium long-form page content for the given Shopify page.
 
 Objective:
@@ -791,7 +748,7 @@ export default function PagesPage() {
   const isBulkGenerating = bulkFetcher.state !== "idle";
   const isSavingPage = editFetcher.state !== "idle";
 
-  const [bulkSettings, setBulkSettings] = useState(() => {
+  const [bulkSettings] = useState(() => {
     const gs = readGlobalSettings();
     return {
       tone: gs.tone || "professional",
@@ -812,10 +769,9 @@ export default function PagesPage() {
   const [useCustomMetaDescInstructions, setUseCustomMetaDescInstructions] = useState(false);
   const [templateLibraryOpen, setTemplateLibraryOpen] = useState(false);
   const [templateLibraryContentType, setTemplateLibraryContentType] = useState("body");
-  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
-  const [bulkBodyKeywords, setBulkBodyKeywords] = useState(() => readGlobalSettings().pageContentKeywords || "");
-  const [bulkMetaTitleKeywords, setBulkMetaTitleKeywords] = useState(() => readGlobalSettings().pageMetaTitleKeywords || "");
-  const [bulkMetaDescKeywords, setBulkMetaDescKeywords] = useState(() => readGlobalSettings().pageMetaDescKeywords || "");
+  const [bulkBodyKeywords] = useState(() => readGlobalSettings().pageContentKeywords || "");
+  const [bulkMetaTitleKeywords] = useState(() => readGlobalSettings().pageMetaTitleKeywords || "");
+  const [bulkMetaDescKeywords] = useState(() => readGlobalSettings().pageMetaDescKeywords || "");
   const [localPages, setLocalPages] = useState(pages);
   const [editingPage, setEditingPage] = useState(null);
   const [editBody, setEditBody] = useState("");
@@ -1328,82 +1284,6 @@ export default function PagesPage() {
               </div>
             )}
 
-            {/* Show Advanced Settings */}
-            <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-              <button
-                onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 500, color: "#374151", display: "flex", alignItems: "center", gap: "6px", padding: 0 }}
-              >
-                <Icon source={showAdvancedSettings ? ChevronUpIcon : ChevronDownIcon} tone="subdued" />
-                {showAdvancedSettings ? "Hide" : "Show"} Advanced Settings
-              </button>
-              {showAdvancedSettings && (
-                <div style={{ marginTop: "12px" }}>
-                  <BlockStack gap="300">
-                    <Select
-                      label="Page type"
-                      options={PAGE_TYPE_OPTIONS}
-                      value={bulkSettings.pageType}
-                      onChange={(value) => setBulkSettings((current) => ({ ...current, pageType: value }))}
-                    />
-                    <Select
-                      label="AI provider"
-                      options={AI_PROVIDER_OPTIONS}
-                      value={bulkSettings.aiProvider}
-                      onChange={(value) => setBulkSettings((current) => ({ ...current, aiProvider: value }))}
-                    />
-                    <Select
-                      label="Tone"
-                      options={TONE_OPTIONS}
-                      value={bulkSettings.tone}
-                      onChange={(value) => setBulkSettings((current) => ({ ...current, tone: value }))}
-                    />
-                    <Select
-                      label="Length"
-                      options={LENGTH_OPTIONS}
-                      value={bulkSettings.length}
-                      onChange={(value) => setBulkSettings((current) => ({ ...current, length: value }))}
-                    />
-                    <Select
-                      label="Format"
-                      options={FORMAT_OPTIONS}
-                      value={bulkSettings.format}
-                      onChange={(value) => setBulkSettings((current) => ({ ...current, format: value }))}
-                    />
-                    {bulkContentTypes.includes("body") && (
-                      <TextField
-                        label="Body Keywords"
-                        value={bulkBodyKeywords}
-                        onChange={setBulkBodyKeywords}
-                        placeholder="e.g. about us, mission, values"
-                        helpText="Keywords specific to page body content"
-                        autoComplete="off"
-                      />
-                    )}
-                    {bulkContentTypes.includes("meta_title") && (
-                      <TextField
-                        label="Meta Title Keywords"
-                        value={bulkMetaTitleKeywords}
-                        onChange={setBulkMetaTitleKeywords}
-                        placeholder="e.g. official, store"
-                        helpText="Keywords specific to meta titles"
-                        autoComplete="off"
-                      />
-                    )}
-                    {bulkContentTypes.includes("meta_description") && (
-                      <TextField
-                        label="Meta Description Keywords"
-                        value={bulkMetaDescKeywords}
-                        onChange={setBulkMetaDescKeywords}
-                        placeholder="e.g. learn more, discover"
-                        helpText="Keywords specific to meta descriptions"
-                        autoComplete="off"
-                      />
-                    )}
-                  </BlockStack>
-                </div>
-              )}
-            </div>
             {bulkValidationMessage && (
               <div style={{ padding: "8px 16px" }}>
                 <Banner tone="warning"><p>{bulkValidationMessage}</p></Banner>
