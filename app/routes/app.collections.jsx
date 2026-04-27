@@ -2097,7 +2097,7 @@ export default function CollectionsPage() {
       return [activeProductsCollection];
     }
 
-    return [];
+    return selectedCollections;
   }, [
     activeProductsCollection,
     isCollectionProductsMode,

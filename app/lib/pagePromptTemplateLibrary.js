@@ -56,6 +56,125 @@ export function clearStoredPagePromptTemplateSelection() {
   return getEmptyPageTemplateSelection();
 }
 
+const PAGE_CATEGORY_GROUPS = [
+  { slug: "brands-luxury", category: "Brands & Luxury" },
+  { slug: "compliance-accuracy", category: "Compliance & Accuracy" },
+  { slug: "lifestyle-emotion", category: "Lifestyle & Emotion" },
+  { slug: "marketing-sales", category: "Marketing & Sales" },
+  { slug: "marketplace-channel", category: "Marketplace & Channel" },
+  { slug: "product-categories", category: "Product Categories" },
+  { slug: "seo-optimized", category: "SEO Optimized" },
+  { slug: "seasonal-events", category: "Seasonal & Events" },
+  { slug: "social-ugc", category: "Social & UGC" },
+  { slug: "technical-specs", category: "Technical & Specs" },
+  { slug: "tone-style", category: "Tone & Style" },
+];
+
+const PAGE_BODY_CATEGORY_TEMPLATES = PAGE_CATEGORY_GROUPS.flatMap(({ slug, category }) => [
+  {
+    id: `page-body-${slug}-overview`,
+    name: `${category} Page Overview`,
+    category,
+    description: `Creates a complete page body using the ${category.toLowerCase()} angle.`,
+    template:
+      `Write a page body (300-500 words) for the ${category} category.\n- Open with the page purpose and audience.\n- Explain the main value in clear sections.\n- Include 4 practical details, trust points, examples, or benefits.\n- Keep the page useful, scannable, and aligned with the store voice.\n- End with a natural next step.`,
+  },
+  {
+    id: `page-body-${slug}-structured-guide`,
+    name: `${category} Structured Guide`,
+    category,
+    description: `Builds a structured guide page for ${category.toLowerCase()} content.`,
+    template:
+      `Write a structured guide page (350-550 words) for the ${category} category.\n- Start with the key question or customer need.\n- Use headings for 3-5 sections.\n- Add bullet points where details should be compared or scanned.\n- Include accurate examples, requirements, or decision criteria.\n- Close with support, browsing, or contact guidance.`,
+  },
+  {
+    id: `page-body-${slug}-trust-conversion`,
+    name: `${category} Trust Conversion`,
+    category,
+    description: `Combines trust, clarity, and conversion for ${category.toLowerCase()} pages.`,
+    template:
+      `Write a trust-building page body (300-500 words) for the ${category} angle.\n- Lead with the strongest reason to trust this page or store.\n- Address 3 common questions, objections, or decision concerns.\n- Include proof, policies, service details, or quality standards when available.\n- Keep claims factual and specific.\n- End with a confident call to action.`,
+  },
+  {
+    id: `page-body-${slug}-story-format`,
+    name: `${category} Story Format`,
+    category,
+    description: `Uses a narrative format for ${category.toLowerCase()} page content.`,
+    template:
+      `Write a story-led page body (320-520 words) for the ${category} category.\n- Open with a relatable customer moment, business reason, or page-specific challenge.\n- Introduce the page topic as the helpful answer.\n- Add 3 concrete details that make the page credible and useful.\n- Balance emotion with clear information.\n- End with the result the reader can expect.`,
+  },
+]);
+
+const PAGE_META_DESCRIPTION_CATEGORY_TEMPLATES = PAGE_CATEGORY_GROUPS.flatMap(({ slug, category }) => [
+  {
+    id: `page-md-${slug}-intent`,
+    name: `${category} Intent Meta`,
+    category,
+    description: `Matches page meta description copy to ${category.toLowerCase()} intent.`,
+    template:
+      `Write a page meta description under 155 characters for the ${category} category.\n- Include the page topic or primary keyword.\n- Match search intent quickly.\n- Add one clear benefit or reason to click.`,
+  },
+  {
+    id: `page-md-${slug}-trust`,
+    name: `${category} Trust Meta`,
+    category,
+    description: `Adds trust and clarity to a ${category.toLowerCase()} page snippet.`,
+    template:
+      `Write a trust-focused page meta description under 155 characters for ${category}.\n- Mention one proof point, policy, service detail, or useful page outcome.\n- Keep it accurate and concise.`,
+  },
+  {
+    id: `page-md-${slug}-benefit`,
+    name: `${category} Benefit Meta`,
+    category,
+    description: `Highlights the core reader benefit for ${category.toLowerCase()} pages.`,
+    template:
+      `Write a benefit-led page meta description under 155 characters.\n- Lead with the reader benefit.\n- Include a relevant ${category} detail.\n- End with a soft action phrase.`,
+  },
+  {
+    id: `page-md-${slug}-action`,
+    name: `${category} Action Meta`,
+    category,
+    description: `Creates an action-oriented meta description for ${category.toLowerCase()} pages.`,
+    template:
+      `Write an action-oriented page meta description under 155 characters for ${category}.\n- Start with an action verb.\n- State the page value clearly.\n- Avoid vague filler and unsupported claims.`,
+  },
+]);
+
+const PAGE_META_TITLE_CATEGORY_TEMPLATES = PAGE_CATEGORY_GROUPS.flatMap(({ slug, category }) => [
+  {
+    id: `page-mt-${slug}-keyword`,
+    name: `${category} Keyword Title`,
+    category,
+    description: `Creates a keyword-focused page meta title for ${category.toLowerCase()} intent.`,
+    template:
+      `Write a page meta title (50-65 characters) for the ${category} category.\n- Include the page topic and one high-intent keyword.\n- Put the searchable phrase near the beginning.\n- Keep it readable.`,
+  },
+  {
+    id: `page-mt-${slug}-benefit`,
+    name: `${category} Benefit Title`,
+    category,
+    description: `Pairs the page topic with a clear ${category.toLowerCase()} benefit.`,
+    template:
+      `Write a page meta title (50-65 characters).\n- Pair the page topic with one concise ${category} benefit.\n- Avoid repeated words and unsupported claims.\n- Keep it factual and click-worthy.`,
+  },
+  {
+    id: `page-mt-${slug}-guide`,
+    name: `${category} Guide Title`,
+    category,
+    description: `Positions the page as a useful guide for ${category.toLowerCase()} searches.`,
+    template:
+      `Write a guide-style page meta title (50-65 characters) for ${category}.\n- Include the page topic.\n- Add guide, help, policy, story, or resource wording when relevant.\n- Keep the title direct and useful.`,
+  },
+  {
+    id: `page-mt-${slug}-trust`,
+    name: `${category} Trust Title`,
+    category,
+    description: `Adds credibility to a ${category.toLowerCase()} page title.`,
+    template:
+      `Write a trust-focused page meta title (50-65 characters).\n- Include the page topic and one trust, clarity, service, or quality phrase.\n- Keep it specific and professional.`,
+  },
+]);
+
 export const PAGE_BODY_TEMPLATES = [
   {
     id: "page-body-brand-story",
@@ -127,6 +246,7 @@ export const PAGE_BODY_TEMPLATES = [
     template:
       "Write a clear, helpful size guide page (300–500 words) that reduces returns and builds purchase confidence.\n- Open with a reassuring statement about finding the right fit.\n- Provide a size chart with measurement ranges for each size option.\n- Explain how to take accurate measurements at home.\n- Advise on what to do when between sizes.\n- Address common fit questions specific to this product category.\n- Close with a contact prompt for personalised fit assistance.\n- Tone: helpful, precise, and shopper-friendly.",
   },
+  ...PAGE_BODY_CATEGORY_TEMPLATES,
 ];
 
 export const PAGE_META_DESCRIPTION_TEMPLATES = [
@@ -186,6 +306,7 @@ export const PAGE_META_DESCRIPTION_TEMPLATES = [
     template:
       "Write a page meta description (130–155 characters) led by social proof.\n- Open with \"Trusted by [customer count or segment]\".\n- State the page topic and proof statement.\n- End with an action phrase.",
   },
+  ...PAGE_META_DESCRIPTION_CATEGORY_TEMPLATES,
 ];
 
 export const PAGE_META_TITLE_TEMPLATES = [
@@ -245,4 +366,5 @@ export const PAGE_META_TITLE_TEMPLATES = [
     template:
       "Write a page meta title (50–65 characters) that positions the page as an authoritative guide.\n- Open with \"Your\" followed by the page topic.\n- Add \"Guide\" and separate with a pipe and the brand name.\n- Format: \"Your Page Topic Guide | Brand\"",
   },
+  ...PAGE_META_TITLE_CATEGORY_TEMPLATES,
 ];
