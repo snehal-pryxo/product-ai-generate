@@ -6,6 +6,7 @@ export function AppPageHeader({ title, description, ownerName, ownerLabel = "Own
   const location = useLocation();
   const appLoaderData = useRouteLoaderData("routes/app");
   const credits = Number(appLoaderData?.credits ?? 100);
+  const formattedCredits = credits.toLocaleString("en-US");
 
   return (
     <div style={{ marginBottom: "20px" }}>
@@ -28,7 +29,7 @@ export function AppPageHeader({ title, description, ownerName, ownerLabel = "Own
           </BlockStack>
           <InlineStack gap="200" blockAlign="center">
             <Text as="span" variant="headingSm" tone="subdued">
-              {credits} credits.
+              Available credits: {formattedCredits}
             </Text>
             <Button
               onClick={() => navigate({ pathname: "/app/pricing", search: location.search })}

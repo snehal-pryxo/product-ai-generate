@@ -58,7 +58,9 @@ export const loader = async ({ request }) => {
       ownerName: true,
       name: true,
       credits: true,
+      creditsUsedTotal: true,
       billingPlanName: true,
+      billingPlanPrice: true,
     },
   });
 
@@ -291,7 +293,10 @@ export const loader = async ({ request }) => {
 
   const timeSavedHours = Number((generatedWords / 600).toFixed(1));
   const creditsLeft = Number(shopData?.credits ?? 0);
+  const creditsUsedTotal = Number(shopData?.creditsUsedTotal ?? 0);
+  const totalCredits = creditsLeft + creditsUsedTotal;
   const currentPlan = String(shopData?.billingPlanName || "Free").toUpperCase();
+  const currentPlanPrice = Number(shopData?.billingPlanPrice ?? 0);
 
   return {
     defaultAiModel: shopData?.defaultAiModel || envDefaultAiModel,
@@ -302,8 +307,11 @@ export const loader = async ({ request }) => {
     generationStats,
     timeSavedHours,
     generatedWords,
+    totalCredits,
     creditsLeft,
+    creditsUsedTotal,
     currentPlan,
+    currentPlanPrice,
   };
 };
 
@@ -453,6 +461,15 @@ const PARTNER_APPS = [
   },
 ];
 
+function formatPrice(price) {
+  const amount = Number(price || 0);
+  if (amount <= 0) return "Free";
+  return `$${amount.toLocaleString("en-US", {
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits: 2,
+  })}/month`;
+}
+
 export default function Index() {
   const {
     defaultAiModel,
@@ -463,8 +480,11 @@ export default function Index() {
     generationStats,
     timeSavedHours,
     generatedWords,
+    totalCredits,
     creditsLeft,
+    creditsUsedTotal,
     currentPlan,
+    currentPlanPrice,
   } = useLoaderData();
   const actionData = useActionData();
   const reviewFetcher = useFetcher();
@@ -477,11 +497,17 @@ export default function Index() {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   });
+  const formattedTotalCredits = Number(totalCredits || 0).toLocaleString("en-US");
+  const formattedCreditsLeft = Number(creditsLeft || 0).toLocaleString("en-US");
+  const formattedCreditsUsed = Number(creditsUsedTotal || 0).toLocaleString("en-US");
+  const currentPlanWithPrice = `${currentPlan || "FREE"} - ${formatPrice(currentPlanPrice)}`;
   const kpiItems = [
     { id: "generated", label: "Generated", value: `${formattedGeneratedWords} words`, icon: ProductIcon },
     { id: "timeSaved", label: "Time Saved", value: `${formattedTimeSaved} hours`, icon: ChartVerticalIcon },
-    { id: "credits", label: "Credits left", value: String(creditsLeft ?? 0), icon: CollectionIcon },
-    { id: "plan", label: "Current Plan", value: currentPlan || "FREE", icon: PageIcon },
+    { id: "totalCredits", label: "Total Credits", value: formattedTotalCredits, icon: CollectionIcon },
+    { id: "credits", label: "Available Credits", value: formattedCreditsLeft, icon: CollectionIcon },
+    { id: "debitedCredits", label: "Debited Credits", value: formattedCreditsUsed, icon: ChartVerticalIcon },
+    { id: "plan", label: "Current Plan", value: currentPlanWithPrice, icon: PageIcon },
   ];
   const specificCountBoxes = [
     {
