@@ -1398,6 +1398,12 @@ export default function ProductsPage() {
   }, [filters.search]);
 
   useEffect(() => {
+    if (!bulkContentTypes.includes("description")) {
+      setShowAdvancedSettings(false);
+    }
+  }, [bulkContentTypes]);
+
+  useEffect(() => {
     if (!filters.search || products.length > 0) {
       setFallbackProducts(products);
     }
@@ -1623,13 +1629,11 @@ export default function ProductsPage() {
           ? ` ${response.creditsUsed} credits used${typeof response.newCredits === "number" ? `. Remaining: ${response.newCredits}` : ""}.`
           : "";
       shopify.toast.show(`Bulk generate complete: ${response.succeeded}/${response.total} updated.${creditsMessage}`);
-      if (typeof window !== "undefined") {
-        window.setTimeout(() => window.location.reload(), 600);
-      }
+      window.setTimeout(() => navigateInApp("/app/content-management", "?tab=products&filter=all"), 600);
       return;
     }
     setBulkValidationMessage(response.error || "Bulk generation failed.");
-  }, [bulkFetcher.state, bulkFetcher.data, revalidator, shopify]);
+  }, [bulkFetcher.state, bulkFetcher.data, navigateInApp, revalidator, shopify]);
 
   useEffect(() => () => {
     if (queueIntervalRef.current) clearInterval(queueIntervalRef.current);
@@ -2188,53 +2192,55 @@ export default function ProductsPage() {
             )}
 
             {/* Show Advanced Settings */}
-            <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
-              <button
-                onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 500, color: "#374151", display: "flex", alignItems: "center", gap: "6px", padding: 0 }}
-              >
-                <Icon source={showAdvancedSettings ? ChevronUpIcon : ChevronDownIcon} tone="subdued" />
-                {showAdvancedSettings ? "Hide" : "Show"} Advanced Settings
-              </button>
-              {showAdvancedSettings && (
-                <div style={{ marginTop: "12px" }}>
-                  <BlockStack gap="300">
-                    <div style={{ display: "flex", flexDirection: "column", gap: "14px", paddingTop: "4px" }}>
-                      <div>
-                        <Checkbox
-                          label={<span style={{ fontWeight: 600, fontSize: "13px" }}>Add Product Title as heading tag in the description</span>}
-                          checked={addTitleAsHeading}
-                          onChange={(v) => setAddTitleAsHeading(v)}
-                        />
-                        <p style={{ margin: "4px 0 0 24px", fontSize: "12px", color: "#6b7280", lineHeight: "1.45" }}>
-                          This will add your Product Title as the main heading in the description.
-                        </p>
+            {bulkContentTypes.includes("description") && (
+              <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+                <button
+                  onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 500, color: "#374151", display: "flex", alignItems: "center", gap: "6px", padding: 0 }}
+                >
+                  <Icon source={showAdvancedSettings ? ChevronUpIcon : ChevronDownIcon} tone="subdued" />
+                  {showAdvancedSettings ? "Hide" : "Show"} Advanced Settings
+                </button>
+                {showAdvancedSettings && (
+                  <div style={{ marginTop: "12px" }}>
+                    <BlockStack gap="300">
+                      <div style={{ display: "flex", flexDirection: "column", gap: "14px", paddingTop: "4px" }}>
+                        <div>
+                          <Checkbox
+                            label={<span style={{ fontWeight: 600, fontSize: "13px" }}>Add Product Title as heading tag in the description</span>}
+                            checked={addTitleAsHeading}
+                            onChange={(v) => setAddTitleAsHeading(v)}
+                          />
+                          <p style={{ margin: "4px 0 0 24px", fontSize: "12px", color: "#6b7280", lineHeight: "1.45" }}>
+                            This will add your Product Title as the main heading in the description.
+                          </p>
+                        </div>
+                        <div>
+                          <Checkbox
+                            label={<span style={{ fontWeight: 600, fontSize: "13px" }}>Preserve old description and add new AI Generated content to the start of it</span>}
+                            checked={preserveOldDescription}
+                            onChange={(v) => setPreserveOldDescription(v)}
+                          />
+                          <p style={{ margin: "4px 0 0 24px", fontSize: "12px", color: "#6b7280", lineHeight: "1.45" }}>
+                            This will keep your existing description and add the AI-generated content to the start of it.
+                          </p>
+                        </div>
+                        <div>
+                          <Checkbox
+                            label={<span style={{ fontWeight: 600, fontSize: "13px" }}>Remove images from Product Description <span style={{ color: "#6b7280", fontWeight: 400 }}>(Recommended)</span></span>}
+                            checked={removeImagesFromDescription}
+                            onChange={(v) => setRemoveImagesFromDescription(v)}
+                          />
+                          <p style={{ margin: "4px 0 0 24px", fontSize: "12px", color: "#6b7280", lineHeight: "1.45" }}>
+                            This will remove all images from your product descriptions to ensure clean text content.
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <Checkbox
-                          label={<span style={{ fontWeight: 600, fontSize: "13px" }}>Preserve old description and add new AI Generated content to the start of it</span>}
-                          checked={preserveOldDescription}
-                          onChange={(v) => setPreserveOldDescription(v)}
-                        />
-                        <p style={{ margin: "4px 0 0 24px", fontSize: "12px", color: "#6b7280", lineHeight: "1.45" }}>
-                          This will keep your existing description and add the AI-generated content to the start of it.
-                        </p>
-                      </div>
-                      <div>
-                        <Checkbox
-                          label={<span style={{ fontWeight: 600, fontSize: "13px" }}>Remove images from Product Description <span style={{ color: "#6b7280", fontWeight: 400 }}>(Recommended)</span></span>}
-                          checked={removeImagesFromDescription}
-                          onChange={(v) => setRemoveImagesFromDescription(v)}
-                        />
-                        <p style={{ margin: "4px 0 0 24px", fontSize: "12px", color: "#6b7280", lineHeight: "1.45" }}>
-                          This will remove all images from your product descriptions to ensure clean text content.
-                        </p>
-                      </div>
-                    </div>
-                  </BlockStack>
-                </div>
-              )}
-            </div>
+                    </BlockStack>
+                  </div>
+                )}
+              </div>
+            )}
 
 
             {/* Bulk result badge */}
