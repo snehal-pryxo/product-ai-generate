@@ -143,7 +143,6 @@ export default function SettingsPage() {
 
   return (
     <Page
-      fullWidth
       title="Settings"
       subtitle="Configure global defaults for AI content generation."
       primaryAction={{
