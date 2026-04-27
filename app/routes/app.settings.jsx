@@ -87,18 +87,6 @@ const LANGUAGE_OPTIONS = [
   "Telugu", "Thai", "Turkish", "Ukrainian", "Urdu", "Vietnamese",
 ].map((l) => ({ label: l, value: l }));
 
-const TONE_OPTIONS = [
-  { label: "Professional", value: "professional" },
-  { label: "Casual", value: "casual" },
-  { label: "Friendly", value: "friendly" },
-  { label: "Persuasive", value: "persuasive" },
-  { label: "Informative", value: "informative" },
-  { label: "Luxury", value: "luxury" },
-  { label: "Playful", value: "playful" },
-  { label: "Urgent", value: "urgent" },
-];
-
-
 function SectionLabel({ children }) {
   return (
     <Text as="h3" variant="headingSm" fontWeight="semibold">
@@ -197,19 +185,6 @@ export default function SettingsPage() {
                   value={settings.language}
                   onChange={update("language")}
                   helpText="Default language for all AI-generated content."
-                />
-                <Select
-                  label="Tone"
-                  options={TONE_OPTIONS}
-                  value={settings.tone}
-                  onChange={update("tone")}
-                />
-                <TextField
-                  label="Global Context Keywords"
-                  value={settings.contextKeywords}
-                  onChange={update("contextKeywords")}
-                  placeholder="e.g. premium quality, trusted brand"
-                  autoComplete="off"
                 />
               </div>
             </Box>

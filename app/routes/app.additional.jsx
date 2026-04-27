@@ -76,7 +76,7 @@ const PAGES = [
   {
     icon: SettingsIcon,
     title: "Settings",
-    description: "Configure language, tone, keywords, and word count defaults.",
+    description: "Configure language and word count defaults.",
     url: "/app/settings",
     badge: null,
     badgeTone: null,
