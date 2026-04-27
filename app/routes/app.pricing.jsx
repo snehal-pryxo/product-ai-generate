@@ -26,6 +26,7 @@ import {
 import {
   createExtraCreditPurchase,
   createRecurringSubscription,
+  getBillingTestMode,
 } from "../lib/billing.server";
 
 export const loader = async ({ request }) => {
@@ -50,6 +51,7 @@ export const loader = async ({ request }) => {
     billingSuccess: url.searchParams.get("success") || "",
     subscriptionPlans: getSubscriptionPlans(process.env),
     extraCreditPackages: getExtraCreditPackages(process.env),
+    billingTestMode: getBillingTestMode(),
   };
 };
 
@@ -129,6 +131,7 @@ export default function PricingPage() {
     billingSuccess,
     subscriptionPlans,
     extraCreditPackages,
+    billingTestMode,
   } = useLoaderData();
   const actionData = useActionData();
   const navigation = useNavigation();
@@ -166,6 +169,12 @@ export default function PricingPage() {
           </Banner>
         ) : null}
 
+        {billingTestMode ? (
+          <Banner tone="info">
+            <p>Billing test mode is enabled. Shopify approval pages will create test charges only.</p>
+          </Banner>
+        ) : null}
+
         <Card>
           <InlineStack align="space-between" blockAlign="center" gap="300">
             <BlockStack gap="100">
@@ -196,6 +205,7 @@ export default function PricingPage() {
                 Recurring billing is processed by Shopify every 30 days in {BILLING_CURRENCY}.
               </Text>
             </BlockStack>
+            {billingTestMode ? <Badge tone="attention">Test mode</Badge> : null}
           </InlineStack>
 
           <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 3, xl: 5 }}>
@@ -216,7 +226,10 @@ export default function PricingPage() {
                             {plan.description}
                           </Text>
                         </BlockStack>
-                        {plan.popular ? <Badge tone="success">Popular</Badge> : null}
+                        <InlineStack gap="100">
+                          {billingTestMode && !isFree ? <Badge tone="attention">Test</Badge> : null}
+                          {plan.popular ? <Badge tone="success">Popular</Badge> : null}
+                        </InlineStack>
                       </InlineStack>
 
                       <BlockStack gap="100">
@@ -278,6 +291,11 @@ export default function PricingPage() {
             <Text as="p" variant="bodySm" tone="subdued">
               One-time credit packs are added to your balance after Shopify approves the purchase.
             </Text>
+            {billingTestMode ? (
+              <InlineStack>
+                <Badge tone="attention">Test mode</Badge>
+              </InlineStack>
+            ) : null}
           </BlockStack>
 
           <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
