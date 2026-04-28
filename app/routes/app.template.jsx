@@ -1459,7 +1459,6 @@ function ResourceBadge({ resource }) {
 }
 
 function TemplateCard({ template, typeId, active, showResource, isCustom, isLoading, onPreview, onEdit, onDelete }) {
-  const promptWords = countPreviewWords(template.template || "");
   const promptCharacters = stripPreviewText(template.template || "").length;
 
   return (
@@ -1476,12 +1475,9 @@ function TemplateCard({ template, typeId, active, showResource, isCustom, isLoad
           }}
         >
           <BlockStack gap="200">
-            <InlineStack align="space-between" blockAlign="center" gap="200" wrap>
-              <Text as="h4" variant="headingSm">
-                Template Prompt
-              </Text>
-              <Badge tone="info">{promptWords} words</Badge>
-            </InlineStack>
+            <Text as="h4" variant="headingSm">
+              Template Prompt
+            </Text>
             <div
               style={{
                 background: "var(--p-color-bg-surface-secondary)",

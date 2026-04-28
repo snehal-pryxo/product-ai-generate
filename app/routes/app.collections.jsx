@@ -2609,7 +2609,7 @@ export default function CollectionsPage() {
             <div style={{ fontSize: "24px", fontWeight: 800, color: "#111827", marginBottom: "4px", letterSpacing: "-0.3px" }}>
               Collections
             </div>
-            <div style={{ fontSize: "12px", color: "#6b7280", lineHeight: 1.4, fontWeight: 500,marginTop: "10px" }}>
+            <div style={{ fontSize: "13px", color: "#000000", lineHeight: 1.4, fontWeight: 500,marginTop: "10px" }}>
               <Text as="p" variant="bodySm" tone="subdued">- You can select multiple collections (up to {MAX_BULK_ITEMS}) for bulk content generation</Text>
               <Text as="p" variant="bodySm" tone="subdued">
                 {isCollectionProductsMode

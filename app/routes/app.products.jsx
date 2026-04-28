@@ -1777,7 +1777,7 @@ export default function ProductsPage() {
             <div style={{ fontSize: "24px", fontWeight: 800, color: "#111827", marginBottom: "4px", letterSpacing: "-0.3px" }}>
               Products
             </div>
-            <div style={{ fontSize: "12px", color: "#6b7280", lineHeight: 1.4, fontWeight: 600,marginTop: "10px" }}>
+            <div style={{ fontSize: "13px", color: "#000000", lineHeight: 1.4, fontWeight: 600,marginTop: "10px" }}>
               <Text as="p" variant="bodySm" tone="subdued">- You can select multiple products (up to {MAX_BULK_ITEMS}) for bulk content generation</Text>
               <Text as="p" variant="bodySm" tone="subdued">- You can choose a single collection to generate content for all its products</Text>
             </div>
