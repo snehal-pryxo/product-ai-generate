@@ -680,22 +680,51 @@ function extractPromptLengthTarget(templateText = "") {
     };
   }
 
+  const exactWords = prompt.match(/\b(?:exactly|about|around|approximately|approx\.?)?\s*(\d{1,4})\s*words\b/i);
+  if (exactWords) {
+    return {
+      unit: "words",
+      min: Number(exactWords[1]),
+      max: Number(exactWords[1]),
+      label: `${exactWords[1]} words`,
+    };
+  }
+
   return null;
 }
 
-function trimPreviewToTarget(text = "", target) {
-  const cleaned = stripPreviewText(text);
-  if (!target || !target.max || !cleaned) return cleaned;
+const PREVIEW_FILLER_SENTENCES = [
+  "This preview expands the sample copy to match the word guidance in the selected template prompt.",
+  "It keeps the structure merchant friendly while showing the expected amount of generated description content.",
+  "Use this length preview to compare templates before applying one to products, collections, or pages.",
+  "The final AI output will use real store data, brand voice, product details, and the selected prompt instructions.",
+];
 
-  if (target.unit === "characters" && cleaned.length > target.max) {
+function fitPreviewToTarget(text = "", target) {
+  const cleaned = stripPreviewText(text);
+  if (!target || !cleaned) return cleaned;
+
+  if (target.unit === "characters" && target.max && cleaned.length > target.max) {
     return `${cleaned.slice(0, Math.max(0, target.max - 1)).trim()}...`;
   }
 
   if (target.unit === "words") {
-    const words = cleaned.split(/\s+/).filter(Boolean);
-    if (words.length > target.max) {
-      return `${words.slice(0, target.max).join(" ")}...`;
+    let words = cleaned.split(/\s+/).filter(Boolean);
+    const desiredMin = Number(target.min || 0);
+    if (desiredMin && words.length < desiredMin) {
+      const fillerWords = PREVIEW_FILLER_SENTENCES.join(" ").split(/\s+/).filter(Boolean);
+      let fillerIndex = 0;
+      while (words.length < desiredMin && fillerWords.length > 0) {
+        words.push(fillerWords[fillerIndex % fillerWords.length]);
+        fillerIndex += 1;
+      }
     }
+
+    if (target.max && words.length > target.max) {
+      words = words.slice(0, target.max);
+    }
+
+    return words.join(" ");
   }
 
   return cleaned;
@@ -1387,7 +1416,7 @@ function buildTemplateCardPreview(template, typeId) {
     previewText = stripPreviewText(generateTemplatePreview(prompt));
   }
 
-  const fittedPreview = trimPreviewToTarget(previewText, target);
+  const fittedPreview = fitPreviewToTarget(previewText, target);
   const previewWords = countPreviewWords(fittedPreview);
   const previewCharacters = stripPreviewText(fittedPreview).length;
   const status = getTargetStatus(target, previewWords, previewCharacters);
