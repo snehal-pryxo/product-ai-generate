@@ -1455,6 +1455,26 @@ export default function ProductsPage() {
     [filteredProducts, selectedProductIds],
   );
   const exceedsBulkLimit = selectedProducts.length > MAX_BULK_ITEMS;
+  const hasRequiredBulkTemplates = useMemo(() => {
+    if (bulkContentTypes.includes("description")) {
+      if (!useCustomDescInstructions || !String(bulkDescTemplate || "").trim()) return false;
+    }
+    if (bulkContentTypes.includes("meta_title")) {
+      if (!useCustomMetaTitleInstructions || !String(bulkMetaTitleTemplate || "").trim()) return false;
+    }
+    if (bulkContentTypes.includes("meta_description")) {
+      if (!useCustomMetaDescInstructions || !String(bulkMetaDescTemplate || "").trim()) return false;
+    }
+    return true;
+  }, [
+    bulkContentTypes,
+    bulkDescTemplate,
+    bulkMetaDescTemplate,
+    bulkMetaTitleTemplate,
+    useCustomDescInstructions,
+    useCustomMetaDescInstructions,
+    useCustomMetaTitleInstructions,
+  ]);
 
   const makeUrl = useCallback(
     ({ status = filters.status, search = searchValue.trim(), collectionId = filters.collectionId } = {}) => {
@@ -2274,7 +2294,7 @@ export default function ProductsPage() {
                 style={{ width: "fit-content" }}
                 variant="primary"
                 onClick={handleBulkGenerate}
-                disabled={isBulkGenerating || selectedProducts.length === 0 || exceedsBulkLimit}
+                disabled={isBulkGenerating || selectedProducts.length === 0 || exceedsBulkLimit || !hasRequiredBulkTemplates}
                 loading={isBulkGenerating}
                 tone="success"
               >

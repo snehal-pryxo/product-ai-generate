@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { useLoaderData, useNavigate, useFetcher, useLocation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -820,6 +820,26 @@ export default function PagesPage() {
 
   const { selectedResources, allResourcesSelected, handleSelectionChange } =
     useIndexResourceState(localPages);
+  const hasRequiredBulkTemplates = useMemo(() => {
+    if (bulkContentTypes.includes("body")) {
+      if (!useCustomBodyInstructions || !String(bulkBodyTemplate || "").trim()) return false;
+    }
+    if (bulkContentTypes.includes("meta_title")) {
+      if (!useCustomMetaTitleInstructions || !String(bulkMetaTitleTemplate || "").trim()) return false;
+    }
+    if (bulkContentTypes.includes("meta_description")) {
+      if (!useCustomMetaDescInstructions || !String(bulkMetaDescTemplate || "").trim()) return false;
+    }
+    return true;
+  }, [
+    bulkBodyTemplate,
+    bulkContentTypes,
+    bulkMetaDescTemplate,
+    bulkMetaTitleTemplate,
+    useCustomBodyInstructions,
+    useCustomMetaDescInstructions,
+    useCustomMetaTitleInstructions,
+  ]);
 
   useEffect(() => {
     setLocalPages(pages);
@@ -1344,7 +1364,7 @@ export default function PagesPage() {
                 fullWidth
                 variant="primary"
                 onClick={handleBulkGenerate}
-                disabled={isBulkGenerating || selectedResources.length === 0}
+                disabled={isBulkGenerating || selectedResources.length === 0 || !hasRequiredBulkTemplates}
                 loading={isBulkGenerating}
                 tone="success"
               >
