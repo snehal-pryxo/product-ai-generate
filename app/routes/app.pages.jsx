@@ -34,7 +34,6 @@ import {
   Banner,
   Badge,
   IndexTable,
-  useIndexResourceState,
   Modal,
   InlineStack,
 } from "@shopify/polaris";
@@ -873,8 +872,31 @@ export default function PagesPage() {
     [location.search, navigate],
   );
 
-  const { selectedResources, allResourcesSelected, handleSelectionChange } =
-    useIndexResourceState(localPages);
+  const [selectedResources, setSelectedResources] = useState([]);
+  const pageIds = useMemo(() => localPages.map((page) => page.id), [localPages]);
+  const allResourcesSelected =
+    pageIds.length > 0 && selectedResources.length === pageIds.length && pageIds.every((id) => selectedResources.includes(id));
+  const selectionIndeterminate = selectedResources.length > 0 && !allResourcesSelected;
+  const handleToggleSelectAllPages = useCallback(
+    (checked) => {
+      setSelectedResources(checked ? pageIds : []);
+    },
+    [pageIds],
+  );
+  const handleTogglePageSelection = useCallback(
+    (pageId) => (checked) => {
+      setSelectedResources((current) => {
+        if (checked) return current.includes(pageId) ? current : [...current, pageId];
+        return current.filter((id) => id !== pageId);
+      });
+    },
+    [],
+  );
+
+  useEffect(() => {
+    setSelectedResources((current) => current.filter((id) => pageIds.includes(id)));
+  }, [pageIds]);
+
   const hasRequiredBulkTemplates = useMemo(() => {
     if (bulkContentTypes.includes("body")) {
       if (!useCustomBodyInstructions || !String(bulkBodyTemplate || "").trim()) return false;
@@ -1238,15 +1260,25 @@ export default function PagesPage() {
             <div className="app-table-scroll">
               <IndexTable
                 resourceName={{ singular: "page", plural: "pages" }}
-              itemCount={localPages.length}
-              selectedItemsCount={allResourcesSelected ? "All" : selectedResources.length}
-              onSelectionChange={handleSelectionChange}
-              headings={[
-                { title: "Title" },
-                { title: "Short" },
-                { title: "Status" },
-              ]}
-            >
+                itemCount={localPages.length}
+                headings={[
+                  {
+                    title: (
+                      <Checkbox
+                        label="Select all pages"
+                        labelHidden
+                        checked={allResourcesSelected}
+                        indeterminate={selectionIndeterminate}
+                        onChange={handleToggleSelectAllPages}
+                      />
+                    ),
+                  },
+                  { title: "Title" },
+                  { title: "Short" },
+                  { title: "Status" },
+                ]}
+                selectable={false}
+              >
               {localPages.map((page, index) => {
                 const shortStatus = evaluateContentShortStatus(stripHtml(page.body || page.bodySummary || ""));
                 const publishStatus = evaluatePagePublishStatus(page.publishedAt);
@@ -1254,9 +1286,16 @@ export default function PagesPage() {
                   <IndexTable.Row
                     id={page.id}
                     key={page.id}
-                    selected={selectedResources.includes(page.id)}
                     position={index}
                   >
+                    <IndexTable.Cell>
+                      <Checkbox
+                        label={`Select ${page.title}`}
+                        labelHidden
+                        checked={selectedResources.includes(page.id)}
+                        onChange={handleTogglePageSelection(page.id)}
+                      />
+                    </IndexTable.Cell>
                     <IndexTable.Cell>
                       <InlineStack gap="150" blockAlign="center" wrap={false}>
                         <button
