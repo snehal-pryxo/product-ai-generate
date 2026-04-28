@@ -602,6 +602,124 @@ function buildStructuredPreview(template = "", templateName = "") {
 // Renders a realistic output example for each template so merchants can see
 // exactly what content the AI would produce before selecting a template.
 
+function stripPreviewText(value = "") {
+  return String(value || "")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&mdash;|&ndash;/g, "-")
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function countPreviewWords(value = "") {
+  const text = stripPreviewText(value);
+  if (!text) return 0;
+  return text.split(/\s+/).filter(Boolean).length;
+}
+
+function normalizeLengthPrompt(value = "") {
+  return String(value || "")
+    .replace(/[\u2012-\u2015]/g, "-")
+    .replace(/\s+/g, " ");
+}
+
+function extractPromptLengthTarget(templateText = "") {
+  const prompt = normalizeLengthPrompt(templateText);
+  const characterRange = prompt.match(/(?:\(|\b)(\d{2,4})\s*-\s*(\d{2,4})\s*(?:characters|character|chars|char)\b/i);
+  if (characterRange) {
+    return {
+      unit: "characters",
+      min: Number(characterRange[1]),
+      max: Number(characterRange[2]),
+      label: `${characterRange[1]}-${characterRange[2]} characters`,
+    };
+  }
+
+  const underCharacters = prompt.match(/\b(?:under|within|max(?:imum)?|up to|less than)\s+(\d{2,4})\s*(?:characters|character|chars|char)\b/i);
+  if (underCharacters) {
+    return {
+      unit: "characters",
+      min: 0,
+      max: Number(underCharacters[1]),
+      label: `Under ${underCharacters[1]} characters`,
+    };
+  }
+
+  const wordRange = prompt.match(/(?:\(|\b)(\d{1,4})\s*-\s*(\d{1,4})\s*words\b/i);
+  if (wordRange) {
+    return {
+      unit: "words",
+      min: Number(wordRange[1]),
+      max: Number(wordRange[2]),
+      label: `${wordRange[1]}-${wordRange[2]} words`,
+    };
+  }
+
+  const underWords = prompt.match(/\b(?:under|within|max(?:imum)?|up to|less than)\s+(\d{1,4})\s*words\b/i);
+  if (underWords) {
+    return {
+      unit: "words",
+      min: 0,
+      max: Number(underWords[1]),
+      label: `Under ${underWords[1]} words`,
+    };
+  }
+
+  const minimumWords = prompt.match(/\b(\d{1,4})\+\s*words\b/i);
+  if (minimumWords) {
+    return {
+      unit: "words",
+      min: Number(minimumWords[1]),
+      max: null,
+      label: `${minimumWords[1]}+ words`,
+    };
+  }
+
+  return null;
+}
+
+function trimPreviewToTarget(text = "", target) {
+  const cleaned = stripPreviewText(text);
+  if (!target || !target.max || !cleaned) return cleaned;
+
+  if (target.unit === "characters" && cleaned.length > target.max) {
+    return `${cleaned.slice(0, Math.max(0, target.max - 1)).trim()}...`;
+  }
+
+  if (target.unit === "words") {
+    const words = cleaned.split(/\s+/).filter(Boolean);
+    if (words.length > target.max) {
+      return `${words.slice(0, target.max).join(" ")}...`;
+    }
+  }
+
+  return cleaned;
+}
+
+function getTargetStatus(target, wordCount, characterCount) {
+  if (!target) return { label: "No length target", tone: "new" };
+  const actual = target.unit === "characters" ? characterCount : wordCount;
+  if (target.min && actual < target.min) return { label: "Below target", tone: "attention" };
+  if (target.max && actual > target.max) return { label: "Over target", tone: "critical" };
+  return { label: "Matches target", tone: "success" };
+}
+
+function flattenStructuredPreview(preview) {
+  if (!preview) return "";
+  const parts = [preview.heading, preview.subheading];
+  (preview.sections || []).forEach((section) => {
+    parts.push(section.title);
+    (section.paragraphs || []).forEach((paragraph) => parts.push(paragraph));
+    (section.points || []).forEach((point) => parts.push(point));
+  });
+  return parts.filter(Boolean).join(" ");
+}
+
 const PREVIEW_STYLE_TAG = `<style>
 .tpl-prev h1,.tpl-prev h2{font-size:17px;font-weight:700;margin:0 0 10px;line-height:1.35;color:#111}
 .tpl-prev h3{font-size:14px;font-weight:600;margin:14px 0 5px;color:#1a1a1a}
@@ -1250,6 +1368,41 @@ function getPreviewHtml(templateId, resourceId, typeId) {
   return TEMPLATE_PREVIEW_HTML[templateId] || null;
 }
 
+function buildTemplateCardPreview(template, typeId) {
+  const prompt = template?.template || "";
+  const target = extractPromptLengthTarget(prompt);
+  const promptWords = countPreviewWords(prompt);
+  const promptCharacters = stripPreviewText(prompt).length;
+  const resourceId = template?.resource || "product";
+
+  let previewText = "";
+  if (typeId === "description") {
+    const htmlPreview = getPreviewHtml(template?.id, resourceId, typeId);
+    previewText = htmlPreview
+      ? stripPreviewText(htmlPreview)
+      : flattenStructuredPreview(buildDescriptionStructuredPreview(template, template?.name || "", { resourceId }));
+  } else if (typeId === "seo-title" || typeId === "seo-description") {
+    previewText = stripPreviewText(buildMetaPreviewText(template));
+  } else {
+    previewText = stripPreviewText(generateTemplatePreview(prompt));
+  }
+
+  const fittedPreview = trimPreviewToTarget(previewText, target);
+  const previewWords = countPreviewWords(fittedPreview);
+  const previewCharacters = stripPreviewText(fittedPreview).length;
+  const status = getTargetStatus(target, previewWords, previewCharacters);
+
+  return {
+    promptWords,
+    promptCharacters,
+    previewText: fittedPreview || "Preview will appear here after the prompt has enough structure.",
+    previewWords,
+    previewCharacters,
+    targetLabel: target?.label || "No target found",
+    status,
+  };
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function ResourceBadge({ resource }) {
@@ -1260,21 +1413,73 @@ function ResourceBadge({ resource }) {
   );
 }
 
-function TemplateCard({ template, active, showResource, isCustom, isLoading, onPreview, onEdit, onDelete }) {
+function TemplateCard({ template, typeId, active, showResource, isCustom, isLoading, onPreview, onEdit, onDelete }) {
+  const cardPreview = buildTemplateCardPreview(template, typeId);
+  const previewTitle = typeId === "seo-title"
+    ? "Meta Title Preview"
+    : typeId === "seo-description"
+      ? "Meta Description Preview"
+      : "Description Preview";
+
   return (
     <Card padding="0">
       <div style={{ display: "flex", flexDirection: "column" }}>
         {/* Preview area */}
         <div
           style={{
-            maxHeight: 180,
+            maxHeight: 230,
             overflowY: "auto",
             padding: "12px 14px",
             borderBottom: "1px solid var(--p-color-border)",
             lineHeight: 1.55,
           }}
         >
-          {template.template}
+          <BlockStack gap="200">
+            <InlineStack align="space-between" blockAlign="center" gap="200" wrap>
+              <Text as="h4" variant="headingSm">
+                {previewTitle}
+              </Text>
+              <Badge tone={cardPreview.status.tone}>{cardPreview.status.label}</Badge>
+            </InlineStack>
+            <Text as="p" variant="bodySm">
+              {cardPreview.previewText}
+            </Text>
+            <div
+              style={{
+                padding: "8px",
+                borderRadius: "8px",
+                background: "var(--p-color-bg-surface-secondary)",
+                border: "1px solid var(--p-color-border-secondary)",
+              }}
+            >
+              <BlockStack gap="100">
+                <InlineStack align="space-between" gap="200" wrap>
+                  <Text as="span" variant="bodySm" tone="subdued">
+                    Template Prompt
+                  </Text>
+                  <Text as="span" variant="bodySm" fontWeight="semibold">
+                    {cardPreview.promptWords} words / {cardPreview.promptCharacters} chars
+                  </Text>
+                </InlineStack>
+                <InlineStack align="space-between" gap="200" wrap>
+                  <Text as="span" variant="bodySm" tone="subdued">
+                    Preview Length
+                  </Text>
+                  <Text as="span" variant="bodySm" fontWeight="semibold">
+                    {cardPreview.previewWords} words / {cardPreview.previewCharacters} chars
+                  </Text>
+                </InlineStack>
+                <InlineStack align="space-between" gap="200" wrap>
+                  <Text as="span" variant="bodySm" tone="subdued">
+                    Target
+                  </Text>
+                  <Text as="span" variant="bodySm" fontWeight="semibold">
+                    {cardPreview.targetLabel}
+                  </Text>
+                </InlineStack>
+              </BlockStack>
+            </div>
+          </BlockStack>
         </div>
 
         {/* Meta area */}
@@ -1882,6 +2087,7 @@ export default function TemplatePage() {
                   <TemplateCard
                     key={template.id}
                     template={template}
+                    typeId={typeFilter}
                     active={activeId === template.id}
                     showResource={showResourceBadge}
                     isCustom={!isSystemTab}
