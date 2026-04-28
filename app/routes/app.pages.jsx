@@ -1361,7 +1361,7 @@ export default function PagesPage() {
             {/* Generate Button */}
             <div style={{ padding: "12px 16px" }}>
               <Button
-                fullWidth
+                style={{ width: "fit-content" }}
                 variant="primary"
                 onClick={handleBulkGenerate}
                 disabled={isBulkGenerating || selectedResources.length === 0 || !hasRequiredBulkTemplates}

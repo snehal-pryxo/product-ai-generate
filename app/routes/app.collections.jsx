@@ -74,7 +74,7 @@ const OPENAI_OLLAMA_FALLBACK_ERROR_PATTERN =
   /quota|billing|insufficient_quota|OPENAI_API_KEY is missing|does not exist|do not have access|rate limit|too many requests|429/i;
 const ENABLED_ENV_VALUE_PATTERN = /^(1|true|yes)$/i;
 const LANGUAGE_OPTIONS = [
-  "English", "English (British)", "English (US)", "Arabic", "Bengali", "Bulgarian",
+  "English", "Arabic", "Bengali", "Bulgarian",
   "Chinese", "Chinese (Simplified)", "Chinese (Traditional)", "Croatian", "Czech",
   "Danish", "Dutch", "Finnish", "French", "German", "Greek", "Hebrew", "Hindi",
   "Hungarian", "Indonesian", "Italian", "Japanese", "Korean", "Malay", "Norwegian",
