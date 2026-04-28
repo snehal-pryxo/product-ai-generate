@@ -59,7 +59,6 @@ const PAGES_QUERY = `#graphql
       edges {
         node {
           id
-          legacyResourceId
           title
           handle
           publishedAt
