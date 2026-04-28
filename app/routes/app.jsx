@@ -130,6 +130,7 @@ export default function App() {
           <s-link href={`/app/products${appContextSearch}`}>Bulk Generator</s-link>
           <s-link href={`/app/pages${appContextSearch}`}>Pages Generator</s-link>
           <s-link href={`/app/blog${appContextSearch}`}>Blogs Generator</s-link>
+          <s-link href={`/app/seo-improve${appContextSearch}`}>SEO Improve</s-link>
           {/* <s-link href={`/app/content-management${appContextSearch}`}>Content Management</s-link>
           <s-link href={`/app/template${appContextSearch}`}>Template</s-link>
           <s-link href={`/app/analytics${appContextSearch}`}>Analytics</s-link> */}
