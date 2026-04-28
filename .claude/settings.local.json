@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npm list:*)",
-      "Bash(grep -E \"\\\\.jsx$\")"
+      "Bash(grep -E \"\\\\.jsx$\")",
+      "Bash(node -e \"require\\('./app/routes/app.blog.jsx'\\)\")"
     ]
   }
 }
