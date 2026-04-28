@@ -420,7 +420,7 @@ function PreviewPanel({
   const rangeDescriptionPreview = useMemo(() => {
     if (!isDescriptionPreview || (resourceId !== "product" && resourceId !== "collection")) return null;
     const structuredPreview = extractStructuredPreviewFromHtml(htmlPreview, descriptionPreview);
-    return fitStructuredPreviewToWordRange(structuredPreview, 160, 220);
+    return fitStructuredPreviewToWordRange(structuredPreview, 180, 180);
   }, [descriptionPreview, htmlPreview, isDescriptionPreview, resourceId]);
   const rangeDescriptionWordCount = countWords(flattenDescriptionPreview(rangeDescriptionPreview));
 
@@ -497,6 +497,9 @@ function PreviewPanel({
                   {rangeDescriptionPreview ? (
                     <div style={{ border: "1px solid #e1e3e5", borderRadius: "8px", padding: "16px" }}>
                       <BlockStack gap="250">
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Preview length: {rangeDescriptionWordCount} words
+                        </Text>
                         <BlockStack gap="150">
                           <Text as="h5" variant="headingMd">
                             {rangeDescriptionPreview.heading}
