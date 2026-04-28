@@ -140,6 +140,21 @@ function getContentTypeDisplayLabel(contentType) {
   return "item";
 }
 
+function firstNonEmptyHtml(...values) {
+  for (const value of values) {
+    if (stripHtml(value || "")) return value || "";
+  }
+  return "";
+}
+
+function firstNonEmptyText(...values) {
+  for (const value of values) {
+    const text = String(value || "").trim();
+    if (text) return text;
+  }
+  return "";
+}
+
 function defaultTemplateSelection() {
   return {
     mainTemplateId: "",
@@ -180,6 +195,27 @@ const PRODUCT_LIST_QUERY = `#graphql
         }
       }
       pageInfo { hasNextPage endCursor }
+    }
+  }
+`;
+
+const PRODUCT_NODES_QUERY = `#graphql
+  query ProductNodes($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      ... on Product {
+        id
+        title
+        handle
+        status
+        updatedAt
+        descriptionHtml
+        seo { title description }
+        featuredMedia {
+          preview {
+            image { url altText }
+          }
+        }
+      }
     }
   }
 `;
@@ -468,7 +504,7 @@ async function generateContentWithAnthropic(prompt, apiKey, preferredModel = nul
     headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
     body: JSON.stringify({
       model,
-      max_tokens: 1024,
+      max_tokens: 2500,
       system: "You are an expert Shopify copywriter. Always return valid JSON with the requested keys. No markdown, no code fences.",
       messages: [{ role: "user", content: prompt }],
     }),
@@ -753,6 +789,23 @@ export const loader = async ({ request }) => {
   const productGeneratedMap = new Map(productGeneratedRows.map((row) => [row.productId, row]));
   const collectionGeneratedMap = new Map(collectionGeneratedRows.map((row) => [row.collectionId, row]));
   const pageGeneratedMap = new Map(pageGeneratedRows.map((row) => [row.pageId, row]));
+  const liveCollectionProductMap = new Map();
+
+  if (shouldLoadCollectionProducts && collectionProductGeneratedRows.length > 0) {
+    const productIds = [...new Set(collectionProductGeneratedRows.map((row) => row.productId).filter(Boolean))];
+    for (let index = 0; index < productIds.length; index += 50) {
+      const ids = productIds.slice(index, index + 50);
+      try {
+        const res = await admin.graphql(PRODUCT_NODES_QUERY, { variables: { ids } });
+        const json = await res.json();
+        (json?.data?.nodes || []).forEach((node) => {
+          if (node?.id) liveCollectionProductMap.set(node.id, node);
+        });
+      } catch (error) {
+        console.error("Failed to fetch live collection product content:", error);
+      }
+    }
+  }
 
   const productCreditsMap = new Map(productGeneratedRows.map((row) => [row.productId, row.creditsUsed ?? 0]));
   const collectionCreditsMap = new Map(collectionGeneratedRows.map((row) => [row.collectionId, row.creditsUsed ?? 0]));
@@ -855,21 +908,24 @@ export const loader = async ({ request }) => {
         if (!conn.pageInfo?.hasNextPage || !conn.pageInfo?.endCursor) break;
         afterCursor = conn.pageInfo.endCursor;
       }
-      allItems.push(...productNodes.filter((n) => isGeneratedItem("products", n.id)).map((n) => ({
-        ...(productGeneratedMap.get(n.id) || {}),
+      allItems.push(...productNodes.filter((n) => isGeneratedItem("products", n.id)).map((n) => {
+        const generated = productGeneratedMap.get(n.id) || {};
+        return {
+        ...generated,
         id: n.id,
-        title: productGeneratedMap.get(n.id)?.productTitle || n.title,
+        title: generated.productTitle || n.title,
         handle: n.handle,
         status: n.status,
-        descriptionHtml: productGeneratedMap.get(n.id)?.descriptionHtml || "",
-        seoTitle: productGeneratedMap.get(n.id)?.seoTitle || "",
-        seoDescription: productGeneratedMap.get(n.id)?.seoDescription || "",
+        descriptionHtml: firstNonEmptyHtml(generated.descriptionHtml, n.descriptionHtml),
+        seoTitle: firstNonEmptyText(generated.seoTitle, n.seo?.title),
+        seoDescription: firstNonEmptyText(generated.seoDescription, n.seo?.description),
         imageUrl: n.featuredMedia?.preview?.image?.url || null,
-        imageAlt: n.featuredMedia?.preview?.image?.altText || (productGeneratedMap.get(n.id)?.productTitle || n.title),
-        updatedAt: productGeneratedMap.get(n.id)?.updatedAt || n.updatedAt || null,
+        imageAlt: n.featuredMedia?.preview?.image?.altText || (generated.productTitle || n.title),
+        updatedAt: generated.updatedAt || n.updatedAt || null,
         contentType: "products",
         creditsUsed: resolveCreditsUsed("products", n.id),
-      })));
+      };
+      }));
 
       // Fetch collections
       const collectionNodes = [];
@@ -885,21 +941,24 @@ export const loader = async ({ request }) => {
         if (!conn.pageInfo?.hasNextPage || !conn.pageInfo?.endCursor) break;
         afterCursor = conn.pageInfo.endCursor;
       }
-      allItems.push(...collectionNodes.filter((n) => isGeneratedItem("collections", n.id)).map((n) => ({
-        ...(collectionGeneratedMap.get(n.id) || {}),
+      allItems.push(...collectionNodes.filter((n) => isGeneratedItem("collections", n.id)).map((n) => {
+        const generated = collectionGeneratedMap.get(n.id) || {};
+        return {
+        ...generated,
         id: n.id,
-        title: collectionGeneratedMap.get(n.id)?.collectionTitle || n.title,
+        title: generated.collectionTitle || n.title,
         handle: n.handle,
         status: "Active",
-        descriptionHtml: collectionGeneratedMap.get(n.id)?.descriptionHtml || "",
-        seoTitle: collectionGeneratedMap.get(n.id)?.seoTitle || "",
-        seoDescription: collectionGeneratedMap.get(n.id)?.seoDescription || "",
+        descriptionHtml: firstNonEmptyHtml(generated.descriptionHtml, n.descriptionHtml),
+        seoTitle: firstNonEmptyText(generated.seoTitle, n.seo?.title),
+        seoDescription: firstNonEmptyText(generated.seoDescription, n.seo?.description),
         imageUrl: n.image?.url || null,
-        imageAlt: n.image?.altText || (collectionGeneratedMap.get(n.id)?.collectionTitle || n.title),
-        updatedAt: collectionGeneratedMap.get(n.id)?.updatedAt || n.updatedAt || null,
+        imageAlt: n.image?.altText || (generated.collectionTitle || n.title),
+        updatedAt: generated.updatedAt || n.updatedAt || null,
         contentType: "collections",
         creditsUsed: resolveCreditsUsed("collections", n.id),
-      })));
+      };
+      }));
 
       // Fetch pages
       const pageNodes = [];
@@ -924,9 +983,9 @@ export const loader = async ({ request }) => {
           title: pageGeneratedMap.get(n.id)?.pageTitle || n.title,
           handle: n.handle,
           status: "Active",
-          descriptionHtml: pageGeneratedMap.get(n.id)?.bodyHtml || "",
-          seoTitle: pageGeneratedMap.get(n.id)?.seoTitle || "",
-          seoDescription: pageGeneratedMap.get(n.id)?.seoDescription || "",
+          descriptionHtml: firstNonEmptyHtml(pageGeneratedMap.get(n.id)?.bodyHtml, n.body),
+          seoTitle: firstNonEmptyText(pageGeneratedMap.get(n.id)?.seoTitle, mfMap.title_tag),
+          seoDescription: firstNonEmptyText(pageGeneratedMap.get(n.id)?.seoDescription, mfMap.description_tag),
           imageUrl: null,
           imageAlt: pageGeneratedMap.get(n.id)?.pageTitle || n.title,
           updatedAt: pageGeneratedMap.get(n.id)?.updatedAt || n.updatedAt || null,
@@ -935,23 +994,26 @@ export const loader = async ({ request }) => {
         };
       }));
 
-      allItems.push(...collectionProductGeneratedRows.map((row) => ({
+      allItems.push(...collectionProductGeneratedRows.map((row) => {
+        const liveProduct = liveCollectionProductMap.get(row.productId) || {};
+        return {
         id: `${row.collectionId}::${row.productId}`,
-        title: row.productTitle || row.productId,
+        title: row.productTitle || liveProduct.title || row.productId,
         collectionTitle: row.collectionTitle || row.collectionId,
         productId: row.productId,
         collectionId: row.collectionId,
-        handle: "",
+        handle: liveProduct.handle || "",
         status: row.appliedToProduct ? "Active" : "Generated",
-        descriptionHtml: row.descriptionHtml || "",
-        seoTitle: row.seoTitle || "",
-        seoDescription: row.seoDescription || "",
-        imageUrl: null,
-        imageAlt: row.productTitle || row.productId,
-        updatedAt: row.updatedAt || null,
+        descriptionHtml: firstNonEmptyHtml(row.descriptionHtml, liveProduct.descriptionHtml),
+        seoTitle: firstNonEmptyText(row.seoTitle, liveProduct.seo?.title),
+        seoDescription: firstNonEmptyText(row.seoDescription, liveProduct.seo?.description),
+        imageUrl: liveProduct.featuredMedia?.preview?.image?.url || null,
+        imageAlt: liveProduct.featuredMedia?.preview?.image?.altText || row.productTitle || liveProduct.title || row.productId,
+        updatedAt: row.updatedAt || liveProduct.updatedAt || null,
         contentType: "collection_products",
         creditsUsed: row.creditsUsed ?? 0,
-      })));
+      };
+      }));
 
       items = allItems;
     } else if (tab === "products") {
@@ -968,21 +1030,24 @@ export const loader = async ({ request }) => {
         if (!conn.pageInfo?.hasNextPage || !conn.pageInfo?.endCursor) break;
         afterCursor = conn.pageInfo.endCursor;
       }
-      items = nodes.filter((n) => isGeneratedItem("products", n.id)).map((n) => ({
-        ...(productGeneratedMap.get(n.id) || {}),
+      items = nodes.filter((n) => isGeneratedItem("products", n.id)).map((n) => {
+        const generated = productGeneratedMap.get(n.id) || {};
+        return {
+        ...generated,
         id: n.id,
-        title: productGeneratedMap.get(n.id)?.productTitle || n.title,
+        title: generated.productTitle || n.title,
         handle: n.handle,
         status: n.status,
-        descriptionHtml: productGeneratedMap.get(n.id)?.descriptionHtml || "",
-        seoTitle: productGeneratedMap.get(n.id)?.seoTitle || "",
-        seoDescription: productGeneratedMap.get(n.id)?.seoDescription || "",
+        descriptionHtml: firstNonEmptyHtml(generated.descriptionHtml, n.descriptionHtml),
+        seoTitle: firstNonEmptyText(generated.seoTitle, n.seo?.title),
+        seoDescription: firstNonEmptyText(generated.seoDescription, n.seo?.description),
         imageUrl: n.featuredMedia?.preview?.image?.url || null,
-        imageAlt: n.featuredMedia?.preview?.image?.altText || (productGeneratedMap.get(n.id)?.productTitle || n.title),
-        updatedAt: productGeneratedMap.get(n.id)?.updatedAt || n.updatedAt || null,
+        imageAlt: n.featuredMedia?.preview?.image?.altText || (generated.productTitle || n.title),
+        updatedAt: generated.updatedAt || n.updatedAt || null,
         contentType: "products",
         creditsUsed: resolveCreditsUsed("products", n.id),
-      }));
+      };
+      });
     } else if (tab === "collections") {
       const nodes = [];
       let afterCursor;
@@ -997,21 +1062,24 @@ export const loader = async ({ request }) => {
         if (!conn.pageInfo?.hasNextPage || !conn.pageInfo?.endCursor) break;
         afterCursor = conn.pageInfo.endCursor;
       }
-      items = nodes.filter((n) => isGeneratedItem("collections", n.id)).map((n) => ({
-        ...(collectionGeneratedMap.get(n.id) || {}),
+      items = nodes.filter((n) => isGeneratedItem("collections", n.id)).map((n) => {
+        const generated = collectionGeneratedMap.get(n.id) || {};
+        return {
+        ...generated,
         id: n.id,
-        title: collectionGeneratedMap.get(n.id)?.collectionTitle || n.title,
+        title: generated.collectionTitle || n.title,
         handle: n.handle,
         status: "Active",
-        descriptionHtml: collectionGeneratedMap.get(n.id)?.descriptionHtml || "",
-        seoTitle: collectionGeneratedMap.get(n.id)?.seoTitle || "",
-        seoDescription: collectionGeneratedMap.get(n.id)?.seoDescription || "",
+        descriptionHtml: firstNonEmptyHtml(generated.descriptionHtml, n.descriptionHtml),
+        seoTitle: firstNonEmptyText(generated.seoTitle, n.seo?.title),
+        seoDescription: firstNonEmptyText(generated.seoDescription, n.seo?.description),
         imageUrl: n.image?.url || null,
-        imageAlt: n.image?.altText || (collectionGeneratedMap.get(n.id)?.collectionTitle || n.title),
-        updatedAt: collectionGeneratedMap.get(n.id)?.updatedAt || n.updatedAt || null,
+        imageAlt: n.image?.altText || (generated.collectionTitle || n.title),
+        updatedAt: generated.updatedAt || n.updatedAt || null,
         contentType: "collections",
         creditsUsed: resolveCreditsUsed("collections", n.id),
-      }));
+      };
+      });
     } else if (tab === "pages") {
       const nodes = [];
       let afterCursor;
@@ -1035,9 +1103,9 @@ export const loader = async ({ request }) => {
           title: pageGeneratedMap.get(n.id)?.pageTitle || n.title,
           handle: n.handle,
           status: "Active",
-          descriptionHtml: pageGeneratedMap.get(n.id)?.bodyHtml || "",
-          seoTitle: pageGeneratedMap.get(n.id)?.seoTitle || "",
-          seoDescription: pageGeneratedMap.get(n.id)?.seoDescription || "",
+          descriptionHtml: firstNonEmptyHtml(pageGeneratedMap.get(n.id)?.bodyHtml, n.body),
+          seoTitle: firstNonEmptyText(pageGeneratedMap.get(n.id)?.seoTitle, mfMap.title_tag),
+          seoDescription: firstNonEmptyText(pageGeneratedMap.get(n.id)?.seoDescription, mfMap.description_tag),
           imageUrl: null,
           imageAlt: pageGeneratedMap.get(n.id)?.pageTitle || n.title,
           updatedAt: pageGeneratedMap.get(n.id)?.updatedAt || n.updatedAt || null,
@@ -1046,23 +1114,26 @@ export const loader = async ({ request }) => {
         };
       });
     } else if (tab === "collection_products") {
-      items = collectionProductGeneratedRows.map((row) => ({
+      items = collectionProductGeneratedRows.map((row) => {
+        const liveProduct = liveCollectionProductMap.get(row.productId) || {};
+        return {
         id: `${row.collectionId}::${row.productId}`,
-        title: row.productTitle || row.productId,
+        title: row.productTitle || liveProduct.title || row.productId,
         collectionTitle: row.collectionTitle || row.collectionId,
         productId: row.productId,
         collectionId: row.collectionId,
-        handle: "",
+        handle: liveProduct.handle || "",
         status: row.appliedToProduct ? "Active" : "Generated",
-        descriptionHtml: row.descriptionHtml || "",
-        seoTitle: row.seoTitle || "",
-        seoDescription: row.seoDescription || "",
-        imageUrl: null,
-        imageAlt: row.productTitle || row.productId,
-        updatedAt: row.updatedAt || null,
+        descriptionHtml: firstNonEmptyHtml(row.descriptionHtml, liveProduct.descriptionHtml),
+        seoTitle: firstNonEmptyText(row.seoTitle, liveProduct.seo?.title),
+        seoDescription: firstNonEmptyText(row.seoDescription, liveProduct.seo?.description),
+        imageUrl: liveProduct.featuredMedia?.preview?.image?.url || null,
+        imageAlt: liveProduct.featuredMedia?.preview?.image?.altText || row.productTitle || liveProduct.title || row.productId,
+        updatedAt: row.updatedAt || liveProduct.updatedAt || null,
         contentType: "collection_products",
         creditsUsed: row.creditsUsed ?? 0,
-      }));
+      };
+      });
     }
   } catch (err) {
     console.error(`Content management loader error (tab=${tab}):`, err);
@@ -1186,6 +1257,10 @@ export const action = async ({ request }) => {
         shopOpenaiKey: shopData?.openaiApiKey || null,
         shopAnthropicKey: shopData?.anthropicApiKey || null,
       });
+
+      if (shouldGenerateMain && !stripHtml(generated.description || "")) {
+        throw new Error("AI response did not include generated description/content. Please retry or choose another model.");
+      }
 
       const descHtml = shouldGenerateMain && generated.description
         ? normalizeGeneratedHtml(generated.description)

@@ -1459,17 +1459,13 @@ function ResourceBadge({ resource }) {
 }
 
 function TemplateCard({ template, typeId, active, showResource, isCustom, isLoading, onPreview, onEdit, onDelete }) {
-  const cardPreview = buildTemplateCardPreview(template, typeId);
-  const previewTitle = typeId === "seo-title"
-    ? "Meta Title Preview"
-    : typeId === "seo-description"
-      ? "Meta Description Preview"
-      : "Description Preview";
+  const promptWords = countPreviewWords(template.template || "");
+  const promptCharacters = stripPreviewText(template.template || "").length;
 
   return (
     <Card padding="0">
       <div style={{ display: "flex", flexDirection: "column" }}>
-        {/* Preview area */}
+        {/* Template prompt area */}
         <div
           style={{
             maxHeight: 230,
@@ -1482,14 +1478,27 @@ function TemplateCard({ template, typeId, active, showResource, isCustom, isLoad
           <BlockStack gap="200">
             <InlineStack align="space-between" blockAlign="center" gap="200" wrap>
               <Text as="h4" variant="headingSm">
-                {previewTitle}
+                Template Prompt
               </Text>
-              <Badge tone={cardPreview.status.tone}>{cardPreview.status.label}</Badge>
+              <Badge tone="info">{promptWords} words</Badge>
             </InlineStack>
-            <Text as="p" variant="bodySm">
-              {cardPreview.previewText}
+            <div
+              style={{
+                background: "var(--p-color-bg-surface-secondary)",
+                border: "1px solid var(--p-color-border-secondary)",
+                borderRadius: "8px",
+                padding: "10px",
+                fontFamily: "monospace",
+                fontSize: "12px",
+                lineHeight: 1.6,
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {template.template}
+            </div>
+            <Text as="p" variant="bodySm" tone="subdued">
+              Characters: {promptCharacters}
             </Text>
-       
           </BlockStack>
         </div>
 

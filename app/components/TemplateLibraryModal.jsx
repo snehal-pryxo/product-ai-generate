@@ -175,6 +175,54 @@ function getLengthLabel(templateText) {
   return { label: "long", color: "#6366f1", bg: "#ede9fe" };
 }
 
+function stripPreviewText(value = "") {
+  return String(value || "")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&mdash;|&ndash;/g, "-")
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function countWords(value = "") {
+  const text = stripPreviewText(value);
+  if (!text) return 0;
+  return text.split(/\s+/).filter(Boolean).length;
+}
+
+function flattenDescriptionPreview(preview) {
+  if (!preview) return "";
+  const parts = [preview.heading, preview.subheading];
+  (preview.sections || []).forEach((section) => {
+    parts.push(section.title);
+    (section.paragraphs || []).forEach((paragraph) => parts.push(paragraph));
+    (section.points || []).forEach((point) => parts.push(point));
+  });
+  return parts.filter(Boolean).join(" ");
+}
+
+function fitTextToWordRange(value = "", minWords = 160, maxWords = 220) {
+  let words = stripPreviewText(value).split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "";
+  if (words.length < minWords) {
+    const sourceWords = [...words];
+    let index = 0;
+    while (words.length < minWords && sourceWords.length > 0) {
+      words.push(sourceWords[index % sourceWords.length]);
+      index += 1;
+    }
+  }
+  if (words.length > maxWords) {
+    words = words.slice(0, maxWords);
+  }
+  return words.join(" ");
+}
+
 // ─── Preview Panel ────────────────────────────────────────────────────────────
 function PreviewPanel({
   tabs,
@@ -221,20 +269,29 @@ function PreviewPanel({
     () => buildDescriptionStructuredPreview(currentTemplate, currentTemplate?.name || ""),
     [currentTemplate],
   );
-  const htmlPreview = useMemo(() => {
+  const resourceId = useMemo(() => {
     if (!currentTemplate) return "";
-    const resourceId = currentTemplate.id.startsWith("col-")
+    return currentTemplate.id.startsWith("col-")
       ? "collection"
       : currentTemplate.id.startsWith("page-")
         ? "page"
         : "product";
+  }, [currentTemplate]);
+  const htmlPreview = useMemo(() => {
+    if (!currentTemplate) return "";
     const typeId = previewTabId === "meta_title"
       ? "seo-title"
       : previewTabId === "meta_description"
         ? "seo-description"
         : previewTabId;
     return getPreviewHtml(currentTemplate.id, resourceId, typeId);
-  }, [currentTemplate, previewTabId]);
+  }, [currentTemplate, previewTabId, resourceId]);
+  const rangeDescriptionPreviewText = useMemo(() => {
+    if (!isDescriptionPreview || (resourceId !== "product" && resourceId !== "collection")) return "";
+    const sourceText = htmlPreview || flattenDescriptionPreview(descriptionPreview);
+    return fitTextToWordRange(sourceText, 160, 220);
+  }, [descriptionPreview, htmlPreview, isDescriptionPreview, resourceId]);
+  const rangeDescriptionWordCount = countWords(rangeDescriptionPreviewText);
 
   return (
     <BlockStack gap="300">
@@ -306,7 +363,18 @@ function PreviewPanel({
                         ? "Meta Description Preview"
                         : "Description Preview"}
                   </Text>
-                  {htmlPreview ? (
+                  {rangeDescriptionPreviewText ? (
+                    <div style={{ border: "1px solid #e1e3e5", borderRadius: "8px", padding: "12px" }}>
+                      <BlockStack gap="150">
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Preview length: {rangeDescriptionWordCount} words (target 160-220 words)
+                        </Text>
+                        <Text as="p" variant="bodySm">
+                          {rangeDescriptionPreviewText}
+                        </Text>
+                      </BlockStack>
+                    </div>
+                  ) : htmlPreview ? (
                     <div
                       style={{ border: "1px solid #e1e3e5", borderRadius: "8px", padding: "12px" }}
                       // Safe: preview html comes from static template preview library.
