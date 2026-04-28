@@ -2220,7 +2220,6 @@ export default function BlogPage() {
                         >
                           <BlockStack gap="300">
                             <Text as="h4" variant="headingMd">{suggestion.title}</Text>
-                            <Text as="p" variant="bodyMd" tone="subdued">{suggestion.summary}</Text>
                             <Text as="p" variant="bodySm" tone="subdued">
                               {getGeneratedContentPreview(suggestion.body)}
                             </Text>
