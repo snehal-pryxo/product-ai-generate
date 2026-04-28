@@ -833,7 +833,7 @@ function createSuggestionSet({
   });
 }
 
-async function generateSuggestionsWithOpenAI(prompt, apiKey) {
+async function generateSuggestionsWithOpenAI(systemPrompt, userPrompt, apiKey) {
   if (!apiKey) throw new Error("OpenAI API key is not configured.");
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -846,12 +846,8 @@ async function generateSuggestionsWithOpenAI(prompt, apiKey) {
       temperature: 0.7,
       response_format: { type: "json_object" },
       messages: [
-        {
-          role: "system",
-          content:
-            "You are an expert Shopify blog copywriter. Always return valid JSON only, with no markdown and no explanations.",
-        },
-        { role: "user", content: prompt },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
       ],
     }),
   });
@@ -865,7 +861,7 @@ async function generateSuggestionsWithOpenAI(prompt, apiKey) {
   return parsed;
 }
 
-async function generateSuggestionsWithAnthropic(prompt, apiKey) {
+async function generateSuggestionsWithAnthropic(systemPrompt, userPrompt, apiKey) {
   if (!apiKey) throw new Error("Anthropic API key is not configured.");
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -877,9 +873,8 @@ async function generateSuggestionsWithAnthropic(prompt, apiKey) {
     body: JSON.stringify({
       model: BLOG_ANTHROPIC_MODEL,
       max_tokens: 4096,
-      system:
-        "You are an expert Shopify blog copywriter. Always return valid JSON only, with no markdown and no explanations.",
-      messages: [{ role: "user", content: prompt }],
+      system: systemPrompt,
+      messages: [{ role: "user", content: userPrompt }],
     }),
   });
   const data = await response.json();
@@ -909,7 +904,7 @@ async function generateBlogSuggestionsWithAI({
   anthropicApiKey,
   count = 6,
 }) {
-  const storeName = cleanText(productContext?.title) || cleanText(topic) || "our store";
+  const storeName = cleanText(productContext?.title) || "our store";
   const productDescription = cleanText(productContext?.description);
   const productType = cleanText(productContext?.productType);
   const vendor = cleanText(productContext?.vendor);
@@ -917,69 +912,122 @@ async function generateBlogSuggestionsWithAI({
   const safeCount = Math.max(1, Math.min(count || 6, 6));
   const isHolidayTab = tabType === TAB_KEYS.HOLIDAY;
   const isPromotionTab = tabType === TAB_KEYS.PROMOTION;
-  const hasPromotion = (isHolidayTab || isPromotionTab) && promotion && promotion !== "None" && promotion !== "No promotion";
+  const hasPromotion =
+    (isHolidayTab || isPromotionTab) && promotion && promotion !== "None" && promotion !== "No promotion";
   const hasOffer = hasPromotion && Boolean(cleanText(offerText));
   const promotionOfferStr = formatPromotionOffer(promotion, offerText);
   const customTopic = tabType === TAB_KEYS.CUSTOM ? cleanText(topic) : "";
 
-  const commonHeader = `
-You are writing ${safeCount} unique, complete, ready-to-publish Shopify blog posts.
-
+  const productContextBlock = `
 Store & Product Details:
 - Store/Product name: ${storeName}
 - Product type: ${productType || "Not specified"}
 - Brand/Vendor: ${vendor || "Not specified"}
 - Product description: ${productDescription || "Not provided — describe based on the store name and context"}
-- Product URL: ${productUrl || "Not provided"}
+${productUrl ? `- Product URL: ${productUrl}` : ""}`.trim();
 
-Writing Settings:
-- Tone: ${tone} — use this voice in EVERY sentence, heading, and paragraph
-- Target audience: ${targetAudience} — write FOR them, address them directly
-- Language: ${language}
-- Word count: ${min}–${max} words per blog
-`;
-
-  const commonFooter = `
-Rules that apply to ALL suggestions:
-- Each suggestion must be clearly different in angle, structure, or focus — not just a paraphrase
-- Use the ${tone.toLowerCase()} tone consistently throughout
-- Address ${targetAudience.toLowerCase()} readers directly ("you", "your")
-- Name "${storeName}" in every suggestion — never replace it with generic store names
-- Do NOT use filler like "In today's fast-paced world" or "In conclusion, it is clear that"
-- Each bodyHtml must include: h1, h2 (×4 minimum), p (under each h2), strong bold tips, and at least one list structure in the tips section
-
+  const jsonFormatInstruction = `
 Return ONLY valid JSON — no markdown, no extra text:
 {
   "suggestions": [
     {
-      "title": "Blog title here",
-      "summary": "1–2 sentence description mentioning the store name and the blog theme.",
+      "title": "SEO-optimised blog title under 60 characters",
+      "metaDescription": "150–160 character meta description including main keyword and a clear call to action",
       "bodyHtml": "<h1>...</h1><p>...</p><h2>...</h2><p>...</p>..."
     }
   ]
-}
-`;
+}`;
 
-  // Tab-specific structure instruction
-  let structureInstruction = "";
+  // Build tab-wise system + user prompts
+  let systemPrompt = "";
+  let userPrompt = "";
 
-  if (tabType === TAB_KEYS.HOLIDAY) {
-    structureInstruction = `
-TAB: Generate holiday posts
-FIELDS USED: Holiday = "${holiday}", Promotion = "${promotion}"${hasOffer ? `, Offer = "${offerText}"` : ""}, Post length = ${min}–${max} words, Tone = ${tone}, Target audience = ${targetAudience}, Product URL = ${productUrl || "not provided"}
+  if (tabType === TAB_KEYS.BUSINESS) {
+    systemPrompt = `You are an expert Shopify blog writer and SEO specialist. You write compelling, store-specific blog content that drives traffic and converts visitors. Always return valid JSON only, with no markdown and no explanations.`;
+
+    userPrompt = `Write ${safeCount} unique, complete, ready-to-publish Shopify blog posts for a business blog.
+
+${productContextBlock}
+
+Post Settings:
+- Post Length: ${min}–${max} words
+- Post Tone: ${tone}
+- Language: ${language}
+- Target Audience: ${targetAudience}
+${productUrl ? `- Product URL: ${productUrl}` : ""}
+
+The ENTIRE blog must describe "${storeName}", its products, and why ${targetAudience.toLowerCase()} customers should shop here.
+Do NOT include any holiday themes or promotional offers — this is a pure business/product blog.
+
+REQUIRED STRUCTURE (follow in this exact order for every suggestion):
+
+<h1>[SEO title: "${storeName}" + strong appeal to ${targetAudience.toLowerCase()} shoppers — under 60 chars]</h1>
+
+<p>[OPENING — introduce ${storeName} to ${targetAudience.toLowerCase()} readers. Describe what the store sells, its key products, and why it is built for ${targetAudience.toLowerCase()} customers. Use a ${tone.toLowerCase()} voice.]</p>
+
+<h2>Why Choose ${storeName}?</h2>
+<p>[What ${storeName} offers and why ${targetAudience.toLowerCase()} customers trust it. Focus on product quality, selection, and store values.]</p>
+<p>[Address a specific need or desire of ${targetAudience.toLowerCase()} shoppers and explain how ${storeName} fulfils it better than alternatives.]</p>
+
+<h2>Products Built for ${targetAudience}</h2>
+<p>[Describe specific products or product categories at ${storeName} that resonate with ${targetAudience.toLowerCase()} customers.]</p>
+<p>[Concrete product examples and their benefits — make ${targetAudience.toLowerCase()} feel that ${storeName} was designed for them.]</p>
+
+<h2>What Sets ${storeName} Apart</h2>
+<p>[What makes ${storeName} different — product curation, quality standards, customer experience, or values that ${targetAudience.toLowerCase()} care about.]</p>
+<p>[A specific example or product that demonstrates this differentiation clearly.]</p>
+
+<h2>Tips for Shopping at ${storeName}</h2>
+<p>[One intro sentence]</p>
+<p><strong>[Browsing Tip]:</strong> [How ${targetAudience.toLowerCase()} shoppers can navigate ${storeName}'s collection most effectively.]</p>
+<p><strong>[Best Value Tip]:</strong> [How to identify the best products at ${storeName} for ${targetAudience.toLowerCase()} needs and budget.]</p>
+<p><strong>[Smart Shopping Tip]:</strong> [How ${targetAudience.toLowerCase()} customers can get the most from ${storeName} — seasonal picks, new arrivals, or featured items.]</p>
+
+<h2>Explore Our Collection</h2>
+<p>[Invite ${targetAudience.toLowerCase()} to explore ${storeName}'s product range. Name specific items or categories.]</p>
+<p>[Encourage browsing the full range and finding new favourites at ${storeName}.]</p>
+
+<h2>Final Thoughts</h2>
+<p>[Summarise why ${storeName} is the right store for ${targetAudience.toLowerCase()} customers. End with strong, ${tone.toLowerCase()} encouragement to shop.]</p>
+<p>[STANDALONE CTA LINE: "Shop Now and discover what ${storeName} has for ${targetAudience.toLowerCase()} shoppers like you!"]</p>
+
+Rules:
+- Each suggestion must be clearly different in angle, structure, or focus — not just a paraphrase
+- Use the ${tone.toLowerCase()} tone consistently in every sentence
+- Address ${targetAudience.toLowerCase()} readers directly ("you", "your")
+- Name "${storeName}" in every suggestion — never use generic store names
+- Do NOT use filler like "In today's fast-paced world" or "In conclusion, it is clear that"
+- metaDescription must be 150–160 characters, include the store name and a CTA
+${jsonFormatInstruction}`;
+  } else if (tabType === TAB_KEYS.HOLIDAY) {
+    systemPrompt = `You are an expert in holiday marketing and Shopify e-commerce copywriting. You craft festive, conversion-focused blog posts that capture holiday excitement and drive sales. Always return valid JSON only, with no markdown and no explanations.`;
+
+    userPrompt = `Write ${safeCount} unique, complete, ready-to-publish Shopify holiday blog posts.
+
+${productContextBlock}
+
+Post Settings:
+- Holiday: ${holiday}
+- Promotion: ${promotion || "None"}
+${hasOffer ? `- Offer: ${offerText}` : ""}
+- Post Length: ${min}–${max} words
+- Post Tone: ${tone}
+- Language: ${language}
+- Target Audience: ${targetAudience}
+${productUrl ? `- Product URL: ${productUrl}` : ""}
 
 The ENTIRE blog must revolve around the "${holiday}" holiday.
 ${hasPromotion ? `The promotion "${promotionOfferStr}" must appear in the title, opening, a dedicated offer section, tips, and the CTA.` : ""}
 
-REQUIRED STRUCTURE (follow in this exact order):
+REQUIRED STRUCTURE (follow in this exact order for every suggestion):
 
-<h1>[Title: include "${holiday}"${hasOffer ? ` + "${offerText}"` : ""} + "${storeName}"]</h1>
+<h1>[SEO title: include "${holiday}"${hasOffer ? ` + "${offerText}"` : ""} + "${storeName}" — under 60 chars]</h1>
 
-<p>[OPENING — must include ALL of: a ${holiday} hook, ${hasOffer ? `the offer "${offerText}",` : ""} the store name "${storeName}", what it sells/offers, a specific product from the collection, and a direct invitation to ${targetAudience.toLowerCase()} readers.]</p>
+<p>[OPENING — must include ALL of: a ${holiday} hook, ${hasOffer ? `the offer "${offerText}",` : ""} the store name "${storeName}", what it sells/offers, and a direct invitation to ${targetAudience.toLowerCase()} readers.]</p>
 
 <h2>Why Choose ${storeName} This ${holiday}?</h2>
 <p>[Why ${targetAudience.toLowerCase()} shoppers should visit ${storeName} for ${holiday}. Specific products, curation, quality — not generic claims.]</p>
-<p>[Second paragraph — what makes ${storeName} the perfect ${holiday} destination for ${targetAudience.toLowerCase()}.]</p>
+<p>[What makes ${storeName} the perfect ${holiday} destination for ${targetAudience.toLowerCase()}.]</p>
 
 <h2>${holiday} Shopping Made Easy</h2>
 <p>[How ${storeName} simplifies ${holiday} shopping for ${targetAudience.toLowerCase()} — gift ideas, curated picks, easy checkout.]</p>
@@ -1002,24 +1050,43 @@ ${hasPromotion ? `<h2>${holiday} Exclusive Offer${hasOffer ? `: ${offerText}` : 
 <h2>Final Thoughts</h2>
 <p>[Wrap up: ${storeName} + ${holiday} + why ${targetAudience.toLowerCase()} should shop NOW${hasOffer ? ` + re-state the "${offerText}" offer` : ""}. End with genuine enthusiasm.]</p>
 <p>[STANDALONE CTA LINE: "Shop Now and ${hasOffer ? `celebrate ${holiday} with ${offerText} savings` : `make this ${holiday} unforgettable`} at ${storeName}!"]</p>
-`;
+
+Rules:
+- Each suggestion must be clearly different in angle, structure, or focus — not just a paraphrase
+- Use the ${tone.toLowerCase()} tone consistently in every sentence
+- Address ${targetAudience.toLowerCase()} readers directly ("you", "your")
+- Name "${storeName}" in every suggestion — never use generic store names
+- Do NOT use filler like "In today's fast-paced world" or "In conclusion, it is clear that"
+- metaDescription must be 150–160 characters, include the holiday name, store name, and a CTA
+${jsonFormatInstruction}`;
   } else if (tabType === TAB_KEYS.PROMOTION) {
-    structureInstruction = `
-TAB: Generate Promotion posts
-FIELDS USED: Promotion = "${promotion}"${hasOffer ? `, Offer = "${offerText}"` : ""}, Post length = ${min}–${max} words, Tone = ${tone}, Target audience = ${targetAudience}, Product URL = ${productUrl || "not provided"}
+    systemPrompt = `You are an expert Shopify copywriter specialising in promotional content. You write high-converting blog posts that highlight deals, create urgency, and drive immediate sales. Always return valid JSON only, with no markdown and no explanations.`;
+
+    userPrompt = `Write ${safeCount} unique, complete, ready-to-publish Shopify promotional blog posts.
+
+${productContextBlock}
+
+Post Settings:
+- Promotion: ${promotion || "None"}
+${hasOffer ? `- Offer: ${offerText}` : ""}
+- Post Length: ${min}–${max} words
+- Post Tone: ${tone}
+- Language: ${language}
+- Target Audience: ${targetAudience}
+${productUrl ? `- Product URL: ${productUrl}` : ""}
 
 The ENTIRE blog must revolve around the "${promotionOfferStr}" promotion offer.
 ${hasOffer ? `The offer "${offerText}" must appear in: the title, the opening paragraph, the "Exclusive Deal" section, the tips section, and the CTA line.` : ""}
 
-REQUIRED STRUCTURE (follow in this exact order):
+REQUIRED STRUCTURE (follow in this exact order for every suggestion):
 
-<h1>[Title: include${hasOffer ? ` "${offerText}" +` : ""} "${storeName}" + the "${promotion}" deal]</h1>
+<h1>[SEO title: include${hasOffer ? ` "${offerText}" +` : ""} "${storeName}" + the "${promotion}" deal — under 60 chars]</h1>
 
 <p>[OPENING — must include ALL of:${hasOffer ? ` the offer "${offerText}",` : ""} the promotion type "${promotion}", the store name "${storeName}", what it sells, and a direct invitation to ${targetAudience.toLowerCase()} readers to take advantage.]</p>
 
 <h2>Why Choose ${storeName}?</h2>
 <p>[Describe the store and its products. Why do ${targetAudience.toLowerCase()} shoppers love ${storeName}? Be specific about quality, product range, and value.]</p>
-<p>[What makes ${storeName} different for ${targetAudience.toLowerCase()} shoppers — not generic, specific to this store's identity.]</p>
+<p>[What makes ${storeName} different for ${targetAudience.toLowerCase()} shoppers — specific to this store's identity.]</p>
 
 <h2>How This Promotion Works</h2>
 <p>[Explain the "${promotion}" promotion clearly. What does the customer get?${hasOffer ? ` Specifically: "${offerText}".` : ""} How do they redeem it?]</p>
@@ -1042,17 +1109,36 @@ REQUIRED STRUCTURE (follow in this exact order):
 <h2>Final Thoughts</h2>
 <p>[Sum up: ${storeName} quality + the ${promotion}${hasOffer ? ` (${offerText})` : ""} value + why ${targetAudience.toLowerCase()} should act today. Close with ${tone.toLowerCase()} energy.]</p>
 <p>[STANDALONE CTA LINE: "Shop Now and ${hasOffer ? `unlock your ${offerText} deal` : "claim this exclusive offer"} at ${storeName}!"]</p>
-`;
-  } else if (tabType === TAB_KEYS.CUSTOM) {
-    structureInstruction = `
-TAB: Generate a custom post
-FIELDS USED: Post topic = "${customTopic}", Post length = ${min}–${max} words, Tone = ${tone}, Target audience = ${targetAudience}, Product URL = ${productUrl || "not provided"}
+
+Rules:
+- Each suggestion must be clearly different in angle, structure, or focus — not just a paraphrase
+- Use the ${tone.toLowerCase()} tone consistently in every sentence
+- Address ${targetAudience.toLowerCase()} readers directly ("you", "your")
+- Name "${storeName}" in every suggestion — never use generic store names
+- Do NOT use filler like "In today's fast-paced world" or "In conclusion, it is clear that"
+- metaDescription must be 150–160 characters, include the offer/promotion, store name, and a CTA
+${jsonFormatInstruction}`;
+  } else {
+    // CUSTOM tab
+    systemPrompt = `You are an expert blog writer and SEO specialist for Shopify stores. You write engaging, topic-focused blog posts that rank on search engines and build brand authority. Always return valid JSON only, with no markdown and no explanations.`;
+
+    userPrompt = `Write ${safeCount} unique, complete, ready-to-publish Shopify blog posts on a custom topic.
+
+${productContextBlock}
+
+Post Settings:
+- Post Topic: ${customTopic}
+- Post Length: ${min}–${max} words
+- Post Tone: ${tone}
+- Language: ${language}
+- Target Audience: ${targetAudience}
+${productUrl ? `- Product URL: ${productUrl}` : ""}
 
 The ENTIRE blog must be about the topic "${customTopic}" as it relates to "${storeName}" and its products.
 
-REQUIRED STRUCTURE (follow in this exact order):
+REQUIRED STRUCTURE (follow in this exact order for every suggestion):
 
-<h1>[Title: combine "${customTopic}" + "${storeName}" in a way that excites ${targetAudience.toLowerCase()} readers]</h1>
+<h1>[SEO title: combine "${customTopic}" + "${storeName}" to excite ${targetAudience.toLowerCase()} readers — under 60 chars]</h1>
 
 <p>[OPENING — hook ${targetAudience.toLowerCase()} with the topic "${customTopic}". Immediately connect it to ${storeName} and explain why this topic matters to them.]</p>
 
@@ -1077,53 +1163,16 @@ REQUIRED STRUCTURE (follow in this exact order):
 <h2>Final Thoughts</h2>
 <p>[Wrap up "${customTopic}" + ${storeName} + the value for ${targetAudience.toLowerCase()}. End with a forward-looking, ${tone.toLowerCase()} close.]</p>
 <p>[STANDALONE CTA LINE: "Shop Now and discover how ${storeName} can help you with ${customTopic}!"]</p>
-`;
-  } else {
-    // BUSINESS tab
-    structureInstruction = `
-TAB: Generate post ideas for my business
-FIELDS USED: Post length = ${min}–${max} words, Tone = ${tone}, Target audience = ${targetAudience}, Product URL = ${productUrl || "not provided"}
 
-The ENTIRE blog must describe "${storeName}", its products, and why ${targetAudience.toLowerCase()} customers should shop here.
-Do NOT include any holiday themes or promotional offers — this is a pure business/product blog.
-
-REQUIRED STRUCTURE (follow in this exact order):
-
-<h1>[Title: "${storeName}" + strong appeal to ${targetAudience.toLowerCase()} shoppers — no holiday, no promotion]</h1>
-
-<p>[OPENING — introduce ${storeName} to ${targetAudience.toLowerCase()} readers. Describe what the store sells, its key products, and why it is built for ${targetAudience.toLowerCase()} customers. Use a ${tone.toLowerCase()} voice.]</p>
-
-<h2>Why Choose ${storeName}?</h2>
-<p>[What ${storeName} offers and why ${targetAudience.toLowerCase()} customers trust it. Focus on product quality, selection, and store values.]</p>
-<p>[Address a specific need or desire of ${targetAudience.toLowerCase()} shoppers and explain how ${storeName} fulfils it better than alternatives.]</p>
-
-<h2>Products Built for ${targetAudience}</h2>
-<p>[Describe specific products or product categories at ${storeName} that resonate with ${targetAudience.toLowerCase()} customers. What will they love and why?]</p>
-<p>[Concrete product examples and their benefits — make ${targetAudience.toLowerCase()} feel that ${storeName} was designed for them.]</p>
-
-<h2>What Sets ${storeName} Apart</h2>
-<p>[What makes ${storeName} different from other stores — product curation, quality standards, customer experience, or values that ${targetAudience.toLowerCase()} care about.]</p>
-<p>[A specific example or product that demonstrates this differentiation clearly.]</p>
-
-<h2>Tips for Shopping at ${storeName}</h2>
-<p>[One intro sentence]</p>
-<p><strong>[Browsing Tip]:</strong> [How ${targetAudience.toLowerCase()} shoppers can navigate ${storeName}'s collection most effectively.]</p>
-<p><strong>[Best Value Tip]:</strong> [How to identify the best products at ${storeName} for ${targetAudience.toLowerCase()} needs and budget.]</p>
-<p><strong>[Smart Shopping Tip]:</strong> [How ${targetAudience.toLowerCase()} customers can get the most from ${storeName} — seasonal picks, new arrivals, or featured items.]</p>
-
-<h2>Explore Our Collection</h2>
-<p>[Invite ${targetAudience.toLowerCase()} to explore ${storeName}'s product range. Name specific items or categories. Describe what makes them special.]</p>
-<p>[Encourage browsing the full range and finding new favourites at ${storeName}.]</p>
-
-<h2>Final Thoughts</h2>
-<p>[Summarise why ${storeName} is the right store for ${targetAudience.toLowerCase()} customers. End with strong, ${tone.toLowerCase()} encouragement to explore and shop.]</p>
-<p>[STANDALONE CTA LINE: "Shop Now and discover what ${storeName} has for ${targetAudience.toLowerCase()} shoppers like you!"]</p>
-`;
+Rules:
+- Each suggestion must be clearly different in angle, structure, or focus — not just a paraphrase
+- Use the ${tone.toLowerCase()} tone consistently in every sentence
+- Address ${targetAudience.toLowerCase()} readers directly ("you", "your")
+- Name "${storeName}" in every suggestion — never use generic store names
+- Do NOT use filler like "In today's fast-paced world" or "In conclusion, it is clear that"
+- metaDescription must be 150–160 characters, include the topic keyword, store name, and a CTA
+${jsonFormatInstruction}`;
   }
-
-  const prompt = `${commonHeader}
-${structureInstruction}
-${commonFooter}`;
 
   const providerOrder =
     aiProvider === "openai"
@@ -1138,9 +1187,9 @@ ${commonFooter}`;
   for (const provider of providerOrder) {
     try {
       if (provider === "openai") {
-        parsed = await generateSuggestionsWithOpenAI(prompt, openaiApiKey);
+        parsed = await generateSuggestionsWithOpenAI(systemPrompt, userPrompt, openaiApiKey);
       } else if (provider === "anthropic") {
-        parsed = await generateSuggestionsWithAnthropic(prompt, anthropicApiKey);
+        parsed = await generateSuggestionsWithAnthropic(systemPrompt, userPrompt, anthropicApiKey);
       }
       if (parsed) break;
     } catch (error) {
@@ -1158,6 +1207,7 @@ ${commonFooter}`;
   return items.slice(0, safeCount).map((item, index) => {
     const title = cleanText(item?.title) || `${baseTopic} Guide ${index + 1}`;
     const summary =
+      cleanText(item?.metaDescription) ||
       cleanText(item?.summary) ||
       `${tone} ${getWordTarget(postLength)} words blog for ${targetAudience.toLowerCase()} about ${baseTopic.toLowerCase()}.`;
     const bodyHtml = ensureBlogBodyWordRange({
@@ -1392,9 +1442,14 @@ export const action = async ({ request }) => {
     const offerText = cleanText(formData.get("offerText"));
     const holiday = cleanText(formData.get("holiday")) || "Choose a holiday to promote";
     const productUrl = normalizeProductUrl(formData.get("productUrl"));
-    const productContext = await resolveProductContext(admin, productUrl);
+    const rawProductContext = await resolveProductContext(admin, productUrl);
+    const shopName = getDefaultAuthorName(session.shop);
+    const productContext = {
+      ...rawProductContext,
+      title: cleanText(rawProductContext.title) || shopName,
+    };
     const promotionOffer = formatPromotionOffer(promotion, offerText);
-    const businessTopic = cleanText(productContext.title) || "Business growth ideas";
+    const businessTopic = productContext.title;
 
     if (tabType === TAB_KEYS.CUSTOM && !topic) {
       return { ok: false, intent, error: "Post topic is required for custom post." };
@@ -1562,9 +1617,14 @@ export const action = async ({ request }) => {
     const offerText = cleanText(formData.get("offerText"));
     const holiday = cleanText(formData.get("holiday")) || "Choose a holiday to promote";
     const productUrl = normalizeProductUrl(formData.get("productUrl"));
-    const productContext = await resolveProductContext(admin, productUrl);
+    const rawProductContext = await resolveProductContext(admin, productUrl);
+    const shopName = getDefaultAuthorName(session.shop);
+    const productContext = {
+      ...rawProductContext,
+      title: cleanText(rawProductContext.title) || shopName,
+    };
     const promotionOffer = formatPromotionOffer(promotion, offerText);
-    const productName = cleanText(productContext.title) || seed || "our store";
+    const productName = productContext.title;
     const cleanHoliday = holiday !== "Choose a holiday to promote" ? holiday : "";
     const cleanOfferText = cleanText(offerText);
     if (!articleId) return { ok: false, intent, error: "Missing article id." };
