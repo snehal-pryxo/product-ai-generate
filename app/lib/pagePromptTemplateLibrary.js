@@ -175,7 +175,161 @@ const PAGE_META_TITLE_CATEGORY_TEMPLATES = PAGE_CATEGORY_GROUPS.flatMap(({ slug,
   },
 ]);
 
+const CORE_PAGE_BODY_TEMPLATES = [
+  {
+    id: "page-body-privacy-policy",
+    name: "Privacy Policy",
+    category: "Core Pages",
+    description: "Clear privacy policy page covering data use, security, and customer rights.",
+    template:
+      "Write a clear Privacy Policy page for a Shopify store (500-800 words).\n- Open with a plain-language privacy commitment.\n- Explain what customer information may be collected, including account, order, payment, browsing, and contact details.\n- Describe how information is used for orders, support, personalization, analytics, legal compliance, and fraud prevention.\n- Explain cookies, tracking, third-party services, and Shopify/payment/shipping partners in customer-friendly terms.\n- Include data protection, retention, customer rights, policy updates, and contact details.\n- Keep the tone transparent, professional, and easy to understand.\n- Do not invent legal claims; use practical placeholder wording where store-specific legal details are required.",
+  },
+  {
+    id: "page-body-terms-conditions",
+    name: "Terms & Conditions",
+    category: "Core Pages",
+    description: "Store terms page covering orders, usage, payments, and responsibilities.",
+    template:
+      "Write a Terms and Conditions page for a Shopify store (500-800 words).\n- Start with a concise acceptance-of-terms introduction.\n- Cover store use, account responsibility, product information, pricing, payments, order acceptance, cancellations, shipping, returns, refunds, intellectual property, prohibited use, limitation of liability, changes to terms, and contact information.\n- Use clear section headings and plain language.\n- Keep clauses practical and ecommerce-focused.\n- Do not provide jurisdiction-specific legal advice; include neutral placeholder wording where legal review or local law details are needed.",
+  },
+  {
+    id: "page-body-return-policy",
+    name: "Return Policy",
+    category: "Core Pages",
+    description: "Customer-friendly return policy with eligibility, process, and exceptions.",
+    template:
+      "Write a customer-friendly Return Policy page for a Shopify store (350-650 words).\n- Open with a reassuring summary of the return experience.\n- Explain return eligibility, return window, item condition requirements, proof of purchase, and non-returnable items.\n- Provide a step-by-step return request process.\n- Explain return shipping responsibility, exchanges, damaged or incorrect items, and inspection after receipt.\n- Close with support/contact instructions.\n- Use placeholders for store-specific return window, address, fees, and exceptions when unknown.",
+  },
+  {
+    id: "page-body-refund-policy",
+    name: "Refund Policy",
+    category: "Core Pages",
+    description: "Refund policy explaining approval, timing, methods, and exceptions.",
+    template:
+      "Write a clear Refund Policy page for a Shopify store (350-650 words).\n- Start with a simple refund commitment and customer reassurance.\n- Explain when refunds are approved, refund method, processing timeline, partial refunds, sale items, gift cards, order cancellations, damaged items, and late or missing refunds.\n- Include a short step-by-step process for requesting a refund.\n- Use clean headings and bullet points where helpful.\n- Include placeholders for store-specific timelines, payment provider timing, and non-refundable fees when unknown.",
+  },
+  {
+    id: "page-body-about-page",
+    name: "About Page",
+    category: "Core Pages",
+    description: "Brand About page with mission, story, values, and trust points.",
+    template:
+      "Write an engaging About page for a Shopify store (400-700 words).\n- Open with the brand mission and who the store serves.\n- Tell the founding story or reason the business exists.\n- Explain the products, values, quality standards, and customer promise.\n- Add trust signals such as careful sourcing, support, expertise, community, or service standards.\n- Close with an invitation to explore products or contact the team.\n- Keep the tone authentic, warm, and brand-aligned.",
+  },
+  {
+    id: "page-body-contact-page",
+    name: "Contact Page",
+    category: "Core Pages",
+    description: "Contact page with support expectations and clear reasons to reach out.",
+    template:
+      "Write a helpful Contact page for a Shopify store (200-400 words).\n- Open with a warm invitation to get in touch.\n- Explain common reasons customers contact the store: order help, product questions, shipping, returns, wholesale, or general support.\n- Set response time expectations and list support channels using placeholders where needed.\n- Reassure customers that messages are handled carefully.\n- Close with a concise call to action to use the contact form or support email.",
+  },
+];
+
+const CORE_PAGE_META_DESCRIPTION_TEMPLATES = [
+  {
+    id: "page-md-privacy-policy",
+    name: "Privacy Policy Meta",
+    category: "Core Pages",
+    description: "Meta description for a privacy policy page.",
+    template:
+      "Write a meta description under 155 characters for a Privacy Policy page.\n- Mention customer data, privacy, and transparency.\n- Keep it reassuring and clear.",
+  },
+  {
+    id: "page-md-terms-conditions",
+    name: "Terms & Conditions Meta",
+    category: "Core Pages",
+    description: "Meta description for store terms and conditions.",
+    template:
+      "Write a meta description under 155 characters for a Terms and Conditions page.\n- Mention store terms, orders, payments, and policies.\n- Keep it direct and trustworthy.",
+  },
+  {
+    id: "page-md-return-policy",
+    name: "Return Policy Meta",
+    category: "Core Pages",
+    description: "Meta description for a return policy page.",
+    template:
+      "Write a meta description under 155 characters for a Return Policy page.\n- Mention returns, eligibility, and support.\n- Keep it customer-friendly.",
+  },
+  {
+    id: "page-md-refund-policy",
+    name: "Refund Policy Meta",
+    category: "Core Pages",
+    description: "Meta description for a refund policy page.",
+    template:
+      "Write a meta description under 155 characters for a Refund Policy page.\n- Mention refund process, timing, and support.\n- Keep it clear and reassuring.",
+  },
+  {
+    id: "page-md-about-page",
+    name: "About Page Meta",
+    category: "Core Pages",
+    description: "Meta description for an About page.",
+    template:
+      "Write a meta description under 155 characters for an About page.\n- Mention the brand story, mission, and customer promise.\n- Make it warm and credible.",
+  },
+  {
+    id: "page-md-contact-page",
+    name: "Contact Page Meta",
+    category: "Core Pages",
+    description: "Meta description for a Contact page.",
+    template:
+      "Write a meta description under 155 characters for a Contact page.\n- Mention customer support and how shoppers can get help.\n- Keep it approachable.",
+  },
+];
+
+const CORE_PAGE_META_TITLE_TEMPLATES = [
+  {
+    id: "page-mt-privacy-policy",
+    name: "Privacy Policy Title",
+    category: "Core Pages",
+    description: "Meta title for a privacy policy page.",
+    template:
+      "Write a meta title under 65 characters for a Privacy Policy page.\n- Use the page topic first.\n- Include the brand name if available.",
+  },
+  {
+    id: "page-mt-terms-conditions",
+    name: "Terms & Conditions Title",
+    category: "Core Pages",
+    description: "Meta title for a terms and conditions page.",
+    template:
+      "Write a meta title under 65 characters for a Terms and Conditions page.\n- Use the page topic first.\n- Include the brand name if available.",
+  },
+  {
+    id: "page-mt-return-policy",
+    name: "Return Policy Title",
+    category: "Core Pages",
+    description: "Meta title for a return policy page.",
+    template:
+      "Write a meta title under 65 characters for a Return Policy page.\n- Use clear ecommerce wording.\n- Include the brand name if available.",
+  },
+  {
+    id: "page-mt-refund-policy",
+    name: "Refund Policy Title",
+    category: "Core Pages",
+    description: "Meta title for a refund policy page.",
+    template:
+      "Write a meta title under 65 characters for a Refund Policy page.\n- Use clear ecommerce wording.\n- Include the brand name if available.",
+  },
+  {
+    id: "page-mt-about-page",
+    name: "About Page Title",
+    category: "Core Pages",
+    description: "Meta title for an About page.",
+    template:
+      "Write a meta title under 65 characters for an About page.\n- Mention About Us or brand story.\n- Include the brand name if available.",
+  },
+  {
+    id: "page-mt-contact-page",
+    name: "Contact Page Title",
+    category: "Core Pages",
+    description: "Meta title for a Contact page.",
+    template:
+      "Write a meta title under 65 characters for a Contact page.\n- Mention contact or customer support.\n- Include the brand name if available.",
+  },
+];
+
 export const PAGE_BODY_TEMPLATES = [
+  ...CORE_PAGE_BODY_TEMPLATES,
   {
     id: "page-body-brand-story",
     name: "Brand Story",
@@ -250,6 +404,7 @@ export const PAGE_BODY_TEMPLATES = [
 ];
 
 export const PAGE_META_DESCRIPTION_TEMPLATES = [
+  ...CORE_PAGE_META_DESCRIPTION_TEMPLATES,
   {
     id: "page-md-benefit-first",
     name: "Benefit First",
@@ -310,6 +465,7 @@ export const PAGE_META_DESCRIPTION_TEMPLATES = [
 ];
 
 export const PAGE_META_TITLE_TEMPLATES = [
+  ...CORE_PAGE_META_TITLE_TEMPLATES,
   {
     id: "page-mt-intent-keyword",
     name: "Intent + Keyword",
