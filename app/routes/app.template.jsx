@@ -700,6 +700,11 @@ const PREVIEW_FILLER_SENTENCES = [
   "The final AI output will use real store data, brand voice, product details, and the selected prompt instructions.",
 ];
 
+function getPreviewWordTarget(target) {
+  if (!target || target.unit !== "words") return 0;
+  return Number(target.max || target.min || 0);
+}
+
 function fitPreviewToTarget(text = "", target) {
   const cleaned = stripPreviewText(text);
   if (!target || !cleaned) return cleaned;
@@ -710,18 +715,18 @@ function fitPreviewToTarget(text = "", target) {
 
   if (target.unit === "words") {
     let words = cleaned.split(/\s+/).filter(Boolean);
-    const desiredMin = Number(target.min || 0);
-    if (desiredMin && words.length < desiredMin) {
+    const desiredWords = getPreviewWordTarget(target);
+    if (desiredWords && words.length < desiredWords) {
       const fillerWords = PREVIEW_FILLER_SENTENCES.join(" ").split(/\s+/).filter(Boolean);
       let fillerIndex = 0;
-      while (words.length < desiredMin && fillerWords.length > 0) {
+      while (words.length < desiredWords && fillerWords.length > 0) {
         words.push(fillerWords[fillerIndex % fillerWords.length]);
         fillerIndex += 1;
       }
     }
 
-    if (target.max && words.length > target.max) {
-      words = words.slice(0, target.max);
+    if (desiredWords && words.length > desiredWords) {
+      words = words.slice(0, desiredWords);
     }
 
     return words.join(" ");
