@@ -1478,41 +1478,7 @@ function TemplateCard({ template, typeId, active, showResource, isCustom, isLoad
             <Text as="p" variant="bodySm">
               {cardPreview.previewText}
             </Text>
-            <div
-              style={{
-                padding: "8px",
-                borderRadius: "8px",
-                background: "var(--p-color-bg-surface-secondary)",
-                border: "1px solid var(--p-color-border-secondary)",
-              }}
-            >
-              <BlockStack gap="100">
-                <InlineStack align="space-between" gap="200" wrap>
-                  <Text as="span" variant="bodySm" tone="subdued">
-                    Template Prompt
-                  </Text>
-                  <Text as="span" variant="bodySm" fontWeight="semibold">
-                    {cardPreview.promptWords} words / {cardPreview.promptCharacters} chars
-                  </Text>
-                </InlineStack>
-                <InlineStack align="space-between" gap="200" wrap>
-                  <Text as="span" variant="bodySm" tone="subdued">
-                    Preview Length
-                  </Text>
-                  <Text as="span" variant="bodySm" fontWeight="semibold">
-                    {cardPreview.previewWords} words / {cardPreview.previewCharacters} chars
-                  </Text>
-                </InlineStack>
-                <InlineStack align="space-between" gap="200" wrap>
-                  <Text as="span" variant="bodySm" tone="subdued">
-                    Target
-                  </Text>
-                  <Text as="span" variant="bodySm" fontWeight="semibold">
-                    {cardPreview.targetLabel}
-                  </Text>
-                </InlineStack>
-              </BlockStack>
-            </div>
+       
           </BlockStack>
         </div>
 
