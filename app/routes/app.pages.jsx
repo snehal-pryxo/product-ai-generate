@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { useLoaderData, useNavigate, useFetcher, useLocation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -38,7 +38,7 @@ import {
   Modal,
   InlineStack,
 } from "@shopify/polaris";
-import { PageIcon } from "@shopify/polaris-icons";
+import { PageIcon, ViewIcon } from "@shopify/polaris-icons";
 
 const PAGE_CONTENT_TYPES = ["body", "meta_title", "meta_description"];
 const DEFAULT_PAGE_CONTENT_TYPES = ["body", "meta_title", "meta_description"];
@@ -59,6 +59,7 @@ const PAGES_QUERY = `#graphql
       edges {
         node {
           id
+          legacyResourceId
           title
           handle
           publishedAt
@@ -355,6 +356,7 @@ export const loader = async ({ request }) => {
 
   return {
     pages,
+    shopDomain: session.shop,
     hasOpenaiKey: !!shopData?.openaiApiKey,
     hasAnthropicKey: !!shopData?.anthropicApiKey,
     defaultAiProvider: shopData?.defaultAiProvider || "auto",
@@ -480,43 +482,6 @@ export const action = async ({ request }) => {
           ? String(parsed.seoDescription || "").trim()
           : String(p.seoDescriptionValue || "").trim();
 
-        const response = await admin.graphql(PAGE_UPDATE_MUTATION, {
-          variables: {
-            id: p.id,
-            page: {
-              body: nextBody,
-              metafields: [
-                { namespace: "global", key: "title_tag", value: nextSeoTitle, type: "single_line_text_field" },
-                { namespace: "global", key: "description_tag", value: nextSeoDescription, type: "single_line_text_field" },
-              ],
-            },
-          },
-        });
-        const json = await response.json();
-        const userErrors = json.data?.pageUpdate?.userErrors || [];
-        if (userErrors.length > 0) throw new Error(userErrors.map((e) => e.message).join(", "));
-
-        await upsertPageContent({
-          shop: session.shop,
-          pageId: p.id,
-          pageTitle: p.title || null,
-          pageType: pageType || null,
-          language: language || null,
-          tone: tone || null,
-          lengthOption: length || null,
-          formatOption: format || null,
-          contextKeywords: contextKeywords || null,
-          bodyPromptTemplate: bodyPromptTemplate || null,
-          metaTitlePromptTemplate: metaTitlePromptTemplate || null,
-          metaDescriptionPromptTemplate: metaDescriptionPromptTemplate || null,
-          aiModel: aiProvider || null,
-          bodyHtml: nextBody || null,
-          seoTitle: nextSeoTitle || null,
-          seoDescription: nextSeoDescription || null,
-          creditsUsed: creditsPerItem,
-          appliedToPage: true,
-        });
-
         await writeGenerationLog({
           shop: session.shop,
           productId: p.id,
@@ -533,10 +498,19 @@ export const action = async ({ request }) => {
           generatedSeoTitle: nextSeoTitle || null,
           generatedSeoDescription: nextSeoDescription || null,
           creditsUsed: creditsPerItem,
-          appliedToProduct: true,
+          appliedToProduct: false,
         });
 
-        return { id: p.id, title: p.title, seoTitle: nextSeoTitle, seoDescription: nextSeoDescription };
+        return {
+          id: p.id,
+          title: p.title,
+          body: nextBody,
+          seoTitle: nextSeoTitle,
+          seoDescription: nextSeoDescription,
+          originalBody: p.body || "",
+          originalSeoTitle: p.seoTitleValue || "",
+          originalSeoDescription: p.seoDescriptionValue || "",
+        };
       })
     );
 
@@ -565,6 +539,10 @@ export const action = async ({ request }) => {
       error: r.status === "rejected" ? r.reason?.message : null,
       seoTitle: r.status === "fulfilled" ? r.value.seoTitle : null,
       seoDescription: r.status === "fulfilled" ? r.value.seoDescription : null,
+      body: r.status === "fulfilled" ? r.value.body : null,
+      originalBody: r.status === "fulfilled" ? r.value.originalBody : bulkPages[i].body || "",
+      originalSeoTitle: r.status === "fulfilled" ? r.value.originalSeoTitle : bulkPages[i].seoTitleValue || "",
+      originalSeoDescription: r.status === "fulfilled" ? r.value.originalSeoDescription : bulkPages[i].seoDescriptionValue || "",
     }));
     return {
       success: true,
@@ -764,16 +742,76 @@ function PageEditorModal({
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
+function GeneratedPageReviewModal({
+  open,
+  page,
+  body,
+  seoTitle,
+  seoDescription,
+  onBodyChange,
+  onSeoTitleChange,
+  onSeoDescriptionChange,
+  onCancel,
+  onSave,
+  onRegenerate,
+  saving,
+  regenerating,
+}) {
+  if (!page) return null;
+
+  return (
+    <Modal
+      open={open}
+      onClose={onCancel}
+      title={`Review Generated Page: ${page.title}`}
+      primaryAction={{ content: saving ? "Saving..." : "Save", onAction: onSave, loading: saving }}
+      secondaryActions={[
+        { content: "Cancel", onAction: onCancel, disabled: saving || regenerating },
+        { content: regenerating ? "Regenerating..." : "Regenerate", onAction: onRegenerate, loading: regenerating, disabled: saving },
+      ]}
+      size="large"
+    >
+      <Modal.Section>
+        <BlockStack gap="300">
+          <Banner tone="info">
+            <p>Review the generated content before saving it to Shopify. Regenerate uses credits again.</p>
+          </Banner>
+          <RichTextEditor value={body} onChange={onBodyChange} />
+          <TextField
+            label="Meta Title"
+            value={seoTitle}
+            onChange={onSeoTitleChange}
+            autoComplete="off"
+            maxLength={70}
+            showCharacterCount
+          />
+          <TextField
+            label="Meta Description"
+            value={seoDescription}
+            onChange={onSeoDescriptionChange}
+            autoComplete="off"
+            multiline={4}
+            maxLength={160}
+            showCharacterCount
+          />
+        </BlockStack>
+      </Modal.Section>
+    </Modal>
+  );
+}
+
 export default function PagesPage() {
-  const { pages, defaultAiProvider, credits } = useLoaderData();
+  const { pages, shopDomain, defaultAiProvider, credits } = useLoaderData();
   const navigate = useNavigate();
   const location = useLocation();
   const shopify = useAppBridge();
 
   const bulkFetcher = useFetcher();
   const editFetcher = useFetcher();
+  const generatedSaveFetcher = useFetcher();
   const isBulkGenerating = bulkFetcher.state !== "idle";
   const isSavingPage = editFetcher.state !== "idle";
+  const isSavingGeneratedPage = generatedSaveFetcher.state !== "idle";
 
   const [bulkSettings] = useState(() => {
     const gs = readGlobalSettings();
@@ -788,6 +826,7 @@ export default function PagesPage() {
   const [bulkContentTypes, setBulkContentTypes] = useState(["body"]);
   const [bulkResult, setBulkResult] = useState(null);
   const [bulkValidationMessage, setBulkValidationMessage] = useState(null);
+  const [localCredits, setLocalCredits] = useState(credits);
   const [bulkBodyTemplate, setBulkBodyTemplate] = useState("");
   const [bulkMetaTitleTemplate, setBulkMetaTitleTemplate] = useState("");
   const [bulkMetaDescTemplate, setBulkMetaDescTemplate] = useState("");
@@ -804,6 +843,23 @@ export default function PagesPage() {
   const [editBody, setEditBody] = useState("");
   const [editSeoTitle, setEditSeoTitle] = useState("");
   const [editSeoDescription, setEditSeoDescription] = useState("");
+  const [generatedReviewItems, setGeneratedReviewItems] = useState([]);
+  const [generatedReviewIndex, setGeneratedReviewIndex] = useState(0);
+  const [generatedBody, setGeneratedBody] = useState("");
+  const [generatedSeoTitle, setGeneratedSeoTitle] = useState("");
+  const [generatedSeoDescription, setGeneratedSeoDescription] = useState("");
+  const generatedRegenerateRef = useRef(false);
+  const bulkResponseHandledRef = useRef(null);
+  const generatedSaveResponseHandledRef = useRef(null);
+  const currentGeneratedReview = generatedReviewItems[generatedReviewIndex] || null;
+  const shopAdminHandle = String(shopDomain || "").replace(/\.myshopify\.com$/i, "");
+
+  function getShopifyAdminPageUrl(page) {
+    const pageId = String(page?.legacyResourceId || page?.id || "").split("/").pop();
+    if (!shopAdminHandle || !pageId) return "";
+    return `https://admin.shopify.com/store/${shopAdminHandle}/pages/${pageId}`;
+  }
+
   const navigateInApp = useCallback(
     (pathname, search = "") => {
       const current = new URLSearchParams(location.search);
@@ -861,6 +917,36 @@ export default function PagesPage() {
     }
   }, []);
 
+  function submitGeneratePages(pagesToGenerate) {
+    const fd = new FormData();
+    fd.append("intent", "bulk_generate_pages");
+    fd.append("pages", JSON.stringify(pagesToGenerate.map((p) => ({
+      id: p.id,
+      title: p.title,
+      body: p.body || "",
+      seoTitleValue: p.seo?.title || p.seoTitle || "",
+      seoDescriptionValue: p.seo?.description || p.seoDescription || "",
+    }))));
+    fd.append("language", readGlobalSettings().language || "English");
+    fd.append("tone", bulkSettings.tone);
+    fd.append("length", bulkSettings.length);
+    fd.append("format", bulkSettings.format);
+    fd.append("pageType", bulkSettings.pageType);
+    fd.append("bodyKeywords", bulkBodyKeywords || "");
+    fd.append("metaTitleKeywords", bulkMetaTitleKeywords || "");
+    fd.append("metaDescKeywords", bulkMetaDescKeywords || "");
+    fd.append("contextKeywords", [bulkBodyKeywords, bulkMetaTitleKeywords, bulkMetaDescKeywords].filter(Boolean).join(", "));
+    fd.append("bodyPromptTemplate", useCustomBodyInstructions ? (bulkBodyTemplate || "") : "");
+    fd.append("metaTitlePromptTemplate", useCustomMetaTitleInstructions ? (bulkMetaTitleTemplate || "") : "");
+    fd.append("metaDescriptionPromptTemplate", useCustomMetaDescInstructions ? (bulkMetaDescTemplate || "") : "");
+    fd.append("useCustomBodyInstructions", useCustomBodyInstructions ? "1" : "0");
+    fd.append("useCustomMetaTitleInstructions", useCustomMetaTitleInstructions ? "1" : "0");
+    fd.append("useCustomMetaDescInstructions", useCustomMetaDescInstructions ? "1" : "0");
+    fd.append("contentTypes", JSON.stringify(bulkContentTypes));
+    fd.append("aiProvider", bulkSettings.aiProvider || defaultAiProvider || "auto");
+    bulkFetcher.submit(fd, { method: "post" });
+  }
+
   function handleBulkGenerate() {
     if (selectedResources.length === 0) {
       setBulkValidationMessage("Select at least one page to generate content for.");
@@ -899,50 +985,47 @@ export default function PagesPage() {
     setBulkValidationMessage(null);
     setBulkResult(null);
     const selectedPages = localPages.filter((p) => selectedResources.includes(p.id));
-    const fd = new FormData();
-    fd.append("intent", "bulk_generate_pages");
-    fd.append("pages", JSON.stringify(selectedPages.map((p) => ({
-      id: p.id,
-      title: p.title,
-      body: p.body || "",
-      seoTitleValue: p.seo?.title || "",
-      seoDescriptionValue: p.seo?.description || "",
-    }))));
-    fd.append("language", readGlobalSettings().language || "English");
-    fd.append("tone", bulkSettings.tone);
-    fd.append("length", bulkSettings.length);
-    fd.append("format", bulkSettings.format);
-    fd.append("pageType", bulkSettings.pageType);
-    fd.append("bodyKeywords", bulkBodyKeywords || "");
-    fd.append("metaTitleKeywords", bulkMetaTitleKeywords || "");
-    fd.append("metaDescKeywords", bulkMetaDescKeywords || "");
-    fd.append("contextKeywords", [bulkBodyKeywords, bulkMetaTitleKeywords, bulkMetaDescKeywords].filter(Boolean).join(", "));
-    fd.append("bodyPromptTemplate", useCustomBodyInstructions ? (bulkBodyTemplate || "") : "");
-    fd.append("metaTitlePromptTemplate", useCustomMetaTitleInstructions ? (bulkMetaTitleTemplate || "") : "");
-    fd.append("metaDescriptionPromptTemplate", useCustomMetaDescInstructions ? (bulkMetaDescTemplate || "") : "");
-    fd.append("useCustomBodyInstructions", useCustomBodyInstructions ? "1" : "0");
-    fd.append("useCustomMetaTitleInstructions", useCustomMetaTitleInstructions ? "1" : "0");
-    fd.append("useCustomMetaDescInstructions", useCustomMetaDescInstructions ? "1" : "0");
-    fd.append("contentTypes", JSON.stringify(bulkContentTypes));
-    fd.append("aiProvider", bulkSettings.aiProvider || defaultAiProvider || "auto");
-    bulkFetcher.submit(fd, { method: "post" });
+    submitGeneratePages(selectedPages);
   }
 
   useEffect(() => {
     const data = bulkFetcher.data;
     if (!data || bulkFetcher.state !== "idle") return;
+    if (bulkResponseHandledRef.current === data) return;
+    bulkResponseHandledRef.current = data;
     if (data.success) {
       setBulkResult(data);
+      const successfulItems = (data.results || []).filter((item) => item.status === "success");
+      if (successfulItems.length > 0) {
+        const wasRegenerate = generatedRegenerateRef.current && data.total === 1;
+        let nextCurrent = successfulItems[0];
+        if (wasRegenerate) {
+          setGeneratedReviewItems((items) =>
+            items.map((item, index) =>
+              index === generatedReviewIndex ? { ...item, ...successfulItems[0] } : item,
+            ),
+          );
+        } else {
+          setGeneratedReviewItems(successfulItems);
+          setGeneratedReviewIndex(0);
+        }
+        generatedRegenerateRef.current = false;
+        setGeneratedBody(nextCurrent?.body || "");
+        setGeneratedSeoTitle(nextCurrent?.seoTitle || "");
+        setGeneratedSeoDescription(nextCurrent?.seoDescription || "");
+      }
+      generatedRegenerateRef.current = false;
       const creditsMessage =
         typeof data.creditsUsed === "number"
           ? ` ${data.creditsUsed} credits used${typeof data.newCredits === "number" ? `. Remaining: ${data.newCredits}` : ""}.`
           : "";
-      shopify.toast.show(`Generated ${data.succeeded}/${data.total} pages successfully.${creditsMessage}`);
-      navigateInApp("/app/content-management", "?tab=pages&filter=all");
+      if (typeof data.newCredits === "number") setLocalCredits(data.newCredits);
+      shopify.toast.show(`Generated ${data.succeeded}/${data.total} pages. Review before saving.${creditsMessage}`);
     } else {
+      generatedRegenerateRef.current = false;
       setBulkValidationMessage(data.error || "Bulk generation failed.");
     }
-  }, [bulkFetcher.data, bulkFetcher.state, navigateInApp, shopify]);
+  }, [bulkFetcher.data, bulkFetcher.state, generatedReviewIndex, shopify]);
 
   function openPageEditor(page) {
     setEditingPage(page);
@@ -990,6 +1073,91 @@ export default function PagesPage() {
     }
     shopify.toast.show(data.error || "Failed to update page");
   }, [editFetcher.data, editFetcher.state, editingPage?.id, editBody, editSeoDescription, editSeoTitle, shopify]);
+
+  function handleCancelGeneratedReview() {
+    setGeneratedReviewItems([]);
+    setGeneratedReviewIndex(0);
+    setGeneratedBody("");
+    setGeneratedSeoTitle("");
+    setGeneratedSeoDescription("");
+  }
+
+  function handleRegenerateGeneratedReview() {
+    if (!currentGeneratedReview) return;
+    generatedRegenerateRef.current = true;
+    submitGeneratePages([{
+      id: currentGeneratedReview.id,
+      title: currentGeneratedReview.title,
+      body: currentGeneratedReview.originalBody || "",
+      seo: {
+        title: currentGeneratedReview.originalSeoTitle || "",
+        description: currentGeneratedReview.originalSeoDescription || "",
+      },
+    }]);
+  }
+
+  function handleSaveGeneratedReview() {
+    if (!currentGeneratedReview) return;
+    const fd = new FormData();
+    fd.append("intent", "update_page");
+    fd.append("pageId", currentGeneratedReview.id);
+    fd.append("pageTitle", currentGeneratedReview.title || "");
+    fd.append("body", generatedBody || "");
+    fd.append("seoTitle", generatedSeoTitle || "");
+    fd.append("seoDescription", generatedSeoDescription || "");
+    fd.append("pageType", bulkSettings.pageType || "");
+    fd.append("language", readGlobalSettings().language || "English");
+    fd.append("tone", bulkSettings.tone || "professional");
+    fd.append("length", bulkSettings.length || "medium");
+    fd.append("format", bulkSettings.format || "paragraphs");
+    fd.append("contextKeywords", [bulkBodyKeywords, bulkMetaTitleKeywords, bulkMetaDescKeywords].filter(Boolean).join(", "));
+    generatedSaveFetcher.submit(fd, { method: "post" });
+  }
+
+  useEffect(() => {
+    const data = generatedSaveFetcher.data;
+    if (!data || generatedSaveFetcher.state !== "idle") return;
+    if (generatedSaveResponseHandledRef.current === data) return;
+    generatedSaveResponseHandledRef.current = data;
+    if (data.success && currentGeneratedReview) {
+      setLocalPages((prev) =>
+        prev.map((p) =>
+          p.id === currentGeneratedReview.id
+            ? {
+                ...p,
+                body: generatedBody,
+                seo: { ...(p.seo || {}), title: generatedSeoTitle, description: generatedSeoDescription },
+              }
+            : p,
+        ),
+      );
+      const remainingItems = generatedReviewItems.filter((_, index) => index !== generatedReviewIndex);
+      if (remainingItems.length === 0) {
+        handleCancelGeneratedReview();
+      } else {
+        const nextIndex = Math.min(generatedReviewIndex, remainingItems.length - 1);
+        const nextItem = remainingItems[nextIndex];
+        setGeneratedReviewItems(remainingItems);
+        setGeneratedReviewIndex(nextIndex);
+        setGeneratedBody(nextItem?.body || "");
+        setGeneratedSeoTitle(nextItem?.seoTitle || "");
+        setGeneratedSeoDescription(nextItem?.seoDescription || "");
+      }
+      shopify.toast.show(data.message || "Generated page saved successfully!");
+      return;
+    }
+    shopify.toast.show(data.error || "Failed to save generated page");
+  }, [
+    currentGeneratedReview,
+    generatedBody,
+    generatedReviewIndex,
+    generatedReviewItems,
+    generatedSaveFetcher.data,
+    generatedSaveFetcher.state,
+    generatedSeoDescription,
+    generatedSeoTitle,
+    shopify,
+  ]);
 
   return (
     <Page fullWidth>
@@ -1040,7 +1208,7 @@ export default function PagesPage() {
               <svg width="13" height="13" viewBox="0 0 20 20" fill="#f59e0b">
                 <path d="M10 1L12.39 7.26L19 8.27L14.5 12.64L15.78 19.02L10 15.77L4.22 19.02L5.5 12.64L1 8.27L7.61 7.26L10 1Z"/>
               </svg>
-              <span>{credits} credits.</span>
+              <span>{localCredits} credits.</span>
               <span style={{ color: "#000000" }}>Upgrade</span>
             </button>
             <Button onClick={() => navigateInApp("/app")} variant="secondary" size="slim">← Dashboard</Button>
@@ -1091,14 +1259,25 @@ export default function PagesPage() {
                     position={index}
                   >
                     <IndexTable.Cell>
-                      <button
-                        type="button"
-                        onClick={() => openPageEditor(page)}
-                        style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
-                        title="Open page editor"
-                      >
-                        <Text variant="bodyMd" fontWeight="bold" as="span">{page.title}</Text>
-                      </button>
+                      <InlineStack gap="150" blockAlign="center" wrap={false}>
+                        <button
+                          type="button"
+                          onClick={() => openPageEditor(page)}
+                          style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
+                          title="Open page editor"
+                        >
+                          <Text variant="bodyMd" fontWeight="bold" as="span">{page.title}</Text>
+                        </button>
+                        <Button
+                          size="micro"
+                          variant="tertiary"
+                          icon={ViewIcon}
+                          url={getShopifyAdminPageUrl(page)}
+                          external
+                          disabled={!getShopifyAdminPageUrl(page)}
+                          accessibilityLabel={`Open ${page.title} in Shopify admin`}
+                        />
+                      </InlineStack>
                     </IndexTable.Cell>
                     <IndexTable.Cell>
                       <Badge tone={shortStatus.tone}>{shortStatus.label}</Badge>
@@ -1383,7 +1562,7 @@ export default function PagesPage() {
               <BlockStack gap="050">
                 <Text as="h2" variant="headingMd" fontWeight="bold">Generation Results</Text>
                 <Text as="p" variant="bodySm" tone="subdued">
-                  {bulkResult.succeeded} page{bulkResult.succeeded !== 1 ? "s" : ""} updated · {bulkResult.failed > 0 ? `${bulkResult.failed} failed · ` : ""}{bulkResult.creditsUsed ?? 0} AI credits used
+                  {bulkResult.succeeded} page{bulkResult.succeeded !== 1 ? "s" : ""} generated for review · {bulkResult.failed > 0 ? `${bulkResult.failed} failed · ` : ""}{bulkResult.creditsUsed ?? 0} AI credits used
                 </Text>
               </BlockStack>
             </div>
@@ -1406,7 +1585,7 @@ export default function PagesPage() {
                   </IndexTable.Cell>
                   <IndexTable.Cell>
                     {r.status === "success"
-                      ? <Badge tone="success">Updated</Badge>
+                      ? <Badge tone="success">Ready to review</Badge>
                       : <Badge tone="critical">Failed</Badge>}
                   </IndexTable.Cell>
                   <IndexTable.Cell>
@@ -1456,6 +1635,22 @@ export default function PagesPage() {
         }}
       />
 
+      <GeneratedPageReviewModal
+        open={Boolean(currentGeneratedReview)}
+        page={currentGeneratedReview}
+        body={generatedBody}
+        seoTitle={generatedSeoTitle}
+        seoDescription={generatedSeoDescription}
+        onBodyChange={setGeneratedBody}
+        onSeoTitleChange={setGeneratedSeoTitle}
+        onSeoDescriptionChange={setGeneratedSeoDescription}
+        onCancel={handleCancelGeneratedReview}
+        onSave={handleSaveGeneratedReview}
+        onRegenerate={handleRegenerateGeneratedReview}
+        saving={isSavingGeneratedPage}
+        regenerating={isBulkGenerating}
+      />
+
       <PageEditorModal
         open={Boolean(editingPage)}
         page={editingPage}
@@ -1477,5 +1672,3 @@ export default function PagesPage() {
 export const headers = (headersArgs) => {
   return boundary.headers(headersArgs);
 };
-
-
