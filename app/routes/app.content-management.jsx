@@ -1829,7 +1829,7 @@ function EditorModal({ open, item, field, contentType, onClose, onSave, isSaving
         {activeTab === 0 && (
           <BlockStack gap="300">
             <Text variant="bodyMd" as="p" tone="subdued">
-              Edit the description content below. Use the toolbar to format text.
+              
             </Text>
             <RichTextEditor value={descHtml} onChange={setDescHtml} />
           </BlockStack>
