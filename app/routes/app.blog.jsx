@@ -394,6 +394,12 @@ function formatPromotionOffer(promotion, offerText) {
   return `${cleanPromotion} - ${cleanOffer}`;
 }
 
+function isDiscountPromotion(promotion) {
+  const value = cleanText(promotion).toLowerCase();
+  if (!value || value === "no promotion") return false;
+  return /(discount|off|bogo|sale|offer|bundle|quantity)/i.test(value);
+}
+
 function includeCampaignDetails(bodyHtml, { promotion, offerText, holiday, tabType }) {
   const normalizedBody = normalizeBodyHtml(bodyHtml || "");
   const promotionOffer = formatPromotionOffer(promotion, offerText);
@@ -1495,6 +1501,8 @@ export default function BlogPage() {
     [],
   );
   const holidayOptions = useMemo(() => HOLIDAY_OPTIONS.map((value) => ({ label: value, value })), []);
+  const showOfferTextField = isDiscountPromotion(promotion);
+  const effectiveOfferText = showOfferTextField ? offerText : "";
   const selectedBlogTitle = useMemo(
     () => blogs.find((blog) => blog.id === selectedBlogId)?.title || "",
     [blogs, selectedBlogId],
@@ -1574,7 +1582,7 @@ export default function BlogPage() {
     payload.append("tone", tone);
     payload.append("targetAudience", targetAudience);
     payload.append("promotion", promotion);
-    payload.append("offerText", offerText);
+    payload.append("offerText", effectiveOfferText);
     payload.append("holiday", holiday);
     payload.append("productUrl", productUrl);
     fetcher.submit(payload, { method: "post" });
@@ -1615,7 +1623,7 @@ export default function BlogPage() {
     payload.append("postLength", suggestion.postLength || postLength);
     payload.append("targetAudience", suggestion.targetAudience || targetAudience);
     payload.append("promotion", suggestion.promotion || promotion);
-    payload.append("offerText", suggestion.offerText || offerText);
+    payload.append("offerText", suggestion.offerText || effectiveOfferText);
     payload.append("holiday", suggestion.holiday || holiday);
     payload.append("productUrl", suggestion.productUrl || productUrl);
     fetcher.submit(payload, { method: "post" });
@@ -1647,7 +1655,7 @@ export default function BlogPage() {
     payload.append("postLength", postLength);
     payload.append("targetAudience", targetAudience);
     payload.append("promotion", promotion);
-    payload.append("offerText", offerText);
+    payload.append("offerText", effectiveOfferText);
     payload.append("holiday", holiday);
     payload.append("productUrl", productUrl);
     payload.append("currentBody", regenerateBody || "");
@@ -1668,7 +1676,7 @@ export default function BlogPage() {
     payload.append("postLength", postLength);
     payload.append("targetAudience", targetAudience);
     payload.append("promotion", promotion);
-    payload.append("offerText", offerText);
+    payload.append("offerText", effectiveOfferText);
     payload.append("holiday", holiday);
     payload.append("productUrl", productUrl);
     payload.append("consumeCreditOnSave", "1");
@@ -1789,7 +1797,9 @@ export default function BlogPage() {
                     <div className="blog-generator-fields">
                       <Select label="Holiday" options={holidayOptions} value={holiday} onChange={setHoliday} />
                       <Select label="Promotion" options={promotionOptions} value={promotion} onChange={setPromotion} />
-                      <TextField label="Type your offer here" value={offerText} onChange={setOfferText} autoComplete="off" placeholder="40% off" />
+                      {showOfferTextField ? (
+                        <TextField label="Type your offer here" value={offerText} onChange={setOfferText} autoComplete="off" placeholder="40% off" />
+                      ) : null}
                       <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                       <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                       <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
@@ -1800,7 +1810,9 @@ export default function BlogPage() {
                   {activeTabKey === TAB_KEYS.PROMOTION ? (
                     <div className="blog-generator-fields">
                       <Select label="Promotion" options={promotionOptions} value={promotion} onChange={setPromotion} />
-                      <TextField label="Type your offer here" value={offerText} onChange={setOfferText} autoComplete="off" placeholder="40% off" />
+                      {showOfferTextField ? (
+                        <TextField label="Type your offer here" value={offerText} onChange={setOfferText} autoComplete="off" placeholder="40% off" />
+                      ) : null}
                       <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                       <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                       <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
@@ -1820,7 +1832,6 @@ export default function BlogPage() {
 
                   {activeTabKey === TAB_KEYS.BUSINESS ? (
                     <div className="blog-generator-fields">
-                      <TextField label="Business / app name" value={topic} onChange={setTopic} autoComplete="off" placeholder="Content AI - SEO Generator" />
                       <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                       <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                       <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
@@ -1967,7 +1978,7 @@ export default function BlogPage() {
                     payload.append("postLength", editingBlog.postLength || postLength);
                     payload.append("targetAudience", editingBlog.targetAudience || targetAudience);
                     payload.append("promotion", editingBlog.promotion || promotion);
-                    payload.append("offerText", editingBlog.offerText || offerText);
+                    payload.append("offerText", editingBlog.offerText || effectiveOfferText);
                     payload.append("holiday", editingBlog.holiday || holiday);
                     payload.append("productUrl", editingBlog.productUrl || productUrl);
                   } else {
@@ -2017,7 +2028,9 @@ export default function BlogPage() {
               <div className="blog-generator-fields">
                 <Select label="Holiday" options={holidayOptions} value={holiday} onChange={setHoliday} />
                 <Select label="Promotion" options={promotionOptions} value={promotion} onChange={setPromotion} />
-                <TextField label="Type your offer here" value={offerText} onChange={setOfferText} autoComplete="off" placeholder="40% off" />
+                {showOfferTextField ? (
+                  <TextField label="Type your offer here" value={offerText} onChange={setOfferText} autoComplete="off" placeholder="40% off" />
+                ) : null}
                 <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                 <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                 <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
@@ -2028,7 +2041,9 @@ export default function BlogPage() {
             {activeTabKey === TAB_KEYS.PROMOTION ? (
               <div className="blog-generator-fields">
                 <Select label="Promotion" options={promotionOptions} value={promotion} onChange={setPromotion} />
-                <TextField label="Type your offer here" value={offerText} onChange={setOfferText} autoComplete="off" placeholder="40% off" />
+                {showOfferTextField ? (
+                  <TextField label="Type your offer here" value={offerText} onChange={setOfferText} autoComplete="off" placeholder="40% off" />
+                ) : null}
                 <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                 <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                 <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
@@ -2049,7 +2064,6 @@ export default function BlogPage() {
 
             {activeTabKey === TAB_KEYS.BUSINESS ? (
               <div className="blog-generator-fields">
-                <TextField label="Business / app name" value={topic} onChange={setTopic} autoComplete="off" placeholder="Content AI - SEO Generator" />
                 <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                 <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                 <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
