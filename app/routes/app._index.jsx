@@ -42,6 +42,7 @@ import {
   LayoutSectionIcon,
   SettingsIcon,
   NoteIcon,
+  ArrowRightIcon,
 } from "@shopify/polaris-icons";
 
 export const loader = async ({ request }) => {
@@ -464,6 +465,37 @@ const PARTNER_APPS = [
   },
 ];
 
+const DASHBOARD_SHORTCUTS = [
+  {
+    icon: LayoutSectionIcon,
+    title: "Template",
+    description: "Manage prompt templates for product, collection, page, and blog content.",
+    url: "/app/template",
+    tone: "blue",
+  },
+  {
+    icon: SettingsIcon,
+    title: "Settings",
+    description: "Set store-wide AI preferences, language, keywords, and output defaults.",
+    url: "/app/settings",
+    tone: "green",
+  },
+  {
+    icon: NoteIcon,
+    title: "Content Management",
+    description: "Review generated content and apply approved updates across your store.",
+    url: "/app/content-management",
+    tone: "purple",
+  },
+  {
+    icon: ChartVerticalIcon,
+    title: "Analytics",
+    description: "Track SEO coverage, generation activity, and credit usage insights.",
+    url: "/app/analytics",
+    tone: "orange",
+  },
+];
+
 function formatPrice(price) {
   const amount = Number(price || 0);
   if (amount <= 0) return "Free";
@@ -591,6 +623,21 @@ export default function Index() {
     reviewFetcher.submit(payload, { method: "post" });
   }
 
+  function getAppContextSearch() {
+    const current = new URLSearchParams(location.search);
+    const next = new URLSearchParams();
+    ["shop", "host", "embedded"].forEach((key) => {
+      const value = current.get(key);
+      if (value) next.set(key, value);
+    });
+    const query = next.toString();
+    return query ? `?${query}` : "";
+  }
+
+  function openDashboardShortcut(url) {
+    navigate({ pathname: url, search: getAppContextSearch() });
+  }
+
   return (
     <Page title="Dashboard" fullWidth>
       <div className="dashboard-uniform-buttons">
@@ -656,20 +703,46 @@ export default function Index() {
           description="Manage your apps and generate high-converting AI content for your store."
         />
 
-        <InlineStack gap="300" wrap>
-          <Button icon={LayoutSectionIcon} url="/app/template" size="medium">
-            Template
-          </Button>
-          <Button icon={SettingsIcon} url="/app/settings" size="medium">
-            Settings
-          </Button>
-          <Button icon={NoteIcon} url="/app/content-management" size="medium">
-            Content Management
-          </Button>
-          <Button icon={ChartVerticalIcon} url="/app/analytics" size="medium">
-            Analytics
-          </Button>
-        </InlineStack>
+        <Card padding="0">
+          <div className="dashboard-shortcuts">
+            <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
+              <BlockStack gap="100">
+                <Text as="h2" variant="headingMd">
+                  Quick access
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Open the main app areas without leaving your embedded Shopify session.
+                </Text>
+              </BlockStack>
+            </InlineStack>
+
+            <div className="dashboard-shortcut-grid">
+              {DASHBOARD_SHORTCUTS.map((item) => (
+                <button
+                  key={item.url}
+                  type="button"
+                  className={`dashboard-shortcut-card dashboard-shortcut-card--${item.tone}`}
+                  onClick={() => openDashboardShortcut(item.url)}
+                >
+                  <span className="dashboard-shortcut-icon">
+                    <Icon source={item.icon} tone="base" />
+                  </span>
+                  <span className="dashboard-shortcut-copy">
+                    <Text as="span" variant="headingSm">
+                      {item.title}
+                    </Text>
+                    <Text as="span" variant="bodySm" tone="subdued">
+                      {item.description}
+                    </Text>
+                  </span>
+                  <span className="dashboard-shortcut-action">
+                    <Icon source={ArrowRightIcon} tone="base" />
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </Card>
 
         <Card padding="0">
           <div className="dashboard-kpi-grid">
@@ -913,6 +986,83 @@ export default function Index() {
           gap: 8px;
           width: fit-content;
           white-space: nowrap;
+        }
+        .dashboard-shortcuts {
+          padding: 22px;
+          background: linear-gradient(135deg, #ffffff 0%, #f7f9fb 100%);
+        }
+        .dashboard-shortcut-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+          gap: 14px;
+          margin-top: 18px;
+        }
+        .dashboard-shortcut-card {
+          appearance: none;
+          width: 100%;
+          min-height: 124px;
+          border: 1px solid #dfe3e8;
+          border-radius: 8px;
+          background: #ffffff;
+          padding: 16px;
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr) auto;
+          gap: 12px;
+          align-items: start;
+          text-align: left;
+          cursor: pointer;
+          transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+        }
+        .dashboard-shortcut-card:hover,
+        .dashboard-shortcut-card:focus-visible {
+          border-color: #8a8f98;
+          box-shadow: 0 8px 22px rgba(26, 26, 26, 0.09);
+          transform: translateY(-1px);
+          outline: none;
+        }
+        .dashboard-shortcut-icon,
+        .dashboard-shortcut-action {
+          width: 36px;
+          height: 36px;
+          border-radius: 8px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+        .dashboard-shortcut-action {
+          width: 28px;
+          height: 28px;
+          background: #f1f2f4;
+        }
+        .dashboard-shortcut-copy {
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .dashboard-shortcut-card--blue .dashboard-shortcut-icon {
+          background: #eaf3ff;
+        }
+        .dashboard-shortcut-card--green .dashboard-shortcut-icon {
+          background: #e8f5ee;
+        }
+        .dashboard-shortcut-card--purple .dashboard-shortcut-icon {
+          background: #f2edff;
+        }
+        .dashboard-shortcut-card--orange .dashboard-shortcut-icon {
+          background: #fff1e5;
+        }
+        @media (max-width: 640px) {
+          .dashboard-shortcuts {
+            padding: 16px;
+          }
+          .dashboard-shortcut-grid {
+            grid-template-columns: 1fr;
+          }
+          .dashboard-shortcut-card {
+            min-height: 112px;
+          }
         }
       `}</style>
       </div>
