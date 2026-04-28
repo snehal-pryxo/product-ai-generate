@@ -716,31 +716,43 @@ export default function Index() {
               </BlockStack>
             </InlineStack>
 
-            <div className="dashboard-shortcut-grid">
+            <Grid columns={{ xs: 1, sm: 2, md: 2, lg: 4, xl: 4 }}>
               {DASHBOARD_SHORTCUTS.map((item) => (
-                <button
-                  key={item.url}
-                  type="button"
-                  className={`dashboard-shortcut-card dashboard-shortcut-card--${item.tone}`}
-                  onClick={() => openDashboardShortcut(item.url)}
-                >
-                  <span className="dashboard-shortcut-icon">
-                    <Icon source={item.icon} tone="base" />
-                  </span>
-                  <span className="dashboard-shortcut-copy">
-                    <Text as="span" variant="headingSm">
-                      {item.title}
-                    </Text>
-                    <Text as="span" variant="bodySm" tone="subdued">
-                      {item.description}
-                    </Text>
-                  </span>
-                  <span className="dashboard-shortcut-action">
-                    <Icon source={ArrowRightIcon} tone="base" />
-                  </span>
-                </button>
+                <Grid.Cell key={item.url}>
+                  <Card>
+                    <BlockStack gap="300">
+                      <InlineStack align="space-between" blockAlign="start" wrap={false}>
+                        <span className={`dashboard-shortcut-icon dashboard-shortcut-icon--${item.tone}`}>
+                          <Icon source={item.icon} tone="base" />
+                        </span>
+                        <Button
+                          accessibilityLabel={`Open ${item.title}`}
+                          icon={ArrowRightIcon}
+                          onClick={() => openDashboardShortcut(item.url)}
+                        />
+                      </InlineStack>
+                      <BlockStack gap="100">
+                        <Text as="h3" variant="headingSm">
+                          {item.title}
+                        </Text>
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          {item.description}
+                        </Text>
+                      </BlockStack>
+                      <InlineStack align="start">
+                        <Button
+                          size="slim"
+                          variant="primary"
+                          onClick={() => openDashboardShortcut(item.url)}
+                        >
+                          Open
+                        </Button>
+                      </InlineStack>
+                    </BlockStack>
+                  </Card>
+                </Grid.Cell>
               ))}
-            </div>
+            </Grid>
           </div>
         </Card>
 
@@ -991,37 +1003,10 @@ export default function Index() {
           padding: 22px;
           background: linear-gradient(135deg, #ffffff 0%, #f7f9fb 100%);
         }
-        .dashboard-shortcut-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-          gap: 14px;
+        .dashboard-shortcuts .Polaris-Grid {
           margin-top: 18px;
         }
-        .dashboard-shortcut-card {
-          appearance: none;
-          width: 100%;
-          min-height: 124px;
-          border: 1px solid #dfe3e8;
-          border-radius: 8px;
-          background: #ffffff;
-          padding: 16px;
-          display: grid;
-          grid-template-columns: auto minmax(0, 1fr) auto;
-          gap: 12px;
-          align-items: start;
-          text-align: left;
-          cursor: pointer;
-          transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
-        }
-        .dashboard-shortcut-card:hover,
-        .dashboard-shortcut-card:focus-visible {
-          border-color: #8a8f98;
-          box-shadow: 0 8px 22px rgba(26, 26, 26, 0.09);
-          transform: translateY(-1px);
-          outline: none;
-        }
-        .dashboard-shortcut-icon,
-        .dashboard-shortcut-action {
+        .dashboard-shortcut-icon {
           width: 36px;
           height: 36px;
           border-radius: 8px;
@@ -1030,38 +1015,21 @@ export default function Index() {
           justify-content: center;
           flex-shrink: 0;
         }
-        .dashboard-shortcut-action {
-          width: 28px;
-          height: 28px;
-          background: #f1f2f4;
-        }
-        .dashboard-shortcut-copy {
-          min-width: 0;
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-        }
-        .dashboard-shortcut-card--blue .dashboard-shortcut-icon {
+        .dashboard-shortcut-icon--blue {
           background: #eaf3ff;
         }
-        .dashboard-shortcut-card--green .dashboard-shortcut-icon {
+        .dashboard-shortcut-icon--green {
           background: #e8f5ee;
         }
-        .dashboard-shortcut-card--purple .dashboard-shortcut-icon {
+        .dashboard-shortcut-icon--purple {
           background: #f2edff;
         }
-        .dashboard-shortcut-card--orange .dashboard-shortcut-icon {
+        .dashboard-shortcut-icon--orange {
           background: #fff1e5;
         }
         @media (max-width: 640px) {
           .dashboard-shortcuts {
             padding: 16px;
-          }
-          .dashboard-shortcut-grid {
-            grid-template-columns: 1fr;
-          }
-          .dashboard-shortcut-card {
-            min-height: 112px;
           }
         }
       `}</style>
