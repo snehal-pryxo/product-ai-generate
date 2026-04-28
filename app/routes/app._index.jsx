@@ -73,10 +73,10 @@ export const loader = async ({ request }) => {
   const installAgeMs = installDate ? Date.now() - new Date(installDate).getTime() : 0;
   const shouldShowReviewPopup = Boolean(
     shopData &&
-      installDate &&
-      installAgeMs >= sevenDaysMs &&
-      !shopData.reviewSubmittedAt &&
-      !shopData.reviewPromptDismissedAt,
+    installDate &&
+    installAgeMs >= sevenDaysMs &&
+    !shopData.reviewSubmittedAt &&
+    !shopData.reviewPromptDismissedAt,
   );
 
   const shopDomain = String(session.shop || "").trim();
@@ -641,348 +641,350 @@ export default function Index() {
   return (
     <Page title="Dashboard" fullWidth>
       <div className="dashboard-uniform-buttons">
-      <BlockStack gap="500">
-        <Modal
-          open={isReviewModalOpen}
-          onClose={handleDismissReviewPopup}
-          title="How is your experience with Product AI?"
-          large
-        >
-          <Modal.Section>
-            <reviewFetcher.Form method="post">
-              <input type="hidden" name="intent" value="submit_review" />
-              <input type="hidden" name="reviewRating" value={reviewRating} />
-              <input type="hidden" name="reviewFeedback" value={reviewFeedback} />
-              <BlockStack gap="300">
-                <Text as="p" variant="bodyMd" tone="subdued">
-                  You have used the app for 7 days. Please share a quick review to help us improve.
-                </Text>
-                <Select
-                  label="Rating"
-                  options={[
-                    { label: "5 - Excellent", value: "5" },
-                    { label: "4 - Good", value: "4" },
-                    { label: "3 - Average", value: "3" },
-                    { label: "2 - Poor", value: "2" },
-                    { label: "1 - Very poor", value: "1" },
-                  ]}
-                  value={reviewRating}
-                  onChange={setReviewRating}
-                />
-                <TextField
-                  label="Feedback (optional)"
-                  value={reviewFeedback}
-                  onChange={setReviewFeedback}
-                  multiline={4}
-                  autoComplete="off"
-                  placeholder="Tell us what worked well and what we can improve."
-                />
-                <InlineStack align="start" gap="200">
-                  <Button size="slim" onClick={handleDismissReviewPopup} disabled={isSubmittingReview || isDismissingReview}>
-                    Not now
-                  </Button>
-                  <Button
-                    size="slim"
-                    submit
-                    variant="primary"
-                    loading={isSubmittingReview}
-                    disabled={isSubmittingReview || isDismissingReview}
-                  >
-                    Submit review
-                  </Button>
-                </InlineStack>
-              </BlockStack>
-            </reviewFetcher.Form>
-          </Modal.Section>
-        </Modal>
+        <BlockStack gap="500">
+          <Modal
+            open={isReviewModalOpen}
+            onClose={handleDismissReviewPopup}
+            title="How is your experience with Product AI?"
+            large
+          >
+            <Modal.Section>
+              <reviewFetcher.Form method="post">
+                <input type="hidden" name="intent" value="submit_review" />
+                <input type="hidden" name="reviewRating" value={reviewRating} />
+                <input type="hidden" name="reviewFeedback" value={reviewFeedback} />
+                <BlockStack gap="300">
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    You have used the app for 7 days. Please share a quick review to help us improve.
+                  </Text>
+                  <Select
+                    label="Rating"
+                    options={[
+                      { label: "5 - Excellent", value: "5" },
+                      { label: "4 - Good", value: "4" },
+                      { label: "3 - Average", value: "3" },
+                      { label: "2 - Poor", value: "2" },
+                      { label: "1 - Very poor", value: "1" },
+                    ]}
+                    value={reviewRating}
+                    onChange={setReviewRating}
+                  />
+                  <TextField
+                    label="Feedback (optional)"
+                    value={reviewFeedback}
+                    onChange={setReviewFeedback}
+                    multiline={4}
+                    autoComplete="off"
+                    placeholder="Tell us what worked well and what we can improve."
+                  />
+                  <InlineStack align="start" gap="200">
+                    <Button size="slim" onClick={handleDismissReviewPopup} disabled={isSubmittingReview || isDismissingReview}>
+                      Not now
+                    </Button>
+                    <Button
+                      size="slim"
+                      submit
+                      variant="primary"
+                      loading={isSubmittingReview}
+                      disabled={isSubmittingReview || isDismissingReview}
+                    >
+                      Submit review
+                    </Button>
+                  </InlineStack>
+                </BlockStack>
+              </reviewFetcher.Form>
+            </Modal.Section>
+          </Modal>
 
-        <AppPageHeader
-          ownerName={shopOwnerName}
-          ownerLabel="Owner"
-          title={`Hi ${shopOwnerName}!`}
-          description="Manage your apps and generate high-converting AI content for your store."
-        />
+          <AppPageHeader
+            ownerName={shopOwnerName}
+            ownerLabel="Owner"
+            title={`Hi ${shopOwnerName}!`}
+            description="Manage your apps and generate high-converting AI content for your store."
+          />
 
-        <Card padding="0">
-          <div className="dashboard-shortcuts">
-            <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
-              <BlockStack gap="100">
-                <Text as="h2" variant="headingMd">
-                  Quick access
-                </Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Open the main app areas without leaving your embedded Shopify session.
-                </Text>
-              </BlockStack>
-            </InlineStack>
 
-            <Grid columns={{ xs: 1, sm: 2, md: 2, lg: 4, xl: 4 }}>
-              {DASHBOARD_SHORTCUTS.map((item) => (
-                <Grid.Cell key={item.url}>
-                  <Card>
-                    <BlockStack gap="300">
-                      <InlineStack align="space-between" blockAlign="start" wrap={false}>
-                        <span className={`dashboard-shortcut-icon dashboard-shortcut-icon--${item.tone}`}>
-                          <Icon source={item.icon} tone="base" />
-                        </span>
-                        <Button
-                          accessibilityLabel={`Open ${item.title}`}
-                          icon={ArrowRightIcon}
-                          onClick={() => openDashboardShortcut(item.url)}
-                        />
-                      </InlineStack>
-                      <BlockStack gap="100">
-                        <Text as="h3" variant="headingSm">
-                          {item.title}
-                        </Text>
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          {item.description}
-                        </Text>
+
+          <Card padding="0">
+            <div className="dashboard-kpi-grid">
+              {kpiItems.map((item, index) => (
+                <div key={item.id} className="dashboard-kpi-cell" style={{ borderRight: index < kpiItems.length - 1 ? "1px solid #e5e7eb" : "none" }}>
+                  <BlockStack gap="100" align="start">
+                    <div className="dashboard-kpi-heading-row">
+                      <Icon source={item.icon} tone="subdued" />
+                      <Text as="p" variant="headingSm">{item.label}</Text>
+                    </div>
+                    <Text as="p" variant="headingMd">{item.value}</Text>
+                  </BlockStack>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card padding="0">
+            <div className="dashboard-shortcuts">
+              <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
+                <BlockStack gap="100">
+                  <Text as="h2" variant="headingMd">
+                    Quick access
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Open the main app areas without leaving your embedded Shopify session.
+                  </Text>
+                </BlockStack>
+              </InlineStack>
+
+              <Grid columns={{ xs: 1, sm: 2, md: 2, lg: 4, xl: 4 }}>
+                {DASHBOARD_SHORTCUTS.map((item) => (
+                  <Grid.Cell key={item.url}>
+                    <Card>
+                      <BlockStack gap="300">
+                        <InlineStack align="space-between" blockAlign="start" wrap={false}>
+                          <span className={`dashboard-shortcut-icon dashboard-shortcut-icon--${item.tone}`}>
+                            <Icon source={item.icon} tone="base" />
+                          </span>
+                          <Button
+                            accessibilityLabel={`Open ${item.title}`}
+                            icon={ArrowRightIcon}
+                            onClick={() => openDashboardShortcut(item.url)}
+                          />
+                        </InlineStack>
+                        <BlockStack gap="100">
+                          <Text as="h3" variant="headingSm">
+                            {item.title}
+                          </Text>
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            {item.description}
+                          </Text>
+                        </BlockStack>
+                        <InlineStack align="start">
+                          <Button
+                            size="slim"
+                            variant="primary"
+                            onClick={() => openDashboardShortcut(item.url)}
+                          >
+                            Open
+                          </Button>
+                        </InlineStack>
                       </BlockStack>
+                    </Card>
+                  </Grid.Cell>
+                ))}
+              </Grid>
+            </div>
+          </Card>
+
+          {actionData ? (
+            <Banner tone={actionData.success ? "success" : "critical"}>
+              <p>{actionData.message}</p>
+            </Banner>
+          ) : null}
+
+          <BlockStack gap="200">
+            <Text as="h2" variant="headingMd">Specific Generated Count</Text>
+            <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 3, xl: 3 }}>
+              {specificCountBoxes.map((box) => (
+                <Grid.Cell key={box.id}>
+                  <Card>
+                    <BlockStack gap="200">
+                      <Text as="h3" variant="headingSm">{box.title}</Text>
+                      <BlockStack gap="100">
+                        {box.rows.map((row) => (
+                          <InlineStack key={row.label} align="space-between" blockAlign="center" wrap={false}>
+                            <Text as="span" variant="bodySm" tone="subdued">{row.label}</Text>
+                            <div
+                              style={{
+                                minWidth: "30px",
+                                height: "28px",
+                                padding: "0 10px",
+                                borderRadius: "10px",
+                                background: "#dbeafe",
+                                color: "#1e3a8a",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontWeight: 700,
+                                fontSize: "12px",
+                                lineHeight: 1,
+                                flexShrink: 0,
+                              }}
+                            >
+                              {row.value}
+                            </div>
+                          </InlineStack>
+                        ))}
+                      </BlockStack>
+                    </BlockStack>
+                  </Card>
+                </Grid.Cell>
+              ))}
+              <Grid.Cell key="ai-model-box">
+                <Card>
+                  <BlockStack gap="300">
+                    <Text as="h3" variant="headingSm">AI Model</Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Select the default model used for content generation.
+                    </Text>
+                    <Form method="post">
+                      <input type="hidden" name="intent" value="save_settings" />
+                      <input type="hidden" name="defaultAiModel" value={selectedModel} />
+                      <BlockStack gap="200">
+                        <Select
+                          label="AI model"
+                          labelHidden
+                          options={aiModelOptions}
+                          value={selectedModel}
+                          onChange={setSelectedModel}
+                        />
+                        <InlineStack align="start">
+                          <Button size="slim" submit variant="primary" loading={isSaving} disabled={isSaving}>
+                            {isSaving ? "Saving..." : "Save model"}
+                          </Button>
+                        </InlineStack>
+                      </BlockStack>
+                    </Form>
+                  </BlockStack>
+                </Card>
+              </Grid.Cell>
+            </Grid>
+          </BlockStack>
+
+          <Card>
+            <BlockStack gap="400">
+              <div
+                className="dashboard-inline-title"
+                style={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-start", gap: "8px", width: "fit-content" }}
+              >
+                <Icon source={AppsIcon} tone="base" />
+                <Text as="h2" variant="headingMd">
+                  Boost store performance with our apps
+                </Text>
+              </div>
+              <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
+                {PARTNER_APPS.map((app) => (
+                  <Grid.Cell key={app.title}>
+                    <Card>
+                      <BlockStack gap="300">
+                        <InlineStack align="start" gap="200" blockAlign="center" wrap={false}>
+                          <img
+                            src={app.logoSrc}
+                            alt={`${app.title} logo`}
+                            style={{ width: 28, height: 28, objectFit: "contain" }}
+                          />
+                          <Text as="h3" variant="headingSm">
+                            {app.title}
+                          </Text>
+                        </InlineStack>
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          {app.desc}
+                        </Text>
+                        <InlineStack align="start">
+                          <Button size="slim" url={app.url} external icon={ExternalIcon}>
+                            Add app
+                          </Button>
+                        </InlineStack>
+                      </BlockStack>
+                    </Card>
+                  </Grid.Cell>
+                ))}
+              </Grid>
+            </BlockStack>
+          </Card>
+
+          <Card>
+            <BlockStack gap="400">
+              <Text as="h2" variant="headingMd">
+                Support
+              </Text>
+              <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
+                <Grid.Cell>
+                  <Card>
+                    <BlockStack gap="200">
+                      <Text as="h3" variant="headingSm">
+                        Book a free 30-minute setup call
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Get help with app setup, best practices, and growth recommendations.
+                      </Text>
                       <InlineStack align="start">
                         <Button
                           size="slim"
+                          url="https://outlook.office.com/book/ShopifyGrowthConsultationCall@m2webdesigning.com/?ismsaljsauthenabled=true"
+                          external
                           variant="primary"
-                          onClick={() => openDashboardShortcut(item.url)}
                         >
-                          Open
+                          Schedule call
                         </Button>
                       </InlineStack>
                     </BlockStack>
                   </Card>
                 </Grid.Cell>
-              ))}
-            </Grid>
-          </div>
-        </Card>
 
-        <Card padding="0">
-          <div className="dashboard-kpi-grid">
-            {kpiItems.map((item, index) => (
-              <div key={item.id} className="dashboard-kpi-cell" style={{ borderRight: index < kpiItems.length - 1 ? "1px solid #e5e7eb" : "none" }}>
-                <BlockStack gap="100" align="start">
-                  <div className="dashboard-kpi-heading-row">
-                    <Icon source={item.icon} tone="subdued" />
-                    <Text as="p" variant="headingSm">{item.label}</Text>
-                  </div>
-                  <Text as="p" variant="headingMd">{item.value}</Text>
-                </BlockStack>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        {actionData ? (
-          <Banner tone={actionData.success ? "success" : "critical"}>
-            <p>{actionData.message}</p>
-          </Banner>
-        ) : null}
-
-        <BlockStack gap="200">
-          <Text as="h2" variant="headingMd">Specific Generated Count</Text>
-          <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 3, xl: 3 }}>
-            {specificCountBoxes.map((box) => (
-              <Grid.Cell key={box.id}>
-                <Card>
-                  <BlockStack gap="200">
-                    <Text as="h3" variant="headingSm">{box.title}</Text>
-                    <BlockStack gap="100">
-                      {box.rows.map((row) => (
-                        <InlineStack key={row.label} align="space-between" blockAlign="center" wrap={false}>
-                          <Text as="span" variant="bodySm" tone="subdued">{row.label}</Text>
-                          <div
-                            style={{
-                              minWidth: "30px",
-                              height: "28px",
-                              padding: "0 10px",
-                              borderRadius: "10px",
-                              background: "#dbeafe",
-                              color: "#1e3a8a",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              fontWeight: 700,
-                              fontSize: "12px",
-                              lineHeight: 1,
-                              flexShrink: 0,
-                            }}
-                          >
-                            {row.value}
-                          </div>
-                        </InlineStack>
-                      ))}
-                    </BlockStack>
-                  </BlockStack>
-                </Card>
-              </Grid.Cell>
-            ))}
-            <Grid.Cell key="ai-model-box">
-              <Card>
-                <BlockStack gap="300">
-                  <Text as="h3" variant="headingSm">AI Model</Text>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    Select the default model used for content generation.
-                  </Text>
-                  <Form method="post">
-                    <input type="hidden" name="intent" value="save_settings" />
-                    <input type="hidden" name="defaultAiModel" value={selectedModel} />
-                    <BlockStack gap="200">
-                      <Select
-                        label="AI model"
-                        labelHidden
-                        options={aiModelOptions}
-                        value={selectedModel}
-                        onChange={setSelectedModel}
-                      />
-                      <InlineStack align="start">
-                        <Button size="slim" submit variant="primary" loading={isSaving} disabled={isSaving}>
-                          {isSaving ? "Saving..." : "Save model"}
-                        </Button>
-                      </InlineStack>
-                    </BlockStack>
-                  </Form>
-                </BlockStack>
-              </Card>
-            </Grid.Cell>
-          </Grid>
-        </BlockStack>
-
-        <Card>
-          <BlockStack gap="400">
-            <div
-              className="dashboard-inline-title"
-              style={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-start", gap: "8px", width: "fit-content" }}
-            >
-              <Icon source={AppsIcon} tone="base" />
-              <Text as="h2" variant="headingMd">
-                Boost store performance with our apps
-              </Text>
-            </div>
-            <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
-              {PARTNER_APPS.map((app) => (
-                <Grid.Cell key={app.title}>
+                <Grid.Cell>
                   <Card>
-                    <BlockStack gap="300">
-                      <InlineStack align="start" gap="200" blockAlign="center" wrap={false}>
-                        <img
-                          src={app.logoSrc}
-                          alt={`${app.title} logo`}
-                          style={{ width: 28, height: 28, objectFit: "contain" }}
-                        />
+                    <BlockStack gap="200">
+                      <div
+                        className="dashboard-inline-title"
+                        style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: "8px", width: "fit-content" }}
+                      >
+                        <Icon source={EmailIcon} tone="base" />
                         <Text as="h3" variant="headingSm">
-                          {app.title}
+                          Support ticket
                         </Text>
-                      </InlineStack>
+                      </div>
                       <Text as="p" variant="bodySm" tone="subdued">
-                        {app.desc}
+                        Reach our team during office hours for issue resolution and guidance.
                       </Text>
-                      <InlineStack align="start">
-                        <Button size="slim" url={app.url} external icon={ExternalIcon}>
-                          Add app
+                      <InlineStack gap="200">
+                        <Button size="slim" url="mailto:support@m2webdesigning.com">
+                          Email support
+                        </Button>
+                        <Button size="slim" url="https://wa.me/918320023122" external>
+                          WhatsApp
                         </Button>
                       </InlineStack>
                     </BlockStack>
                   </Card>
                 </Grid.Cell>
-              ))}
-            </Grid>
-          </BlockStack>
-        </Card>
 
-        <Card>
-          <BlockStack gap="400">
-            <Text as="h2" variant="headingMd">
-              Support
-            </Text>
-            <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
-              <Grid.Cell>
-                <Card>
-                  <BlockStack gap="200">
-                    <Text as="h3" variant="headingSm">
-                      Book a free 30-minute setup call
-                    </Text>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      Get help with app setup, best practices, and growth recommendations.
-                    </Text>
-                    <InlineStack align="start">
-                      <Button
-                        size="slim"
-                        url="https://outlook.office.com/book/ShopifyGrowthConsultationCall@m2webdesigning.com/?ismsaljsauthenabled=true"
-                        external
-                        variant="primary"
+                <Grid.Cell>
+                  <Card>
+                    <BlockStack gap="200">
+                      <div
+                        className="dashboard-inline-title"
+                        style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: "8px", width: "fit-content" }}
                       >
-                        Schedule call
-                      </Button>
-                    </InlineStack>
-                  </BlockStack>
-                </Card>
-              </Grid.Cell>
-
-              <Grid.Cell>
-                <Card>
-                  <BlockStack gap="200">
-                    <div
-                      className="dashboard-inline-title"
-                      style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: "8px", width: "fit-content" }}
-                    >
-                      <Icon source={EmailIcon} tone="base" />
-                      <Text as="h3" variant="headingSm">
-                        Support ticket
+                        <Icon source={QuestionCircleIcon} tone="base" />
+                        <Text as="h3" variant="headingSm">
+                          Knowledge base
+                        </Text>
+                      </div>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Browse setup guides and troubleshooting docs.
                       </Text>
-                    </div>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      Reach our team during office hours for issue resolution and guidance.
-                    </Text>
-                    <InlineStack gap="200">
-                      <Button size="slim" url="mailto:support@m2webdesigning.com">
-                        Email support
-                      </Button>
-                      <Button size="slim" url="https://wa.me/918320023122" external>
-                        WhatsApp
-                      </Button>
-                    </InlineStack>
-                  </BlockStack>
-                </Card>
-              </Grid.Cell>
+                      <InlineStack gap="200">
+                        <Button size="slim">View docs</Button>
+                        <Button
+                          size="slim"
+                          onClick={() => {
+                            if (!reviewAlreadySubmitted) setIsReviewModalOpen(true);
+                          }}
+                          disabled={reviewAlreadySubmitted}
+                          icon={StarFilledIcon}
+                        >
+                          {reviewAlreadySubmitted ? "Review submitted" : "Write a review"}
+                        </Button>
+                      </InlineStack>
+                    </BlockStack>
+                  </Card>
+                </Grid.Cell>
+              </Grid>
+            </BlockStack>
+          </Card>
 
-              <Grid.Cell>
-                <Card>
-                  <BlockStack gap="200">
-                    <div
-                      className="dashboard-inline-title"
-                      style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: "8px", width: "fit-content" }}
-                    >
-                      <Icon source={QuestionCircleIcon} tone="base" />
-                      <Text as="h3" variant="headingSm">
-                        Knowledge base
-                      </Text>
-                    </div>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      Browse setup guides and troubleshooting docs.
-                    </Text>
-                    <InlineStack gap="200">
-                      <Button size="slim">View docs</Button>
-                      <Button
-                        size="slim"
-                        onClick={() => {
-                          if (!reviewAlreadySubmitted) setIsReviewModalOpen(true);
-                        }}
-                        disabled={reviewAlreadySubmitted}
-                        icon={StarFilledIcon}
-                      >
-                        {reviewAlreadySubmitted ? "Review submitted" : "Write a review"}
-                      </Button>
-                    </InlineStack>
-                  </BlockStack>
-                </Card>
-              </Grid.Cell>
-            </Grid>
-          </BlockStack>
-        </Card>
-
-        <Box paddingBlockEnd="800" />
-      </BlockStack>
-      <style>{`
+          <Box paddingBlockEnd="800" />
+        </BlockStack>
+        <style>{`
         .dashboard-kpi-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
