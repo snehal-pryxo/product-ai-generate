@@ -1152,31 +1152,20 @@ export default function PagesPage() {
             : p,
         ),
       );
-      const remainingItems = generatedReviewItems.filter((_, index) => index !== generatedReviewIndex);
-      if (remainingItems.length === 0) {
-        handleCancelGeneratedReview();
-      } else {
-        const nextIndex = Math.min(generatedReviewIndex, remainingItems.length - 1);
-        const nextItem = remainingItems[nextIndex];
-        setGeneratedReviewItems(remainingItems);
-        setGeneratedReviewIndex(nextIndex);
-        setGeneratedBody(nextItem?.body || "");
-        setGeneratedSeoTitle(nextItem?.seoTitle || "");
-        setGeneratedSeoDescription(nextItem?.seoDescription || "");
-      }
+      handleCancelGeneratedReview();
       shopify.toast.show(data.message || "Generated page saved successfully!");
+      window.setTimeout(() => navigateInApp("/app/content-management", "?tab=pages&filter=all"), 600);
       return;
     }
     shopify.toast.show(data.error || "Failed to save generated page");
   }, [
     currentGeneratedReview,
     generatedBody,
-    generatedReviewIndex,
-    generatedReviewItems,
     generatedSaveFetcher.data,
     generatedSaveFetcher.state,
     generatedSeoDescription,
     generatedSeoTitle,
+    navigateInApp,
     shopify,
   ]);
 

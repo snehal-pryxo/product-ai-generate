@@ -257,6 +257,7 @@ model BlogGeneratedContent {
   tabType        String?  @db.VarChar(64)
   topic          String?  @db.VarChar(255)
   promotion      String?
+  offerText      String?  @db.VarChar(255)
   holiday        String?
   productUrl     String?  @db.Text
   createdAt      DateTime @default(now())

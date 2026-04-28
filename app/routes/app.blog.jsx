@@ -78,6 +78,20 @@ const ARTICLES_QUERY = `#graphql
   }
 `;
 
+const PRODUCT_BY_HANDLE_QUERY = `#graphql
+  query ProductByHandle($handle: String!) {
+    productByHandle(handle: $handle) {
+      id
+      title
+      handle
+      description
+      descriptionHtml
+      productType
+      vendor
+    }
+  }
+`;
+
 const ARTICLE_CREATE_MUTATION = `#graphql
   mutation ArticleCreate($article: ArticleCreateInput!) {
     articleCreate(article: $article) {
@@ -295,6 +309,70 @@ function normalizeProductUrl(value) {
   }
 }
 
+function titleCaseFromSlug(value) {
+  return cleanText(value)
+    .replace(/\.[a-z0-9]+$/i, "")
+    .split(/[-_+/%\s]+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const lower = part.toLowerCase();
+      if (["ai", "seo", "url", "api", "sms", "faq"].includes(lower)) return lower.toUpperCase();
+      if (lower === "chatgpt") return "ChatGPT";
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
+    .join(" ");
+}
+
+function extractProductHandleFromUrl(productUrl) {
+  const normalizedUrl = normalizeProductUrl(productUrl);
+  if (!normalizedUrl) return "";
+  try {
+    const parsed = new URL(normalizedUrl);
+    const parts = parsed.pathname.split("/").map((part) => part.trim()).filter(Boolean);
+    const productIndex = parts.findIndex((part) => part.toLowerCase() === "products");
+    if (productIndex >= 0 && parts[productIndex + 1]) return decodeURIComponent(parts[productIndex + 1]);
+    return parts.length ? decodeURIComponent(parts[parts.length - 1]) : "";
+  } catch {
+    return "";
+  }
+}
+
+function inferProductContextFromUrl(productUrl) {
+  const handle = extractProductHandleFromUrl(productUrl);
+  return {
+    handle,
+    title: titleCaseFromSlug(handle),
+    description: "",
+    productType: "",
+    vendor: "",
+  };
+}
+
+async function resolveProductContext(admin, productUrl) {
+  const fallback = inferProductContextFromUrl(productUrl);
+  if (!fallback.handle) return fallback;
+
+  try {
+    const response = await admin.graphql(PRODUCT_BY_HANDLE_QUERY, {
+      variables: { handle: fallback.handle },
+    });
+    const json = await response.json();
+    const product = json?.data?.productByHandle;
+    if (!product) return fallback;
+    return {
+      handle: cleanText(product.handle) || fallback.handle,
+      title: cleanText(product.title) || fallback.title,
+      description: stripHtml(product.descriptionHtml || product.description || ""),
+      productType: cleanText(product.productType),
+      vendor: cleanText(product.vendor),
+    };
+  } catch (error) {
+    console.error("Failed to resolve blog product context", error);
+    return fallback;
+  }
+}
+
 function appendProductCtaAndLink(bodyHtml, productUrl) {
   const normalizedBody = normalizeBodyHtml(bodyHtml || "");
   const normalizedUrl = normalizeProductUrl(productUrl);
@@ -307,6 +385,36 @@ function appendProductCtaAndLink(bodyHtml, productUrl) {
   const escapedUrl = escapeHtml(normalizedUrl);
   const ctaHtml = `<p><a href="${escapedUrl}" target="_blank" rel="noopener noreferrer">Shop Now</a></p>`;
   return `${normalizedBody}${ctaHtml}`;
+}
+
+function formatPromotionOffer(promotion, offerText) {
+  const cleanPromotion = cleanText(promotion);
+  const cleanOffer = cleanText(offerText);
+  if (!cleanOffer || !cleanPromotion || cleanPromotion === "No promotion") return cleanPromotion;
+  return `${cleanPromotion} - ${cleanOffer}`;
+}
+
+function includeCampaignDetails(bodyHtml, { promotion, offerText, holiday, tabType }) {
+  const normalizedBody = normalizeBodyHtml(bodyHtml || "");
+  const promotionOffer = formatPromotionOffer(promotion, offerText);
+  const cleanHoliday = cleanText(holiday);
+  const shouldMentionHoliday =
+    tabType === TAB_KEYS.HOLIDAY && cleanHoliday && cleanHoliday !== "Choose a holiday to promote";
+  const shouldMentionPromotion = promotionOffer && promotionOffer !== "No promotion";
+  if (!shouldMentionHoliday && !shouldMentionPromotion) return normalizedBody;
+
+  const bodyText = stripHtml(normalizedBody).toLowerCase();
+  const holidayMissing = shouldMentionHoliday && !bodyText.includes(cleanHoliday.toLowerCase());
+  const promotionMissing = shouldMentionPromotion && !bodyText.includes(promotionOffer.toLowerCase());
+  const offerMissing = cleanText(offerText) && !bodyText.includes(cleanText(offerText).toLowerCase());
+  if (!holidayMissing && !promotionMissing && !offerMissing) return normalizedBody;
+
+  const details = [
+    shouldMentionHoliday ? `${cleanHoliday} campaign` : "",
+    shouldMentionPromotion ? promotionOffer : "",
+  ].filter(Boolean).join(" with ");
+
+  return `${normalizedBody}<h2>Campaign offer</h2><p>This post highlights ${escapeHtml(details)} and gives shoppers a clear reason to act while the offer is available.</p>`;
 }
 
 function parseAiJson(rawText) {
@@ -324,31 +432,51 @@ function parseAiJson(rawText) {
   }
 }
 
-function buildBlogHtml({ title, topic, tone, audience, promotion, holiday, tabType, language, postLength = "medium", productUrl = "" }) {
+function buildBlogHtml({
+  title,
+  topic,
+  tone,
+  audience,
+  promotion,
+  offerText,
+  holiday,
+  tabType,
+  language,
+  postLength = "medium",
+  productUrl = "",
+  productContext = null,
+}) {
   const primaryTopic = cleanText(topic) || cleanText(title) || "Shopify growth";
+  const productName = cleanText(productContext?.title) || primaryTopic;
+  const productDescription = cleanText(productContext?.description);
   const safeTitle = escapeHtml(cleanText(title) || primaryTopic);
   const safeTopic = escapeHtml(primaryTopic);
+  const safeProductName = escapeHtml(productName);
+  const safeProductDescription = escapeHtml(productDescription);
   const safeTone = escapeHtml(cleanText(tone) || "Casual");
   const safeAudience = escapeHtml(cleanText(audience) || "Everyone");
   const safeLanguage = escapeHtml(cleanText(language) || "English");
   const safePromotion = escapeHtml(cleanText(promotion));
+  const safeOfferText = escapeHtml(cleanText(offerText));
+  const safePromotionOffer = escapeHtml(formatPromotionOffer(promotion, offerText));
   const safeHoliday = escapeHtml(cleanText(holiday));
   const wordRange = getWordRange(postLength);
   const sections = [
     `<h1>${safeTitle}</h1>`,
-    `<p>This ${safeTone.toLowerCase()} article is written for ${safeAudience.toLowerCase()} readers in ${safeLanguage}. It focuses on practical ways to improve performance with ${safeTopic.toLowerCase()} and turn interest into real store results.</p>`,
-    `<h2>What ${safeTopic} means for your store</h2>`,
-    `<p>${safeTopic} can improve discoverability, trust, and conversion when your content is clear, structured, and aligned with customer intent. The goal is to make decision-making easy for shoppers while keeping your brand voice consistent.</p>`,
-    `<h2>Step-by-step strategy you can apply today</h2>`,
+    `<p>This ${safeTone.toLowerCase()} article is written for ${safeAudience.toLowerCase()} readers in ${safeLanguage}. It focuses on ${safeProductName} and explains how it helps shoppers, merchants, or teams get a clearer result from ${safeTopic.toLowerCase()}.</p>`,
+    ...(safeProductDescription ? [`<p>${safeProductDescription}</p>`] : []),
+    `<h2>What ${safeProductName} means for your store</h2>`,
+    `<p>${safeProductName} can improve discoverability, trust, and conversion when its value is explained with clear use cases, specific benefits, and customer-first messaging. The goal is to make decision-making easy while keeping the brand voice consistent.</p>`,
+    `<h2>Step-by-step strategy for using ${safeProductName}</h2>`,
     `<ol>
-      <li>Define one measurable outcome such as higher click-through rate or better conversion.</li>
-      <li>Map core customer questions and answer them with clear benefit-driven messaging.</li>
-      <li>Use headings, short paragraphs, and comparison points so content is easy to scan.</li>
-      <li>Finish with a direct call to action that tells readers what to do next.</li>
+      <li>Start with the main problem ${safeProductName} solves for the customer.</li>
+      <li>Explain the most useful features or outcomes in plain language.</li>
+      <li>Show where ${safeProductName} fits in the buying or store-management workflow.</li>
+      <li>Finish with a direct call to action that sends readers to the product or app page.</li>
     </ol>`,
     `<h3>Common mistakes to avoid</h3>`,
     `<ul>
-      <li>Writing generic content that does not match buyer intent.</li>
+      <li>Writing generic content that does not mention ${safeProductName} by name.</li>
       <li>Overusing keywords and reducing readability.</li>
       <li>Skipping proof points such as outcomes, specifics, or examples.</li>
       <li>Ending without a clear next action.</li>
@@ -362,23 +490,24 @@ function buildBlogHtml({ title, topic, tone, audience, promotion, holiday, tabTy
     );
   }
 
-  if (safePromotion && safePromotion !== "No promotion") {
+  if (safePromotionOffer && safePromotionOffer !== "No promotion") {
     sections.push(
       `<h2>Promotion messaging framework</h2>`,
       `<p>Position the offer as a clear value exchange: what the customer gets, how long it lasts, and what action unlocks the benefit. Repeat the core offer naturally in headings and supporting copy.</p>`,
-      `<p><strong>Promotion in focus:</strong> ${safePromotion}</p>`,
+      `<p><strong>Promotion in focus:</strong> ${safePromotionOffer}</p>`,
+      ...(safeOfferText ? [`<p><strong>Offer detail:</strong> ${safeOfferText}</p>`] : []),
     );
   }
 
   sections.push(
     `<h2>Conclusion</h2>`,
-    `<p>Strong ${safeTopic.toLowerCase()} content is specific, actionable, and customer-focused. Keep refining structure, proof points, and calls to action to steadily improve your results.</p>`,
+    `<p>Strong ${safeTopic.toLowerCase()} content should stay specific to ${safeProductName}, explain the value clearly, and guide readers toward the next action. Keep refining structure, proof points, and calls to action to steadily improve results.</p>`,
   );
 
   const expansionPool = [
-    `<p>When writing for ${safeAudience.toLowerCase()} readers, prioritize clarity over complexity. Every paragraph should answer a real question and move the reader closer to action.</p>`,
-    `<p>Add practical examples tied to ${safeTopic.toLowerCase()} so readers can immediately apply what they learn. Concrete examples outperform abstract advice in both engagement and conversion.</p>`,
-    `<p>Use internal consistency across headings, body copy, and CTA language. A consistent message improves trust and makes the journey from discovery to purchase more predictable.</p>`,
+    `<p>When writing for ${safeAudience.toLowerCase()} readers, prioritize clarity over complexity. Every paragraph should answer a real question about ${safeProductName} and move the reader closer to action.</p>`,
+    `<p>Add practical examples tied to ${safeProductName} so readers can immediately understand the use case. Concrete examples outperform abstract advice in both engagement and conversion.</p>`,
+    `<p>Use internal consistency across headings, body copy, and CTA language. A consistent message improves trust and makes the journey from discovery to trying ${safeProductName} more predictable.</p>`,
     `<p>Review your draft for readability: short sentences, active voice, and clear transitions. This makes long-form content easier to scan on mobile devices.</p>`,
     `<p>Before publishing, validate that your primary keyword appears naturally in the title, opening paragraph, and at least one subheading without keyword stuffing.</p>`,
     `<p>After publishing, monitor performance and iterate. Improving one section at a time often yields better outcomes than rewriting everything at once.</p>`,
@@ -470,13 +599,18 @@ function ensureBlogBodyWordRange({
   tone,
   audience,
   promotion,
+  offerText,
   holiday,
   tabType,
   language,
   postLength = "medium",
   productUrl = "",
+  productContext = null,
 }) {
-  const normalized = appendProductCtaAndLink(body || "", productUrl);
+  const normalized = appendProductCtaAndLink(
+    includeCampaignDetails(body || "", { promotion, offerText, holiday, tabType }),
+    productUrl,
+  );
   const { min, max } = getWordRange(postLength);
   const words = countWords(normalized);
   if (normalized && words >= min && words <= max) return normalized;
@@ -486,11 +620,13 @@ function ensureBlogBodyWordRange({
     tone,
     audience,
     promotion,
+    offerText,
     holiday,
     tabType,
     language,
     postLength,
     productUrl,
+    productContext,
   });
 }
 
@@ -501,22 +637,46 @@ function getGeneratedContentPreview(body, maxLength = 220) {
   return `${plain.slice(0, maxLength).trim()}...`;
 }
 
-function createSuggestionSet({ tabType, topic, tone, postLength, targetAudience, promotion, holiday, language, productUrl }) {
+function createSuggestionSet({
+  tabType,
+  topic,
+  tone,
+  postLength,
+  targetAudience,
+  promotion,
+  offerText,
+  holiday,
+  language,
+  productUrl,
+  productContext = null,
+}) {
   const baseTopic = cleanText(topic) || "Shopify growth";
+  const productName = cleanText(productContext?.title) || baseTopic;
+  const promotionOffer = formatPromotionOffer(promotion, offerText);
   const words = getWordTarget(postLength);
-  const labels = [
-    "Beginner Guide",
-    "Practical Playbook",
-    "Expert Breakdown",
-    "Conversion Blueprint",
-    "Action Plan",
-    "Seasonal Strategy",
-  ];
+  const labels =
+    tabType === TAB_KEYS.BUSINESS
+      ? [
+          `How ${productName} Helps Shopify Stores Grow`,
+          `Why Merchants Choose ${productName}`,
+          `${productName} Use Cases for Better Store Content`,
+          `A Practical Guide to ${productName}`,
+          `How to Improve SEO Workflow with ${productName}`,
+          `${productName} Benefits for Busy Store Owners`,
+        ]
+      : [
+          `${productName} Campaign Guide`,
+          `${productName} Promotion Playbook`,
+          `${productName} Conversion Ideas`,
+          `${productName} Seasonal Strategy`,
+          `${productName} Customer Engagement Plan`,
+          `${productName} Sales Growth Guide`,
+        ];
 
-  return labels.map((suffix, index) => {
-    const title = `${baseTopic} ${suffix}`;
+  return labels.map((label, index) => {
+    const title = label;
     const summary = `${tone} ${words} words blog for ${targetAudience.toLowerCase()} about ${baseTopic.toLowerCase()}${
-      promotion && promotion !== "No promotion" ? ` with ${promotion.toLowerCase()}` : ""
+      promotionOffer && promotionOffer !== "No promotion" ? ` with ${promotionOffer.toLowerCase()}` : ""
     }${holiday && holiday !== "Choose a holiday to promote" ? ` for ${holiday}` : ""}.`;
 
     return {
@@ -530,16 +690,19 @@ function createSuggestionSet({ tabType, topic, tone, postLength, targetAudience,
         tone,
         audience: targetAudience,
         promotion,
+        offerText,
         holiday,
         tabType,
         language,
         postLength,
         productUrl,
+        productContext,
       }),
       tone,
       postLength,
       targetAudience,
       promotion,
+      offerText,
       holiday,
       topic: baseTopic,
       productUrl: normalizeProductUrl(productUrl),
@@ -614,15 +777,21 @@ async function generateBlogSuggestionsWithAI({
   postLength,
   targetAudience,
   promotion,
+  offerText,
   holiday,
   language,
   productUrl,
+  productContext = null,
   aiProvider = "auto",
   openaiApiKey,
   anthropicApiKey,
   count = 6,
 }) {
   const baseTopic = cleanText(topic) || "Shopify growth";
+  const productName = cleanText(productContext?.title);
+  const productDescription = cleanText(productContext?.description);
+  const productType = cleanText(productContext?.productType);
+  const vendor = cleanText(productContext?.vendor);
   const { min, max } = getWordRange(postLength);
   const safeCount = Math.max(1, Math.min(count || 6, 6));
   const prompt = `
@@ -630,13 +799,21 @@ Generate ${safeCount} unique Shopify blog suggestions.
 
 Context:
 - Topic: ${baseTopic}
+- Product/app name: ${productName || baseTopic}
+- Product/app type: ${productType || "Not provided"}
+- Product/app vendor: ${vendor || "Not provided"}
+- Product/app description: ${productDescription || "Not provided"}
+- Product/app URL: ${productUrl || "Not provided"}
 - Tone: ${tone}
 - Audience: ${targetAudience}
 - Language: ${language}
 - Length target per blog: ${min}-${max} words
 - Tab type: ${tabType}
 - Promotion: ${promotion || "None"}
+- Offer detail: ${offerText || "None"}
 - Holiday: ${holiday || "None"}
+- If an offer detail is provided, write it naturally in the title, summary, introduction, and CTA where relevant.
+- For holiday or promotion posts, make the blog description specific to the selected promotion and typed offer instead of using generic discount language.
 
 Requirements:
 - Return valid JSON only in this format:
@@ -652,6 +829,8 @@ Requirements:
 - bodyHtml must include semantic HTML with headings, paragraphs, and at least one list.
 - Keep content natural, specific, and useful (not repetitive filler).
 - Ensure each suggestion is clearly different from the others.
+- Do not replace the product/app name with unrelated examples such as CartLift, BOGO, or generic store growth unless those exact values are provided.
+- Titles, summaries, and bodyHtml must reference "${productName || baseTopic}" directly when a product/app name is available.
 `;
 
   const providerOrder =
@@ -696,11 +875,13 @@ Requirements:
       tone,
       audience: targetAudience,
       promotion,
+      offerText,
       holiday,
       tabType,
       language,
       postLength,
       productUrl,
+      productContext,
     });
     return {
       id: `${Date.now()}-${index}`,
@@ -712,6 +893,7 @@ Requirements:
       postLength,
       targetAudience,
       promotion,
+      offerText,
       holiday,
       topic: baseTopic,
       productUrl: normalizeProductUrl(productUrl),
@@ -758,6 +940,7 @@ async function upsertBlogGeneratedRecord({
   tabType,
   topic,
   promotion,
+  offerText,
   holiday,
   productUrl,
 }) {
@@ -783,6 +966,7 @@ async function upsertBlogGeneratedRecord({
       tabType: tabType || null,
       topic: topic || null,
       promotion: promotion || null,
+      offerText: offerText || null,
       holiday: holiday || null,
       productUrl: productUrl || null,
     },
@@ -799,6 +983,7 @@ async function upsertBlogGeneratedRecord({
       tabType: tabType || null,
       topic: topic || null,
       promotion: promotion || null,
+      offerText: offerText || null,
       holiday: holiday || null,
       productUrl: productUrl || null,
     },
@@ -912,8 +1097,12 @@ export const action = async ({ request }) => {
     const tone = normalizeToneValue(formData.get("tone"), defaultTone);
     const targetAudience = cleanText(formData.get("targetAudience")) || "Everyone";
     const promotion = cleanText(formData.get("promotion")) || "No promotion";
+    const offerText = cleanText(formData.get("offerText"));
     const holiday = cleanText(formData.get("holiday")) || "Choose a holiday to promote";
     const productUrl = normalizeProductUrl(formData.get("productUrl"));
+    const productContext = await resolveProductContext(admin, productUrl);
+    const promotionOffer = formatPromotionOffer(promotion, offerText);
+    const businessTopic = cleanText(productContext.title) || "Business growth ideas";
 
     if (tabType === TAB_KEYS.CUSTOM && !topic) {
       return { ok: false, intent, error: "Post topic is required for custom post." };
@@ -924,8 +1113,8 @@ export const action = async ({ request }) => {
       (tabType === TAB_KEYS.HOLIDAY
         ? `${holiday} campaign ideas`
         : tabType === TAB_KEYS.PROMOTION
-          ? `${promotion} promotion blog ideas`
-          : "Business growth ideas");
+          ? `${promotionOffer || promotion} promotion blog ideas`
+          : businessTopic);
 
     let suggestions = [];
     try {
@@ -936,9 +1125,11 @@ export const action = async ({ request }) => {
         postLength,
         targetAudience,
         promotion,
+        offerText,
         holiday,
         language,
         productUrl,
+        productContext,
         aiProvider: cleanText(shopRecord?.defaultAiProvider) || "auto",
         openaiApiKey: cleanText(shopRecord?.openaiApiKey) || process.env.OPENAI_API_KEY,
         anthropicApiKey: cleanText(shopRecord?.anthropicApiKey) || process.env.ANTHROPIC_API_KEY,
@@ -952,9 +1143,11 @@ export const action = async ({ request }) => {
         postLength,
         targetAudience,
         promotion,
+        offerText,
         holiday,
         language,
         productUrl,
+        productContext,
       });
     }
 
@@ -1024,6 +1217,7 @@ export const action = async ({ request }) => {
       tabType: cleanText(formData.get("tabType")) || TAB_KEYS.BUSINESS,
       topic: cleanText(formData.get("topic")),
       promotion: cleanText(formData.get("promotion")),
+      offerText: cleanText(formData.get("offerText")),
       holiday: cleanText(formData.get("holiday")),
       productUrl: cleanText(formData.get("productUrl")),
     });
@@ -1073,8 +1267,12 @@ export const action = async ({ request }) => {
     const postLength = normalizePostLength(formData.get("postLength"), "medium");
     const targetAudience = cleanText(formData.get("targetAudience")) || "Everyone";
     const promotion = cleanText(formData.get("promotion")) || "No promotion";
+    const offerText = cleanText(formData.get("offerText"));
     const holiday = cleanText(formData.get("holiday")) || "Choose a holiday to promote";
     const productUrl = normalizeProductUrl(formData.get("productUrl"));
+    const productContext = await resolveProductContext(admin, productUrl);
+    const promotionOffer = formatPromotionOffer(promotion, offerText);
+    const businessTopic = cleanText(productContext.title) || seed || "Shopify growth";
     if (!articleId) return { ok: false, intent, error: "Missing article id." };
 
     let title = seed || "Updated Shopify article";
@@ -1084,8 +1282,8 @@ export const action = async ({ request }) => {
       (tabType === TAB_KEYS.HOLIDAY
         ? `${holiday} campaign ideas`
         : tabType === TAB_KEYS.PROMOTION
-          ? `${promotion} promotion blog ideas`
-          : seed || "Shopify growth");
+          ? `${promotionOffer || promotion} promotion blog ideas`
+          : businessTopic);
     try {
       const [generated] = await generateBlogSuggestionsWithAI({
         tabType,
@@ -1094,9 +1292,11 @@ export const action = async ({ request }) => {
         postLength,
         targetAudience,
         promotion,
+        offerText,
         holiday,
         language,
         productUrl,
+        productContext,
         aiProvider: cleanText(shopRecord?.defaultAiProvider) || "auto",
         openaiApiKey: cleanText(shopRecord?.openaiApiKey) || process.env.OPENAI_API_KEY,
         anthropicApiKey: cleanText(shopRecord?.anthropicApiKey) || process.env.ANTHROPIC_API_KEY,
@@ -1116,11 +1316,13 @@ export const action = async ({ request }) => {
         tone,
         audience: targetAudience,
         promotion,
+        offerText,
         holiday,
         tabType,
         language,
         postLength,
         productUrl,
+        productContext,
       });
     }
     return {
@@ -1199,6 +1401,7 @@ export const action = async ({ request }) => {
       tabType: cleanText(formData.get("tabType")) || "",
       topic: cleanText(formData.get("topic")),
       promotion: cleanText(formData.get("promotion")),
+      offerText: cleanText(formData.get("offerText")),
       holiday: cleanText(formData.get("holiday")),
       productUrl: cleanText(formData.get("productUrl")),
     });
@@ -1257,6 +1460,7 @@ export default function BlogPage() {
   const [tone, setTone] = useState(() => normalizeToneValue(settingsTone, "Casual"));
   const [targetAudience, setTargetAudience] = useState("Everyone");
   const [promotion, setPromotion] = useState("Buy One Get One Free (BOGO)");
+  const [offerText, setOfferText] = useState("40% off");
   const [holiday, setHoliday] = useState("Choose a holiday to promote");
   const [productUrl, setProductUrl] = useState("");
 
@@ -1295,7 +1499,6 @@ export default function BlogPage() {
     () => blogs.find((blog) => blog.id === selectedBlogId)?.title || "",
     [blogs, selectedBlogId],
   );
-
   useEffect(() => {
     if (!selectedBlogId && blogs?.[0]?.id) {
       setSelectedBlogId(blogs[0].id);
@@ -1371,6 +1574,7 @@ export default function BlogPage() {
     payload.append("tone", tone);
     payload.append("targetAudience", targetAudience);
     payload.append("promotion", promotion);
+    payload.append("offerText", offerText);
     payload.append("holiday", holiday);
     payload.append("productUrl", productUrl);
     fetcher.submit(payload, { method: "post" });
@@ -1390,6 +1594,7 @@ export default function BlogPage() {
       postLength: suggestion.postLength,
       targetAudience: suggestion.targetAudience,
       promotion: suggestion.promotion,
+      offerText: suggestion.offerText,
       holiday: suggestion.holiday,
       productUrl,
     });
@@ -1410,6 +1615,7 @@ export default function BlogPage() {
     payload.append("postLength", suggestion.postLength || postLength);
     payload.append("targetAudience", suggestion.targetAudience || targetAudience);
     payload.append("promotion", suggestion.promotion || promotion);
+    payload.append("offerText", suggestion.offerText || offerText);
     payload.append("holiday", suggestion.holiday || holiday);
     payload.append("productUrl", suggestion.productUrl || productUrl);
     fetcher.submit(payload, { method: "post" });
@@ -1441,6 +1647,7 @@ export default function BlogPage() {
     payload.append("postLength", postLength);
     payload.append("targetAudience", targetAudience);
     payload.append("promotion", promotion);
+    payload.append("offerText", offerText);
     payload.append("holiday", holiday);
     payload.append("productUrl", productUrl);
     payload.append("currentBody", regenerateBody || "");
@@ -1461,6 +1668,7 @@ export default function BlogPage() {
     payload.append("postLength", postLength);
     payload.append("targetAudience", targetAudience);
     payload.append("promotion", promotion);
+    payload.append("offerText", offerText);
     payload.append("holiday", holiday);
     payload.append("productUrl", productUrl);
     payload.append("consumeCreditOnSave", "1");
@@ -1581,6 +1789,7 @@ export default function BlogPage() {
                     <div className="blog-generator-fields">
                       <Select label="Holiday" options={holidayOptions} value={holiday} onChange={setHoliday} />
                       <Select label="Promotion" options={promotionOptions} value={promotion} onChange={setPromotion} />
+                      <TextField label="Type your offer here" value={offerText} onChange={setOfferText} autoComplete="off" placeholder="40% off" />
                       <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                       <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                       <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
@@ -1591,6 +1800,7 @@ export default function BlogPage() {
                   {activeTabKey === TAB_KEYS.PROMOTION ? (
                     <div className="blog-generator-fields">
                       <Select label="Promotion" options={promotionOptions} value={promotion} onChange={setPromotion} />
+                      <TextField label="Type your offer here" value={offerText} onChange={setOfferText} autoComplete="off" placeholder="40% off" />
                       <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                       <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                       <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
@@ -1610,6 +1820,7 @@ export default function BlogPage() {
 
                   {activeTabKey === TAB_KEYS.BUSINESS ? (
                     <div className="blog-generator-fields">
+                      <TextField label="Business / app name" value={topic} onChange={setTopic} autoComplete="off" placeholder="Content AI - SEO Generator" />
                       <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                       <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                       <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
@@ -1756,6 +1967,7 @@ export default function BlogPage() {
                     payload.append("postLength", editingBlog.postLength || postLength);
                     payload.append("targetAudience", editingBlog.targetAudience || targetAudience);
                     payload.append("promotion", editingBlog.promotion || promotion);
+                    payload.append("offerText", editingBlog.offerText || offerText);
                     payload.append("holiday", editingBlog.holiday || holiday);
                     payload.append("productUrl", editingBlog.productUrl || productUrl);
                   } else {
@@ -1805,6 +2017,7 @@ export default function BlogPage() {
               <div className="blog-generator-fields">
                 <Select label="Holiday" options={holidayOptions} value={holiday} onChange={setHoliday} />
                 <Select label="Promotion" options={promotionOptions} value={promotion} onChange={setPromotion} />
+                <TextField label="Type your offer here" value={offerText} onChange={setOfferText} autoComplete="off" placeholder="40% off" />
                 <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                 <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                 <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
@@ -1815,6 +2028,7 @@ export default function BlogPage() {
             {activeTabKey === TAB_KEYS.PROMOTION ? (
               <div className="blog-generator-fields">
                 <Select label="Promotion" options={promotionOptions} value={promotion} onChange={setPromotion} />
+                <TextField label="Type your offer here" value={offerText} onChange={setOfferText} autoComplete="off" placeholder="40% off" />
                 <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                 <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                 <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
@@ -1835,6 +2049,7 @@ export default function BlogPage() {
 
             {activeTabKey === TAB_KEYS.BUSINESS ? (
               <div className="blog-generator-fields">
+                <TextField label="Business / app name" value={topic} onChange={setTopic} autoComplete="off" placeholder="Content AI - SEO Generator" />
                 <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                 <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                 <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
