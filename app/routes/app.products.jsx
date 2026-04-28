@@ -1777,8 +1777,9 @@ export default function ProductsPage() {
             <div style={{ fontSize: "24px", fontWeight: 800, color: "#111827", marginBottom: "4px", letterSpacing: "-0.3px" }}>
               Products
             </div>
-            <div style={{ fontSize: "14px", color: "#6b7280", lineHeight: 1.4, fontWeight: 600 }}>
-              Generate AI-powered product descriptions, meta titles, and meta descriptions.
+            <div style={{ fontSize: "12px", color: "#6b7280", lineHeight: 1.4, fontWeight: 600 }}>
+              <Text as="p" variant="bodySm" tone="subdued">- You can select multiple products (up to {MAX_BULK_ITEMS}) for bulk content generation</Text>
+              <Text as="p" variant="bodySm" tone="subdued">- You can choose a single collection to generate content for all its products</Text>
             </div>
           </div>
           <InlineStack gap="200" blockAlign="center">
@@ -1788,20 +1789,6 @@ export default function ProductsPage() {
             </Button>
           </InlineStack>
         </div>
-      </div>
-
-      <div style={{ marginBottom: "16px" }}>
-        <Card>
-          <BlockStack gap="300">
-            <Text as="p" variant="bodyMd" fontWeight="semibold">
-              Choose individual products or an entire collection to generate AI-powered content
-            </Text>
-            <BlockStack gap="100">
-              <Text as="p" variant="bodySm" tone="subdued">- You can select multiple products (up to {MAX_BULK_ITEMS}) for bulk content generation</Text>
-              <Text as="p" variant="bodySm" tone="subdued">- You can choose a single collection to generate content for all its products</Text>
-            </BlockStack>
-          </BlockStack>
-        </Card>
       </div>
 
       <div

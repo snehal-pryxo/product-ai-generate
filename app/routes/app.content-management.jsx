@@ -2853,11 +2853,6 @@ export default function ContentManagementPage() {
                 size="slim"
                 loading={isGenerating}
                 disabled={isGenerating || localCredits < 1}
-                icon={
-                  <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path d="M10 1L12.39 7.26L19 8.27L14.5 12.64L15.78 19.02L10 15.77L4.22 19.02L5.5 12.64L1 8.27L7.61 7.26L10 1Z" />
-                  </svg>
-                }
                 onClick={() => setOpenGeneratePopoverId((prev) => (prev === item.id ? null : item.id))}
                 accessibilityLabel={`${hasGeneratedContent ? "Regenerate" : "Generate"} options`}
               >

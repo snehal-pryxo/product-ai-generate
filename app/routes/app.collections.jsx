@@ -2609,8 +2609,13 @@ export default function CollectionsPage() {
             <div style={{ fontSize: "24px", fontWeight: 800, color: "#111827", marginBottom: "4px", letterSpacing: "-0.3px" }}>
               Collections
             </div>
-            <div style={{ fontSize: "14px", color: "#6b7280", lineHeight: 1.4, fontWeight: 600 }}>
-              Generate AI-powered collection descriptions, meta titles, and meta descriptions.
+            <div style={{ fontSize: "12px", color: "#6b7280", lineHeight: 1.4, fontWeight: 600 }}>
+              <Text as="p" variant="bodySm" tone="subdued">- You can select multiple collections (up to {MAX_BULK_ITEMS}) for bulk content generation</Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                {isCollectionProductsMode
+                  ? "- Generate Description, Meta Title, and Meta Description for products under the selected collection"
+                  : "- Generates Collection Description, Meta Title, and Meta Description directly on each selected collection"}
+              </Text>
             </div>
           </div>
           <InlineStack gap="200" blockAlign="center">
@@ -2620,27 +2625,6 @@ export default function CollectionsPage() {
             </Button>
           </InlineStack>
         </div>
-      </div>
-
-
-      <div style={{ marginBottom: "16px" }}>
-        <Card>
-          <BlockStack gap="300">
-            <Text as="p" variant="bodyMd" fontWeight="semibold">
-              {isCollectionProductsMode
-                ? "Choose a collection, then generate product content inside that collection"
-                : "Choose collections to generate AI-powered collection content"}
-            </Text>
-            <BlockStack gap="100">
-              <Text as="p" variant="bodySm" tone="subdued">- You can select multiple collections (up to {MAX_BULK_ITEMS}) for bulk content generation</Text>
-              <Text as="p" variant="bodySm" tone="subdued">
-                {isCollectionProductsMode
-                  ? "- Generate Description, Meta Title, and Meta Description for products under the selected collection"
-                  : "- Generates Collection Description, Meta Title, and Meta Description directly on each selected collection"}
-              </Text>
-            </BlockStack>
-          </BlockStack>
-        </Card>
       </div>
 
 

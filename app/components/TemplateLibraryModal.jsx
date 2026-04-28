@@ -427,9 +427,7 @@ function PreviewPanel({
                     {length.label}
                   </span>
                 </Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Characters: {currentTemplate.template.length}
-                </Text>
+               
                 <Text as="p" variant="bodySm" tone="subdued">Language: English</Text>
               </BlockStack>
             </Box>
