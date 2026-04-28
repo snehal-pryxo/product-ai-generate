@@ -430,6 +430,7 @@ function includeCampaignDetails(bodyHtml, { promotion, offerText, holiday, tabTy
   const normalizedBody = normalizeBodyHtml(bodyHtml || "");
   const promotionOffer = formatPromotionOffer(promotion, offerText);
   const cleanHoliday = cleanText(holiday);
+  const cleanOfferText = cleanText(offerText);
   const shouldMentionHoliday =
     tabType === TAB_KEYS.HOLIDAY && cleanHoliday && cleanHoliday !== "Choose a holiday to promote";
   const shouldMentionPromotion = promotionOffer && promotionOffer !== "No promotion";
@@ -438,15 +439,28 @@ function includeCampaignDetails(bodyHtml, { promotion, offerText, holiday, tabTy
   const bodyText = stripHtml(normalizedBody).toLowerCase();
   const holidayMissing = shouldMentionHoliday && !bodyText.includes(cleanHoliday.toLowerCase());
   const promotionMissing = shouldMentionPromotion && !bodyText.includes(promotionOffer.toLowerCase());
-  const offerMissing = cleanText(offerText) && !bodyText.includes(cleanText(offerText).toLowerCase());
+  const offerMissing = cleanOfferText && !bodyText.includes(cleanOfferText.toLowerCase());
   if (!holidayMissing && !promotionMissing && !offerMissing) return normalizedBody;
 
-  const details = [
-    shouldMentionHoliday ? `${cleanHoliday} campaign` : "",
-    shouldMentionPromotion ? promotionOffer : "",
-  ].filter(Boolean).join(" with ");
+  const parts = [];
+  if (shouldMentionHoliday && holidayMissing) {
+    parts.push(
+      `<h2>${escapeHtml(cleanHoliday)} Special</h2>`,
+      `<p>This ${escapeHtml(cleanHoliday)} we have something extra to celebrate. Whether you are shopping for yourself or finding the perfect gift, our ${escapeHtml(cleanHoliday)} collection is curated to bring joy to everyone on your list.</p>`,
+    );
+  }
+  if (shouldMentionPromotion && (promotionMissing || offerMissing)) {
+    const offerLine = cleanOfferText
+      ? `Our current offer is <strong>${escapeHtml(cleanOfferText)}</strong> — `
+      : "";
+    parts.push(
+      `<h2>Exclusive Offer${cleanOfferText ? `: ${escapeHtml(cleanOfferText)}` : ""}</h2>`,
+      `<p>${offerLine}take advantage of our <strong>${escapeHtml(promotionOffer)}</strong> promotion. This is a limited-time deal, so act now before it expires.</p>`,
+    );
+  }
+  if (!parts.length) return normalizedBody;
 
-  return `${normalizedBody}<h2>Campaign offer</h2><p>This post highlights ${escapeHtml(details)} and gives shoppers a clear reason to act while the offer is available.</p>`;
+  return `${normalizedBody}${parts.join("")}`;
 }
 
 function parseAiJson(rawText) {
@@ -473,111 +487,120 @@ function buildBlogHtml({
   offerText,
   holiday,
   tabType,
-  language,
   postLength = "medium",
   productUrl = "",
   productContext = null,
 }) {
-  const primaryTopic = cleanText(topic) || cleanText(title) || "Shopify growth";
+  const primaryTopic = cleanText(topic) || cleanText(title) || "our store";
   const productName = cleanText(productContext?.title) || primaryTopic;
   const productDescription = cleanText(productContext?.description);
   const safeTitle = escapeHtml(cleanText(title) || primaryTopic);
-  const safeTopic = escapeHtml(primaryTopic);
   const safeProductName = escapeHtml(productName);
   const safeProductDescription = escapeHtml(productDescription);
   const safeTone = escapeHtml(cleanText(tone) || "Casual");
   const safeAudience = escapeHtml(cleanText(audience) || "Everyone");
-  const safeLanguage = escapeHtml(cleanText(language) || "English");
-  const safePromotion = escapeHtml(cleanText(promotion));
   const safeOfferText = escapeHtml(cleanText(offerText));
   const safePromotionOffer = escapeHtml(formatPromotionOffer(promotion, offerText));
   const safeHoliday = escapeHtml(cleanText(holiday));
+  const hasHolidaySection =
+    tabType === TAB_KEYS.HOLIDAY && safeHoliday && safeHoliday !== "Choose a holiday to promote";
+  const hasPromotionSection = safePromotionOffer && safePromotionOffer !== "No promotion";
   const wordRange = getWordRange(postLength);
-  const sections = [
-    `<h1>${safeTitle}</h1>`,
-    `<p>This ${safeTone.toLowerCase()} article is written for ${safeAudience.toLowerCase()} readers in ${safeLanguage}. It focuses on ${safeProductName} and explains how it helps shoppers, merchants, or teams get a clearer result from ${safeTopic.toLowerCase()}.</p>`,
-    ...(safeProductDescription ? [`<p>${safeProductDescription}</p>`] : []),
-    `<h2>What ${safeProductName} means for your store</h2>`,
-    `<p>${safeProductName} can improve discoverability, trust, and conversion when its value is explained with clear use cases, specific benefits, and customer-first messaging. The goal is to make decision-making easy while keeping the brand voice consistent.</p>`,
-    `<h2>Step-by-step strategy for using ${safeProductName}</h2>`,
-    `<ol>
-      <li>Start with the main problem ${safeProductName} solves for the customer.</li>
-      <li>Explain the most useful features or outcomes in plain language.</li>
-      <li>Show where ${safeProductName} fits in the buying or store-management workflow.</li>
-      <li>Finish with a direct call to action that sends readers to the product or app page.</li>
-    </ol>`,
-    `<h3>Common mistakes to avoid</h3>`,
-    `<ul>
-      <li>Writing generic content that does not mention ${safeProductName} by name.</li>
-      <li>Overusing keywords and reducing readability.</li>
-      <li>Skipping proof points such as outcomes, specifics, or examples.</li>
-      <li>Ending without a clear next action.</li>
-    </ul>`,
-  ];
 
-  if (tabType === TAB_KEYS.HOLIDAY && safeHoliday && safeHoliday !== "Choose a holiday to promote") {
+  const intro = productDescription
+    ? `<p>Welcome to ${safeProductName}. ${safeProductDescription} Whether you are shopping for the first time or a returning customer, this guide is written specifically for ${safeAudience.toLowerCase()} who want to get the most out of what ${safeProductName} has to offer.</p>`
+    : `<p>Welcome to ${safeProductName}. We are dedicated to bringing ${safeAudience.toLowerCase()} customers the best products and shopping experience. Read on to discover what makes ${safeProductName} a trusted choice and why now is the perfect time to explore our collection.</p>`;
+
+  const sections = [`<h1>${safeTitle}</h1>`, intro];
+
+  if (tabType === TAB_KEYS.HOLIDAY && hasHolidaySection) {
     sections.push(
-      `<h2>${safeHoliday} campaign angle</h2>`,
-      `<p>For ${safeHoliday}, lead with urgency and relevance. Highlight what is limited, who the offer is for, and why acting now benefits the customer. Keep the message timely, specific, and easy to redeem.</p>`,
+      `<h2>Celebrate ${safeHoliday} with ${safeProductName}</h2>`,
+      `<p>${safeHoliday} is the perfect occasion to treat yourself or someone special. At ${safeProductName}, we have curated a ${safeTone.toLowerCase()} selection of products designed with ${safeAudience.toLowerCase()} in mind — so you can celebrate in style without the stress.</p>`,
+      `<p>From thoughtful gifts to everyday essentials, every item in our ${safeHoliday} collection has been chosen to bring joy and value to your celebration. Shop early to make the most of our best picks before they sell out.</p>`,
     );
-  }
-
-  if (safePromotionOffer && safePromotionOffer !== "No promotion") {
+    if (hasPromotionSection) {
+      sections.push(
+        `<h2>${safeHoliday} Exclusive Offer${safeOfferText ? `: ${safeOfferText}` : ""}</h2>`,
+        `<p>To make this ${safeHoliday} even more special, ${safeProductName} is offering an exclusive deal for our valued customers. ${safePromotionOffer !== "No promotion" ? `Take advantage of our <strong>${safePromotionOffer}</strong> — a limited-time offer just for this season.` : ""}</p>`,
+        ...(safeOfferText
+          ? [`<p><strong>Your offer: ${safeOfferText}</strong> — Don't miss out. This deal is available for a limited time only during the ${safeHoliday} season.</p>`]
+          : []),
+      );
+    }
+  } else if (tabType === TAB_KEYS.PROMOTION && hasPromotionSection) {
     sections.push(
-      `<h2>Promotion messaging framework</h2>`,
-      `<p>Position the offer as a clear value exchange: what the customer gets, how long it lasts, and what action unlocks the benefit. Repeat the core offer naturally in headings and supporting copy.</p>`,
-      `<p><strong>Promotion in focus:</strong> ${safePromotionOffer}</p>`,
-      ...(safeOfferText ? [`<p><strong>Offer detail:</strong> ${safeOfferText}</p>`] : []),
+      `<h2>Introducing Our Latest Offer from ${safeProductName}</h2>`,
+      `<p>We love rewarding our ${safeAudience.toLowerCase()} customers. That is why ${safeProductName} is proud to announce a special promotion designed to give you more value with every purchase.</p>`,
+      `<h2>Exclusive Deal${safeOfferText ? `: ${safeOfferText}` : ""}</h2>`,
+      `<p>Here is what you get: <strong>${safePromotionOffer}</strong>. ${safeOfferText ? `This means <strong>${safeOfferText}</strong> on select products — ` : ""}a ${safeTone.toLowerCase()} way to shop smarter and save more at ${safeProductName}.</p>`,
+      ...(safeOfferText
+        ? [`<p>This offer is tailored for ${safeAudience.toLowerCase()} shoppers who expect quality and value. Act now — this promotion will not last forever.</p>`]
+        : []),
+    );
+  } else if (tabType === TAB_KEYS.CUSTOM) {
+    sections.push(
+      `<h2>${safeTitle} — What You Need to Know</h2>`,
+      `<p>At ${safeProductName}, we believe in giving ${safeAudience.toLowerCase()} customers the full picture. This post explores ${escapeHtml(primaryTopic)} in depth so you can make informed decisions about the products and experiences we offer.</p>`,
+    );
+  } else {
+    sections.push(
+      `<h2>Why ${safeProductName} Is the Right Choice for ${safeAudience}</h2>`,
+      `<p>At ${safeProductName}, we understand what ${safeAudience.toLowerCase()} customers are looking for: quality, reliability, and value. Our products are crafted with care and selected to meet the real needs of our community — not just what looks good on a shelf.</p>`,
+      `<p>Every item we carry has gone through a careful selection process to ensure it delivers on its promise. When you shop at ${safeProductName}, you are not just buying a product — you are investing in a better experience.</p>`,
     );
   }
 
   sections.push(
-    `<h2>Conclusion</h2>`,
-    `<p>Strong ${safeTopic.toLowerCase()} content should stay specific to ${safeProductName}, explain the value clearly, and guide readers toward the next action. Keep refining structure, proof points, and calls to action to steadily improve results.</p>`,
+    `<h2>Top Benefits of Shopping at ${safeProductName}</h2>`,
+    `<ul>
+      <li>Carefully selected products designed for ${safeAudience.toLowerCase()} customers</li>
+      <li>A ${safeTone.toLowerCase()} shopping experience from browsing to checkout</li>
+      <li>Transparent descriptions so you always know what you are getting</li>
+      ${hasPromotionSection ? `<li>Exclusive promotions like <strong>${safePromotionOffer}</strong> to give you more value</li>` : "<li>Regular offers and deals to reward loyal customers</li>"}
+      ${hasHolidaySection ? `<li>Special ${safeHoliday} collections curated just for the season</li>` : "<li>Seasonal collections to match every occasion</li>"}
+    </ul>`,
+    `<h3>What Our Customers Love Most</h3>`,
+    `<p>Our ${safeAudience.toLowerCase()} shoppers consistently tell us they come back to ${safeProductName} because of the attention to detail, honest product descriptions, and the feeling that every purchase is worth it. That trust is what drives everything we do.</p>`,
+  );
+
+  sections.push(
+    `<h2>How to Get the Most from ${safeProductName}</h2>`,
+    `<ol>
+      <li>Browse our full collection to discover products matched to your needs.</li>
+      <li>Check product descriptions carefully — we include everything you need to decide.</li>
+      <li>Take advantage of current promotions to maximize your value.</li>
+      <li>Complete your purchase and enjoy fast, reliable delivery.</li>
+    </ol>`,
+  );
+
+  if (hasHolidaySection) {
+    sections.push(
+      `<h2>Make This ${safeHoliday} Unforgettable</h2>`,
+      `<p>The best ${safeHoliday} moments start with the right products. ${safeProductName} has everything you need to make this season special for ${safeAudience.toLowerCase()} — whether you are shopping for yourself or finding the perfect gift.</p>`,
+      `<p>Do not wait until the last minute. Our ${safeHoliday} deals are moving fast, and once they are gone, they are gone. Visit ${safeProductName} today and give yourself or your loved ones something truly worth celebrating.</p>`,
+    );
+  }
+
+  sections.push(
+    `<h2>Ready to Shop?</h2>`,
+    `<p>${safeProductName} is here for ${safeAudience.toLowerCase()} shoppers who want quality, value, and a ${safeTone.toLowerCase()} shopping experience. ${hasPromotionSection ? `Do not miss our <strong>${safePromotionOffer}</strong>${safeOfferText ? ` — ${safeOfferText}` : ""} while it lasts.` : "Explore our latest collection today."} Your next favourite product is just a click away.</p>`,
   );
 
   const expansionPool = [
-    `<p>When writing for ${safeAudience.toLowerCase()} readers, prioritize clarity over complexity. Every paragraph should answer a real question about ${safeProductName} and move the reader closer to action.</p>`,
-    `<p>Add practical examples tied to ${safeProductName} so readers can immediately understand the use case. Concrete examples outperform abstract advice in both engagement and conversion.</p>`,
-    `<p>Use internal consistency across headings, body copy, and CTA language. A consistent message improves trust and makes the journey from discovery to trying ${safeProductName} more predictable.</p>`,
-    `<p>Review your draft for readability: short sentences, active voice, and clear transitions. This makes long-form content easier to scan on mobile devices.</p>`,
-    `<p>Before publishing, validate that your primary keyword appears naturally in the title, opening paragraph, and at least one subheading without keyword stuffing.</p>`,
-    `<p>After publishing, monitor performance and iterate. Improving one section at a time often yields better outcomes than rewriting everything at once.</p>`,
+    `<p>At ${safeProductName}, every product is selected with ${safeAudience.toLowerCase()} customers in mind. We take the guesswork out of shopping by providing honest descriptions, clear images, and helpful guidance so you always feel confident in what you choose.</p>`,
+    `<p>Quality matters to us. That is why we regularly review our product range to ensure it meets the standards that ${safeAudience.toLowerCase()} shoppers expect. ${safeProductName} is committed to delivering value — not just a transaction.</p>`,
+    `<p>Shopping at ${safeProductName} means joining a community of ${safeAudience.toLowerCase()} customers who value great products and honest service. We are here to help you find exactly what you need, every time you visit.</p>`,
+    `<p>Our team at ${safeProductName} is passionate about the products we offer. We stand behind every item in our store and are always happy to help you find the right fit for your needs and budget.</p>`,
+    `<p>Whether you are a first-time visitor or a loyal customer, ${safeProductName} always has something new to discover. We refresh our collection regularly so there is always a reason to come back.</p>`,
+    `<p>We believe ${safeAudience.toLowerCase()} customers deserve a straightforward, enjoyable shopping experience. ${safeProductName} is built around that belief — from the way we present our products to the care we put into every order.</p>`,
   ];
 
   const compactExpansionPool = [
-    `<p>Keep each section focused on one actionable takeaway that readers can apply today.</p>`,
-    `<p>Use customer-first language and remove vague claims that do not help a buying decision.</p>`,
-    `<p>Close each key section with a small next step to keep momentum and improve engagement.</p>`,
+    `<p>${safeProductName} is a store built for ${safeAudience.toLowerCase()} customers who value quality and trust.</p>`,
+    `<p>Every product at ${safeProductName} is chosen to meet the real needs of ${safeAudience.toLowerCase()} shoppers.</p>`,
+    `<p>Shop ${safeProductName} today and experience the difference that thoughtful curation makes.</p>`,
   ];
-
-  function buildPaddingParagraph(targetWords) {
-    const safeTarget = Math.max(8, Number(targetWords) || 0);
-    const baseTokens = [
-      "Use",
-      "clear",
-      "examples",
-      "and",
-      "practical",
-      "steps",
-      "to",
-      "make",
-      cleanText(topic) || "content",
-      "easy",
-      "to",
-      "apply",
-      "for",
-      cleanText(audience) || "readers",
-      "today",
-    ];
-    const words = [];
-    let idx = 0;
-    while (words.length < safeTarget) {
-      words.push(baseTokens[idx % baseTokens.length]);
-      idx += 1;
-    }
-    return `<p>${escapeHtml(words.join(" "))}.</p>`;
-  }
 
   let html = sections.join("");
   let totalWords = countWords(html);
@@ -607,17 +630,6 @@ function buildBlogHtml({
       continue;
     }
 
-    const remainingToMin = wordRange.min - totalWords;
-    const remainingToMax = wordRange.max - totalWords;
-    const fillWords = Math.min(remainingToMin, remainingToMax);
-    if (fillWords >= 8) {
-      const filler = buildPaddingParagraph(fillWords);
-      const fillerWords = countWords(filler);
-      if (totalWords + fillerWords <= wordRange.max) {
-        html = `${html}${filler}`;
-        totalWords += fillerWords;
-      }
-    }
     break;
   }
 
@@ -826,43 +838,71 @@ async function generateBlogSuggestionsWithAI({
   const vendor = cleanText(productContext?.vendor);
   const { min, max } = getWordRange(postLength);
   const safeCount = Math.max(1, Math.min(count || 6, 6));
+  const isHolidayTab = tabType === TAB_KEYS.HOLIDAY;
+  const isPromotionTab = tabType === TAB_KEYS.PROMOTION;
+  const hasHoliday = isHolidayTab && holiday && holiday !== "None" && holiday !== "Choose a holiday to promote";
+  const hasPromotion = (isHolidayTab || isPromotionTab) && promotion && promotion !== "None" && promotion !== "No promotion";
+  const hasOffer = hasPromotion && offerText;
+
+  const tabInstruction =
+    tabType === TAB_KEYS.HOLIDAY
+      ? `This is a HOLIDAY blog post. The entire blog must revolve around the ${holiday} celebration. Reference "${holiday}" in the H1 title, in the opening paragraph, in at least one H2 section heading, in the body paragraphs, and in the call-to-action.${hasPromotion ? ` Also prominently feature the "${promotion}"${hasOffer ? ` (offer: ${offerText})` : ""} in a dedicated "Special Offer" H2 section and in the CTA.` : ""}`
+      : tabType === TAB_KEYS.PROMOTION
+        ? `This is a PROMOTION blog post. The blog must prominently feature the "${promotion}"${hasOffer ? ` (offer: ${offerText})` : ""} promotion. Mention the offer in the H1 title or subtitle, in the opening paragraph, in a dedicated "Exclusive Offer" H2 section, and in the call-to-action.`
+        : tabType === TAB_KEYS.CUSTOM
+          ? `This is a CUSTOM blog post on the topic "${baseTopic}". The blog must explore this topic in depth as it relates to the store "${productName || baseTopic}" and its products/services.`
+          : `This is a BUSINESS blog post for the store "${productName || baseTopic}". The blog must describe the store, its products, and the value it provides to ${targetAudience.toLowerCase()} customers.`;
+
   const prompt = `
-Generate ${safeCount} unique Shopify blog suggestions.
+You are writing ${safeCount} unique, complete, ready-to-publish Shopify blog posts for a store called "${productName || baseTopic}".
 
-Context:
-- Topic: ${baseTopic}
-- Product/app name: ${productName || baseTopic}
-- Product/app type: ${productType || "Not provided"}
-- Product/app vendor: ${vendor || "Not provided"}
-- Product/app description: ${productDescription || "Not provided"}
-- Product/app URL: ${productUrl || "Not provided"}
-- Tone: ${tone}
-- Audience: ${targetAudience}
-- Language: ${language}
-- Length target per blog: ${min}-${max} words
+Store & Product Details:
+- Store/Product name: ${productName || baseTopic}
+- Product type: ${productType || "Not specified"}
+- Brand/Vendor: ${vendor || "Not specified"}
+- Product description: ${productDescription || "Not provided — write based on the store name and context"}
+- Product URL: ${productUrl || "Not provided"}
+
+Blog Settings:
 - Tab type: ${tabType}
-- Promotion: ${promotion || "None"}
-- Offer detail: ${offerText || "None"}
-- Holiday: ${holiday || "None"}
-- If an offer detail is provided, write it naturally in the title, summary, introduction, and CTA where relevant.
-- For holiday or promotion posts, make the blog description specific to the selected promotion and typed offer instead of using generic discount language.
+${hasHoliday ? `- Holiday: ${holiday}` : ""}
+${hasPromotion ? `- Promotion type: ${promotion}` : ""}
+${hasOffer ? `- Offer detail: ${offerText}` : ""}
+- Writing tone: ${tone}
+- Target audience: ${targetAudience}
+- Language: ${language}
+- Word count per blog: ${min}–${max} words
 
-Requirements:
-- Return valid JSON only in this format:
+Tab-specific instruction:
+${tabInstruction}
+
+Content requirements for EVERY blog:
+1. Write the blog AS IF you are the store "${productName || baseTopic}" speaking directly to ${targetAudience.toLowerCase()} customers.
+2. Describe the store's products and their benefits concretely and specifically.
+3. Use a ${tone.toLowerCase()} tone that fits ${targetAudience.toLowerCase()} readers throughout ALL sections.
+4. Structure each blog with ALL of the following HTML elements:
+   - <h1>: One catchy main title that includes the store/product name${hasHoliday ? ` and "${holiday}"` : ""}${hasOffer ? ` and the offer "${offerText}"` : ""}
+   - <p>: Opening paragraph — hook the reader, introduce the store/product and the blog theme
+   - <h2>: 2–3 section headings (e.g., "Why [Product] Is Perfect for [Audience]", "Top Benefits", "How It Works")
+   - <p>: 2–3 body paragraphs under each H2 — specific, descriptive, and tailored to ${targetAudience.toLowerCase()}
+   - <h3>: At least one sub-section heading within a major section
+   - <ul> or <ol>: A list of benefits, features, steps, or tips related to the product
+   ${hasHoliday ? `- <h2>: A "${holiday} Special" section that ties the holiday to the product offer` : ""}
+   ${hasPromotion && hasOffer ? `- <h2>: An "Exclusive Offer" or "Limited-Time Deal" section featuring the "${offerText}" promotion` : ""}
+   - <h2>: A "Conclusion" or "Ready to Shop?" section with a clear call-to-action
+5. Do NOT use generic filler like "In today's fast-paced world" — be specific to "${productName || baseTopic}".
+6. Each suggestion must be clearly different from the others in angle, structure, or focus.
+
+Return ONLY valid JSON in this exact format (no markdown, no extra text):
 {
   "suggestions": [
     {
-      "title": "...",
-      "summary": "...",
-      "bodyHtml": "<h1>...</h1><p>...</p>..."
+      "title": "Blog title here",
+      "summary": "1–2 sentence description mentioning the product name and the blog theme.",
+      "bodyHtml": "<h1>...</h1><p>...</p><h2>...</h2><p>...</p>..."
     }
   ]
 }
-- bodyHtml must include semantic HTML with headings, paragraphs, and at least one list.
-- Keep content natural, specific, and useful (not repetitive filler).
-- Ensure each suggestion is clearly different from the others.
-- Do not replace the product/app name with unrelated examples such as CartLift, BOGO, or generic store growth unless those exact values are provided.
-- Titles, summaries, and bodyHtml must reference "${productName || baseTopic}" directly when a product/app name is available.
 `;
 
   const providerOrder =
