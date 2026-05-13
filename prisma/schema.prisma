@@ -51,6 +51,7 @@ model shop {
   primaryDomain           String?   @db.VarChar(255)
   openaiApiKey            String?   @db.VarChar(255)
   anthropicApiKey         String?   @db.VarChar(255)
+  geminiApiKey            String?   @db.VarChar(255)
   defaultAiProvider       String?   @default("auto") @db.VarChar(32)
   defaultAiModel          String?   @default("gpt-4o-mini") @db.VarChar(100)
   credits                 Int       @default(100)
@@ -119,6 +120,10 @@ model GeneratedContentLog {
   formatOption           String?
   contextKeywords        String?   @db.Text
   aiModel                String?
+  aiProvider             String?   @db.VarChar(32)
+  inputTokens            Int       @default(0)
+  outputTokens           Int       @default(0)
+  generationMs           Int?
   generatedDescription   String?   @db.LongText
   generatedSeoTitle      String?
   generatedSeoDescription String?  @db.Text
@@ -144,6 +149,10 @@ model ProductGeneratedContent {
   metaTitlePromptTemplate  String? @db.Text
   metaDescriptionPromptTemplate String? @db.Text
   aiModel         String?
+  aiProvider      String?  @db.VarChar(32)
+  inputTokens     Int      @default(0)
+  outputTokens    Int      @default(0)
+  generationMs    Int?
   descriptionHtml String?  @db.LongText
   seoTitle        String?
   seoDescription  String?  @db.Text
@@ -172,6 +181,10 @@ model PageGeneratedContent {
   metaTitlePromptTemplate String? @db.Text
   metaDescriptionPromptTemplate String? @db.Text
   aiModel         String?
+  aiProvider      String?  @db.VarChar(32)
+  inputTokens     Int      @default(0)
+  outputTokens    Int      @default(0)
+  generationMs    Int?
   bodyHtml        String?  @db.LongText
   seoTitle        String?
   seoDescription  String?  @db.Text
@@ -199,6 +212,10 @@ model CollectionGeneratedContent {
   metaTitlePromptTemplate String? @db.Text
   metaDescriptionPromptTemplate String? @db.Text
   aiModel           String?
+  aiProvider        String?  @db.VarChar(32)
+  inputTokens       Int      @default(0)
+  outputTokens      Int      @default(0)
+  generationMs      Int?
   descriptionHtml   String?  @db.LongText
   seoTitle          String?
   seoDescription    String?  @db.Text
@@ -228,6 +245,10 @@ model CollectionProductGeneratedContent {
   metaTitlePromptTemplate String? @db.Text
   metaDescriptionPromptTemplate String? @db.Text
   aiModel           String?
+  aiProvider        String?  @db.VarChar(32)
+  inputTokens       Int      @default(0)
+  outputTokens      Int      @default(0)
+  generationMs      Int?
   descriptionHtml   String?  @db.LongText
   seoTitle          String?
   seoDescription    String?  @db.Text
@@ -260,6 +281,13 @@ model BlogGeneratedContent {
   offerText      String?  @db.VarChar(255)
   holiday        String?
   productUrl     String?  @db.Text
+  aiModel        String?  @db.VarChar(100)
+  aiProvider     String?  @db.VarChar(32)
+  contextKeywords String? @db.Text
+  formatOption   String?  @db.VarChar(64)
+  inputTokens    Int      @default(0)
+  outputTokens   Int      @default(0)
+  generationMs   Int?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

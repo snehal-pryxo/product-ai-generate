@@ -4,7 +4,6 @@ import {
   useActionData,
   Form,
   useFetcher,
-  useNavigation,
   useNavigate,
   useLocation,
 } from "react-router";
@@ -47,15 +46,9 @@ import {
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
-  const envDefaultAiModel =
-    (process.env.AI_MODEL || "").trim() ||
-    (process.env.OPENAI_MODEL || "").trim() ||
-    "gpt-4o-mini";
-
   const shopData = await db.shop.findUnique({
     where: { shop: session.shop },
     select: {
-      defaultAiModel: true,
       createdAt: true,
       reviewSubmittedAt: true,
       reviewPromptDismissedAt: true,
@@ -303,8 +296,6 @@ export const loader = async ({ request }) => {
   const currentPlanPrice = Number(shopData?.billingPlanPrice ?? 0);
 
   return {
-    defaultAiModel: shopData?.defaultAiModel || envDefaultAiModel,
-    envDefaultAiModel,
     shouldShowReviewPopup,
     hasSubmittedReview: Boolean(shopData?.reviewSubmittedAt),
     shopOwnerName,
@@ -324,22 +315,6 @@ export const action = async ({ request }) => {
   const shop = session.shop;
   const formData = await request.formData();
   const intent = formData.get("intent");
-
-  if (intent === "save_settings") {
-    const envDefaultAiModel =
-      (process.env.AI_MODEL || "").trim() ||
-      (process.env.OPENAI_MODEL || "").trim() ||
-      "gpt-4o-mini";
-    const defaultAiModel = formData.get("defaultAiModel")?.trim() || envDefaultAiModel;
-
-    await db.shop.upsert({
-      where: { shop },
-      update: { defaultAiModel },
-      create: { shop, installed: true, defaultAiModel },
-    });
-
-    return { success: true, message: "Settings saved successfully!" };
-  }
 
   if (intent === "submit_review") {
     const reviewRating = Number(formData.get("reviewRating"));
@@ -385,29 +360,6 @@ export const action = async ({ request }) => {
   return { success: false, message: "Unknown action." };
 };
 
-const AI_MODELS = [
-  { label: "Claude Haiku 4.5", value: "claude-haiku-4.5" },
-  { label: "Claude Sonnet 4.6", value: "claude-sonnet-4.6" },
-  { label: "GPT-4o mini", value: "gpt-4o-mini" },
-  { label: "Gemini Flash-Lite", value: "gemini-flash-lite" },
-  { label: "DeepSeek V3.2", value: "deepseek-v3.2" },
-  { label: "Cohere Command R+", value: "cohere-command-r-plus" },
-];
-
-function toModelLabel(model) {
-  return String(model || "")
-    .replace(/[-_]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function getAiModelOptions(envModel) {
-  const value = String(envModel || "").trim();
-  if (!value) return AI_MODELS;
-  if (AI_MODELS.some((item) => item.value === value)) return AI_MODELS;
-  return [{ label: `${toModelLabel(value)} (ENV)`, value }, ...AI_MODELS];
-}
 
 const CONTENT_FEATURES = [
   {
@@ -507,8 +459,6 @@ function formatPrice(price) {
 
 export default function Index() {
   const {
-    defaultAiModel,
-    envDefaultAiModel,
     shouldShowReviewPopup,
     hasSubmittedReview,
     shopOwnerName,
@@ -523,10 +473,8 @@ export default function Index() {
   } = useLoaderData();
   const actionData = useActionData();
   const reviewFetcher = useFetcher();
-  const navigation = useNavigation();
   const navigate = useNavigate();
   const location = useLocation();
-  const isSaving = navigation.state === "submitting";
   const formattedGeneratedWords = Number(generatedWords || 0).toLocaleString("en-US");
   const formattedTimeSaved = Number(timeSavedHours || 0).toLocaleString("en-US", {
     minimumFractionDigits: 1,
@@ -585,11 +533,6 @@ export default function Index() {
       rows: [{ label: "Content Generated", value: generationStats.blog.content }],
     },
   ];
-
-  const [selectedModel, setSelectedModel] = useState(() =>
-    typeof defaultAiModel === "string" && defaultAiModel.trim() ? defaultAiModel.trim() : "gpt-4o-mini",
-  );
-  const aiModelOptions = getAiModelOptions(envDefaultAiModel || defaultAiModel);
 
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(
     () => Boolean(shouldShowReviewPopup) && !Boolean(hasSubmittedReview),
@@ -818,34 +761,6 @@ export default function Index() {
                   </Card>
                 </Grid.Cell>
               ))}
-              <Grid.Cell key="ai-model-box">
-                <Card>
-                  <BlockStack gap="300">
-                    <Text as="h3" variant="headingSm">AI Model</Text>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      Select the default model used for content generation.
-                    </Text>
-                    <Form method="post">
-                      <input type="hidden" name="intent" value="save_settings" />
-                      <input type="hidden" name="defaultAiModel" value={selectedModel} />
-                      <BlockStack gap="200">
-                        <Select
-                          label="AI model"
-                          labelHidden
-                          options={aiModelOptions}
-                          value={selectedModel}
-                          onChange={setSelectedModel}
-                        />
-                        <InlineStack align="start">
-                          <Button size="slim" submit variant="primary" loading={isSaving} disabled={isSaving}>
-                            {isSaving ? "Saving..." : "Save model"}
-                          </Button>
-                        </InlineStack>
-                      </BlockStack>
-                    </Form>
-                  </BlockStack>
-                </Card>
-              </Grid.Cell>
             </Grid>
           </BlockStack>
 

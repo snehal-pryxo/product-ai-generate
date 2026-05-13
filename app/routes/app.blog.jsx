@@ -29,9 +29,9 @@ import {
   getOrCreateShopCredits,
 } from "../lib/credits.server";
 
-const BLOG_BODY_CREDIT_COST = 1;
+const BLOG_BODY_CREDIT_COST = 3;
 const BLOG_OPENAI_MODEL = (process.env.OPENAI_MODEL || "gpt-4o-mini").trim();
-const BLOG_ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
+const BLOG_ANTHROPIC_MODEL = (process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001").trim();
 
 const BLOGS_QUERY = `#graphql
   query BlogList($first: Int!, $after: String) {
@@ -887,6 +887,29 @@ async function generateSuggestionsWithAnthropic(systemPrompt, userPrompt, apiKey
   return parsed;
 }
 
+async function generateSuggestionsWithGemini(systemPrompt, userPrompt, apiKey) {
+  if (!apiKey) throw new Error("Gemini API key is not configured.");
+  const model = (process.env.GEMINI_MODEL || "gemini-2.5-flash-lite").trim();
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+      generationConfig: { temperature: 0.7, responseMimeType: "application/json" },
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error?.message || `Gemini request failed with status ${response.status}.`);
+  }
+  const content = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  const parsed = parseAiJson(content);
+  if (!parsed) throw new Error("Gemini returned invalid JSON.");
+  return parsed;
+}
+
 async function generateBlogSuggestionsWithAI({
   tabType,
   topic,
@@ -902,6 +925,7 @@ async function generateBlogSuggestionsWithAI({
   aiProvider = "auto",
   openaiApiKey,
   anthropicApiKey,
+  geminiApiKey,
   count = 6,
 }) {
   const storeName = cleanText(productContext?.title) || "our store";
@@ -1174,12 +1198,17 @@ Rules:
 ${jsonFormatInstruction}`;
   }
 
+  const defaultProvider = (process.env.DEFAULT_AI_PROVIDER || "openai").trim().toLowerCase();
+  const fallbackProvider = (process.env.FALLBACK_AI_PROVIDER || "").trim().toLowerCase();
+  const autoChain = fallbackProvider && fallbackProvider !== defaultProvider
+    ? [defaultProvider, fallbackProvider]
+    : [defaultProvider];
+
   const providerOrder =
-    aiProvider === "openai"
-      ? ["openai"]
-      : aiProvider === "anthropic"
-        ? ["anthropic"]
-        : ["openai", "anthropic"];
+    aiProvider === "openai" ? ["openai"]
+    : aiProvider === "anthropic" ? ["anthropic"]
+    : aiProvider === "gemini" ? ["gemini"]
+    : autoChain;
 
   let parsed = null;
   let lastError = null;
@@ -1190,6 +1219,8 @@ ${jsonFormatInstruction}`;
         parsed = await generateSuggestionsWithOpenAI(systemPrompt, userPrompt, openaiApiKey);
       } else if (provider === "anthropic") {
         parsed = await generateSuggestionsWithAnthropic(systemPrompt, userPrompt, anthropicApiKey);
+      } else if (provider === "gemini") {
+        parsed = await generateSuggestionsWithGemini(systemPrompt, userPrompt, geminiApiKey);
       }
       if (parsed) break;
     } catch (error) {
@@ -1285,6 +1316,13 @@ async function upsertBlogGeneratedRecord({
   offerText,
   holiday,
   productUrl,
+  aiModel,
+  aiProvider,
+  contextKeywords,
+  formatOption,
+  inputTokens,
+  outputTokens,
+  generationMs,
 }) {
   await db.blogGeneratedContent.upsert({
     where: {
@@ -1311,6 +1349,13 @@ async function upsertBlogGeneratedRecord({
       offerText: offerText || null,
       holiday: holiday || null,
       productUrl: productUrl || null,
+      aiModel: aiModel || null,
+      aiProvider: aiProvider || null,
+      contextKeywords: contextKeywords || null,
+      formatOption: formatOption || null,
+      inputTokens: inputTokens || 0,
+      outputTokens: outputTokens || 0,
+      generationMs: generationMs || null,
     },
     update: {
       blogId: blogId || null,
@@ -1328,6 +1373,13 @@ async function upsertBlogGeneratedRecord({
       offerText: offerText || null,
       holiday: holiday || null,
       productUrl: productUrl || null,
+      aiModel: aiModel || null,
+      aiProvider: aiProvider || null,
+      contextKeywords: contextKeywords || null,
+      formatOption: formatOption || null,
+      inputTokens: inputTokens || 0,
+      outputTokens: outputTokens || 0,
+      generationMs: generationMs || null,
     },
   });
 }
@@ -1337,7 +1389,7 @@ export const loader = async ({ request }) => {
 
   const shopRecord = await db.shop.findUnique({
     where: { shop: session.shop },
-    select: { globalSettingsJson: true, defaultAiProvider: true, openaiApiKey: true, anthropicApiKey: true },
+    select: { globalSettingsJson: true, defaultAiProvider: true, openaiApiKey: true, anthropicApiKey: true, geminiApiKey: true },
   });
 
   let parsedSettings = {};
@@ -1420,6 +1472,7 @@ export const action = async ({ request }) => {
       defaultAiProvider: true,
       openaiApiKey: true,
       anthropicApiKey: true,
+      geminiApiKey: true,
     },
   });
   let parsedSettings = {};
@@ -1480,6 +1533,7 @@ export const action = async ({ request }) => {
         aiProvider: cleanText(shopRecord?.defaultAiProvider) || "auto",
         openaiApiKey: cleanText(shopRecord?.openaiApiKey) || process.env.OPENAI_API_KEY,
         anthropicApiKey: cleanText(shopRecord?.anthropicApiKey) || process.env.ANTHROPIC_API_KEY,
+        geminiApiKey: cleanText(shopRecord?.geminiApiKey) || process.env.GOOGLE_GEMINI_API_KEY,
         count: 6,
       });
     } catch (_) {
@@ -1549,6 +1603,17 @@ export const action = async ({ request }) => {
     } catch (error) {
       return { ok: false, intent, error: error?.message || "Failed to create article." };
     }
+    const blogTone = normalizeToneValue(formData.get("tone"), defaultTone);
+    const blogLengthOption = cleanText(formData.get("postLength")) || "medium";
+    const blogTabType = cleanText(formData.get("tabType")) || TAB_KEYS.BUSINESS;
+    const blogTargetAudience = cleanText(formData.get("targetAudience")) || "Everyone";
+    const blogTopic = cleanText(formData.get("topic"));
+    const blogPromotion = cleanText(formData.get("promotion"));
+    const blogOfferText = cleanText(formData.get("offerText"));
+    const blogHoliday = cleanText(formData.get("holiday"));
+    const blogProductUrl = cleanText(formData.get("productUrl"));
+    const blogAiProvider = cleanText(shopRecord?.defaultAiProvider) || "auto";
+
     await upsertBlogGeneratedRecord({
       shop: session.shop,
       blogId,
@@ -1558,15 +1623,16 @@ export const action = async ({ request }) => {
       bodyHtml: body,
       status,
       language,
-      tone: normalizeToneValue(formData.get("tone"), defaultTone),
-      lengthOption: cleanText(formData.get("postLength")) || "medium",
-      targetAudience: cleanText(formData.get("targetAudience")) || "Everyone",
-      tabType: cleanText(formData.get("tabType")) || TAB_KEYS.BUSINESS,
-      topic: cleanText(formData.get("topic")),
-      promotion: cleanText(formData.get("promotion")),
-      offerText: cleanText(formData.get("offerText")),
-      holiday: cleanText(formData.get("holiday")),
-      productUrl: cleanText(formData.get("productUrl")),
+      tone: blogTone,
+      lengthOption: blogLengthOption,
+      targetAudience: blogTargetAudience,
+      tabType: blogTabType,
+      topic: blogTopic,
+      promotion: blogPromotion,
+      offerText: blogOfferText,
+      holiday: blogHoliday,
+      productUrl: blogProductUrl,
+      aiProvider: blogAiProvider !== "auto" ? blogAiProvider : null,
     });
 
     const creditSnapshot = await deductCredits({
@@ -1583,10 +1649,12 @@ export const action = async ({ request }) => {
           intent: "blog_generate",
           resourceType: "blog",
           language,
-          tone: normalizeToneValue(formData.get("tone"), defaultTone),
+          tone: blogTone,
+          lengthOption: blogLengthOption,
           generatedDescription: body,
           creditsUsed: BLOG_BODY_CREDIT_COST,
           appliedToProduct: true,
+          aiProvider: blogAiProvider !== "auto" ? blogAiProvider : null,
         },
       });
     } catch (_) {
@@ -1667,6 +1735,7 @@ export const action = async ({ request }) => {
         aiProvider: cleanText(shopRecord?.defaultAiProvider) || "auto",
         openaiApiKey: cleanText(shopRecord?.openaiApiKey) || process.env.OPENAI_API_KEY,
         anthropicApiKey: cleanText(shopRecord?.anthropicApiKey) || process.env.ANTHROPIC_API_KEY,
+        geminiApiKey: cleanText(shopRecord?.geminiApiKey) || process.env.GOOGLE_GEMINI_API_KEY,
         count: 1,
       });
       if (generated) {
@@ -1753,6 +1822,10 @@ export const action = async ({ request }) => {
     } catch (error) {
       return { ok: false, intent, error: error?.message || "Failed to update article." };
     }
+    const saveTone = cleanText(formData.get("tone")) || "";
+    const saveLengthOption = cleanText(formData.get("postLength")) || "";
+    const saveAiProvider = cleanText(shopRecord?.defaultAiProvider) || "auto";
+
     await upsertBlogGeneratedRecord({
       shop: session.shop,
       blogId: blogId || article.blogId,
@@ -1762,8 +1835,8 @@ export const action = async ({ request }) => {
       bodyHtml: body,
       status,
       language,
-      tone: cleanText(formData.get("tone")) || "",
-      lengthOption: cleanText(formData.get("postLength")) || "",
+      tone: saveTone,
+      lengthOption: saveLengthOption,
       targetAudience: cleanText(formData.get("targetAudience")) || "",
       tabType: cleanText(formData.get("tabType")) || "",
       topic: cleanText(formData.get("topic")),
@@ -1771,6 +1844,7 @@ export const action = async ({ request }) => {
       offerText: cleanText(formData.get("offerText")),
       holiday: cleanText(formData.get("holiday")),
       productUrl: cleanText(formData.get("productUrl")),
+      aiProvider: saveAiProvider !== "auto" ? saveAiProvider : null,
     });
 
     let creditSnapshot = null;
@@ -1788,10 +1862,12 @@ export const action = async ({ request }) => {
             intent: "blog_regenerate",
             resourceType: "blog",
             language,
-            tone: cleanText(formData.get("tone")) || null,
+            tone: saveTone || null,
+            lengthOption: saveLengthOption || null,
             generatedDescription: body,
             creditsUsed: BLOG_BODY_CREDIT_COST,
             appliedToProduct: true,
+            aiProvider: saveAiProvider !== "auto" ? saveAiProvider : null,
           },
         });
       } catch (_) {

@@ -7,7 +7,7 @@ const DEFAULT_SUBSCRIPTION_PLANS = [
     key: "free",
     name: "Free",
     price: 0,
-    credits: 100,
+    credits: 150,
     description: "For testing AI SEO generation on a new store.",
     features: [
       "100 credits included",
@@ -20,7 +20,7 @@ const DEFAULT_SUBSCRIPTION_PLANS = [
     key: "starter",
     name: "Starter",
     price: 9.99,
-    credits: 1500,
+    credits: 2000,
     description: "For small stores keeping product SEO updated.",
     features: [
       "1,500 credits every month",

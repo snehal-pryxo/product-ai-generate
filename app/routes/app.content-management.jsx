@@ -120,7 +120,9 @@ function mapSelectedModelToRuntime(selectedModel) {
   }
   if (selected.startsWith("gpt-")) return { runtimeModel: selectedModel, providerHint: "openai" };
   if (selected.includes("llama")) return { runtimeModel: selectedModel, providerHint: "ollama" };
-  // Gemini / DeepSeek / Cohere are currently UI options only in this flow.
+  if (selected === "gemini-flash-lite") {
+    return { runtimeModel: "gemini-2.5-flash-lite", providerHint: "gemini" };
+  }
   return { runtimeModel: null, providerHint: null };
 }
 
@@ -425,7 +427,7 @@ function canUseOllamaFallback() {
   return Boolean(baseUrl) && ENABLED_ENV_VALUE_PATTERN.test(enabledValue);
 }
 
-function parseGenerationContent(rawContent, modelName) {
+function parseGenerationContent(rawContent, modelName, meta = {}) {
   if (!rawContent || typeof rawContent !== "string") throw new Error("AI response was empty.");
   let parsed;
   try {
@@ -448,6 +450,10 @@ function parseGenerationContent(rawContent, modelName) {
     seoTitle: cleanInlineText(parsed?.seoTitle || "", 70),
     seoDescription: cleanInlineText(parsed?.seoDescription || "", 160),
     aiModel: modelName || null,
+    aiProvider: meta.aiProvider || null,
+    inputTokens: meta.inputTokens || 0,
+    outputTokens: meta.outputTokens || 0,
+    generationMs: meta.generationMs || 0,
   };
 }
 
@@ -467,6 +473,7 @@ async function generateContentWithOpenAI(prompt, shopApiKey, preferredModel = nu
   });
 
   async function send(model, attempt = 0) {
+    const startMs = Date.now();
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
@@ -490,7 +497,10 @@ async function generateContentWithOpenAI(prompt, shopApiKey, preferredModel = nu
       if (shouldFallback) return send(DEFAULT_AI_MODEL, 0);
       throw new Error(errMsg);
     }
-    return parseGenerationContent(data?.choices?.[0]?.message?.content, data?.model || model);
+    const generationMs = Date.now() - startMs;
+    const inputTokens = data?.usage?.prompt_tokens || 0;
+    const outputTokens = data?.usage?.completion_tokens || 0;
+    return parseGenerationContent(data?.choices?.[0]?.message?.content, data?.model || model, { aiProvider: "openai", inputTokens, outputTokens, generationMs });
   }
   return send(configuredModel);
 }
@@ -498,7 +508,8 @@ async function generateContentWithOpenAI(prompt, shopApiKey, preferredModel = nu
 async function generateContentWithAnthropic(prompt, apiKey, preferredModel = null) {
   const key = apiKey || process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("Anthropic API key is not configured.");
-  const model = preferredModel || "claude-haiku-4-5-20251001";
+  const model = preferredModel || (process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001").trim();
+  const startMs = Date.now();
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
@@ -512,12 +523,43 @@ async function generateContentWithAnthropic(prompt, apiKey, preferredModel = nul
   let data = null;
   try { data = await res.json(); } catch { data = null; }
   if (!res.ok) throw new Error(data?.error?.message || `Anthropic request failed with status ${res.status}.`);
-  return parseGenerationContent(data?.content?.[0]?.text, data?.model || model);
+  const generationMs = Date.now() - startMs;
+  const inputTokens = data?.usage?.input_tokens || 0;
+  const outputTokens = data?.usage?.output_tokens || 0;
+  return parseGenerationContent(data?.content?.[0]?.text, data?.model || model, { aiProvider: "anthropic", inputTokens, outputTokens, generationMs });
+}
+
+async function generateContentWithGemini(prompt, apiKey, preferredModel = null) {
+  const key = apiKey || process.env.GOOGLE_GEMINI_API_KEY;
+  if (!key) throw new Error("Gemini API key is not configured.");
+  const model = preferredModel || (process.env.GEMINI_MODEL || "gemini-2.5-flash-lite").trim();
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+  const startMs = Date.now();
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      system_instruction: {
+        parts: [{ text: "You are an expert Shopify copywriter. Always return valid JSON with the requested keys. No markdown, no code fences." }],
+      },
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.7, responseMimeType: "application/json" },
+    }),
+  });
+  let data = null;
+  try { data = await res.json(); } catch { data = null; }
+  if (!res.ok) throw new Error(data?.error?.message || `Gemini request failed with status ${res.status}.`);
+  const generationMs = Date.now() - startMs;
+  const inputTokens = data?.usageMetadata?.promptTokenCount || 0;
+  const outputTokens = data?.usageMetadata?.candidatesTokenCount || 0;
+  const rawContent = data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+  return parseGenerationContent(rawContent, model, { aiProvider: "gemini", inputTokens, outputTokens, generationMs });
 }
 
 async function generateContentWithOllama(prompt, preferredModel = null) {
   const model = preferredModel || process.env.OLLAMA_MODEL || DEFAULT_OLLAMA_MODEL;
   const baseUrl = process.env.OLLAMA_BASE_URL || DEFAULT_OLLAMA_BASE_URL;
+  const startMs = Date.now();
   const res = await fetch(`${baseUrl}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -532,16 +574,21 @@ async function generateContentWithOllama(prompt, preferredModel = null) {
   let data = null;
   try { data = await res.json(); } catch { data = null; }
   if (!res.ok) throw new Error(data?.error || `Ollama request failed with status ${res.status}.`);
-  return parseGenerationContent(data?.message?.content, data?.model || model);
+  const generationMs = Date.now() - startMs;
+  const inputTokens = data?.prompt_eval_count || 0;
+  const outputTokens = data?.eval_count || 0;
+  return parseGenerationContent(data?.message?.content, data?.model || model, { aiProvider: "ollama", inputTokens, outputTokens, generationMs });
 }
 
 async function runGeneration(
   prompt,
-  { aiProvider = "auto", preferredModel = null, shopOpenaiKey = null, shopAnthropicKey = null } = {},
+  { aiProvider = "auto", preferredModel = null, shopOpenaiKey = null, shopAnthropicKey = null, shopGeminiKey = null } = {},
 ) {
   const openaiKey = shopOpenaiKey || process.env.OPENAI_API_KEY;
   const anthropicKey = shopAnthropicKey || process.env.ANTHROPIC_API_KEY;
+  const geminiKey = shopGeminiKey || process.env.GOOGLE_GEMINI_API_KEY;
 
+  if (aiProvider === "gemini") return generateContentWithGemini(prompt, geminiKey, preferredModel);
   if (aiProvider === "anthropic") return generateContentWithAnthropic(prompt, anthropicKey, preferredModel);
   if (aiProvider === "ollama") return generateContentWithOllama(prompt, preferredModel);
   if (aiProvider === "openai") {
@@ -552,21 +599,26 @@ async function runGeneration(
       throw err;
     }
   }
-  // auto mode
-  const envProvider = (process.env.AI_PROVIDER || "").trim().toLowerCase();
-  if (envProvider === "ollama") {
-    try { return await generateContentWithOllama(prompt, preferredModel); }
-    catch (err) {
-      if (!openaiKey) throw err;
-      return generateContentWithOpenAI(prompt, openaiKey, preferredModel);
+
+  // Auto / env-based routing
+  const defaultProvider = (process.env.DEFAULT_AI_PROVIDER || "openai").trim().toLowerCase();
+  const fallbackProvider = (process.env.FALLBACK_AI_PROVIDER || "").trim().toLowerCase();
+  const providerChain = fallbackProvider && fallbackProvider !== defaultProvider
+    ? [defaultProvider, fallbackProvider]
+    : [defaultProvider];
+
+  let lastError = null;
+  for (const p of providerChain) {
+    try {
+      if (p === "gemini") return await generateContentWithGemini(prompt, geminiKey, preferredModel);
+      if (p === "anthropic") return await generateContentWithAnthropic(prompt, anthropicKey, preferredModel);
+      if (p === "ollama") return await generateContentWithOllama(prompt, preferredModel);
+      return await generateContentWithOpenAI(prompt, openaiKey, preferredModel); // default / "openai"
+    } catch (err) {
+      lastError = err;
     }
   }
-  try { return await generateContentWithOpenAI(prompt, openaiKey, preferredModel); }
-  catch (err) {
-    if (OPENAI_OLLAMA_FALLBACK_ERROR_PATTERN.test(err?.message || "") && canUseOllamaFallback())
-      return generateContentWithOllama(prompt, preferredModel);
-    throw err;
-  }
+  throw lastError;
 }
 
 function buildPrompt(
@@ -701,7 +753,7 @@ export const loader = async ({ request }) => {
 
   const shopData = await db.shop.findUnique({
     where: { shop: session.shop },
-    select: { credits: true, creditsUsedTotal: true, defaultAiProvider: true, openaiApiKey: true, anthropicApiKey: true },
+    select: { credits: true, creditsUsedTotal: true, defaultAiProvider: true, openaiApiKey: true, anthropicApiKey: true, geminiApiKey: true },
   });
   const credits = shopData?.credits ?? 100;
   const defaultAiProvider = shopData?.defaultAiProvider || "auto";
@@ -1159,6 +1211,7 @@ export const loader = async ({ request }) => {
     creditsUsageByType,
     hasOpenaiKey: !!(shopData?.openaiApiKey || process.env.OPENAI_API_KEY),
     hasAnthropicKey: !!(shopData?.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
+    hasGeminiKey: !!(shopData?.geminiApiKey || process.env.GOOGLE_GEMINI_API_KEY),
   };
 };
 
@@ -1171,7 +1224,7 @@ export const action = async ({ request }) => {
 
   const shopData = await db.shop.findUnique({
     where: { shop: session.shop },
-    select: { credits: true, defaultAiProvider: true, openaiApiKey: true, anthropicApiKey: true },
+    select: { credits: true, defaultAiProvider: true, openaiApiKey: true, anthropicApiKey: true, geminiApiKey: true },
   });
 
   // ── Generate single item ──────────────────────────────────────────────────
@@ -1256,6 +1309,7 @@ export const action = async ({ request }) => {
         preferredModel: runtimeModel || null,
         shopOpenaiKey: shopData?.openaiApiKey || null,
         shopAnthropicKey: shopData?.anthropicApiKey || null,
+        shopGeminiKey: shopData?.geminiApiKey || null,
       });
 
       if (shouldGenerateMain && !stripHtml(generated.description || "")) {
@@ -1353,6 +1407,10 @@ export const action = async ({ request }) => {
         language: generationLanguage,
         contextKeywords: contextKeywords || null,
         aiModel: generated.aiModel || null,
+        aiProvider: generated.aiProvider || null,
+        inputTokens: generated.inputTokens || 0,
+        outputTokens: generated.outputTokens || 0,
+        generationMs: generated.generationMs || null,
         seoTitle: seoTitle || null,
         seoDescription: seoDescription || null,
       };
@@ -1573,6 +1631,10 @@ export const action = async ({ request }) => {
             tone: "Neutral",
             contextKeywords: contextKeywords || null,
             aiModel: generated.aiModel || null,
+            aiProvider: generated.aiProvider || null,
+            inputTokens: generated.inputTokens || 0,
+            outputTokens: generated.outputTokens || 0,
+            generationMs: generated.generationMs || null,
             generatedDescription: descHtml || null,
             generatedSeoTitle: seoTitle || null,
             generatedSeoDescription: seoDescription || null,

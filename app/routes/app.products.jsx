@@ -549,6 +549,7 @@ async function generateContentWithAnthropic(input, apiKey) {
     throw new Error("Anthropic API key is not configured. Add it on the Dashboard Settings page.");
   }
 
+  const startMs = Date.now();
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -557,7 +558,7 @@ async function generateContentWithAnthropic(input, apiKey) {
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
+      model: (process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001").trim(),
       max_tokens: 2500,
       system:
         "You are an expert Shopify copywriter. Always return valid JSON with the requested keys. No markdown, no code fences.",
@@ -578,8 +579,41 @@ async function generateContentWithAnthropic(input, apiKey) {
     throw new Error(errorMsg);
   }
 
+  const generationMs = Date.now() - startMs;
+  const inputTokens = payload?.usage?.input_tokens || 0;
+  const outputTokens = payload?.usage?.output_tokens || 0;
   const rawContent = payload?.content?.[0]?.text;
-  return parseGenerationContent(rawContent, payload?.model || "claude-haiku-4-5-20251001");
+  return parseGenerationContent(rawContent, payload?.model || (process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001").trim(), { aiProvider: "anthropic", inputTokens, outputTokens, generationMs });
+}
+
+async function generateContentWithGemini(input, apiKey) {
+  if (!apiKey) {
+    throw new Error("Gemini API key is not configured. Set GOOGLE_GEMINI_API_KEY in your environment.");
+  }
+  const model = (process.env.GEMINI_MODEL || "gemini-2.5-flash-lite").trim();
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const startMs = Date.now();
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      system_instruction: {
+        parts: [{ text: "You are an expert Shopify copywriter. Always return valid JSON with the requested keys. No markdown, no code fences." }],
+      },
+      contents: [{ role: "user", parts: [{ text: buildGenerationPrompt(input) }] }],
+      generationConfig: { temperature: 0.7, responseMimeType: "application/json" },
+    }),
+  });
+  let payload = null;
+  try { payload = await response.json(); } catch { payload = null; }
+  if (!response.ok) {
+    throw new Error(payload?.error?.message || `Gemini request failed with status ${response.status}.`);
+  }
+  const generationMs = Date.now() - startMs;
+  const rawContent = payload?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+  const inputTokens = payload?.usageMetadata?.promptTokenCount || 0;
+  const outputTokens = payload?.usageMetadata?.candidatesTokenCount || 0;
+  return parseGenerationContent(rawContent, model, { aiProvider: "gemini", inputTokens, outputTokens, generationMs });
 }
 
 async function generateContentWithOpenAI(input, shopApiKey) {
@@ -652,6 +686,7 @@ async function generateContentWithOpenAI(input, shopApiKey) {
     return result;
   }
 
+  const startMs = Date.now();
   let result = await sendChatRequest(configuredModel);
 
   if (!result.ok) {
@@ -688,8 +723,11 @@ async function generateContentWithOpenAI(input, shopApiKey) {
     throw new Error(details.message);
   }
 
+  const generationMs = Date.now() - startMs;
+  const inputTokens = result.payload?.usage?.prompt_tokens || 0;
+  const outputTokens = result.payload?.usage?.completion_tokens || 0;
   const rawContent = result.payload?.choices?.[0]?.message?.content;
-  return parseGenerationContent(rawContent, result.payload?.model || result.model);
+  return parseGenerationContent(rawContent, result.payload?.model || result.model, { aiProvider: "openai", inputTokens, outputTokens, generationMs });
 }
 
 function getOpenAiErrorDetails(result) {
@@ -715,7 +753,7 @@ function canUseOllamaFallback() {
   return Boolean(baseUrl) && ENABLED_ENV_VALUE_PATTERN.test(enabledValue);
 }
 
-function parseGenerationContent(rawContent, modelName) {
+function parseGenerationContent(rawContent, modelName, meta = {}) {
   if (!rawContent || typeof rawContent !== "string") {
     throw new Error("AI response was empty.");
   }
@@ -736,6 +774,10 @@ function parseGenerationContent(rawContent, modelName) {
     seoTitle: cleanInlineText(parsed?.seoTitle || "", 70),
     seoDescription: cleanInlineText(parsed?.seoDescription || "", 160),
     aiModel: modelName || null,
+    aiProvider: meta.aiProvider || null,
+    inputTokens: meta.inputTokens || 0,
+    outputTokens: meta.outputTokens || 0,
+    generationMs: meta.generationMs || 0,
   };
 }
 
@@ -743,6 +785,7 @@ async function generateContentWithOllama(input) {
   const model = process.env.OLLAMA_MODEL || DEFAULT_OLLAMA_MODEL;
   const baseUrl = process.env.OLLAMA_BASE_URL || DEFAULT_OLLAMA_BASE_URL;
 
+  const startMs = Date.now();
   let response;
   try {
     response = await fetch(`${baseUrl}/api/chat`, {
@@ -798,12 +841,21 @@ async function generateContentWithOllama(input) {
     );
   }
 
-  return parseGenerationContent(payload?.message?.content, payload?.model || model);
+  const generationMs = Date.now() - startMs;
+  const inputTokens = payload?.prompt_eval_count || 0;
+  const outputTokens = payload?.eval_count || 0;
+  return parseGenerationContent(payload?.message?.content, payload?.model || model, { aiProvider: "ollama", inputTokens, outputTokens, generationMs });
 }
 
-async function generateContent(input, { aiProvider = "auto", shopOpenaiKey = null, shopAnthropicKey = null } = {}) {
+async function generateContent(input, { aiProvider = "auto", shopOpenaiKey = null, shopAnthropicKey = null, shopGeminiKey = null } = {}) {
   const openaiKey = shopOpenaiKey || process.env.OPENAI_API_KEY;
   const anthropicKey = shopAnthropicKey || process.env.ANTHROPIC_API_KEY;
+  const geminiKey = shopGeminiKey || process.env.GOOGLE_GEMINI_API_KEY;
+
+  // User explicitly chose Gemini
+  if (aiProvider === "gemini") {
+    return await generateContentWithGemini(input, geminiKey);
+  }
 
   // User explicitly chose Claude / Anthropic
   if (aiProvider === "anthropic") {
@@ -827,40 +879,24 @@ async function generateContent(input, { aiProvider = "auto", shopOpenaiKey = nul
   }
 
   // Auto / env-based routing
-  const provider = (process.env.AI_PROVIDER || "").trim().toLowerCase();
+  const defaultProvider = (process.env.DEFAULT_AI_PROVIDER || "openai").trim().toLowerCase();
+  const fallbackProvider = (process.env.FALLBACK_AI_PROVIDER || "").trim().toLowerCase();
+  const providerChain = fallbackProvider && fallbackProvider !== defaultProvider
+    ? [defaultProvider, fallbackProvider]
+    : [defaultProvider];
 
-  if (provider === "ollama") {
+  let lastError = null;
+  for (const p of providerChain) {
     try {
-      return await generateContentWithOllama(input);
-    } catch (ollamaError) {
-      if (!openaiKey) throw ollamaError;
-      try {
-        return await generateContentWithOpenAI(input, openaiKey);
-      } catch (openAiError) {
-        throw new Error(
-          `${ollamaError?.message || "Ollama request failed."} OpenAI fallback failed: ${openAiError?.message || "Unknown error."}`,
-        );
-      }
+      if (p === "gemini") return await generateContentWithGemini(input, geminiKey);
+      if (p === "anthropic") return await generateContentWithAnthropic(input, anthropicKey);
+      if (p === "ollama") return await generateContentWithOllama(input);
+      return await generateContentWithOpenAI(input, openaiKey); // default / "openai"
+    } catch (err) {
+      lastError = err;
     }
   }
-
-  // Default: try OpenAI (or Anthropic if no OpenAI key but Anthropic key exists)
-  if (!openaiKey && anthropicKey) {
-    return await generateContentWithAnthropic(input, anthropicKey);
-  }
-
-  try {
-    return await generateContentWithOpenAI(input, openaiKey);
-  } catch (openAiError) {
-    const message = openAiError?.message || "";
-    const shouldTryOllama = shouldFallbackToOllamaFromOpenAiMessage(message) && canUseOllamaFallback();
-    if (!shouldTryOllama) throw openAiError;
-    try {
-      return await generateContentWithOllama(input);
-    } catch (ollamaError) {
-      throw new Error(`${message} Local Ollama fallback failed: ${ollamaError?.message || "Unknown error."}`);
-    }
-  }
+  throw lastError;
 }
 
 async function writeGenerationLog(data) {
@@ -893,6 +929,7 @@ export const action = async ({ request }) => {
     select: {
       openaiApiKey: true,
       anthropicApiKey: true,
+      geminiApiKey: true,
       credits: true,
       creditsUsedTotal: true,
       globalSettingsJson: true,
@@ -1001,6 +1038,7 @@ export const action = async ({ request }) => {
               aiProvider,
               shopOpenaiKey: shopData?.openaiApiKey || null,
               shopAnthropicKey: shopData?.anthropicApiKey || null,
+              shopGeminiKey: shopData?.geminiApiKey || null,
             },
           );
 
@@ -1055,6 +1093,10 @@ export const action = async ({ request }) => {
             formatOption: formatOption || null,
             contextKeywords: contextKeywords || null,
             aiModel: generated.aiModel || null,
+            aiProvider: generated.aiProvider || null,
+            inputTokens: generated.inputTokens || 0,
+            outputTokens: generated.outputTokens || 0,
+            generationMs: generated.generationMs || null,
             generatedDescription: nextDescription || null,
             generatedSeoTitle: nextSeoTitle || null,
             generatedSeoDescription: nextSeoDescription || null,
@@ -1075,6 +1117,10 @@ export const action = async ({ request }) => {
             metaTitlePromptTemplate: metaTitlePromptTemplate || null,
             metaDescriptionPromptTemplate: metaDescriptionPromptTemplate || null,
             aiModel: generated.aiModel || null,
+            aiProvider: generated.aiProvider || null,
+            inputTokens: generated.inputTokens || 0,
+            outputTokens: generated.outputTokens || 0,
+            generationMs: generated.generationMs || null,
             descriptionHtml: nextDescription || null,
             seoTitle: nextSeoTitle || null,
             seoDescription: nextSeoDescription || null,
@@ -1146,6 +1192,7 @@ export const loader = async ({ request }) => {
     select: {
       openaiApiKey: true,
       anthropicApiKey: true,
+      geminiApiKey: true,
       defaultAiProvider: true,
       credits: true,
       creditsUsedTotal: true,
@@ -1234,6 +1281,7 @@ export const loader = async ({ request }) => {
       products: [],
       hasOpenaiKey: !!(shopData?.openaiApiKey || process.env.OPENAI_API_KEY),
       hasAnthropicKey: !!(shopData?.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
+      hasGeminiKey: !!(shopData?.geminiApiKey || process.env.GOOGLE_GEMINI_API_KEY),
       defaultAiProvider: shopData?.defaultAiProvider || "auto",
       credits: shopData?.credits ?? 100,
       creditsUsedTotal: shopData?.creditsUsedTotal ?? 0,
@@ -1286,6 +1334,7 @@ export const loader = async ({ request }) => {
     products,
     hasOpenaiKey: !!(shopData?.openaiApiKey || process.env.OPENAI_API_KEY),
     hasAnthropicKey: !!(shopData?.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
+    hasGeminiKey: !!(shopData?.geminiApiKey || process.env.GOOGLE_GEMINI_API_KEY),
     defaultAiProvider: shopData?.defaultAiProvider || "auto",
     credits: shopData?.credits ?? 100,
     creditsUsedTotal: shopData?.creditsUsedTotal ?? 0,

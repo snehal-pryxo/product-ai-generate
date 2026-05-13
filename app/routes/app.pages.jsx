@@ -101,6 +101,7 @@ async function generateContentWithAnthropic(input, apiKey) {
   const key = apiKey || process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("No Anthropic API key available.");
 
+  const startMs = Date.now();
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -109,7 +110,7 @@ async function generateContentWithAnthropic(input, apiKey) {
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
+      model: (process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001").trim(),
       max_tokens: 3500,
       messages: [{ role: "user", content: input.prompt }],
     }),
@@ -119,13 +120,56 @@ async function generateContentWithAnthropic(input, apiKey) {
     throw new Error(`Anthropic API error: ${err}`);
   }
   const data = await response.json();
-  return data.content?.[0]?.text || "";
+  const generationMs = Date.now() - startMs;
+  return {
+    raw: data.content?.[0]?.text || "",
+    aiModel: data?.model || (process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001").trim(),
+    aiProvider: "anthropic",
+    inputTokens: data?.usage?.input_tokens || 0,
+    outputTokens: data?.usage?.output_tokens || 0,
+    generationMs,
+  };
+}
+
+async function generateContentWithGemini(input, apiKey) {
+  if (!apiKey) {
+    throw new Error("Gemini API key is not configured. Set GOOGLE_GEMINI_API_KEY in your environment.");
+  }
+  const model = (process.env.GEMINI_MODEL || "gemini-2.5-flash-lite").trim();
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const startMs = Date.now();
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      system_instruction: {
+        parts: [{ text: "You are an expert Shopify copywriter. Always return valid JSON with the requested keys. No markdown, no code fences." }],
+      },
+      contents: [{ role: "user", parts: [{ text: input.prompt }] }],
+      generationConfig: { temperature: 0.7, responseMimeType: "application/json" },
+    }),
+  });
+  let payload = null;
+  try { payload = await response.json(); } catch { payload = null; }
+  if (!response.ok) {
+    throw new Error(payload?.error?.message || `Gemini request failed with status ${response.status}.`);
+  }
+  const generationMs = Date.now() - startMs;
+  return {
+    raw: payload?.candidates?.[0]?.content?.parts?.[0]?.text || "",
+    aiModel: model,
+    aiProvider: "gemini",
+    inputTokens: payload?.usageMetadata?.promptTokenCount || 0,
+    outputTokens: payload?.usageMetadata?.candidatesTokenCount || 0,
+    generationMs,
+  };
 }
 
 async function generateContentWithOpenAI(input, shopApiKey) {
   const key = shopApiKey || process.env.OPENAI_API_KEY;
   if (!key) throw new Error("No OpenAI API key available.");
 
+  const startMs = Date.now();
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -143,19 +187,45 @@ async function generateContentWithOpenAI(input, shopApiKey) {
     throw new Error(`OpenAI API error: ${err}`);
   }
   const data = await response.json();
-  return data.choices?.[0]?.message?.content || "";
+  const generationMs = Date.now() - startMs;
+  return {
+    raw: data.choices?.[0]?.message?.content || "",
+    aiModel: data?.model || "gpt-4o-mini",
+    aiProvider: "openai",
+    inputTokens: data?.usage?.prompt_tokens || 0,
+    outputTokens: data?.usage?.completion_tokens || 0,
+    generationMs,
+  };
 }
 
-async function generateContent(input, { aiProvider, shopOpenaiKey, shopAnthropicKey }) {
-  const provider =
-    aiProvider === "auto"
-      ? shopOpenaiKey || process.env.OPENAI_API_KEY
-        ? "openai"
-        : "anthropic"
-      : aiProvider;
+async function generateContent(input, { aiProvider, shopOpenaiKey, shopAnthropicKey, shopGeminiKey }) {
+  const openaiKey = shopOpenaiKey || process.env.OPENAI_API_KEY;
+  const anthropicKey = shopAnthropicKey || process.env.ANTHROPIC_API_KEY;
+  const geminiKey = shopGeminiKey || process.env.GOOGLE_GEMINI_API_KEY;
 
-  if (provider === "openai") return generateContentWithOpenAI(input, shopOpenaiKey);
-  return generateContentWithAnthropic(input, shopAnthropicKey);
+  if (aiProvider === "gemini") return generateContentWithGemini(input, geminiKey);
+  if (aiProvider === "anthropic") return generateContentWithAnthropic(input, anthropicKey);
+  if (aiProvider === "openai") return generateContentWithOpenAI(input, openaiKey);
+
+  // Auto / env-based routing
+  const defaultProvider = (process.env.DEFAULT_AI_PROVIDER || "openai").trim().toLowerCase();
+  const fallbackProvider = (process.env.FALLBACK_AI_PROVIDER || "").trim().toLowerCase();
+  const providerChain = fallbackProvider && fallbackProvider !== defaultProvider
+    ? [defaultProvider, fallbackProvider]
+    : [defaultProvider];
+
+  let lastError = null;
+  for (const p of providerChain) {
+    try {
+      if (p === "gemini") return await generateContentWithGemini(input, geminiKey);
+      if (p === "anthropic") return await generateContentWithAnthropic(input, anthropicKey);
+      if (p === "ollama") throw new Error("Ollama is not supported in the Pages route.");
+      return await generateContentWithOpenAI(input, openaiKey); // default / "openai"
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError;
 }
 
 function looksLikeHtml(value) {
@@ -349,7 +419,7 @@ export const loader = async ({ request }) => {
   // Fetch shop API keys
   const shopData = await db.shop.findUnique({
     where: { shop: session.shop },
-    select: { openaiApiKey: true, anthropicApiKey: true, defaultAiProvider: true, credits: true, creditsUsedTotal: true },
+    select: { openaiApiKey: true, anthropicApiKey: true, geminiApiKey: true, defaultAiProvider: true, credits: true, creditsUsedTotal: true },
   });
 
   return {
@@ -357,6 +427,7 @@ export const loader = async ({ request }) => {
     shopDomain: session.shop,
     hasOpenaiKey: !!shopData?.openaiApiKey,
     hasAnthropicKey: !!shopData?.anthropicApiKey,
+    hasGeminiKey: !!(shopData?.geminiApiKey || process.env.GOOGLE_GEMINI_API_KEY),
     defaultAiProvider: shopData?.defaultAiProvider || "auto",
     credits: shopData?.credits ?? 100,
     creditsUsedTotal: shopData?.creditsUsedTotal ?? 0,
@@ -419,6 +490,7 @@ export const action = async ({ request }) => {
       select: {
         openaiApiKey: true,
         anthropicApiKey: true,
+        geminiApiKey: true,
         credits: true,
         creditsUsedTotal: true,
         globalSettingsJson: true,
@@ -459,11 +531,13 @@ export const action = async ({ request }) => {
           metaTitlePromptTemplate,
           metaDescriptionPromptTemplate,
         });
-        const raw = await generateContent(input, {
+        const genResult = await generateContent(input, {
           aiProvider,
           shopOpenaiKey: shopData?.openaiApiKey,
           shopAnthropicKey: shopData?.anthropicApiKey,
+          shopGeminiKey: shopData?.geminiApiKey || null,
         });
+        const raw = genResult.raw;
 
         let parsed = { pageBody: "", seoTitle: "", seoDescription: "" };
         try {
@@ -491,7 +565,11 @@ export const action = async ({ request }) => {
           lengthOption: length || null,
           formatOption: format || null,
           contextKeywords: contextKeywords || null,
-          aiModel: aiProvider || null,
+          aiModel: genResult.aiModel || null,
+          aiProvider: genResult.aiProvider || null,
+          inputTokens: genResult.inputTokens || 0,
+          outputTokens: genResult.outputTokens || 0,
+          generationMs: genResult.generationMs || null,
           generatedDescription: nextBody || null,
           generatedSeoTitle: nextSeoTitle || null,
           generatedSeoDescription: nextSeoDescription || null,

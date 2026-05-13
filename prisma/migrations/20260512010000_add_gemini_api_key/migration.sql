@@ -1,0 +1,1 @@
+ALTER TABLE `shop` ADD COLUMN `geminiApiKey` VARCHAR(255) NULL;
