@@ -160,7 +160,7 @@ export default function PricingPage() {
       <BlockStack gap="500">
         <AppPageHeader
           title="Pricing"
-          description="Choose a monthly plan or add one-time credits to your existing balance."
+          description="Choose a monthly plan or top up with one-time credits. Credits renew every 30 days on paid plans."
         />
 
         {bannerMessage ? (
@@ -176,23 +176,37 @@ export default function PricingPage() {
         ) : null}
 
         <Card>
-          <InlineStack align="space-between" blockAlign="center" gap="300">
-            <BlockStack gap="100">
-              <Text as="h2" variant="headingMd">
-                Current balance
+          <BlockStack gap="300">
+            <InlineStack align="space-between" blockAlign="center" gap="300">
+              <BlockStack gap="100">
+                <Text as="h2" variant="headingMd">
+                  Current balance
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Credits reset every 30 days on paid plans. Manual edits and saves never cost credits.
+                </Text>
+              </BlockStack>
+              <InlineStack gap="200" blockAlign="center">
+                <Badge tone="info">{currentPlanName}</Badge>
+                {billingSubscriptionStatus ? <Badge>{billingSubscriptionStatus}</Badge> : null}
+                <Text as="span" variant="headingLg">
+                  {formatCredits(appData?.credits)} credits
+                </Text>
+              </InlineStack>
+            </InlineStack>
+            <Divider />
+            <InlineStack gap="500" wrap>
+              <Text as="p" variant="bodySm" tone="subdued">
+                <Text as="span" fontWeight="semibold">1 credit</Text> = 1 AI-generated field (description, meta title, or meta description)
               </Text>
               <Text as="p" variant="bodySm" tone="subdued">
-                Credits are consumed when AI content is generated. Manual edits and saves are free.
+                Generating all 3 fields for a product costs <Text as="span" fontWeight="semibold">3 credits</Text>
               </Text>
-            </BlockStack>
-            <InlineStack gap="200" blockAlign="center">
-              <Badge tone="info">{currentPlanName}</Badge>
-              {billingSubscriptionStatus ? <Badge>{billingSubscriptionStatus}</Badge> : null}
-              <Text as="span" variant="headingLg">
-                {formatCredits(appData?.credits)} credits
+              <Text as="p" variant="bodySm" tone="subdued">
+                Blog post generation costs <Text as="span" fontWeight="semibold">3 credits</Text>
               </Text>
             </InlineStack>
-          </InlineStack>
+          </BlockStack>
         </Card>
 
         <BlockStack gap="300">
@@ -244,12 +258,17 @@ export default function PricingPage() {
                       <Divider />
 
                       <BlockStack gap="150">
-                        <Text as="p" variant="headingSm">
-                          {formatCredits(plan.credits)} credits
-                        </Text>
-                        {plan.features.map((feature) => (
+                        <BlockStack gap="0">
+                          <Text as="p" variant="headingSm">
+                            {formatCredits(plan.credits)} credits{!isFree ? " / month" : ""}
+                          </Text>
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            ≈ {formatCredits(Math.floor(plan.credits / 3))} full product generations
+                          </Text>
+                        </BlockStack>
+                        {plan.features.slice(1).map((feature) => (
                           <Text key={feature} as="p" variant="bodySm">
-                            {feature}
+                            • {feature}
                           </Text>
                         ))}
                       </BlockStack>
@@ -312,7 +331,7 @@ export default function PricingPage() {
                           {formatPrice(creditPackage.price)}
                         </Text>
                         <Text as="p" variant="bodySm" tone="subdued">
-                          One-time purchase
+                          ≈ {formatCredits(Math.floor(creditPackage.credits / 3))} product generations · One-time
                         </Text>
                       </BlockStack>
 

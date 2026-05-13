@@ -8,9 +8,9 @@ const DEFAULT_SUBSCRIPTION_PLANS = [
     name: "Free",
     price: 0,
     credits: 150,
-    description: "For testing AI SEO generation on a new store.",
+    description: "Get started with AI content generation at no cost.",
     features: [
-      "100 credits included",
+      "150 credits included",
       "Product descriptions",
       "Meta title and meta description",
       "Basic prompt templates",
@@ -23,7 +23,7 @@ const DEFAULT_SUBSCRIPTION_PLANS = [
     credits: 2000,
     description: "For small stores keeping product SEO updated.",
     features: [
-      "1,500 credits every month",
+      "2,000 credits every month",
       "Product, collection, and page content",
       "SEO title and description generation",
       "Template library",
@@ -60,14 +60,14 @@ const DEFAULT_SUBSCRIPTION_PLANS = [
   },
   {
     key: "enterprise",
-    name: "Agency / Enterprise",
+    name: "Enterprise",
     price: 99,
     credits: 60000,
-    description: "For agencies and high-volume Shopify stores.",
+    description: "For high-volume Shopify stores and large catalogs.",
     features: [
       "60,000 credits every month",
       "Highest-volume generation",
-      "Agency workflows",
+      "Enterprise workflows",
       "Dedicated onboarding support",
       "Priority processing",
     ],
