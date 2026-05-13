@@ -24,6 +24,7 @@ import {
   Select,
   Spinner,
   Tabs,
+  Tag,
   Text,
   TextField,
 } from "@shopify/polaris";
@@ -1383,7 +1384,11 @@ export default function ProductsPage() {
   const [bulkDescTemplate, setBulkDescTemplate] = useState(() => initialBulkSessionState.bulkDescTemplate || "");
   const [bulkMetaDescTemplate, setBulkMetaDescTemplate] = useState(() => initialBulkSessionState.bulkMetaDescTemplate || "");
   const [bulkMetaTitleTemplate, setBulkMetaTitleTemplate] = useState(() => initialBulkSessionState.bulkMetaTitleTemplate || "");
-  const [bulkDescKeywords, setBulkDescKeywords] = useState(() => readGlobalSettings().productDescKeywords || "");
+  const [selectedKeywords, setSelectedKeywords] = useState([]);
+  const [keywordInput, setKeywordInput] = useState("");
+  const keywordLibrary = useMemo(() => {
+    return (readGlobalSettings().productDescKeywords || "").split(",").map((k) => k.trim()).filter(Boolean);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [bulkSettings, setBulkSettings] = useState(() => {
     const gs = readGlobalSettings();
     return {
@@ -1648,9 +1653,7 @@ export default function ProductsPage() {
     payload.append("tone", bulkSettings.tone);
     payload.append("length", bulkSettings.length);
     payload.append("format", bulkSettings.format);
-    payload.append("descKeywords", bulkDescKeywords || "");
-    const allKeywords = [bulkDescKeywords].filter(Boolean).join(", ");
-    payload.append("contextKeywords", allKeywords);
+    payload.append("contextKeywords", selectedKeywords.join(", "));
     payload.append("descriptionPromptTemplate", useCustomDescInstructions ? (bulkDescTemplate || "") : "");
     payload.append("metaTitlePromptTemplate", useCustomMetaTitleInstructions ? (bulkMetaTitleTemplate || "") : "");
     payload.append("metaDescriptionPromptTemplate", useCustomMetaDescInstructions ? (bulkMetaDescTemplate || "") : "");
@@ -1664,7 +1667,7 @@ export default function ProductsPage() {
     payload.append("removeImagesFromDescription", removeImagesFromDescription ? "1" : "");
     bulkFetcher.submit(payload, { method: "post" });
   }, [
-    bulkDescKeywords,
+    selectedKeywords,
     bulkDescTemplate,
     bulkMetaDescTemplate,
     bulkMetaTitleTemplate,
@@ -1755,6 +1758,24 @@ export default function ProductsPage() {
     },
     [makeUrl, navigate],
   );
+
+  function addKeyword(kw) {
+    const trimmed = kw.trim();
+    if (!trimmed || selectedKeywords.length >= 5 || selectedKeywords.includes(trimmed)) return;
+    setSelectedKeywords((prev) => [...prev, trimmed]);
+  }
+
+  function removeKeyword(kw) {
+    setSelectedKeywords((prev) => prev.filter((k) => k !== kw));
+  }
+
+  function handleKeywordKeyDown(e) {
+    if (e.key === "Tab" || e.key === "Enter") {
+      e.preventDefault();
+      addKeyword(keywordInput);
+      setKeywordInput("");
+    }
+  }
 
   const resourceName = { singular: "product", plural: "products" };
 
@@ -2089,6 +2110,65 @@ export default function ProductsPage() {
                 value={outputLanguage}
                 onChange={setOutputLanguage}
               />
+            </div>
+
+            {/* Keywords */}
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border)" }}>
+              <BlockStack gap="200">
+                <InlineStack align="space-between" blockAlign="center">
+                  <Text as="p" variant="bodySm" fontWeight="semibold">Keywords</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">{selectedKeywords.length}/5</Text>
+                </InlineStack>
+
+                {selectedKeywords.length > 0 && (
+                  <InlineStack gap="100" wrap>
+                    {selectedKeywords.map((kw) => (
+                      <Tag key={kw} onRemove={() => removeKeyword(kw)}>{kw}</Tag>
+                    ))}
+                  </InlineStack>
+                )}
+
+                {selectedKeywords.length < 5 && (
+                  <div onKeyDown={handleKeywordKeyDown}>
+                    <TextField
+                      label="Add keyword"
+                      labelHidden
+                      value={keywordInput}
+                      onChange={setKeywordInput}
+                      autoComplete="off"
+                      placeholder="Type a keyword, press Tab or Enter to add"
+                    />
+                  </div>
+                )}
+
+                {keywordLibrary.filter((k) => !selectedKeywords.includes(k)).length > 0 && (
+                  <BlockStack gap="100">
+                    <Text as="p" variant="bodySm" tone="subdued">From your saved keywords:</Text>
+                    <InlineStack gap="100" wrap>
+                      {keywordLibrary
+                        .filter((k) => !selectedKeywords.includes(k))
+                        .map((kw) => (
+                          <button
+                            key={kw}
+                            onClick={() => addKeyword(kw)}
+                            disabled={selectedKeywords.length >= 5}
+                            style={{
+                              background: "var(--p-color-bg-surface-secondary)",
+                              border: "1px solid var(--p-color-border)",
+                              borderRadius: "var(--p-border-radius-200)",
+                              padding: "2px 10px",
+                              cursor: selectedKeywords.length >= 5 ? "not-allowed" : "pointer",
+                              fontSize: "12px",
+                              opacity: selectedKeywords.length >= 5 ? 0.5 : 1,
+                            }}
+                          >
+                            + {kw}
+                          </button>
+                        ))}
+                    </InlineStack>
+                  </BlockStack>
+                )}
+              </BlockStack>
             </div>
 
             {/* Description Section */}

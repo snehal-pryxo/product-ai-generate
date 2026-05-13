@@ -8,9 +8,11 @@ import {
   Page,
   Card,
   BlockStack,
+  InlineStack,
   Text,
   Button,
   Select,
+  Tag,
   TextField,
   Divider,
   Box,
@@ -104,7 +106,37 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState(() => normalizeGlobalSettings(initialSettings));
   const [saved, setSaved] = useState(false);
   const [saveMessage, setSaveMessage] = useState(null);
+  const [keywordInput, setKeywordInput] = useState("");
   const isSaving = saveFetcher.state !== "idle";
+
+  function parseKeywords(raw) {
+    return (raw || "").split(",").map((k) => k.trim()).filter(Boolean);
+  }
+
+  function addKeywords(raw) {
+    const incoming = raw.split(",").map((k) => k.trim()).filter(Boolean);
+    if (!incoming.length) return;
+    const current = parseKeywords(settings.productDescKeywords);
+    const merged = [...current];
+    for (const kw of incoming) {
+      if (merged.length >= 100) break;
+      if (!merged.includes(kw)) merged.push(kw);
+    }
+    update("productDescKeywords")(merged.join(", "));
+  }
+
+  function removeKeyword(kw) {
+    const current = parseKeywords(settings.productDescKeywords);
+    update("productDescKeywords")(current.filter((k) => k !== kw).join(", "));
+  }
+
+  function handleKeywordKeyDown(e) {
+    if (e.key === "Tab" || e.key === "Enter") {
+      e.preventDefault();
+      addKeywords(keywordInput);
+      setKeywordInput("");
+    }
+  }
 
   useEffect(() => {
     // Mirror DB-backed settings to localStorage for existing pages that still read from client storage.
@@ -259,6 +291,65 @@ export default function SettingsPage() {
                 </div>
               </Box>
             </BlockStack>
+          </BlockStack>
+        </Card>
+
+        {/* Keywords Library */}
+        <Card>
+          <BlockStack gap="400">
+            <BlockStack gap="100">
+              <SectionLabel>Keywords Library</SectionLabel>
+              <Text as="p" variant="bodySm" tone="subdued">
+                Add keywords your store content should emphasize. These appear as suggestions in the Bulk Generator.
+              </Text>
+            </BlockStack>
+
+            <BlockStack gap="200">
+              <div onKeyDown={handleKeywordKeyDown}>
+                <TextField
+                  label="Add keywords"
+                  labelHidden
+                  value={keywordInput}
+                  onChange={setKeywordInput}
+                  autoComplete="off"
+                  placeholder="Type keywords separated by commas, press Tab or Enter to add"
+                  connectedRight={
+                    <Button
+                      onClick={() => { addKeywords(keywordInput); setKeywordInput(""); }}
+                      disabled={!keywordInput.trim()}
+                    >
+                      Add
+                    </Button>
+                  }
+                />
+              </div>
+              <Text as="p" variant="bodySm" tone="subdued">
+                e.g. handmade, eco-friendly, sterling silver
+              </Text>
+            </BlockStack>
+
+            {parseKeywords(settings.productDescKeywords).length > 0 && (
+              <BlockStack gap="200">
+                <Divider />
+                <InlineStack align="space-between" blockAlign="center">
+                  <Text as="p" variant="bodySm" tone="subdued">Saved keywords (click × to remove):</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {parseKeywords(settings.productDescKeywords).length} / 100
+                  </Text>
+                </InlineStack>
+                <InlineStack gap="150" wrap>
+                  {parseKeywords(settings.productDescKeywords).map((kw) => (
+                    <Tag key={kw} onRemove={() => removeKeyword(kw)}>{kw}</Tag>
+                  ))}
+                </InlineStack>
+              </BlockStack>
+            )}
+
+            {parseKeywords(settings.productDescKeywords).length === 0 && (
+              <Text as="p" variant="bodySm" tone="subdued">
+                No keywords saved yet. Add some above to use them as quick picks in the Bulk Generator.
+              </Text>
+            )}
           </BlockStack>
         </Card>
 

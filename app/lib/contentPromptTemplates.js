@@ -86,9 +86,14 @@ export function buildProductContentPrompt({
   const hasSeoDescriptionTemplate = Boolean(seoDescriptionTemplate);
   const hasAnyTemplate = hasDescriptionTemplate || hasSeoTitleTemplate || hasSeoDescriptionTemplate;
 
+  const keywordInstruction = contextKeywords && contextKeywords.trim()
+    ? `IMPORTANT: You MUST use each of these keywords verbatim (exact wording) at least once in the output: "${contextKeywords.trim()}". Spread them across the description, seoTitle, and seoDescription. Do NOT paraphrase or skip any keyword.`
+    : null;
+
   return [
     "Role: You are a senior Shopify product copywriter and SEO specialist.",
     "Task: Create high-converting product content for one Shopify product.",
+    ...(keywordInstruction ? [keywordInstruction, ""] : []),
     "",
     toFocusLabel(intent),
     "",
@@ -132,6 +137,7 @@ export function buildProductContentPrompt({
     `- "seoDescription" must be <= ${META_DESCRIPTION_MAX} characters, compelling and keyword-rich.`,
     "- Do not return markdown. Return HTML only for the description.",
     "- Do not include unsupported claims, fake guarantees, or placeholder text.",
+    '- REQUIRED: If "Keywords and context" is provided, you MUST use each keyword or phrase verbatim (exact wording) at least once in the output. Spread them across productDescription, seoTitle, and seoDescription. Do NOT paraphrase or omit any keyword.',
   ].join("\n");
 }
 
@@ -204,6 +210,7 @@ export function buildCollectionContentPrompt({
     `- "seoDescription" must be <= ${META_DESCRIPTION_MAX} characters, enticing and searchable.`,
     "- Do not return markdown. Return HTML only for the description.",
     "- Avoid keyword stuffing and generic filler copy.",
+    '- REQUIRED: If "Keywords and context" is provided, you MUST use each keyword or phrase verbatim (exact wording) at least once in the output. Spread them across productDescription, seoTitle, and seoDescription. Do NOT paraphrase or omit any keyword.',
   ].join("\n");
 }
 
@@ -270,6 +277,7 @@ export function buildPageContentPrompt({
     `- "seoDescription" must be <= ${META_DESCRIPTION_MAX} characters, concise and action-oriented.`,
     "- Do not return markdown. Return HTML only for pageBody.",
     "- Keep language clear, trust-building, and aligned to the page type.",
+    '- If "Keywords and context" is provided, naturally incorporate ALL of those keywords into the pageBody, seoTitle, and seoDescription. Do not skip any keyword.',
   ].join("\n");
 }
 
@@ -339,5 +347,6 @@ export function buildBlogContentPrompt({
     `- "seoDescription" must be <= ${META_DESCRIPTION_MAX} characters, informative and click-worthy.`,
     "- Do not return markdown. Return HTML only for articleBody.",
     "- Keep claims realistic and useful for readers at each stage of intent.",
+    '- If "Keywords and context" is provided, naturally incorporate ALL of those keywords into the articleBody, seoTitle, and seoDescription. Do not skip any keyword.',
   ].join("\n");
 }
