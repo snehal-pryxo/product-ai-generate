@@ -43,7 +43,7 @@ export const loader = async ({ request }) => {
 
   const url = new URL(request.url);
   return {
-    credits: shopData?.credits ?? 100,
+    credits: shopData?.credits ?? 150,
     currentPlanKey: shopData?.billingPlanKey || "free",
     currentPlanName: shopData?.billingPlanName || "Free",
     billingSubscriptionStatus: shopData?.billingSubscriptionStatus || null,

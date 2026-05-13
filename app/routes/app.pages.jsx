@@ -429,7 +429,7 @@ export const loader = async ({ request }) => {
     hasAnthropicKey: !!shopData?.anthropicApiKey,
     hasGeminiKey: !!(shopData?.geminiApiKey || process.env.GOOGLE_GEMINI_API_KEY),
     defaultAiProvider: shopData?.defaultAiProvider || "auto",
-    credits: shopData?.credits ?? 100,
+    credits: shopData?.credits ?? 150,
     creditsUsedTotal: shopData?.creditsUsedTotal ?? 0,
   };
 };
@@ -498,7 +498,7 @@ export const action = async ({ request }) => {
     });
     const globalSettings = parseShopGlobalSettings(shopData);
     length = getExactWordLengthOption(globalSettings, "pageContentWords");
-    const availableCredits = shopData?.credits ?? 100;
+    const availableCredits = shopData?.credits ?? 150;
     const requiredCredits = creditsForBatch(selectedContentTypes, bulkPages.length);
     if (availableCredits < requiredCredits) {
       return {

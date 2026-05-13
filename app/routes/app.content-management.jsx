@@ -755,7 +755,7 @@ export const loader = async ({ request }) => {
     where: { shop: session.shop },
     select: { credits: true, creditsUsedTotal: true, defaultAiProvider: true, openaiApiKey: true, anthropicApiKey: true, geminiApiKey: true },
   });
-  const credits = shopData?.credits ?? 100;
+  const credits = shopData?.credits ?? 150;
   const defaultAiProvider = shopData?.defaultAiProvider || "auto";
   const envAiModel = resolveEnvDefaultAiModel();
 

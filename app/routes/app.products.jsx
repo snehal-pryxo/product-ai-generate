@@ -993,7 +993,7 @@ export const action = async ({ request }) => {
       const shouldUpdateMetaTitle = selectedContentTypes.includes("meta_title");
       const shouldUpdateMetaDescription = selectedContentTypes.includes("meta_description");
       const creditsPerItem = creditsForContentTypes(selectedContentTypes);
-      const availableCredits = shopData?.credits ?? 100;
+      const availableCredits = shopData?.credits ?? 150;
       const requiredCredits = creditsForBatch(selectedContentTypes, bulkProducts.length);
 
       if (availableCredits < requiredCredits) {
@@ -1283,7 +1283,7 @@ export const loader = async ({ request }) => {
       hasAnthropicKey: !!(shopData?.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
       hasGeminiKey: !!(shopData?.geminiApiKey || process.env.GOOGLE_GEMINI_API_KEY),
       defaultAiProvider: shopData?.defaultAiProvider || "auto",
-      credits: shopData?.credits ?? 100,
+      credits: shopData?.credits ?? 150,
       creditsUsedTotal: shopData?.creditsUsedTotal ?? 0,
       shopOwnerName,
     };
@@ -1336,7 +1336,7 @@ export const loader = async ({ request }) => {
     hasAnthropicKey: !!(shopData?.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
     hasGeminiKey: !!(shopData?.geminiApiKey || process.env.GOOGLE_GEMINI_API_KEY),
     defaultAiProvider: shopData?.defaultAiProvider || "auto",
-    credits: shopData?.credits ?? 100,
+    credits: shopData?.credits ?? 150,
     creditsUsedTotal: shopData?.creditsUsedTotal ?? 0,
     shopOwnerName,
   };

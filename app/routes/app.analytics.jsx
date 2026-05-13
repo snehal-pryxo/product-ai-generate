@@ -204,7 +204,7 @@ export const loader = async ({ request }) => {
 
   const creditsUsedInRange = rangeLogs.reduce((sum, log) => sum + Number(log.creditsUsed || 0), 0);
   const creditsUsedAllTime = Number(shopCredits?.creditsUsedTotal ?? allLogsAggregate?._sum?.creditsUsed ?? 0);
-  const creditsBalance = Number(shopCredits?.credits ?? 100);
+  const creditsBalance = Number(shopCredits?.credits ?? 150);
 
   return {
     products:    { total: products.length,    withSeoTitle: pw,  withSeoDesc: pwd },

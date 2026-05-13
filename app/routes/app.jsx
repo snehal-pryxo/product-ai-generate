@@ -86,11 +86,11 @@ export const loader = async ({ request }) => {
     globalSettings: normalizeGlobalSettings(parsedGlobalSettings),
     templateSelections: normalizeTemplateSelections(parsedTemplateSelections),
     customTemplates: normalizeCustomTemplates(parsedCustomTemplates),
-    credits: shopData?.credits ?? 100,
+    credits: shopData?.credits ?? 150,
     creditsUsedTotal: shopData?.creditsUsedTotal ?? 0,
     billingPlanKey: shopData?.billingPlanKey || "free",
     billingPlanName: shopData?.billingPlanName || "Free",
-    billingPlanCredits: shopData?.billingPlanCredits ?? 100,
+    billingPlanCredits: shopData?.billingPlanCredits ?? 150,
     billingSubscriptionStatus: shopData?.billingSubscriptionStatus || null,
   };
 };

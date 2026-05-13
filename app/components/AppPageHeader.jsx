@@ -5,7 +5,7 @@ export function AppPageHeader({ title, description, ownerName, ownerLabel = "Own
   const navigate = useNavigate();
   const location = useLocation();
   const appLoaderData = useRouteLoaderData("routes/app");
-  const credits = Number(appLoaderData?.credits ?? 100);
+  const credits = Number(appLoaderData?.credits ?? 150);
   const formattedCredits = credits.toLocaleString("en-US");
 
   return (
