@@ -37,6 +37,7 @@ import {
   ExternalIcon,
 } from "@shopify/polaris-icons";
 import db from "../db.server";
+import { inngest } from "../inngest/client";
 import { authenticate } from "../shopify.server";
 import { buildCollectionContentPrompt, getCollectionSystemPrompt } from "../lib/contentPromptTemplates";
 import { TemplateLibraryModal } from "../components/TemplateLibraryModal";
@@ -1260,234 +1261,68 @@ export const action = async ({ request }) => {
           reservedCreditsUsedTotal = creditSnapshot.creditsUsedTotal;
         }
 
-        const collectionResults = await Promise.allSettled(
-          collectionsWithProducts.map(async (collection) => {
-            const productResults = await Promise.allSettled(
-              collection.products.map(async (product) => {
-                const generated = await generateContent(
-                  {
-                    title: product.title,
-                    descriptionText: stripHtml(product.descriptionHtml || ""),
-                    seoTitle: product.seoTitleValue || "",
-                    seoDescription: product.seoDescriptionValue || "",
-                    language,
-                    tone,
-                    lengthOption,
-                    format: formatOption,
-                    contextKeywords,
-                    descriptionPromptTemplate,
-                    metaTitlePromptTemplate,
-                    metaDescriptionPromptTemplate,
-                    intent: shouldUpdateMetaTitle && !shouldUpdateDescription && !shouldUpdateMetaDescription
-                      ? "seo_title"
-                      : !shouldUpdateMetaTitle && !shouldUpdateDescription && shouldUpdateMetaDescription
-                        ? "seo_description"
-                        : "all",
-                  },
-                  {
-                    aiProvider,
-                    shopOpenaiKey: shopData?.openaiApiKey || null,
-                    shopAnthropicKey: shopData?.anthropicApiKey || null,
-                    shopGeminiKey: shopData?.geminiApiKey || null,
-                  },
-                );
-
-                let nextDescription = shouldUpdateDescription
-                  ? (generated.collectionDescription
-                    ? normalizeGeneratedHtml(generated.collectionDescription)
-                    : product.descriptionHtml || "")
-                  : product.descriptionHtml || "";
-
-                if (shouldUpdateDescription && generated.collectionDescription) {
-                  if (removeImagesFlag) {
-                    nextDescription = nextDescription
-                      .replace(/<img\b[^>]*>/gi, "")
-                      .replace(/<figure\b[^>]*>[\s\S]*?<\/figure>/gi, "");
-                  }
-                  if (preserveOldDescriptionFlag && product.descriptionHtml) {
-                    const oldHtml = removeImagesFlag
-                      ? product.descriptionHtml
-                        .replace(/<img\b[^>]*>/gi, "")
-                        .replace(/<figure\b[^>]*>[\s\S]*?<\/figure>/gi, "")
-                      : product.descriptionHtml;
-                    nextDescription = nextDescription + oldHtml;
-                  }
-                  if (addTitleAsHeadingFlag && product.title) {
-                    nextDescription = withSingleTitleHeading(nextDescription, product.title);
-                  }
-                }
-
-                const nextSeoTitle = shouldUpdateMetaTitle
-                  ? (generated.seoTitle || product.seoTitleValue || "")
-                  : (product.seoTitleValue || "");
-                const nextSeoDescription = shouldUpdateMetaDescription
-                  ? (generated.seoDescription || product.seoDescriptionValue || "")
-                  : (product.seoDescriptionValue || "");
-
-                const updateResponse = await admin.graphql(PRODUCT_UPDATE_MUTATION, {
-                  variables: {
-                    product: {
-                      id: product.id,
-                      descriptionHtml: nextDescription,
-                      seo: {
-                        title: nextSeoTitle,
-                        description: nextSeoDescription,
-                      },
-                    },
-                  },
-                });
-                const updateJson = await updateResponse.json();
-                const graphqlErrors =
-                  updateJson?.errors?.map((item) => item?.message).filter(Boolean) || [];
-                if (graphqlErrors.length > 0) {
-                  throw new Error(graphqlErrors.join(" "));
-                }
-                const userErrors = updateJson?.data?.productUpdate?.userErrors || [];
-                if (userErrors.length > 0) {
-                  throw new Error(userErrors.map((item) => item?.message).filter(Boolean).join(" "));
-                }
-
-                await writeGenerationLog({
-                  shop: session.shop,
-                  productId: product.id,
-                  productTitle: product.title || null,
-                  intent: "collection_product_bulk_generate",
-                  resourceType: "collection_product",
-                  language: language || null,
-                  tone: tone || null,
-                  lengthOption: lengthOption || null,
-                  formatOption: formatOption || null,
-                  contextKeywords: contextKeywords || null,
-                  aiModel: generated.aiModel || null,
-                  aiProvider: generated.aiProvider || null,
-                  inputTokens: generated.inputTokens || 0,
-                  outputTokens: generated.outputTokens || 0,
-                  generationMs: generated.generationMs || null,
-                  generatedDescription: nextDescription || null,
-                  generatedSeoTitle: nextSeoTitle || null,
-                  generatedSeoDescription: nextSeoDescription || null,
-                  creditsUsed: creditsPerItem,
-                  appliedToProduct: true,
-                });
-
-                await upsertCollectionProductGeneratedContent({
-                  shop: session.shop,
-                  collectionId: collection.id,
-                  collectionTitle: collection.title || null,
-                  productId: product.id,
-                  productTitle: product.title || null,
-                  language: language || null,
-                  tone: tone || null,
-                  lengthOption: lengthOption || null,
-                  formatOption: formatOption || null,
-                  contextKeywords: contextKeywords || null,
-                  descriptionPromptTemplate: descriptionPromptTemplate || null,
-                  metaTitlePromptTemplate: metaTitlePromptTemplate || null,
-                  metaDescriptionPromptTemplate: metaDescriptionPromptTemplate || null,
-                  aiModel: generated.aiModel || null,
-                  aiProvider: generated.aiProvider || null,
-                  inputTokens: generated.inputTokens || 0,
-                  outputTokens: generated.outputTokens || 0,
-                  generationMs: generated.generationMs || null,
-                  descriptionHtml: nextDescription || null,
-                  seoTitle: nextSeoTitle || null,
-                  seoDescription: nextSeoDescription || null,
-                  creditsUsed: creditsPerItem,
-                  appliedToProduct: true,
-                });
-
-                return {
-                  id: product.id,
-                  title: product.title,
-                  seoTitle: nextSeoTitle,
-                  seoDescription: nextSeoDescription,
-                };
-              }),
-            );
-
-            const succeededProducts = productResults.filter((item) => item.status === "fulfilled").length;
-            const failedProducts = productResults.filter((item) => item.status === "rejected").length;
-
-            return {
-              id: collection.id,
-              title: collection.title,
-              succeededProducts,
-              failedProducts,
-              totalProducts: collection.products.length,
-            };
-          }),
+        // Flatten all products across selected collections into a single items array
+        const jobItems = collectionsWithProducts.flatMap((col) =>
+          col.products.map((p) => ({
+            productId: p.id,
+            productTitle: p.title,
+            productDescHtml: p.descriptionHtml || "",
+            productSeoTitle: p.seoTitleValue || "",
+            productSeoDesc: p.seoDescriptionValue || "",
+            collectionId: col.id,
+            collectionTitle: col.title,
+          }))
         );
 
-        const itemResults = collectionResults.map((result, index) => {
-          const collection = bulkCollections[index];
-          if (result.status === "rejected") {
-            return {
-              id: collection.id,
-              title: collection.title,
-              status: "failed",
-              error: result.reason?.message || "Collection product generation failed.",
-              seoTitle: null,
-              seoDescription: null,
-            };
-          }
+        const jobSettings = {
+          language,
+          tone,
+          lengthOption,
+          format: formatOption,
+          contextKeywords: contextKeywords || "",
+          descriptionPromptTemplate: descriptionPromptTemplate || "",
+          metaTitlePromptTemplate: metaTitlePromptTemplate || "",
+          metaDescriptionPromptTemplate: metaDescriptionPromptTemplate || "",
+          contentTypes: selectedContentTypes,
+          aiProvider,
+          addTitleAsHeading: addTitleAsHeadingFlag,
+          preserveOldDescription: preserveOldDescriptionFlag,
+          removeImages: removeImagesFlag,
+        };
 
-          const value = result.value;
-          const status = value.failedProducts > 0 ? "failed" : "success";
-          return {
-            id: value.id,
-            title: value.title,
-            status,
-            error:
-              value.failedProducts > 0
-                ? `${value.failedProducts}/${value.totalProducts} products failed in this collection.`
-                : null,
-            seoTitle: null,
-            seoDescription: null,
-          };
+        const job = await db.bulkJob.create({
+          data: {
+            shop: session.shop,
+            jobType: "collection_product",
+            status: "pending",
+            totalItems: jobItems.length,
+            contentTypes: JSON.stringify(selectedContentTypes),
+            settings: JSON.stringify(jobSettings),
+            itemsData: JSON.stringify(jobItems),
+            creditsAllocated: requiredCredits,
+          },
         });
 
-        const succeeded = itemResults.filter((item) => item.status === "success").length;
-        const failed = itemResults.length - succeeded;
-        const succeededProducts = collectionResults.reduce((sum, result) => (
-          result.status === "fulfilled" ? sum + result.value.succeededProducts : sum
-        ), 0);
-        const failedProducts = collectionResults.reduce((sum, result) => (
-          result.status === "fulfilled" ? sum + result.value.failedProducts : sum
-        ), 0);
-
-        const creditsUsed = succeededProducts * creditsPerItem;
-        const creditsToRefund = requiredCredits - creditsUsed;
-        let newCredits = reservedCredits;
-        let creditsUsedTotal = reservedCreditsUsedTotal;
-        let creditWarning = null;
-
-        if (creditsToRefund > 0) {
-          try {
-            const creditSnapshot = await refundCredits({ shopDomain: session.shop, creditsRefunded: creditsToRefund });
-            newCredits = creditSnapshot.credits;
-            creditsUsedTotal = creditSnapshot.creditsUsedTotal;
-          } catch (creditError) {
-            creditWarning = creditError?.message || "Unused credits could not be refunded automatically.";
-          }
-        }
+        await inngest.send({
+          name: "content/bulk.generate",
+          data: {
+            jobId: job.id,
+            shop: session.shop,
+            jobType: "collection_product",
+            items: jobItems,
+            settings: jobSettings,
+          },
+        });
 
         return {
           ok: true,
           intent,
+          queued: true,
+          jobId: job.id,
           mode: COLLECTION_PRODUCTS_MODE,
-          succeeded,
-          failed,
-          total: bulkCollections.length,
-          results: itemResults,
-          contentTypes: selectedContentTypes,
-          creditsPerItem,
-          creditsUsed,
-          newCredits,
-          creditsUsedTotal,
-          creditWarning,
-          targetProducts: targetProductsCount,
-          succeededProducts,
-          failedProducts,
+          total: jobItems.length,
+          newCredits: reservedCredits,
+          creditsUsedTotal: reservedCreditsUsedTotal,
         };
       }
 
@@ -1552,207 +1387,62 @@ export const action = async ({ request }) => {
         reservedCreditsUsedTotal = creditSnapshot.creditsUsedTotal;
       }
 
-      const results = await Promise.allSettled(
-        bulkCollections.map(async (c) => {
-          const generated = await generateContent(
-            {
-              title: c.title,
-              descriptionText: stripHtml(c.descriptionHtml || ""),
-              seoTitle: c.seoTitleValue || "",
-              seoDescription: c.seoDescriptionValue || "",
-              language,
-              tone,
-              lengthOption,
-              format: formatOption,
-              contextKeywords,
-              descriptionPromptTemplate,
-              metaTitlePromptTemplate,
-              metaDescriptionPromptTemplate,
-              intent: shouldUpdateMetaTitle && !shouldUpdateDescription && !shouldUpdateMetaDescription
-                ? "seo_title"
-                : !shouldUpdateMetaTitle && !shouldUpdateDescription && shouldUpdateMetaDescription
-                  ? "seo_description"
-                  : "all",
-            },
-            {
-              aiProvider,
-              shopOpenaiKey: shopData?.openaiApiKey || null,
-              shopAnthropicKey: shopData?.anthropicApiKey || null,
-              shopGeminiKey: shopData?.geminiApiKey || null,
-            },
-          );
+      const jobSettings = {
+        language,
+        tone,
+        lengthOption,
+        format: formatOption,
+        contextKeywords: contextKeywords || "",
+        descriptionPromptTemplate: descriptionPromptTemplate || "",
+        metaTitlePromptTemplate: metaTitlePromptTemplate || "",
+        metaDescriptionPromptTemplate: metaDescriptionPromptTemplate || "",
+        contentTypes: selectedContentTypes,
+        aiProvider,
+        addTitleAsHeading: addTitleAsHeadingFlag,
+        preserveOldDescription: preserveOldDescriptionFlag,
+        removeImages: removeImagesFlag,
+      };
 
-          let nextDescription = shouldUpdateDescription
-            ? (generated.collectionDescription
-              ? normalizeGeneratedHtml(generated.collectionDescription)
-              : c.descriptionHtml || "")
-            : c.descriptionHtml || "";
-          if (shouldUpdateDescription && generated.collectionDescription) {
-            if (removeImagesFlag) {
-              nextDescription = nextDescription.replace(/<img\b[^>]*>/gi, "").replace(/<figure\b[^>]*>[\s\S]*?<\/figure>/gi, "");
-            }
-            if (preserveOldDescriptionFlag && c.descriptionHtml) {
-              const oldHtml = removeImagesFlag
-                ? c.descriptionHtml.replace(/<img\b[^>]*>/gi, "").replace(/<figure\b[^>]*>[\s\S]*?<\/figure>/gi, "")
-                : c.descriptionHtml;
-              nextDescription = nextDescription + oldHtml;
-            }
-            if (addTitleAsHeadingFlag && c.title) {
-              nextDescription = withSingleTitleHeading(nextDescription, c.title);
-            }
-          }
-          const nextSeoTitle = shouldUpdateMetaTitle
-            ? (generated.seoTitle || c.seoTitleValue || "")
-            : (c.seoTitleValue || "");
-          const nextSeoDescription = shouldUpdateMetaDescription
-            ? (generated.seoDescription || c.seoDescriptionValue || "")
-            : (c.seoDescriptionValue || "");
-
-          const updateInputPayload = {
-            id: c.id,
-            descriptionHtml: nextDescription,
-            seo: {
-              title: nextSeoTitle,
-              description: nextSeoDescription,
-            },
-          };
-
-          const mutationAttempts = [
-            {
-              mutation: COLLECTION_UPDATE_MUTATION_INPUT,
-              variables: { input: updateInputPayload },
-            },
-            {
-              mutation: COLLECTION_UPDATE_MUTATION_FALLBACK,
-              variables: { collection: updateInputPayload },
-            },
-          ];
-
-          let updated = false;
-          for (let attemptIndex = 0; attemptIndex < mutationAttempts.length; attemptIndex += 1) {
-            const attempt = mutationAttempts[attemptIndex];
-            const updateResponse = await admin.graphql(attempt.mutation, {
-              variables: attempt.variables,
-            });
-            const updateJson = await updateResponse.json();
-            const graphqlErrors =
-              updateJson?.errors?.map((item) => item?.message).filter(Boolean) || [];
-
-            if (graphqlErrors.length > 0) {
-              const schemaMismatch =
-                /unknown type|unknown argument|cannot query field|is not defined|expected type/i.test(
-                  graphqlErrors.join(" "),
-                );
-              const isLastAttempt = attemptIndex === mutationAttempts.length - 1;
-              if (!isLastAttempt && schemaMismatch) {
-                continue;
-              }
-              throw new Error(graphqlErrors.join(" "));
-            }
-
-            const userErrors = updateJson?.data?.collectionUpdate?.userErrors || [];
-            if (userErrors.length > 0) {
-              throw new Error(userErrors.map((item) => item?.message).filter(Boolean).join(" "));
-            }
-
-            updated = true;
-            break;
-          }
-
-          if (!updated) {
-            throw new Error("Failed to update collection in Shopify.");
-          }
-
-          await writeGenerationLog({
-            shop: session.shop,
-            productId: c.id,
-            productTitle: c.title || null,
-            intent: "collection_bulk_generate",
-            resourceType: "collection",
-            language: language || null,
-            tone: tone || null,
-            lengthOption: lengthOption || null,
-            formatOption: formatOption || null,
-            contextKeywords: contextKeywords || null,
-            aiModel: generated.aiModel || null,
-            aiProvider: generated.aiProvider || null,
-            inputTokens: generated.inputTokens || 0,
-            outputTokens: generated.outputTokens || 0,
-            generationMs: generated.generationMs || null,
-            generatedDescription: nextDescription || null,
-            generatedSeoTitle: nextSeoTitle || null,
-            generatedSeoDescription: nextSeoDescription || null,
-            creditsUsed: creditsPerItem,
-            appliedToProduct: true,
-          });
-
-          await upsertCollectionGeneratedContent({
-            shop: session.shop,
-            collectionId: c.id,
-            collectionTitle: c.title || null,
-            language: language || null,
-            tone: tone || null,
-            lengthOption: lengthOption || null,
-            formatOption: formatOption || null,
-            contextKeywords: contextKeywords || null,
-            descriptionPromptTemplate: descriptionPromptTemplate || null,
-            metaTitlePromptTemplate: metaTitlePromptTemplate || null,
-            metaDescriptionPromptTemplate: metaDescriptionPromptTemplate || null,
-            aiModel: generated.aiModel || null,
-            aiProvider: generated.aiProvider || null,
-            inputTokens: generated.inputTokens || 0,
-            outputTokens: generated.outputTokens || 0,
-            generationMs: generated.generationMs || null,
-            descriptionHtml: nextDescription || null,
-            seoTitle: nextSeoTitle || null,
-            seoDescription: nextSeoDescription || null,
-            creditsUsed: creditsPerItem,
-            appliedToCollection: true,
-          });
-
-          return { id: c.id, title: c.title, seoTitle: nextSeoTitle, seoDescription: nextSeoDescription };
-        }),
-      );
-
-      const succeeded = results.filter((r) => r.status === "fulfilled").length;
-      const failed = results.filter((r) => r.status === "rejected").length;
-      const creditsUsed = succeeded * creditsPerItem;
-      const creditsToRefund = requiredCredits - creditsUsed;
-      let newCredits = reservedCredits;
-      let creditsUsedTotal = reservedCreditsUsedTotal;
-      let creditWarning = null;
-
-      if (creditsToRefund > 0) {
-        try {
-          const creditSnapshot = await refundCredits({ shopDomain: session.shop, creditsRefunded: creditsToRefund });
-          newCredits = creditSnapshot.credits;
-          creditsUsedTotal = creditSnapshot.creditsUsedTotal;
-        } catch (creditError) {
-          creditWarning = creditError?.message || "Unused credits could not be refunded automatically.";
-        }
-      }
-
-      const itemResults = results.map((r, i) => ({
-        id: bulkCollections[i].id,
-        title: bulkCollections[i].title,
-        status: r.status === "fulfilled" ? "success" : "failed",
-        error: r.status === "rejected" ? r.reason?.message : null,
-        seoTitle: r.status === "fulfilled" ? r.value.seoTitle : null,
-        seoDescription: r.status === "fulfilled" ? r.value.seoDescription : null,
+      const jobItems = bulkCollections.map((c) => ({
+        id: c.id,
+        title: c.title,
+        descriptionHtml: c.descriptionHtml || "",
+        seoTitle: c.seoTitleValue || "",
+        seoDescription: c.seoDescriptionValue || "",
       }));
+
+      const job = await db.bulkJob.create({
+        data: {
+          shop: session.shop,
+          jobType: "collection",
+          status: "pending",
+          totalItems: bulkCollections.length,
+          contentTypes: JSON.stringify(selectedContentTypes),
+          settings: JSON.stringify(jobSettings),
+          itemsData: JSON.stringify(jobItems),
+          creditsAllocated: requiredCredits,
+        },
+      });
+
+      await inngest.send({
+        name: "content/bulk.generate",
+        data: {
+          jobId: job.id,
+          shop: session.shop,
+          jobType: "collection",
+          items: jobItems,
+          settings: jobSettings,
+        },
+      });
+
       return {
         ok: true,
         intent,
-        succeeded,
-        failed,
+        queued: true,
+        jobId: job.id,
         total: bulkCollections.length,
-        results: itemResults,
-        contentTypes: selectedContentTypes,
-        creditsPerItem,
-        creditsUsed,
-        newCredits,
-        creditsUsedTotal,
-        creditWarning,
+        newCredits: reservedCredits,
+        creditsUsedTotal: reservedCreditsUsedTotal,
       };
     }
 
@@ -2440,17 +2130,19 @@ export default function CollectionsPage() {
     }
     if (response.ok) {
       setBulkValidationMessage(null);
-      revalidator.revalidate();
-      const creditsMessage =
-        typeof response.creditsUsed === "number"
-          ? ` ${response.creditsUsed} credits used${typeof response.newCredits === "number" ? `. Remaining: ${response.newCredits}` : ""}.`
-          : "";
-      shopify.toast.show(`Bulk generate complete: ${response.succeeded}/${response.total} updated.${creditsMessage}`);
-      if (isCollectionProductsMode) {
-        window.setTimeout(() => navigateInApp("/app/content-management", "?tab=collection_products&filter=all"), 600);
-        return;
+      setQueueStatusById({});
+      if (queueIntervalRef.current) { clearInterval(queueIntervalRef.current); queueIntervalRef.current = null; }
+      if (response.queued) {
+        shopify.toast.show(`Generating ${response.total} items in the background.`);
+        window.setTimeout(() => navigateInApp("/app/jobs", ""), 600);
+      } else {
+        const creditsMessage =
+          typeof response.creditsUsed === "number"
+            ? ` ${response.creditsUsed} credits used${typeof response.newCredits === "number" ? `. Remaining: ${response.newCredits}` : ""}.`
+            : "";
+        shopify.toast.show(`Bulk generate complete: ${response.succeeded}/${response.total} updated.${creditsMessage}`);
+        revalidator.revalidate();
       }
-      window.setTimeout(() => navigateInApp("/app/content-management", "?tab=collections&filter=all"), 600);
       return;
     }
     setBulkValidationMessage(response.error || "Bulk generation failed.");
