@@ -1383,6 +1383,8 @@ export default function ProductsPage() {
     [filteredProducts, selectedProductIds],
   );
   const exceedsBulkLimit = selectedProducts.length > MAX_BULK_ITEMS;
+  const requiredBulkCredits = selectedProducts.length * bulkContentTypes.length;
+  const insufficientCredits = requiredBulkCredits > 0 && requiredBulkCredits > credits;
   const hasRequiredBulkTemplates = useMemo(() => {
     if (bulkContentTypes.includes("description")) {
       if (!useCustomDescInstructions || !String(bulkDescTemplate || "").trim()) return false;
@@ -2286,8 +2288,9 @@ export default function ProductsPage() {
             )}
 
             <div style={{ padding: "8px 16px", borderTop: "1px solid var(--p-color-border)" }}>
-              <Text as="p" variant="bodySm" tone="subdued">
-                Estimated credits: {selectedProducts.length * bulkContentTypes.length} ({selectedProducts.length} products × {bulkContentTypes.length} types)
+              <Text as="p" variant="bodySm" tone={insufficientCredits ? "critical" : "subdued"}>
+                Estimated credits: {requiredBulkCredits} ({selectedProducts.length} products × {bulkContentTypes.length} types)
+                {insufficientCredits ? ` — not enough credits (${credits} available)` : ""}
               </Text>
             </div>
 
@@ -2304,7 +2307,7 @@ export default function ProductsPage() {
                 style={{ width: "fit-content" }}
                 variant="primary"
                 onClick={handleBulkGenerate}
-                disabled={isBulkGenerating || selectedProducts.length === 0 || exceedsBulkLimit || !hasRequiredBulkTemplates}
+                disabled={isBulkGenerating || selectedProducts.length === 0 || exceedsBulkLimit || !hasRequiredBulkTemplates || insufficientCredits}
                 loading={isBulkGenerating}
                 tone="success"
               >

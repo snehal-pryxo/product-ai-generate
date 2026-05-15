@@ -1738,6 +1738,8 @@ export default function CollectionsPage() {
   ]);
 
   const exceedsBulkLimit = targetCollectionsForBulk.length > MAX_BULK_ITEMS;
+  const requiredBulkCredits = estimatedTargetItems * bulkContentTypes.length;
+  const insufficientCredits = requiredBulkCredits > 0 && requiredBulkCredits > credits;
   const hasRequiredBulkTemplates = useMemo(() => {
     if (bulkContentTypes.includes("description")) {
       if (!useCustomDescInstructions || !String(bulkDescTemplate || "").trim()) return false;
@@ -2775,11 +2777,12 @@ export default function CollectionsPage() {
             )}
 
             <div style={{ padding: "8px 16px", borderTop: "1px solid var(--p-color-border)" }}>
-              <Text as="p" variant="bodySm" tone="subdued">
-                Estimated credits: {estimatedTargetItems * bulkContentTypes.length} (
+              <Text as="p" variant="bodySm" tone={insufficientCredits ? "critical" : "subdued"}>
+                Estimated credits: {requiredBulkCredits} (
                 {isCollectionProductsMode
                   ? `${estimatedTargetItems} products`
                   : `${selectedCollections.length} collections`} × {bulkContentTypes.length} types)
+                {insufficientCredits ? ` — not enough credits (${credits} available)` : ""}
               </Text>
             </div>
 
@@ -2796,7 +2799,7 @@ export default function CollectionsPage() {
                 style={{ width: "fit-content" }}
                 variant="primary"
                 onClick={handleBulkGenerate}
-                disabled={isBulkGenerating || targetCollectionsForBulk.length === 0 || exceedsBulkLimit || !hasRequiredBulkTemplates}
+                disabled={isBulkGenerating || targetCollectionsForBulk.length === 0 || exceedsBulkLimit || !hasRequiredBulkTemplates || insufficientCredits}
                 loading={isBulkGenerating}
                 tone="success"
               >
