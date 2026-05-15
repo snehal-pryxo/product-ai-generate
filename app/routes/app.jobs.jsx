@@ -57,17 +57,18 @@ export const loader = async ({ request }) => {
       completedItems: true,
       failedItems: true,
       failedItemIds: true,
-      creditsAllocated: true,
-      creditsUsed: true,
       createdAt: true,
       completedAt: true,
     },
   });
   return {
-    jobs: jobs.map((j) => ({
-      ...j,
-      failedItemIds: j.failedItemIds ? JSON.parse(j.failedItemIds) : [],
-    })),
+    jobs: jobs.map((j) => {
+      let failedItemIds = [];
+      if (j.failedItemIds) {
+        try { failedItemIds = JSON.parse(j.failedItemIds); } catch { failedItemIds = []; }
+      }
+      return { ...j, failedItemIds };
+    }),
   };
 };
 
@@ -82,7 +83,9 @@ export default function JobsPage() {
   useEffect(() => {
     if (hasActiveJobs && !intervalRef.current) {
       intervalRef.current = setInterval(() => {
-        revalidator.revalidate();
+        if (revalidator.state === "idle") {
+          revalidator.revalidate();
+        }
       }, POLL_INTERVAL_MS);
     }
     if (!hasActiveJobs && intervalRef.current) {
