@@ -112,11 +112,17 @@ export async function refundCredits({ shopDomain, creditsRefunded }) {
 
   await getOrCreateShopCredits(shopDomain);
 
+  const current = await db.shop.findUnique({
+    where: { shop: shopDomain },
+    select: { creditsUsedTotal: true },
+  });
+  const safeDecrement = Math.min(creditsRefunded, current?.creditsUsedTotal ?? 0);
+
   const snapshot = await db.shop.update({
     where: { shop: shopDomain },
     data: {
       credits: { increment: creditsRefunded },
-      creditsUsedTotal: { decrement: creditsRefunded },
+      creditsUsedTotal: { decrement: safeDecrement },
     },
     select: {
       credits: true,

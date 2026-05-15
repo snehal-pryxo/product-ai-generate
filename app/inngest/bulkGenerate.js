@@ -28,6 +28,23 @@ export const bulkGenerateFunction = inngest.createFunction(
     id: "bulk-generate-content",
     retries: 1,
     concurrency: { limit: 3 },
+    onFailure: async ({ event }) => {
+      const { jobId, shop } = event.data.event.data;
+      const job = await db.bulkJob.findUnique({
+        where: { id: jobId },
+        select: { status: true, creditsAllocated: true, creditsUsed: true },
+      });
+      if (job && !["completed", "partial", "failed"].includes(job.status)) {
+        const creditsToRefund = (job.creditsAllocated ?? 0) - (job.creditsUsed ?? 0);
+        if (creditsToRefund > 0) {
+          await refundCredits({ shopDomain: shop, creditsRefunded: creditsToRefund });
+        }
+        await db.bulkJob.update({
+          where: { id: jobId },
+          data: { status: "failed", completedAt: new Date() },
+        });
+      }
+    },
   },
   { event: "content/bulk.generate" },
   async ({ event, step }) => {
