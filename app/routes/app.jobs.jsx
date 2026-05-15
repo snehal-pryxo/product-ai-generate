@@ -4,9 +4,12 @@ import {
   Badge,
   BlockStack,
   Box,
+  Button,
   Card,
   DataTable,
   EmptyState,
+  InlineStack,
+  Modal,
   Page,
   ProgressBar,
   Text,
@@ -76,11 +79,57 @@ export const loader = async ({ request }) => {
   };
 };
 
+function ProductsModal({ job, onClose }) {
+  const itemLabel = job.jobType === "collection" ? "collection" : "product";
+
+  // Build unified list: succeeded first, then failed
+  const succeededItems = job.completedItemIds.map((item) => ({ ...item, status: "succeeded" }));
+  const failedItems = job.failedItemIds.map((item) => ({ ...item, status: "failed" }));
+  const allItems = [...succeededItems, ...failedItems];
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`${jobTypeLabel(job.jobType)} — ${job.completedItems} succeeded, ${job.failedItems} failed`}
+      secondaryActions={[{ content: "Close", onAction: onClose }]}
+    >
+      <Modal.Section>
+        {allItems.length === 0 ? (
+          <Text as="p" tone="subdued">No item details available for this job.</Text>
+        ) : (
+          <BlockStack gap="200">
+            {allItems.map((item, idx) => (
+              <Box
+                key={idx}
+                padding="200"
+                background={item.status === "succeeded" ? "bg-surface-success" : "bg-surface-critical"}
+                borderRadius="200"
+              >
+                <InlineStack gap="200" blockAlign="start">
+                  <Text as="span" variant="bodySm" fontWeight="bold" tone={item.status === "succeeded" ? "success" : "critical"}>
+                    {item.status === "succeeded" ? "✓" : "✗"}
+                  </Text>
+                  <BlockStack gap="050">
+                    <Text as="p" variant="bodySm" fontWeight="semibold">{item.title || item.id}</Text>
+                    {item.status === "failed" && item.error && (
+                      <Text as="p" variant="bodySm" tone="critical">{item.error}</Text>
+                    )}
+                  </BlockStack>
+                </InlineStack>
+              </Box>
+            ))}
+          </BlockStack>
+        )}
+      </Modal.Section>
+    </Modal>
+  );
+}
+
 export default function JobsPage() {
   const { jobs: initialJobs } = useLoaderData();
   const revalidator = useRevalidator();
-  const [expandedCompleted, setExpandedCompleted] = useState(null);
-  const [expandedFailed, setExpandedFailed] = useState(null);
+  const [selectedJob, setSelectedJob] = useState(null);
   const intervalRef = useRef(null);
 
   const hasActiveJobs = initialJobs.some((j) => j.status === "pending" || j.status === "processing");
@@ -117,10 +166,11 @@ export default function JobsPage() {
             </EmptyState>
           </Card>
         ) : (
-          initialJobs.map((job) => (
-            <Card key={job.id}>
-              <BlockStack gap="300">
-                <Box>
+          initialJobs.map((job) => {
+            const hasDetails = job.completedItemIds.length > 0 || job.failedItemIds.length > 0;
+            return (
+              <Card key={job.id}>
+                <BlockStack gap="300">
                   <DataTable
                     columnContentTypes={["text", "text", "text", "text", "text", "text"]}
                     headings={["Type", "Items", "Status", "Progress", "Started", "Completed"]}
@@ -147,62 +197,25 @@ export default function JobsPage() {
                       ],
                     ]}
                   />
-                </Box>
 
-                {job.completedItemIds?.length > 0 && (
-                  <Box paddingBlockStart="100">
-                    <button
-                      type="button"
-                      style={{ background: "none", border: "none", cursor: "pointer", color: "#008060", fontSize: 13 }}
-                      onClick={() => setExpandedCompleted(expandedCompleted === job.id ? null : job.id)}
-                    >
-                      {expandedCompleted === job.id ? "Hide" : "Show"} {job.completedItemIds.length} succeeded item(s)
-                    </button>
-
-                    {expandedCompleted === job.id && (
-                      <Box paddingBlockStart="200">
-                        {job.completedItemIds.map((item, idx) => (
-                          <Box key={idx} paddingBlockEnd="100">
-                            <Text as="p" variant="bodySm">
-                              <span style={{ color: "#008060" }}>✓</span>{" "}
-                              <strong>{item.title || item.id}</strong>
-                            </Text>
-                          </Box>
-                        ))}
-                      </Box>
-                    )}
-                  </Box>
-                )}
-
-                {job.failedItemIds?.length > 0 && (
-                  <Box paddingBlockStart="100">
-                    <button
-                      type="button"
-                      style={{ background: "none", border: "none", cursor: "pointer", color: "#2c6ecb", fontSize: 13 }}
-                      onClick={() => setExpandedFailed(expandedFailed === job.id ? null : job.id)}
-                    >
-                      {expandedFailed === job.id ? "Hide" : "Show"} {job.failedItemIds.length} failed item(s)
-                    </button>
-
-                    {expandedFailed === job.id && (
-                      <Box paddingBlockStart="200">
-                        {job.failedItemIds.map((fi, idx) => (
-                          <Box key={idx} paddingBlockEnd="100">
-                            <Text as="p" variant="bodySm">
-                              <strong>{fi.title || fi.id}</strong>:{" "}
-                              <span style={{ color: "#d82c0d" }}>{fi.error || "Unknown error"}</span>
-                            </Text>
-                          </Box>
-                        ))}
-                      </Box>
-                    )}
-                  </Box>
-                )}
-              </BlockStack>
-            </Card>
-          ))
+                  {hasDetails && (
+                    <Box>
+                      <Button variant="plain" onClick={() => setSelectedJob(job)}>
+                        View {jobTypeLabel(job.jobType)} ({job.completedItems} succeeded
+                        {job.failedItems > 0 ? `, ${job.failedItems} failed` : ""})
+                      </Button>
+                    </Box>
+                  )}
+                </BlockStack>
+              </Card>
+            );
+          })
         )}
       </BlockStack>
+
+      {selectedJob && (
+        <ProductsModal job={selectedJob} onClose={() => setSelectedJob(null)} />
+      )}
     </Page>
   );
 }
