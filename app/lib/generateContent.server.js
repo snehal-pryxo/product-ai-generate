@@ -87,7 +87,6 @@ function toStructuredHtml(text) {
     const line = rawLine.trim();
     if (!line) { flushParagraph(); flushList(); continue; }
 
-    const mdBold = line.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/__(.+?)__/g, "<b>$1</b>");
     const bulletMatch = line.match(/^[-*]\s+(.+)/) || line.match(/^•\s+(.+)/);
     const orderedMatch = line.match(/^\d+[.)]\s+(.+)/);
 
@@ -116,7 +115,7 @@ function toStructuredHtml(text) {
       }
       continue;
     }
-    paragraphLines.push(mdBold || line);
+    paragraphLines.push(line);
   }
   flushParagraph(); flushList();
   return html.join("");
