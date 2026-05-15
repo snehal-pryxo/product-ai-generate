@@ -1353,11 +1353,13 @@ export const loader = async ({ request }) => {
     };
   }
 
+  const collectionIds = collectionNodes.map((node) => node.id);
+
   const generatedContentByCollectionId = new Map();
   const generatedContents = await db.collectionGeneratedContent.findMany({
     where: {
       shop: session.shop,
-      collectionId: { in: collectionNodes.map((node) => node.id) },
+      collectionId: { in: collectionIds },
     },
     select: {
       collectionId: true,
@@ -1369,6 +1371,15 @@ export const loader = async ({ request }) => {
   generatedContents.forEach((entry) => {
     generatedContentByCollectionId.set(entry.collectionId, entry);
   });
+
+  const collectionProductCountRows = await db.collectionProductGeneratedContent.groupBy({
+    by: ["collectionId"],
+    where: { shop: session.shop, collectionId: { in: collectionIds } },
+    _count: { productId: true },
+  });
+  const collectionProductCountMap = new Map(
+    collectionProductCountRows.map((row) => [row.collectionId, row._count.productId]),
+  );
 
   const collections = collectionNodes.map((node) => {
     const generatedContent = generatedContentByCollectionId.get(node.id);
@@ -1389,6 +1400,7 @@ export const loader = async ({ request }) => {
       seoDescriptionValue: node.seo?.description || "",
       collectionType: toCollectionTypeMeta(node.ruleSet),
       productsCount: node.productsCount?.count || 0,
+      generatedProductsCount: collectionProductCountMap.get(node.id) || 0,
       updatedAt: formatDate(node.updatedAt),
       adminUrl: toLegacyResourceId(node.id)
         ? `https://${session.shop}/admin/collections/${toLegacyResourceId(node.id)}`
@@ -2153,7 +2165,13 @@ export default function CollectionsPage() {
       </IndexTable.Cell>
 
       {isCollectionProductsMode && (
-        <IndexTable.Cell>{renderBadge(collection.appStatus)}</IndexTable.Cell>
+        <IndexTable.Cell>
+          <Text as="span" variant="bodySm" tone={collection.generatedProductsCount > 0 ? "success" : "subdued"}>
+            {collection.generatedProductsCount > 0
+              ? `${collection.generatedProductsCount} / ${collection.productsCount} generated`
+              : "None generated"}
+          </Text>
+        </IndexTable.Cell>
       )}
 
       {!isCollectionProductsMode && (
@@ -2341,7 +2359,7 @@ export default function CollectionsPage() {
                         ),
                       },
                       { title: "Collection" },
-                      ...(isCollectionProductsMode ? [{ title: "Status" }] : []),
+                      ...(isCollectionProductsMode ? [{ title: "Products Generated" }] : []),
                       ...(!isCollectionProductsMode
                         ? [
                             { title: "Short" },
