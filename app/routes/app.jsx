@@ -134,6 +134,7 @@ export default function App() {
           <s-link href={`/app/content-management${appContextSearch}`}>Content Management</s-link>
           <s-link href={`/app/template${appContextSearch}`}>Template</s-link>
           <s-link href={`/app/analytics${appContextSearch}`}>Analytics</s-link>
+          <s-link href={`/app/jobs${appContextSearch}`}>Jobs</s-link>
           <s-link href={`/app/pricing${appContextSearch}`}>Pricing</s-link>
           <s-link href={`/app/settings${appContextSearch}`}>Settings</s-link>
         </s-app-nav>
