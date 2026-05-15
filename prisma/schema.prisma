@@ -295,3 +295,25 @@ model BlogGeneratedContent {
   @@index([shop, updatedAt], map: "BlogGeneratedContent_shop_updatedAt_idx")
   @@map("blog_generated_contents")
 }
+
+model BulkJob {
+  id               String    @id @default(cuid())
+  shop             String
+  jobType          String    // "product" | "collection" | "collection_product"
+  status           String    @default("pending") // "pending" | "processing" | "completed" | "partial" | "failed"
+  totalItems       Int
+  completedItems   Int       @default(0)
+  failedItems      Int       @default(0)
+  contentTypes     String    @db.Text // JSON: ["description","meta_title","meta_description"]
+  settings         String    @db.LongText // JSON: { language, tone, ... }
+  itemsData        String    @db.LongText // JSON: array of items
+  creditsAllocated Int
+  creditsUsed      Int       @default(0)
+  failedItemIds    String?   @db.LongText // JSON: [{id, title, error}]
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  completedAt      DateTime?
+
+  @@index([shop, createdAt])
+  @@map("bulk_jobs")
+}
