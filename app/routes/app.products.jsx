@@ -47,7 +47,6 @@ import {
   creditsForContentTypes,
   deductCredits,
   parseSelectedContentTypes,
-  refundCredits,
 } from "../lib/credits.server";
 const FETCH_BATCH_SIZE = 250;
 const STATUS_FILTERS = ["all", "active", "draft"];
@@ -896,26 +895,6 @@ async function generateContent(input, { aiProvider = "auto", shopOpenaiKey = nul
     }
   }
   throw lastError;
-}
-
-async function writeGenerationLog(data) {
-  try {
-    await db.generatedContentLog.create({ data });
-  } catch (error) {
-    console.error("Failed to store generated content log", error);
-  }
-}
-
-async function upsertProductContent(data) {
-  try {
-    await db.productGeneratedContent.upsert({
-      where: { shop_productId: { shop: data.shop, productId: data.productId } },
-      create: data,
-      update: data,
-    });
-  } catch (error) {
-    console.error("Failed to upsert product generated content", error);
-  }
 }
 
 export const action = async ({ request }) => {

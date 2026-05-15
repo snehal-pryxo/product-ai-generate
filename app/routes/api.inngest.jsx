@@ -7,4 +7,5 @@ const handler = serve({
   functions: [bulkGenerateFunction],
 });
 
-export const { loader, action } = handler;
+export const loader = handler.loader;
+export const action = handler.action;
