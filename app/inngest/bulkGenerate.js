@@ -28,6 +28,7 @@ export const bulkGenerateFunction = inngest.createFunction(
     id: "bulk-generate-content",
     retries: 1,
     concurrency: { limit: 3 },
+    triggers: [{ event: "content/bulk.generate" }],
     onFailure: async ({ event }) => {
       const { jobId, shop } = event.data.event.data;
       const job = await db.bulkJob.findUnique({
@@ -46,7 +47,6 @@ export const bulkGenerateFunction = inngest.createFunction(
       }
     },
   },
-  { event: "content/bulk.generate" },
   async ({ event, step }) => {
     const { jobId, shop, jobType, items, settings } = event.data;
 
