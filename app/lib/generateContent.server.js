@@ -822,6 +822,7 @@ export async function generateCollectionProductItem(item, settings, apiKeys) {
 export async function updateJobProgress(jobId, chunkItems, results, creditsPerItem) {
   const completed = results.filter((r) => r.status === "fulfilled").length;
   const failed = results.filter((r) => r.status === "rejected").length;
+
   const newFailedItems = chunkItems
     .map((item, idx) =>
       results[idx].status === "rejected"
@@ -830,8 +831,20 @@ export async function updateJobProgress(jobId, chunkItems, results, creditsPerIt
     )
     .filter(Boolean);
 
-  const job = await db.bulkJob.findUnique({ where: { id: jobId }, select: { failedItemIds: true } });
+  const newCompletedItems = chunkItems
+    .map((item, idx) =>
+      results[idx].status === "fulfilled"
+        ? { id: item.id || item.productId, title: item.title || item.productTitle }
+        : null,
+    )
+    .filter(Boolean);
+
+  const job = await db.bulkJob.findUnique({
+    where: { id: jobId },
+    select: { failedItemIds: true, completedItemIds: true },
+  });
   const existingFailed = job?.failedItemIds ? JSON.parse(job.failedItemIds) : [];
+  const existingCompleted = job?.completedItemIds ? JSON.parse(job.completedItemIds) : [];
 
   await db.bulkJob.update({
     where: { id: jobId },
@@ -840,6 +853,7 @@ export async function updateJobProgress(jobId, chunkItems, results, creditsPerIt
       failedItems: { increment: failed },
       creditsUsed: { increment: completed * creditsPerItem },
       failedItemIds: JSON.stringify([...existingFailed, ...newFailedItems]),
+      completedItemIds: JSON.stringify([...existingCompleted, ...newCompletedItems]),
     },
   });
 }

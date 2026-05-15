@@ -309,8 +309,9 @@ model BulkJob {
   itemsData        String    @db.LongText // JSON: array of items
   creditsAllocated Int
   creditsUsed      Int       @default(0)
-  failedItemIds    String?   @db.LongText // JSON: [{id, title, error}]
-  createdAt        DateTime  @default(now())
+  failedItemIds      String?   @db.LongText // JSON: [{id, title, error}]
+  completedItemIds   String?   @db.LongText // JSON: [{id, title}]
+  createdAt          DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   completedAt      DateTime?
 

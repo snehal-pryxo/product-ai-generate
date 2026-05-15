@@ -43,6 +43,11 @@ function formatDate(dateStr) {
   return new Date(dateStr).toLocaleString();
 }
 
+function parseJsonField(raw) {
+  if (!raw) return [];
+  try { return JSON.parse(raw); } catch { return []; }
+}
+
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
   const since = new Date(Date.now() - THIRTY_DAYS_MS);
@@ -57,25 +62,25 @@ export const loader = async ({ request }) => {
       completedItems: true,
       failedItems: true,
       failedItemIds: true,
+      completedItemIds: true,
       createdAt: true,
       completedAt: true,
     },
   });
   return {
-    jobs: jobs.map((j) => {
-      let failedItemIds = [];
-      if (j.failedItemIds) {
-        try { failedItemIds = JSON.parse(j.failedItemIds); } catch { failedItemIds = []; }
-      }
-      return { ...j, failedItemIds };
-    }),
+    jobs: jobs.map((j) => ({
+      ...j,
+      failedItemIds: parseJsonField(j.failedItemIds),
+      completedItemIds: parseJsonField(j.completedItemIds),
+    })),
   };
 };
 
 export default function JobsPage() {
   const { jobs: initialJobs } = useLoaderData();
   const revalidator = useRevalidator();
-  const [expandedJobId, setExpandedJobId] = useState(null);
+  const [expandedCompleted, setExpandedCompleted] = useState(null);
+  const [expandedFailed, setExpandedFailed] = useState(null);
   const intervalRef = useRef(null);
 
   const hasActiveJobs = initialJobs.some((j) => j.status === "pending" || j.status === "processing");
@@ -144,17 +149,42 @@ export default function JobsPage() {
                   />
                 </Box>
 
+                {job.completedItemIds?.length > 0 && (
+                  <Box paddingBlockStart="100">
+                    <button
+                      type="button"
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#008060", fontSize: 13 }}
+                      onClick={() => setExpandedCompleted(expandedCompleted === job.id ? null : job.id)}
+                    >
+                      {expandedCompleted === job.id ? "Hide" : "Show"} {job.completedItemIds.length} succeeded item(s)
+                    </button>
+
+                    {expandedCompleted === job.id && (
+                      <Box paddingBlockStart="200">
+                        {job.completedItemIds.map((item, idx) => (
+                          <Box key={idx} paddingBlockEnd="100">
+                            <Text as="p" variant="bodySm">
+                              <span style={{ color: "#008060" }}>✓</span>{" "}
+                              <strong>{item.title || item.id}</strong>
+                            </Text>
+                          </Box>
+                        ))}
+                      </Box>
+                    )}
+                  </Box>
+                )}
+
                 {job.failedItemIds?.length > 0 && (
-                  <Box paddingBlockStart="200">
+                  <Box paddingBlockStart="100">
                     <button
                       type="button"
                       style={{ background: "none", border: "none", cursor: "pointer", color: "#2c6ecb", fontSize: 13 }}
-                      onClick={() => setExpandedJobId(expandedJobId === job.id ? null : job.id)}
+                      onClick={() => setExpandedFailed(expandedFailed === job.id ? null : job.id)}
                     >
-                      {expandedJobId === job.id ? "Hide" : "Show"} {job.failedItemIds.length} failed item(s)
+                      {expandedFailed === job.id ? "Hide" : "Show"} {job.failedItemIds.length} failed item(s)
                     </button>
 
-                    {expandedJobId === job.id && (
+                    {expandedFailed === job.id && (
                       <Box paddingBlockStart="200">
                         {job.failedItemIds.map((fi, idx) => (
                           <Box key={idx} paddingBlockEnd="100">
