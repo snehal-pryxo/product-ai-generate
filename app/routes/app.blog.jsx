@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFetcher, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
@@ -8,9 +8,11 @@ import {
   Box,
   Button,
   Card,
+  Combobox,
   EmptyState,
   IndexTable,
   InlineStack,
+  Listbox,
   Modal,
   Page,
   Select,
@@ -126,6 +128,46 @@ const PRODUCT_BY_HANDLE_QUERY = `#graphql
       descriptionHtml
       productType
       vendor
+    }
+  }
+`;
+
+const PRODUCTS_PICKER_QUERY = `#graphql
+  query ProductsPicker($first: Int!) {
+    products(first: $first, sortKey: TITLE) {
+      edges {
+        node {
+          id
+          title
+          handle
+        }
+      }
+    }
+  }
+`;
+
+const COLLECTIONS_PICKER_QUERY = `#graphql
+  query CollectionsPicker($first: Int!) {
+    collections(first: $first, sortKey: TITLE) {
+      edges {
+        node {
+          id
+          title
+          handle
+        }
+      }
+    }
+  }
+`;
+
+const COLLECTION_BY_HANDLE_QUERY = `#graphql
+  query CollectionByHandle($handle: String!) {
+    collectionByHandle(handle: $handle) {
+      id
+      title
+      handle
+      description
+      descriptionHtml
     }
   }
 `;
@@ -389,7 +431,46 @@ function inferProductContextFromUrl(productUrl) {
   };
 }
 
+function extractCollectionHandleFromUrl(url) {
+  const normalized = normalizeProductUrl(url);
+  if (!normalized) return "";
+  try {
+    const parsed = new URL(normalized);
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    const idx = parts.findIndex((p) => p.toLowerCase() === "collections");
+    if (idx >= 0 && parts[idx + 1]) return decodeURIComponent(parts[idx + 1]);
+    return "";
+  } catch {
+    return "";
+  }
+}
+
+async function resolveCollectionContext(admin, collectionUrl) {
+  const handle = extractCollectionHandleFromUrl(collectionUrl);
+  const fallback = { handle, title: titleCaseFromSlug(handle), description: "", productType: "", vendor: "" };
+  if (!handle) return fallback;
+  try {
+    const response = await admin.graphql(COLLECTION_BY_HANDLE_QUERY, { variables: { handle } });
+    const json = await response.json();
+    const col = json?.data?.collectionByHandle;
+    if (!col) return fallback;
+    return {
+      handle: cleanText(col.handle) || handle,
+      title: cleanText(col.title) || fallback.title,
+      description: stripHtml(col.descriptionHtml || col.description || ""),
+      productType: "",
+      vendor: "",
+    };
+  } catch (error) {
+    console.error("Failed to resolve blog collection context", error);
+    return fallback;
+  }
+}
+
 async function resolveProductContext(admin, productUrl) {
+  if (/\/collections\//i.test(normalizeProductUrl(productUrl))) {
+    return resolveCollectionContext(admin, productUrl);
+  }
   const fallback = inferProductContextFromUrl(productUrl);
   if (!fallback.handle) return fallback;
 
@@ -1869,7 +1950,31 @@ export const loader = async ({ request }) => {
     after = connection.pageInfo.endCursor;
   }
 
-  return { blogs, articles, settingsLanguage, settingsTone };
+  const products = [];
+  try {
+    const res = await admin.graphql(PRODUCTS_PICKER_QUERY, { variables: { first: 100 } });
+    const json = await res.json();
+    for (const edge of json?.data?.products?.edges || []) {
+      const n = edge.node;
+      products.push({ id: n.id, title: n.title, handle: n.handle });
+    }
+  } catch (e) {
+    console.error("Failed to load products for picker", e);
+  }
+
+  const collections = [];
+  try {
+    const res = await admin.graphql(COLLECTIONS_PICKER_QUERY, { variables: { first: 100 } });
+    const json = await res.json();
+    for (const edge of json?.data?.collections?.edges || []) {
+      const n = edge.node;
+      collections.push({ id: n.id, title: n.title, handle: n.handle });
+    }
+  } catch (e) {
+    console.error("Failed to load collections for picker", e);
+  }
+
+  return { blogs, articles, settingsLanguage, settingsTone, products, collections, shopDomain: session.shop };
 };
 
 export const action = async ({ request }) => {
@@ -2402,8 +2507,96 @@ export const action = async ({ request }) => {
   return { ok: false, intent, error: "Unknown action." };
 };
 
+function ResourcePickerField({ products, collections, shopDomain, value, onChange, label = "Link to product or collection (optional)" }) {
+  const [inputValue, setInputValue] = useState("");
+
+  const selectedItem = useMemo(() => {
+    if (!value) return null;
+    try {
+      const parsed = new URL(value);
+      const parts = parsed.pathname.split("/").filter(Boolean);
+      const prodIdx = parts.findIndex((p) => p === "products");
+      const colIdx = parts.findIndex((p) => p === "collections");
+      if (prodIdx >= 0 && parts[prodIdx + 1]) {
+        const handle = decodeURIComponent(parts[prodIdx + 1]);
+        const found = products.find((p) => p.handle === handle);
+        return { title: found?.title || titleCaseFromSlug(handle), type: "Product" };
+      }
+      if (colIdx >= 0 && parts[colIdx + 1]) {
+        const handle = decodeURIComponent(parts[colIdx + 1]);
+        const found = collections.find((c) => c.handle === handle);
+        return { title: found?.title || titleCaseFromSlug(handle), type: "Collection" };
+      }
+    } catch {}
+    return null;
+  }, [value, products, collections]);
+
+  const filtered = useMemo(() => {
+    const q = inputValue.toLowerCase();
+    return {
+      products: products.filter((p) => p.title.toLowerCase().includes(q)).slice(0, 20),
+      collections: collections.filter((c) => c.title.toLowerCase().includes(q)).slice(0, 20),
+    };
+  }, [inputValue, products, collections]);
+
+  const handleSelect = useCallback((val) => {
+    const [type, handle] = val.split("|");
+    const url = `https://${shopDomain}/${type === "product" ? "products" : "collections"}/${handle}`;
+    onChange(url);
+    setInputValue("");
+  }, [shopDomain, onChange]);
+
+  if (selectedItem) {
+    return (
+      <BlockStack gap="100">
+        <Text as="p" variant="bodyMd">{label}</Text>
+        <InlineStack gap="200" blockAlign="center">
+          <Text as="span" variant="bodySm" tone="subdued">{selectedItem.type}:</Text>
+          <Text as="span" variant="bodySm" fontWeight="semibold">{selectedItem.title}</Text>
+          <Button variant="plain" size="slim" onClick={() => onChange("")}>Remove</Button>
+        </InlineStack>
+      </BlockStack>
+    );
+  }
+
+  return (
+    <Combobox
+      activator={
+        <Combobox.TextField
+          label={label}
+          value={inputValue}
+          onChange={setInputValue}
+          autoComplete="off"
+          placeholder="Search products or collections..."
+          clearButton
+          onClearButtonClick={() => { setInputValue(""); onChange(""); }}
+        />
+      }
+    >
+      {(filtered.products.length > 0 || filtered.collections.length > 0) ? (
+        <Listbox onSelect={handleSelect}>
+          {filtered.products.length > 0 && (
+            <Listbox.Section title="Products">
+              {filtered.products.map((p) => (
+                <Listbox.Option key={p.id} value={`product|${p.handle}`} label={p.title} />
+              ))}
+            </Listbox.Section>
+          )}
+          {filtered.collections.length > 0 && (
+            <Listbox.Section title="Collections">
+              {filtered.collections.map((c) => (
+                <Listbox.Option key={c.id} value={`collection|${c.handle}`} label={c.title} />
+              ))}
+            </Listbox.Section>
+          )}
+        </Listbox>
+      ) : null}
+    </Combobox>
+  );
+}
+
 export default function BlogPage() {
-  const { blogs, articles, settingsTone } = useLoaderData();
+  const { blogs, articles, settingsTone, products, collections, shopDomain } = useLoaderData();
   const fetcher = useFetcher();
 
   const [rows, setRows] = useState(() => articles);
@@ -2442,9 +2635,8 @@ export default function BlogPage() {
     { id: TAB_KEYS.PILLAR, content: "Pillar Article" },
   ];
 
-  const fullBlogCreditCost = activeTabKey === TAB_KEYS.PILLAR ? BLOG_PILLAR_CREDIT_COST : BLOG_BODY_CREDIT_COST;
-
   const activeTabKey = tabItems[activeTab]?.id || TAB_KEYS.BUSINESS;
+  const fullBlogCreditCost = activeTabKey === TAB_KEYS.PILLAR ? BLOG_PILLAR_CREDIT_COST : BLOG_BODY_CREDIT_COST;
   const toneOptions = useMemo(() => POST_TONE_OPTIONS.map((value) => ({ label: value, value })), []);
   const audienceOptions = useMemo(
     () => TARGET_AUDIENCE_OPTIONS.map((value) => ({ label: value, value })),
@@ -2765,7 +2957,7 @@ export default function BlogPage() {
                       <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                       <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                       <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                      <TextField label="Product URL" value={productUrl} onChange={setProductUrl} autoComplete="off" placeholder="https://yourstore.com/products/..." />
+                      <ResourcePickerField products={products} collections={collections} shopDomain={shopDomain} value={productUrl} onChange={setProductUrl} />
                     </div>
                   ) : null}
 
@@ -2778,7 +2970,7 @@ export default function BlogPage() {
                       <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                       <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                       <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                      <TextField label="Product URL" value={productUrl} onChange={setProductUrl} autoComplete="off" placeholder="https://yourstore.com/products/..." />
+                      <ResourcePickerField products={products} collections={collections} shopDomain={shopDomain} value={productUrl} onChange={setProductUrl} />
                     </div>
                   ) : null}
 
@@ -2788,7 +2980,7 @@ export default function BlogPage() {
                       <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                       <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                       <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                      <TextField label="Product URL" value={productUrl} onChange={setProductUrl} autoComplete="off" placeholder="https://yourstore.com/products/..." />
+                      <ResourcePickerField products={products} collections={collections} shopDomain={shopDomain} value={productUrl} onChange={setProductUrl} />
                     </div>
                   ) : null}
 
@@ -2797,7 +2989,7 @@ export default function BlogPage() {
                       <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                       <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                       <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                      <TextField label="Product URL (optional)" value={productUrl} onChange={setProductUrl} autoComplete="off" placeholder="https://yourstore.com/products/..." />
+                      <ResourcePickerField products={products} collections={collections} shopDomain={shopDomain} value={productUrl} onChange={setProductUrl} />
                     </div>
                   ) : null}
 
@@ -2813,7 +3005,7 @@ export default function BlogPage() {
                       />
                       <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                       <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                      <TextField label="Product URL (optional)" value={productUrl} onChange={setProductUrl} autoComplete="off" placeholder="https://yourstore.com/products/..." helpText="Linked naturally throughout the article" />
+                      <ResourcePickerField products={products} collections={collections} shopDomain={shopDomain} value={productUrl} onChange={setProductUrl} />
                     </div>
                   ) : null}
 
@@ -3064,7 +3256,7 @@ export default function BlogPage() {
                 <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                 <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                 <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                <TextField label="Product URL" value={productUrl} onChange={setProductUrl} autoComplete="off" placeholder="https://yourstore.com/products/..." />
+                <ResourcePickerField products={products} collections={collections} shopDomain={shopDomain} value={productUrl} onChange={setProductUrl} />
               </div>
             ) : null}
 
@@ -3077,7 +3269,7 @@ export default function BlogPage() {
                 <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                 <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                 <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                <TextField label="Product URL" value={productUrl} onChange={setProductUrl} autoComplete="off" placeholder="https://yourstore.com/products/..." />
+                <ResourcePickerField products={products} collections={collections} shopDomain={shopDomain} value={productUrl} onChange={setProductUrl} />
               </div>
             ) : null}
 
@@ -3087,17 +3279,17 @@ export default function BlogPage() {
                 <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                 <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                 <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                <TextField label="Product URL" value={productUrl} onChange={setProductUrl} autoComplete="off" placeholder="https://yourstore.com/products/..." />
+                <ResourcePickerField products={products} collections={collections} shopDomain={shopDomain} value={productUrl} onChange={setProductUrl} />
               </div>
             ) : null}
-            
+
 
             {activeTabKey === TAB_KEYS.BUSINESS ? (
               <div className="blog-generator-fields">
                 <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                 <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                 <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                <TextField label="Product URL (optional)" value={productUrl} onChange={setProductUrl} autoComplete="off" placeholder="https://yourstore.com/products/..." />
+                <ResourcePickerField products={products} collections={collections} shopDomain={shopDomain} value={productUrl} onChange={setProductUrl} />
               </div>
             ) : null}
 
