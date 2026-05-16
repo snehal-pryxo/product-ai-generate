@@ -4,7 +4,7 @@ import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import {
   Page, Layout, Card, Text, Badge, Button, DataTable, Tabs, Box, BlockStack,
-  InlineStack, ProgressBar, Banner, Collapsible, Modal,
+  InlineStack, ProgressBar, Banner, Collapsible, Modal, Select,
 } from "@shopify/polaris";
 import {
   generateSchema,
@@ -380,64 +380,90 @@ function ItemModal({ item, onClose, onGenerate, generatingKey }) {
 // Resource Tab
 // ---------------------------------------------------------------------------
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [
+  { label: "10 per page", value: "10" },
+  { label: "20 per page", value: "20" },
+  { label: "50 per page", value: "50" },
+  { label: "100 per page", value: "100" },
+];
 
 function ResourceTab({ items, resourceType, onSelectItem }) {
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState("20");
+
+  const size = Number(pageSize);
 
   if (items.length === 0) {
     return (
-      <Box padding="400">
-        <Text tone="subdued">No {resourceType}s found in this store.</Text>
+      <Box padding="600">
+        <Text tone="subdued" alignment="center">No {resourceType}s found in this store.</Text>
       </Box>
     );
   }
 
-  const totalPages = Math.ceil(items.length / PAGE_SIZE);
-  const pageItems = items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const totalPages = Math.ceil(items.length / size);
+  const pageItems = items.slice(page * size, (page + 1) * size);
 
   const rows = pageItems.map((item) => [
     <Button key="title" variant="plain" textAlign="left" onClick={() => onSelectItem(item)}>
       {item.title}
     </Button>,
     <ScoreBadge key="score" score={item.score} />,
-    item.hasSchema ? <Badge key="schema" tone="success">Yes</Badge> : <Badge key="schema" tone="critical">No</Badge>,
+    item.hasSchema
+      ? <Badge key="schema" tone="success">Yes</Badge>
+      : <Badge key="schema">No</Badge>,
     resourceType !== "page"
-      ? (item.hasFaq ? <Badge key="faq" tone="success">Yes</Badge> : <Badge key="faq" tone="critical">No</Badge>)
-      : <Text key="faq" tone="subdued">N/A</Text>,
-    <Button key="action" size="slim" variant="plain" onClick={() => onSelectItem(item)}>View</Button>,
+      ? (item.hasFaq ? <Badge key="faq" tone="success">Yes</Badge> : <Badge key="faq">No</Badge>)
+      : <Text key="faq" tone="subdued">—</Text>,
+    <Button key="action" size="slim" onClick={() => onSelectItem(item)}>View</Button>,
   ]);
 
   return (
     <BlockStack gap="0">
       <DataTable
         columnContentTypes={["text", "text", "text", "text", "text"]}
-        headings={["Title", "AI Score", "Schema", "FAQ", "Actions"]}
+        headings={["Title", "AI Score", "Schema", "FAQ", ""]}
         rows={rows}
       />
-      {totalPages > 1 && (
-        <Box padding="300" borderColor="border-secondary" borderBlockStartWidth="025">
-          <InlineStack align="center" gap="300">
-            <Button
-              size="slim"
-              disabled={page === 0}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              Previous
-            </Button>
-            <Text tone="subdued">
-              Page {page + 1} of {totalPages} ({items.length} total)
-            </Text>
-            <Button
-              size="slim"
-              disabled={page >= totalPages - 1}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </Button>
+      <Box
+        padding="300"
+        borderColor="border"
+        borderBlockStartWidth="025"
+        background="bg-surface-secondary"
+      >
+        <InlineStack align="space-between" blockAlign="center">
+          <Text tone="subdued" variant="bodySm">
+            Showing {page * size + 1}–{Math.min((page + 1) * size, items.length)} of {items.length}
+          </Text>
+          <InlineStack gap="300" blockAlign="center">
+            <div style={{ width: 140 }}>
+              <Select
+                label="Per page"
+                labelHidden
+                options={PAGE_SIZE_OPTIONS}
+                value={pageSize}
+                onChange={(v) => { setPageSize(v); setPage(0); }}
+              />
+            </div>
+            <InlineStack gap="100">
+              <Button
+                size="slim"
+                disabled={page === 0}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                ‹ Prev
+              </Button>
+              <Button
+                size="slim"
+                disabled={page >= totalPages - 1}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next ›
+              </Button>
+            </InlineStack>
           </InlineStack>
-        </Box>
-      )}
+        </InlineStack>
+      </Box>
     </BlockStack>
   );
 }
@@ -542,37 +568,33 @@ export default function AiVisibilityPage() {
 
       <Layout>
         <Layout.Section>
-          <InlineStack gap="400" wrap={false}>
-            <div style={{ flex: 1 }}>
-              <Card>
-                <BlockStack gap="300">
-                  <Text variant="headingMd">Store AI Readiness Score</Text>
-                  <Text variant="heading3xl">
-                    {totalScore}
-                    <Text as="span" variant="bodyMd" tone="subdued">
-                      /100
-                    </Text>
-                  </Text>
-                  <ProgressBar
-                    progress={totalScore}
-                    size="medium"
-                    tone={progressTone}
-                  />
-                  <Text tone="subdued">{allItems.length} items across products, blogs, and pages</Text>
-                </BlockStack>
-              </Card>
-            </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", alignItems: "stretch" }}>
+            {/* Score card */}
+            <Card>
+              <BlockStack gap="300">
+                <Text variant="headingSm" tone="subdued">Store AI Readiness Score</Text>
+                <InlineStack gap="300" blockAlign="center">
+                  <Text variant="heading3xl" fontWeight="bold">{totalScore}</Text>
+                  <Text variant="bodyLg" tone="subdued">/100</Text>
+                </InlineStack>
+                <ProgressBar progress={totalScore} size="small" tone={progressTone} />
+                <Text tone="subdued" variant="bodySm">{allItems.length} items analysed</Text>
+              </BlockStack>
+            </Card>
 
-            <div style={{ flex: 1 }}>
-              <Card>
-                <BlockStack gap="300">
-                  <Text variant="headingMd">AI Content Index</Text>
-                  <Text tone="subdued">
-                    When shoppers ask ChatGPT, Perplexity, or Google AI about products like yours, these AI engines crawl the web to find the best answer. An AI Content Index (llms.txt) is a single file that tells AI crawlers exactly what your store sells — making it far more likely your products get recommended in AI-powered search results.
-                  </Text>
+            {/* AI Content Index card */}
+            <Card>
+              <BlockStack gap="300">
+                <InlineStack align="space-between" blockAlign="center">
+                  <Text variant="headingSm" tone="subdued">AI Content Index</Text>
+                  {llmsTxt ? <Badge tone="success">Generated</Badge> : <Badge tone="attention">Not generated</Badge>}
+                </InlineStack>
+                <Text tone="subdued" variant="bodySm">
+                  A single file that tells ChatGPT, Perplexity, and Google AI exactly what your store sells — so your products get recommended when shoppers ask AI assistants for suggestions.
+                </Text>
+                <InlineStack gap="200" wrap>
                   {llmsTxt ? (
-                    <InlineStack gap="200" wrap>
-                      <Badge tone="success">Index generated</Badge>
+                    <>
                       <Button
                         size="slim"
                         onClick={() => {
@@ -583,78 +605,75 @@ export default function AiVisibilityPage() {
                       </Button>
                       <Button
                         size="slim"
+                        variant="plain"
                         loading={isSubmitting && generatingKey === "llmstxt"}
                         onClick={handleGenerateLlmsTxt}
                       >
-                        Regenerate ({llmsTxtCredits} credits)
+                        Regenerate ({llmsTxtCredits} cr)
                       </Button>
-                    </InlineStack>
+                    </>
                   ) : (
                     <Button
                       size="slim"
+                      variant="primary"
                       loading={isSubmitting && generatingKey === "llmstxt"}
                       onClick={handleGenerateLlmsTxt}
                     >
-                      Generate AI Index ({llmsTxtCredits} credits)
+                      Generate ({llmsTxtCredits} credits)
                     </Button>
                   )}
-                </BlockStack>
-              </Card>
-            </div>
+                </InlineStack>
+              </BlockStack>
+            </Card>
 
-            <div style={{ flex: 1 }}>
-              <Card>
-                <BlockStack gap="300">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <Text variant="headingMd">Schema Injection</Text>
-                    {embedEnabled
-                      ? <Badge tone="success">Active</Badge>
-                      : <Badge tone="warning">Not enabled</Badge>}
-                  </InlineStack>
-                  {embedEnabled ? (
-                    <Text tone="subdued">
-                      Schema markup is automatically injected into your product, blog, and page templates. Search engines and AI crawlers can read your structured data.
-                    </Text>
-                  ) : (
-                    <Text tone="subdued">
-                      Enable the App Embed in your theme to automatically inject schema markup. This tells Google and AI search engines exactly what each page is about.
-                    </Text>
+            {/* Schema Injection card */}
+            <Card>
+              <BlockStack gap="300">
+                <InlineStack align="space-between" blockAlign="center">
+                  <Text variant="headingSm" tone="subdued">Schema Injection</Text>
+                  {embedEnabled
+                    ? <Badge tone="success">Active</Badge>
+                    : <Badge tone="warning">Not enabled</Badge>}
+                </InlineStack>
+                <Text tone="subdued" variant="bodySm">
+                  {embedEnabled
+                    ? "Schema markup is auto-injected into product, blog, and page templates. Google and AI crawlers can read your structured data."
+                    : "Enable the App Embed in your theme to auto-inject schema markup — required for schema to appear on your storefront."}
+                </Text>
+                <InlineStack gap="200" wrap>
+                  {!embedEnabled && (
+                    <Button
+                      url={`https://${shop}/admin/themes/current/editor?context=apps`}
+                      external
+                      size="slim"
+                      variant="primary"
+                    >
+                      Enable in Theme Editor
+                    </Button>
                   )}
-                  <InlineStack gap="200" wrap>
-                    {!embedEnabled && (
-                      <Button
-                        url={`https://${shop}/admin/themes/current/editor?context=apps`}
-                        external
-                        size="slim"
-                        variant="primary"
-                      >
-                        Enable in Theme Editor
-                      </Button>
-                    )}
-                    {embedEnabled ? (
-                      <Button
-                        size="slim"
-                        variant="plain"
-                        tone="critical"
-                        loading={embedFetcher.state !== "idle"}
-                        onClick={() => handleToggleEmbed(false)}
-                      >
-                        Mark as disabled
-                      </Button>
-                    ) : (
-                      <Button
-                        size="slim"
-                        loading={embedFetcher.state !== "idle"}
-                        onClick={() => handleToggleEmbed(true)}
-                      >
-                        {"I've enabled it"}
-                      </Button>
-                    )}
-                  </InlineStack>
-                </BlockStack>
-              </Card>
-            </div>
-          </InlineStack>
+                  {embedEnabled ? (
+                    <Button
+                      size="slim"
+                      variant="plain"
+                      tone="critical"
+                      loading={embedFetcher.state !== "idle"}
+                      onClick={() => handleToggleEmbed(false)}
+                    >
+                      Mark as disabled
+                    </Button>
+                  ) : (
+                    <Button
+                      size="slim"
+                      loading={embedFetcher.state !== "idle"}
+                      onClick={() => handleToggleEmbed(true)}
+                    >
+                      {"I've enabled it"}
+                    </Button>
+                  )}
+                </InlineStack>
+              </BlockStack>
+            </Card>
+          </div>
         </Layout.Section>
 
         <Layout.Section>
