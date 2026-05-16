@@ -318,3 +318,60 @@ model BulkJob {
   @@index([shop, createdAt], map: "bulk_jobs_shop_createdAt_idx")
   @@map("bulk_jobs")
 }
+
+model AiVisibilitySchema {
+  id           Int      @id @default(autoincrement())
+  shop         String
+  resourceType String   @db.VarChar(32)
+  resourceId   String   @db.VarChar(255)
+  schemaType   String   @db.VarChar(64)
+  schemaJson   String   @db.LongText
+  metafieldId  String?  @db.VarChar(255)
+  aiModel      String?  @db.VarChar(100)
+  aiProvider   String?  @db.VarChar(32)
+  inputTokens  Int?
+  outputTokens Int?
+  creditsUsed  Int      @default(2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([shop, resourceType, resourceId], map: "AiVisibilitySchema_shop_type_resource_key")
+  @@index([shop], map: "AiVisibilitySchema_shop_idx")
+  @@map("ai_visibility_schemas")
+}
+
+model AiVisibilityFaq {
+  id           Int      @id @default(autoincrement())
+  shop         String
+  resourceType String   @db.VarChar(32)
+  resourceId   String   @db.VarChar(255)
+  faqJson      String   @db.LongText
+  metafieldId  String?  @db.VarChar(255)
+  aiModel      String?  @db.VarChar(100)
+  aiProvider   String?  @db.VarChar(32)
+  inputTokens  Int?
+  outputTokens Int?
+  creditsUsed  Int      @default(5)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([shop, resourceType, resourceId], map: "AiVisibilityFaq_shop_type_resource_key")
+  @@index([shop], map: "AiVisibilityFaq_shop_idx")
+  @@map("ai_visibility_faqs")
+}
+
+model AiVisibilityLlmsTxt {
+  id           Int      @id @default(autoincrement())
+  shop         String   @unique(map: "AiVisibilityLlmsTxt_shop_key")
+  content      String   @db.LongText
+  itemCount    Int?
+  aiModel      String?  @db.VarChar(100)
+  aiProvider   String?  @db.VarChar(32)
+  inputTokens  Int?
+  outputTokens Int?
+  creditsUsed  Int      @default(5)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("ai_visibility_llms_txt")
+}
