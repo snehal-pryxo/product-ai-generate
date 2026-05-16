@@ -1,0 +1,34 @@
+{%- liquid
+  assign schema_meta = nil
+  assign faq_meta = nil
+
+  if product
+    assign schema_meta = product.metafields.content_ai_geo.schema_json
+    assign faq_meta = product.metafields.content_ai_geo.faq_json
+  elsif article
+    assign schema_meta = article.metafields.content_ai_geo.schema_json
+    assign faq_meta = article.metafields.content_ai_geo.faq_json
+  elsif page
+    assign schema_meta = page.metafields.content_ai_geo.schema_json
+  endif
+-%}
+
+{%- if schema_meta != blank -%}
+<script type="application/ld+json">
+  {{- schema_meta.value | json -}}
+</script>
+{%- endif -%}
+
+{%- if faq_meta != blank -%}
+<script type="application/ld+json">
+  {{- faq_meta.value | json -}}
+</script>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "AI Visibility",
+  "target": "head",
+  "settings": []
+}
+{% endschema %}
