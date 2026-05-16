@@ -1043,13 +1043,15 @@ async function generateBlogSuggestionsWithAI({
   productUrl,
   productLinks = [],
   productContext = null,
+  shopName = "",
   aiProvider = "auto",
   openaiApiKey,
   anthropicApiKey,
   geminiApiKey,
   count = 6,
 }) {
-  const storeName = cleanText(productContext?.title) || "our store";
+  const storeName = shopName || cleanText(productContext?.title) || "our store";
+  const productName = cleanText(productContext?.title);
   const productDescription = cleanText(productContext?.description);
   const productType = cleanText(productContext?.productType);
   const vendor = cleanText(productContext?.vendor);
@@ -1070,13 +1072,15 @@ async function generateBlogSuggestionsWithAI({
     ? `Products/collections to feature (embed links to these naturally throughout the article):\n${productLinks.map((l) => `- ${l.title}: ${l.url}`).join("\n")}`
     : productUrl ? `- Product URL: ${productUrl}` : "";
 
-  const productContextBlock = `
-Store & Product Details:
-- Store/Product name: ${storeName}
-- Product type: ${productType || "Not specified"}
-- Brand/Vendor: ${vendor || "Not specified"}
-- Product description: ${productDescription || "Not provided — describe based on the store name and context"}
-${productLinksContext}`.trim();
+  const productContextBlock = [
+    `Store & Product Details:`,
+    `- Store name: ${storeName}`,
+    productName && productName !== storeName ? `- Featured product/collection: ${productName}` : "",
+    `- Product type: ${productType || "Not specified"}`,
+    `- Brand/Vendor: ${vendor || "Not specified"}`,
+    `- Product description: ${productDescription || "Not provided — describe based on the store name and context"}`,
+    productLinksContext,
+  ].filter(Boolean).join("\n");
 
   const jsonFormatInstruction = `
 Return ONLY valid JSON — no markdown, no extra text:
@@ -1509,12 +1513,14 @@ async function generateBlogOutlinesWithAI({
   productUrl,
   productLinks = [],
   productContext = null,
+  shopName = "",
   aiProvider = "auto",
   openaiApiKey,
   anthropicApiKey,
   geminiApiKey,
 }) {
-  const storeName = cleanText(productContext?.title) || "our store";
+  const storeName = shopName || cleanText(productContext?.title) || "our store";
+  const productName = cleanText(productContext?.title);
   const productDescription = cleanText(productContext?.description);
   const productType = cleanText(productContext?.productType);
   const vendor = cleanText(productContext?.vendor);
@@ -1533,7 +1539,8 @@ async function generateBlogOutlinesWithAI({
 
   const productContextBlock = [
     `Store & Product Details:`,
-    `- Store/Product name: ${storeName}`,
+    `- Store name: ${storeName}`,
+    productName && productName !== storeName ? `- Featured product/collection: ${productName}` : "",
     `- Product type: ${productType || "Not specified"}`,
     `- Brand/Vendor: ${vendor || "Not specified"}`,
     `- Product description: ${productDescription || "Not provided"}`,
@@ -2049,6 +2056,7 @@ export const action = async ({ request }) => {
         productUrl,
         productLinks,
         productContext,
+        shopName,
         aiProvider: cleanText(shopRecord?.defaultAiProvider) || "auto",
         openaiApiKey: cleanText(shopRecord?.openaiApiKey) || process.env.OPENAI_API_KEY,
         anthropicApiKey: cleanText(shopRecord?.anthropicApiKey) || process.env.ANTHROPIC_API_KEY,
@@ -2131,6 +2139,7 @@ export const action = async ({ request }) => {
         productUrl,
         productLinks,
         productContext,
+        shopName,
         aiProvider: cleanText(shopRecord?.defaultAiProvider) || "auto",
         openaiApiKey: cleanText(shopRecord?.openaiApiKey) || process.env.OPENAI_API_KEY,
         anthropicApiKey: cleanText(shopRecord?.anthropicApiKey) || process.env.ANTHROPIC_API_KEY,
@@ -2369,6 +2378,7 @@ export const action = async ({ request }) => {
         productUrl,
         productLinks,
         productContext,
+        shopName,
         aiProvider: cleanText(shopRecord?.defaultAiProvider) || "auto",
         openaiApiKey: cleanText(shopRecord?.openaiApiKey) || process.env.OPENAI_API_KEY,
         anthropicApiKey: cleanText(shopRecord?.anthropicApiKey) || process.env.ANTHROPIC_API_KEY,
