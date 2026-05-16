@@ -16,7 +16,7 @@ export async function loader({ request }) {
   if (!record) {
     return new Response(
       `# ${shop}\n> llms.txt not yet generated. Install Content AI and generate your store's AI visibility file.\n`,
-      { status: 200, headers: { "Content-Type": "text/plain" } }
+      { status: 200, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=3600" } }
     );
   }
 
