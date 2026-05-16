@@ -3322,7 +3322,7 @@ export default function BlogPage() {
                   ["save_generated_blog", "save_blog_content"].includes(String(fetcher.formData?.get("intent")))
                 }
               >
-                Save to Shopify
+                Save
               </Button>
             </InlineStack>
           </BlockStack>
