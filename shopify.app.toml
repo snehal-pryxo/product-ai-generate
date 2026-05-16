@@ -24,6 +24,11 @@ api_version = "2026-04"
   customer_data_request_url = "/webhooks/customers/data_request"
   shop_deletion_url = "/webhooks/shop/redact"
 
+[app_proxy]
+url = "https://ai-content-generation-nine.vercel.app/api/llms-txt"
+subpath = "llms-txt"
+prefix = "apps"
+
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 scopes = "write_products,read_content,write_content,write_files,read_files"
