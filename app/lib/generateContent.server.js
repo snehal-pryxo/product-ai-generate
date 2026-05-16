@@ -878,7 +878,8 @@ async function callWithOpenAIRaw(prompt, systemPrompt, apiKey) {
       ],
     }),
   });
-  const json = await res.json();
+  let json = null;
+  try { json = await res.json(); } catch { json = null; }
   if (!res.ok) throw new Error(json?.error?.message || `OpenAI error ${res.status}`);
   return json?.choices?.[0]?.message?.content || "";
 }
@@ -900,7 +901,8 @@ async function callWithAnthropicRaw(prompt, systemPrompt, apiKey) {
       messages: [{ role: "user", content: prompt }],
     }),
   });
-  const json = await res.json();
+  let json = null;
+  try { json = await res.json(); } catch { json = null; }
   if (!res.ok) throw new Error(json?.error?.message || `Anthropic error ${res.status}`);
   return json?.content?.[0]?.text || "";
 }
@@ -920,7 +922,8 @@ async function callWithGeminiRaw(prompt, systemPrompt, apiKey) {
       }),
     }
   );
-  const json = await res.json();
+  let json = null;
+  try { json = await res.json(); } catch { json = null; }
   if (!res.ok) throw new Error(json?.error?.message || `Gemini error ${res.status}`);
   return json?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 }
