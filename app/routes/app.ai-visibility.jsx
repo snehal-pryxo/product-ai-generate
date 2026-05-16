@@ -61,7 +61,6 @@ const PAGES_QUERY = `#graphql
       edges {
         node {
           id title handle body bodySummary
-          seo { title description }
         }
       }
     }
