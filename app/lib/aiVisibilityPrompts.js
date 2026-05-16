@@ -108,7 +108,7 @@ export function buildLlmsTxtPrompt({ shopName, shopDomain, products, articles, p
     .map((p) => `- [${p.title}](https://${shopDomain}/products/${p.handle}): ${(p.description || p.title).substring(0, 100)}`)
     .join("\n");
   const articleLines = articles
-    .map((a) => `- [${a.title}](https://${shopDomain}/blogs/${a.blogHandle || "news"}/${a.handle}): ${(a.summary || a.title).substring(0, 100)}`)
+    .map((a) => `- [${a.title}](https://${shopDomain}/blogs/${a.blog?.handle || "news"}/${a.handle}): ${(a.summary || a.title).substring(0, 100)}`)
     .join("\n");
   const pageLines = pages
     .map((p) => `- [${p.title}](https://${shopDomain}/pages/${p.handle}): ${(p.bodySummary || p.title).substring(0, 100)}`)

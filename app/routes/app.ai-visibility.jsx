@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
@@ -282,7 +282,7 @@ function ItemDrawer({ item, onClose, onGenerate, generatingKey }) {
               Generate Schema + FAQ ({CREDITS_COMBINED} credits)
             </Button>
           )}
-          {(item.hasSchema || item.resourceType !== "product") && (
+          {(item.hasSchema || item.resourceType !== "product" || item.hasFaq) && (
             <Button
               loading={generatingKey === schemaKey}
               onClick={() => onGenerate("generate_schema", item)}
@@ -424,10 +424,9 @@ export default function AiVisibilityPage() {
 
   const isSubmitting = fetcher.state !== "idle";
 
-  // Update banner when fetcher completes
-  if (!isSubmitting && generatingKey !== null) {
-    const data = fetcher.data;
-    if (data) {
+  useEffect(() => {
+    if (fetcher.state === "idle" && generatingKey !== null && fetcher.data) {
+      const data = fetcher.data;
       setGeneratingKey(null);
       if (data.ok) {
         setBanner({ tone: "success", text: `Generated successfully (${data.creditsUsed} credits used). Reload to see the updated score.` });
@@ -435,7 +434,8 @@ export default function AiVisibilityPage() {
         setBanner({ tone: "critical", text: data.error || "Generation failed." });
       }
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetcher.state, fetcher.data]);
 
   const allItems = [...products, ...articles, ...pages];
   const totalScore =
