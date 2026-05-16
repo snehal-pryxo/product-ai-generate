@@ -1992,6 +1992,33 @@ export const loader = async ({ request }) => {
     after = connection.pageInfo.endCursor;
   }
 
+  // Enrich articles with original generation settings from our DB
+  try {
+    const articleIds = articles.map((a) => a.id);
+    if (articleIds.length > 0) {
+      const genRecords = await db.blogGeneratedContent.findMany({
+        where: { shop: session.shop, articleId: { in: articleIds } },
+        select: { articleId: true, tabType: true, tone: true, lengthOption: true, targetAudience: true, promotion: true, offerText: true, holiday: true, topic: true },
+      });
+      const genMap = Object.fromEntries(genRecords.map((r) => [r.articleId, r]));
+      for (const article of articles) {
+        const gen = genMap[article.id];
+        if (gen) {
+          article.genTabType = gen.tabType || null;
+          article.genTone = gen.tone || null;
+          article.genLength = gen.lengthOption || null;
+          article.genAudience = gen.targetAudience || null;
+          article.genPromotion = gen.promotion || null;
+          article.genOfferText = gen.offerText || null;
+          article.genHoliday = gen.holiday || null;
+          article.genTopic = gen.topic || null;
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Failed to enrich articles with generation meta", e);
+  }
+
   const products = [];
   try {
     const res = await admin.graphql(PRODUCTS_PICKER_QUERY, { variables: { first: 100 } });
@@ -2989,20 +3016,30 @@ export default function BlogPage() {
 
   function submitRegenerate() {
     if (!regenerateConfirmTarget?.articleId) return;
+    const t = regenerateConfirmTarget;
+    const regenTabType = t.tabType || activeTabKey;
+    const regenTone = t.tone || tone;
+    const regenLength = t.postLength || (regenTabType === TAB_KEYS.PILLAR ? "pillar" : postLength);
+    const regenAudience = t.targetAudience || targetAudience;
+    const regenPromotion = t.promotion || promotion;
+    const regenOfferText = t.offerText ?? effectiveOfferText;
+    const regenHoliday = t.holiday || holiday;
+    const regenTopic = t.topic || t.title || "";
+
     const payload = new FormData();
     payload.append("intent", "regenerate_blog");
-    payload.append("articleId", regenerateConfirmTarget.articleId);
-    payload.append("blogId", regenerateConfirmTarget.blogId || "");
-    payload.append("seed", regenerateConfirmTarget.title || "");
-    payload.append("status", regenerateConfirmTarget.status || "draft");
-    payload.append("tabType", activeTabKey);
-    payload.append("topic", regenerateConfirmTarget.title || "");
-    payload.append("tone", tone);
-    payload.append("postLength", postLength);
-    payload.append("targetAudience", targetAudience);
-    payload.append("promotion", promotion);
-    payload.append("offerText", effectiveOfferText);
-    payload.append("holiday", holiday);
+    payload.append("articleId", t.articleId);
+    payload.append("blogId", t.blogId || "");
+    payload.append("seed", t.title || "");
+    payload.append("status", t.status || "draft");
+    payload.append("tabType", regenTabType);
+    payload.append("topic", regenTopic);
+    payload.append("tone", regenTone);
+    payload.append("postLength", regenLength);
+    payload.append("targetAudience", regenAudience);
+    payload.append("promotion", regenPromotion);
+    payload.append("offerText", regenOfferText);
+    payload.append("holiday", regenHoliday);
     payload.append("productUrls", JSON.stringify(selectedResources.map((r) => ({
       url: `https://${shopDomain}/${r.type === "product" ? "products" : "collections"}/${r.handle}`,
       title: r.title,
@@ -3070,6 +3107,14 @@ export default function BlogPage() {
                   blogId: article.blogId,
                   title: article.title,
                   status: article.publishedAt ? "published" : "draft",
+                  tabType: article.genTabType || null,
+                  tone: article.genTone || null,
+                  postLength: article.genLength || null,
+                  targetAudience: article.genAudience || null,
+                  promotion: article.genPromotion || null,
+                  offerText: article.genOfferText || null,
+                  holiday: article.genHoliday || null,
+                  topic: article.genTopic || null,
                 })}
                 disabled={fetcher.state !== "idle"}
               >
@@ -3446,50 +3491,69 @@ export default function BlogPage() {
               AI will rewrite <strong>{regenerateConfirmTarget?.title}</strong> using the settings below, then save it automatically. The existing content will be replaced.
             </Text>
 
-            <BlockStack gap="200">
-              <Text as="h4" variant="headingSm">Settings used for regeneration</Text>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 24px" }}>
-                <Text as="p" variant="bodySm" tone="subdued">Post type</Text>
-                <Text as="p" variant="bodySm">{tabItems.find((t) => t.id === activeTabKey)?.content || activeTabKey}</Text>
+            {(() => {
+              const t = regenerateConfirmTarget;
+              if (!t) return null;
+              const rTabType = t.tabType || activeTabKey;
+              const rTone = t.tone || tone;
+              const rLength = t.postLength || (rTabType === TAB_KEYS.PILLAR ? "pillar" : postLength);
+              const rAudience = t.targetAudience || targetAudience;
+              const rPromotion = t.promotion || promotion;
+              const rOfferText = t.offerText ?? effectiveOfferText;
+              const rHoliday = t.holiday || holiday;
+              const rTopic = t.topic || "";
+              const lengthLabel = POST_LENGTH_OPTIONS.find((o) => o.value === rLength)?.label || (rLength === "pillar" ? "2000–3000 words (Pillar)" : rLength);
+              const tabLabel = tabItems.find((tb) => tb.id === rTabType)?.content || rTabType;
+              const showHoliday = rTabType === TAB_KEYS.HOLIDAY && rHoliday && rHoliday !== "Choose a holiday to promote";
+              const showPromotion = (rTabType === TAB_KEYS.PROMOTION || rTabType === TAB_KEYS.HOLIDAY) && rPromotion && rPromotion !== "No promotion";
+              const showTopic = (rTabType === TAB_KEYS.CUSTOM || rTabType === TAB_KEYS.PILLAR) && rTopic;
+              return (
+                <BlockStack gap="200">
+                  <Text as="h4" variant="headingSm">Settings used for regeneration</Text>
+                  <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 24px", alignItems: "start" }}>
+                    <Text as="p" variant="bodySm" tone="subdued">Post type</Text>
+                    <Text as="p" variant="bodySm">{tabLabel}</Text>
 
-                <Text as="p" variant="bodySm" tone="subdued">Tone</Text>
-                <Text as="p" variant="bodySm">{tone}</Text>
+                    <Text as="p" variant="bodySm" tone="subdued">Tone</Text>
+                    <Text as="p" variant="bodySm">{rTone}</Text>
 
-                <Text as="p" variant="bodySm" tone="subdued">Length</Text>
-                <Text as="p" variant="bodySm">{POST_LENGTH_OPTIONS.find((o) => o.value === postLength)?.label || postLength}</Text>
+                    <Text as="p" variant="bodySm" tone="subdued">Length</Text>
+                    <Text as="p" variant="bodySm">{lengthLabel}</Text>
 
-                <Text as="p" variant="bodySm" tone="subdued">Audience</Text>
-                <Text as="p" variant="bodySm">{targetAudience}</Text>
+                    <Text as="p" variant="bodySm" tone="subdued">Audience</Text>
+                    <Text as="p" variant="bodySm">{rAudience}</Text>
 
-                {(activeTabKey === TAB_KEYS.HOLIDAY) && holiday && holiday !== "Choose a holiday to promote" ? (
-                  <>
-                    <Text as="p" variant="bodySm" tone="subdued">Holiday</Text>
-                    <Text as="p" variant="bodySm">{holiday}</Text>
-                  </>
-                ) : null}
+                    {showHoliday ? (
+                      <>
+                        <Text as="p" variant="bodySm" tone="subdued">Holiday</Text>
+                        <Text as="p" variant="bodySm">{rHoliday}</Text>
+                      </>
+                    ) : null}
 
-                {(activeTabKey === TAB_KEYS.PROMOTION || activeTabKey === TAB_KEYS.HOLIDAY) && promotion && promotion !== "No promotion" ? (
-                  <>
-                    <Text as="p" variant="bodySm" tone="subdued">Promotion</Text>
-                    <Text as="p" variant="bodySm">{effectiveOfferText ? `${promotion} — ${effectiveOfferText}` : promotion}</Text>
-                  </>
-                ) : null}
+                    {showPromotion ? (
+                      <>
+                        <Text as="p" variant="bodySm" tone="subdued">Promotion</Text>
+                        <Text as="p" variant="bodySm">{rOfferText ? `${rPromotion} — ${rOfferText}` : rPromotion}</Text>
+                      </>
+                    ) : null}
 
-                {(activeTabKey === TAB_KEYS.CUSTOM || activeTabKey === TAB_KEYS.PILLAR) && topic ? (
-                  <>
-                    <Text as="p" variant="bodySm" tone="subdued">Topic</Text>
-                    <Text as="p" variant="bodySm">{topic}</Text>
-                  </>
-                ) : null}
+                    {showTopic ? (
+                      <>
+                        <Text as="p" variant="bodySm" tone="subdued">Topic</Text>
+                        <Text as="p" variant="bodySm">{rTopic}</Text>
+                      </>
+                    ) : null}
 
-                {selectedResources.length > 0 ? (
-                  <>
-                    <Text as="p" variant="bodySm" tone="subdued">Linked resources</Text>
-                    <Text as="p" variant="bodySm">{selectedResources.map((r) => r.title).join(", ")}</Text>
-                  </>
-                ) : null}
-              </div>
-            </BlockStack>
+                    {selectedResources.length > 0 ? (
+                      <>
+                        <Text as="p" variant="bodySm" tone="subdued">Linked resources</Text>
+                        <Text as="p" variant="bodySm">{selectedResources.map((r) => r.title).join(", ")}</Text>
+                      </>
+                    ) : null}
+                  </div>
+                </BlockStack>
+              );
+            })()}
 
             <Text as="p" variant="bodySm" tone="subdued">
               Cost: <strong>10 credits</strong>.
