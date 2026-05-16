@@ -3441,12 +3441,58 @@ export default function BlogPage() {
         secondaryActions={[{ content: "Cancel", onAction: () => setRegenerateConfirmTarget(null) }]}
       >
         <Modal.Section>
-          <BlockStack gap="200">
+          <BlockStack gap="400">
             <Text as="p" variant="bodyMd">
-              This will regenerate <strong>{regenerateConfirmTarget?.title}</strong> using AI and automatically save it.
+              AI will rewrite <strong>{regenerateConfirmTarget?.title}</strong> using the settings below, then save it automatically. The existing content will be replaced.
             </Text>
-            <Text as="p" variant="bodyMd" tone="subdued">
-              Cost: <strong>10 credits</strong>. The existing article content will be replaced.
+
+            <BlockStack gap="200">
+              <Text as="h4" variant="headingSm">Settings used for regeneration</Text>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 24px" }}>
+                <Text as="p" variant="bodySm" tone="subdued">Post type</Text>
+                <Text as="p" variant="bodySm">{tabItems.find((t) => t.id === activeTabKey)?.content || activeTabKey}</Text>
+
+                <Text as="p" variant="bodySm" tone="subdued">Tone</Text>
+                <Text as="p" variant="bodySm">{tone}</Text>
+
+                <Text as="p" variant="bodySm" tone="subdued">Length</Text>
+                <Text as="p" variant="bodySm">{POST_LENGTH_OPTIONS.find((o) => o.value === postLength)?.label || postLength}</Text>
+
+                <Text as="p" variant="bodySm" tone="subdued">Audience</Text>
+                <Text as="p" variant="bodySm">{targetAudience}</Text>
+
+                {(activeTabKey === TAB_KEYS.HOLIDAY) && holiday && holiday !== "Choose a holiday to promote" ? (
+                  <>
+                    <Text as="p" variant="bodySm" tone="subdued">Holiday</Text>
+                    <Text as="p" variant="bodySm">{holiday}</Text>
+                  </>
+                ) : null}
+
+                {(activeTabKey === TAB_KEYS.PROMOTION || activeTabKey === TAB_KEYS.HOLIDAY) && promotion && promotion !== "No promotion" ? (
+                  <>
+                    <Text as="p" variant="bodySm" tone="subdued">Promotion</Text>
+                    <Text as="p" variant="bodySm">{effectiveOfferText ? `${promotion} — ${effectiveOfferText}` : promotion}</Text>
+                  </>
+                ) : null}
+
+                {(activeTabKey === TAB_KEYS.CUSTOM || activeTabKey === TAB_KEYS.PILLAR) && topic ? (
+                  <>
+                    <Text as="p" variant="bodySm" tone="subdued">Topic</Text>
+                    <Text as="p" variant="bodySm">{topic}</Text>
+                  </>
+                ) : null}
+
+                {selectedResources.length > 0 ? (
+                  <>
+                    <Text as="p" variant="bodySm" tone="subdued">Linked resources</Text>
+                    <Text as="p" variant="bodySm">{selectedResources.map((r) => r.title).join(", ")}</Text>
+                  </>
+                ) : null}
+              </div>
+            </BlockStack>
+
+            <Text as="p" variant="bodySm" tone="subdued">
+              Cost: <strong>10 credits</strong>.
             </Text>
           </BlockStack>
         </Modal.Section>
