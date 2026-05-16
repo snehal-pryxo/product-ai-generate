@@ -25,6 +25,29 @@ const CREDITS_COMBINED = 5;
 // GraphQL
 // ---------------------------------------------------------------------------
 
+const THEME_FILES_QUERY = `#graphql
+  query GetActiveThemeEmbed {
+    themes(first: 1, roles: [MAIN]) {
+      edges {
+        node {
+          files(filenames: ["config/settings_data.json"]) {
+            edges {
+              node {
+                filename
+                body {
+                  ... on OnlineStoreThemeFileBodyText {
+                    content
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
 const PRODUCTS_QUERY = `#graphql
   query GetProductsForVisibility($first: Int!) {
     products(first: $first) {
@@ -213,6 +236,27 @@ export const action = async ({ request }) => {
       const enabled = formData.get("enabled") === "true";
       await db.shop.update({ where: { shop }, data: { themeEmbedEnabled: enabled } });
       return { ok: true, intent, themeEmbedEnabled: enabled };
+    }
+
+    if (intent === "verify_theme_embed") {
+      try {
+        const themeRes = await admin.graphql(THEME_FILES_QUERY);
+        const themeJson = await themeRes.json();
+        const fileEdges = themeJson?.data?.themes?.edges?.[0]?.node?.files?.edges || [];
+        const settingsFile = fileEdges.find((e) => e.node.filename === "config/settings_data.json");
+        const content = settingsFile?.node?.body?.content || "{}";
+        const settings = JSON.parse(content);
+        const blocks = settings?.current?.blocks || {};
+        // Check if any block key contains our extension handle and is not explicitly disabled
+        const embedEnabled = Object.entries(blocks).some(
+          ([key, val]) => key.includes("ai-visibility-embed") && val?.disabled !== true
+        );
+        await db.shop.update({ where: { shop }, data: { themeEmbedEnabled: embedEnabled } });
+        return { ok: true, intent, themeEmbedEnabled: embedEnabled };
+      } catch (err) {
+        console.error("[verify_theme_embed]", err);
+        return { ok: false, intent, error: "Could not read theme settings. Make sure the app has theme access." };
+      }
     }
 
     return { ok: false, error: "Unknown intent." };
@@ -499,8 +543,22 @@ export default function AiVisibilityPage() {
   }, [fetcher.state, fetcher.data]);
 
   useEffect(() => {
-    if (embedFetcher.state === "idle" && embedFetcher.data?.intent === "toggle_theme_embed") {
-      setEmbedEnabled(embedFetcher.data.themeEmbedEnabled);
+    if (embedFetcher.state === "idle" && embedFetcher.data) {
+      const d = embedFetcher.data;
+      if (d.intent === "toggle_theme_embed" || d.intent === "verify_theme_embed") {
+        if (d.ok) {
+          setEmbedEnabled(d.themeEmbedEnabled);
+          if (d.intent === "verify_theme_embed") {
+            setBanner(
+              d.themeEmbedEnabled
+                ? { tone: "success", text: "App Embed is active — schema markup will be injected automatically." }
+                : { tone: "warning", text: "App Embed not found in your active theme. Open the Theme Editor and enable the 'AI Visibility' embed under App Embeds." }
+            );
+          }
+        } else if (d.intent === "verify_theme_embed") {
+          setBanner({ tone: "critical", text: d.error || "Verification failed." });
+        }
+      }
     }
   }, [embedFetcher.state, embedFetcher.data]);
 
@@ -508,6 +566,12 @@ export default function AiVisibilityPage() {
     const fd = new FormData();
     fd.append("intent", "toggle_theme_embed");
     fd.append("enabled", String(enabled));
+    embedFetcher.submit(fd, { method: "post" });
+  }, [embedFetcher]);
+
+  const handleVerifyEmbed = useCallback(() => {
+    const fd = new FormData();
+    fd.append("intent", "verify_theme_embed");
     embedFetcher.submit(fd, { method: "post" });
   }, [embedFetcher]);
 
@@ -651,25 +715,13 @@ export default function AiVisibilityPage() {
                       Enable in Theme Editor
                     </Button>
                   )}
-                  {embedEnabled ? (
-                    <Button
-                      size="slim"
-                      variant="plain"
-                      tone="critical"
-                      loading={embedFetcher.state !== "idle"}
-                      onClick={() => handleToggleEmbed(false)}
-                    >
-                      Mark as disabled
-                    </Button>
-                  ) : (
-                    <Button
-                      size="slim"
-                      loading={embedFetcher.state !== "idle"}
-                      onClick={() => handleToggleEmbed(true)}
-                    >
-                      {"I've enabled it"}
-                    </Button>
-                  )}
+                  <Button
+                    size="slim"
+                    loading={embedFetcher.state !== "idle"}
+                    onClick={handleVerifyEmbed}
+                  >
+                    Verify
+                  </Button>
                 </InlineStack>
               </BlockStack>
             </Card>
