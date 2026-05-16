@@ -32,7 +32,7 @@ const PRODUCTS_QUERY = `#graphql
         node {
           id title handle description vendor productType status
           seo { title description }
-          priceRange { minVariantPrice { amount currencyCode } }
+          priceRangeV2 { minVariantPrice { amount currencyCode } }
           variants(first: 1) { edges { node { price } } }
         }
       }

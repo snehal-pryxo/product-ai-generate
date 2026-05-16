@@ -98,8 +98,8 @@ export async function generateSchema(shop, adminGraphQL, resourceType, resource)
       description: (resource.description || "").substring(0, 500),
       vendor: resource.vendor,
       productType: resource.productType,
-      price: variant?.price || resource.priceRange?.minVariantPrice?.amount,
-      currencyCode: resource.priceRange?.minVariantPrice?.currencyCode || "USD",
+      price: variant?.price || resource.priceRangeV2?.minVariantPrice?.amount,
+      currencyCode: resource.priceRangeV2?.minVariantPrice?.currencyCode || "USD",
       available: resource.status === "ACTIVE",
       url: `https://${shop}/products/${resource.handle}`,
     });
@@ -205,8 +205,8 @@ export async function generateCombined(shop, adminGraphQL, resource) {
     description: (resource.description || "").substring(0, 500),
     vendor: resource.vendor,
     productType: resource.productType,
-    price: variant?.price || resource.priceRange?.minVariantPrice?.amount,
-    currencyCode: resource.priceRange?.minVariantPrice?.currencyCode || "USD",
+    price: variant?.price || resource.priceRangeV2?.minVariantPrice?.amount,
+    currencyCode: resource.priceRangeV2?.minVariantPrice?.currencyCode || "USD",
     available: resource.status === "ACTIVE",
     url: `https://${shop}/products/${resource.handle}`,
   });
