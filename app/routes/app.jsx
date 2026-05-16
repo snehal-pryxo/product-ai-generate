@@ -128,6 +128,7 @@ export default function App() {
       <ShopifyAppProvider embedded apiKey={apiKey}>
         <s-app-nav>
           <s-link href={`/app/products${appContextSearch}`}>Bulk Generator</s-link>
+          <s-link href={`/app/ai-visibility${appContextSearch}`}>AI Visibility</s-link>
           <s-link href={`/app/pages${appContextSearch}`}>Pages Generator</s-link>
           <s-link href={`/app/blog${appContextSearch}`}>Blogs Generator</s-link>
           {/* <s-link href={`/app/seo-improve${appContextSearch}`}>SEO Improve</s-link> */}
