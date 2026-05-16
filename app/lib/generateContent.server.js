@@ -857,3 +857,80 @@ export async function updateJobProgress(jobId, chunkItems, results, creditsPerIt
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// Raw AI callers (return raw text, bypass parseAIResponse)
+// ---------------------------------------------------------------------------
+
+async function callWithOpenAIRaw(prompt, systemPrompt, apiKey) {
+  const key = apiKey || process.env.OPENAI_API_KEY;
+  if (!key) throw new Error("OpenAI API key is not configured.");
+  const model = (process.env.OPENAI_MODEL || DEFAULT_AI_MODEL).trim();
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+    body: JSON.stringify({
+      model,
+      temperature: 0.7,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: prompt },
+      ],
+    }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json?.error?.message || `OpenAI error ${res.status}`);
+  return json?.choices?.[0]?.message?.content || "";
+}
+
+async function callWithAnthropicRaw(prompt, systemPrompt, apiKey) {
+  if (!apiKey) throw new Error("Anthropic API key is not configured.");
+  const model = (process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001").trim();
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 2000,
+      system: systemPrompt,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json?.error?.message || `Anthropic error ${res.status}`);
+  return json?.content?.[0]?.text || "";
+}
+
+async function callWithGeminiRaw(prompt, systemPrompt, apiKey) {
+  if (!apiKey) throw new Error("Gemini API key is not configured.");
+  const model = (process.env.GEMINI_MODEL || "gemini-2.5-flash-lite").trim();
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.7 },
+      }),
+    }
+  );
+  const json = await res.json();
+  if (!res.ok) throw new Error(json?.error?.message || `Gemini error ${res.status}`);
+  return json?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+}
+
+export async function callAIRaw(prompt, systemPrompt, { aiProvider = "auto", openaiKey = null, anthropicKey = null, geminiKey = null } = {}) {
+  const effectiveOpenai = openaiKey || process.env.OPENAI_API_KEY;
+  const effectiveAnthropic = anthropicKey || process.env.ANTHROPIC_API_KEY;
+  const effectiveGemini = geminiKey || process.env.GOOGLE_GEMINI_API_KEY;
+
+  if (aiProvider === "anthropic") return callWithAnthropicRaw(prompt, systemPrompt, effectiveAnthropic);
+  if (aiProvider === "gemini") return callWithGeminiRaw(prompt, systemPrompt, effectiveGemini);
+  return callWithOpenAIRaw(prompt, systemPrompt, effectiveOpenai);
+}
