@@ -100,6 +100,8 @@ const ARTICLES_QUERY = `#graphql
           id
           title
           body
+          summary
+          tags
           handle
           updatedAt
           publishedAt
@@ -178,6 +180,8 @@ const ARTICLE_CREATE_MUTATION = `#graphql
         id
         title
         body
+        summary
+        tags
         handle
         updatedAt
         publishedAt
@@ -201,6 +205,8 @@ const ARTICLE_UPDATE_MUTATION = `#graphql
         id
         title
         body
+        summary
+        tags
         handle
         updatedAt
         publishedAt
@@ -212,6 +218,16 @@ const ARTICLE_UPDATE_MUTATION = `#graphql
       userErrors {
         field
         message
+      }
+    }
+  }
+`;
+
+const SHOP_OWNER_QUERY = `#graphql
+  query ShopOwner {
+    shop {
+      owner {
+        name
       }
     }
   }
@@ -1092,6 +1108,8 @@ Return ONLY valid JSON — no markdown, no extra text:
     {
       "title": "SEO-optimised blog title under 60 characters",
       "metaDescription": "150–160 character meta description including main keyword and a clear call to action",
+      "summary": "150–160 character excerpt for SEO and social sharing — same as metaDescription",
+      "tags": ["keyword1", "keyword2", "keyword3"],
       "bodyHtml": "<h1>...</h1><p>...</p><h2>...</h2><p>...</p>..."
     }
   ]
@@ -1469,6 +1487,7 @@ ${jsonFormatInstruction}`;
       cleanText(item?.metaDescription) ||
       cleanText(item?.summary) ||
       `${tone} ${getWordTarget(postLength)} words blog for ${targetAudience.toLowerCase()} about ${storeName.toLowerCase()}.`;
+    const tags = Array.isArray(item?.tags) ? item.tags.filter((t) => typeof t === "string" && t.trim()).slice(0, 10) : [];
     const bodyHtml = ensureBlogBodyWordRange({
       body: item?.bodyHtml || item?.body || item?.content || "",
       title,
@@ -1489,6 +1508,7 @@ ${jsonFormatInstruction}`;
       tabType,
       title,
       summary,
+      tags,
       body: bodyHtml,
       tone,
       postLength,
@@ -1792,6 +1812,8 @@ function normalizeArticle(node) {
     id: node.id,
     title: cleanText(node.title) || "Untitled",
     body: node.body || "",
+    summary: node.summary || "",
+    tags: Array.isArray(node.tags) ? node.tags : [],
     handle: cleanText(node.handle) || "-",
     updatedAt: node.updatedAt || null,
     publishedAt: node.publishedAt || null,
@@ -1993,7 +2015,15 @@ export const loader = async ({ request }) => {
     console.error("Failed to load collections for picker", e);
   }
 
-  return { blogs, articles, settingsLanguage, settingsTone, products, collections, shopDomain: session.shop };
+  let shopOwnerName = getDefaultAuthorName(session.shop);
+  try {
+    const res = await admin.graphql(SHOP_OWNER_QUERY);
+    const json = await res.json();
+    const ownerName = cleanText(json?.data?.shop?.owner?.name);
+    if (ownerName) shopOwnerName = ownerName;
+  } catch {}
+
+  return { blogs, articles, settingsLanguage, settingsTone, products, collections, shopDomain: session.shop, shopOwnerName };
 };
 
 export const action = async ({ request }) => {
@@ -2201,6 +2231,7 @@ export const action = async ({ request }) => {
         title: generated.title || outlineTitle,
         body: generated.body || "",
         summary: generated.summary || outlineSummary || "",
+        tags: Array.isArray(generated.tags) ? generated.tags : [],
         tabType,
         tone,
         postLength,
@@ -2222,10 +2253,24 @@ export const action = async ({ request }) => {
     const title = cleanText(formData.get("title"));
     const body = String(formData.get("body") || "").trim();
     const status = cleanText(formData.get("status")) || "draft";
+    const excerpt = String(formData.get("excerpt") || "").trim();
+    const tagsRaw = String(formData.get("tags") || "").trim();
+    const tags = tagsRaw ? tagsRaw.split(",").map((t) => t.trim()).filter(Boolean) : [];
+    const authorFromForm = cleanText(formData.get("author"));
 
     if (!blogId) return { ok: false, intent, error: "Please select a blog." };
     if (!title) return { ok: false, intent, error: "Title is required." };
     if (!body) return { ok: false, intent, error: "Content is required." };
+
+    let authorName = authorFromForm || getDefaultAuthorName(session.shop);
+    if (!authorFromForm) {
+      try {
+        const res = await admin.graphql(SHOP_OWNER_QUERY);
+        const json = await res.json();
+        const ownerName = cleanText(json?.data?.shop?.owner?.name);
+        if (ownerName) authorName = ownerName;
+      } catch {}
+    }
 
     let article;
     try {
@@ -2235,8 +2280,10 @@ export const action = async ({ request }) => {
             blogId,
             title,
             body,
+            ...(excerpt ? { summary: excerpt } : {}),
+            ...(tags.length > 0 ? { tags } : {}),
             author: {
-              name: getDefaultAuthorName(session.shop),
+              name: authorName,
             },
             isPublished: status === "published",
           },
@@ -2447,6 +2494,10 @@ export const action = async ({ request }) => {
       }
     }
 
+    const saveExcerpt = String(formData.get("excerpt") || "").trim();
+    const saveTagsRaw = String(formData.get("tags") || "").trim();
+    const saveTags = saveTagsRaw ? saveTagsRaw.split(",").map((t) => t.trim()).filter(Boolean) : [];
+
     let article;
     try {
       const response = await admin.graphql(ARTICLE_UPDATE_MUTATION, {
@@ -2455,6 +2506,8 @@ export const action = async ({ request }) => {
           article: {
             title,
             body,
+            ...(saveExcerpt ? { summary: saveExcerpt } : {}),
+            ...(saveTags.length > 0 ? { tags: saveTags } : {}),
             isPublished: status === "published",
           },
         },
@@ -2686,7 +2739,7 @@ function ResourcePickerTrigger({ selectedResources, onRemove, onOpen }) {
 }
 
 export default function BlogPage() {
-  const { blogs, articles, settingsTone, products, collections, shopDomain } = useLoaderData();
+  const { blogs, articles, settingsTone, products, collections, shopDomain, shopOwnerName } = useLoaderData();
   const fetcher = useFetcher();
 
   const [rows, setRows] = useState(() => articles);
@@ -2717,6 +2770,8 @@ export default function BlogPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editStatus, setEditStatus] = useState("draft");
   const [editBody, setEditBody] = useState("");
+  const [editExcerpt, setEditExcerpt] = useState("");
+  const [editTags, setEditTags] = useState("");
 
   const tabItems = [
     { id: TAB_KEYS.BUSINESS, content: "Business Blog" },
@@ -2754,6 +2809,8 @@ export default function BlogPage() {
   useEffect(() => {
     if (!editingBlog) return;
     setEditBody(editingBlog.body || "");
+    setEditExcerpt(editingBlog.summary || "");
+    setEditTags(Array.isArray(editingBlog.tags) ? editingBlog.tags.join(", ") : "");
   }, [editingBlog]);
 
   useEffect(() => {
@@ -2780,6 +2837,8 @@ export default function BlogPage() {
           blogId: selectedBlogId,
           title: g.title,
           body: g.body,
+          summary: g.summary || "",
+          tags: Array.isArray(g.tags) ? g.tags : [],
           status: "draft",
           topic: g.topic,
           tabType: g.tabType,
@@ -2825,10 +2884,14 @@ export default function BlogPage() {
       setMessage("Blog saved to Shopify.");
       setShowGenerator(false);
       setEditingBlog(null);
+      setEditExcerpt("");
+      setEditTags("");
     }
 
     if (fetcher.data.intent === "save_blog_content") {
       setEditingBlog(null);
+      setEditExcerpt("");
+      setEditTags("");
       setIsRegenerateModalOpen(false);
       setRegenerateTarget(null);
       setRegenerateTitle("");
@@ -2935,7 +2998,9 @@ export default function BlogPage() {
     payload.append("promotion", promotion);
     payload.append("offerText", effectiveOfferText);
     payload.append("holiday", holiday);
-    payload.append("productUrl", productUrl);
+    payload.append("productUrl", selectedResources[0]
+      ? `https://${shopDomain}/${selectedResources[0].type === "product" ? "products" : "collections"}/${selectedResources[0].handle}`
+      : "");
     payload.append("consumeCreditOnSave", "1");
     fetcher.submit(payload, { method: "post" });
   }
@@ -2952,57 +3017,54 @@ export default function BlogPage() {
             </div>
           </IndexTable.Cell>
           <IndexTable.Cell>
-            <button
-              onClick={() => {
-                setEditingBlog({
-                  mode: "update",
-                  id: article.id,
-                  blogId: article.blogId,
-                  title: article.title,
-                  body: article.body,
-                  status: article.publishedAt ? "published" : "draft",
-                });
-                setEditTitle(article.title);
-                setEditStatus(article.publishedAt ? "published" : "draft");
-              }}
+            <div
               style={{
-                background: "transparent",
-                border: "none",
-                padding: 0,
-                margin: 0,
-                cursor: "pointer",
-                textAlign: "left",
-                width: "100%",
+                display: "-webkit-box",
+                WebkitLineClamp: 3,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                lineHeight: "1.45",
+                maxWidth: 500,
               }}
+              title={stripHtml(article.body || "")}
             >
-              <div
-                style={{
-                  display: "-webkit-box",
-                  WebkitLineClamp: 3,
-                  WebkitBoxOrient: "vertical",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  lineHeight: "1.45",
-                  maxWidth: 500,
-                }}
-                title={stripHtml(article.body || "")}
-              >
-                <Text as="span" variant="bodySm" tone="subdued">
-                  {getSummaryFromBody(article.body)}
-                </Text>
-              </div>
-            </button>
+              <Text as="span" variant="bodySm" tone="subdued">
+                {getSummaryFromBody(article.body)}
+              </Text>
+            </div>
           </IndexTable.Cell>
           <IndexTable.Cell>{statusBadge(article.publishedAt)}</IndexTable.Cell>
           <IndexTable.Cell>{formatDate(article.updatedAt)}</IndexTable.Cell>
           <IndexTable.Cell>
-            <Button
-              size="slim"
-              onClick={() => openRegenerateModal(article)}
-              disabled={fetcher.state !== "idle"}
-            >
-              Regenerate
-            </Button>
+            <InlineStack gap="200">
+              <Button
+                size="slim"
+                onClick={() => {
+                  setEditingBlog({
+                    mode: "update",
+                    id: article.id,
+                    blogId: article.blogId,
+                    title: article.title,
+                    body: article.body,
+                    summary: article.summary || "",
+                    tags: article.tags || [],
+                    status: article.publishedAt ? "published" : "draft",
+                  });
+                  setEditTitle(article.title);
+                  setEditStatus(article.publishedAt ? "published" : "draft");
+                }}
+              >
+                Edit
+              </Button>
+              <Button
+                size="slim"
+                onClick={() => openRegenerateModal(article)}
+                disabled={fetcher.state !== "idle"}
+              >
+                Regenerate
+              </Button>
+            </InlineStack>
           </IndexTable.Cell>
         </IndexTable.Row>
       )),
@@ -3250,7 +3312,7 @@ export default function BlogPage() {
                     { title: "Summary" },
                     { title: "Status" },
                     { title: "Updated" },
-                    { title: "Regenerate" },
+                    { title: "Actions" },
                   ]}
                 >
                   {rowsMarkup}
@@ -3261,7 +3323,12 @@ export default function BlogPage() {
         )}
       </BlockStack>
 
-      <Modal open={Boolean(editingBlog)} onClose={() => setEditingBlog(null)} title="Blog Text Editor" size="large">
+      <Modal
+        open={Boolean(editingBlog)}
+        onClose={() => { setEditingBlog(null); setEditExcerpt(""); setEditTags(""); }}
+        title="Blog Text Editor"
+        size="large"
+      >
         <Modal.Section>
           <BlockStack gap="300">
             <TextField label="Title" value={editTitle} onChange={setEditTitle} autoComplete="off" />
@@ -3274,6 +3341,22 @@ export default function BlogPage() {
               value={editStatus}
               onChange={setEditStatus}
             />
+            <TextField
+              label="Excerpt"
+              value={editExcerpt}
+              onChange={setEditExcerpt}
+              autoComplete="off"
+              multiline={2}
+              helpText="A short summary shown in search results and social shares (150–160 characters recommended)."
+            />
+            <TextField
+              label="Tags"
+              value={editTags}
+              onChange={setEditTags}
+              autoComplete="off"
+              placeholder="e.g. skincare, wellness, gift ideas"
+              helpText="Comma-separated tags to help categorise this article."
+            />
 
             <RichTextEditor
               value={editBody}
@@ -3284,7 +3367,7 @@ export default function BlogPage() {
             />
 
             <InlineStack align="end" gap="200">
-              <Button onClick={() => setEditingBlog(null)}>Cancel</Button>
+              <Button onClick={() => { setEditingBlog(null); setEditExcerpt(""); setEditTags(""); }}>Cancel</Button>
               <Button
                 variant="primary"
                 onClick={() => {
@@ -3297,6 +3380,9 @@ export default function BlogPage() {
                     payload.append("title", editTitle);
                     payload.append("body", editBody || "");
                     payload.append("status", editStatus);
+                    payload.append("excerpt", editExcerpt || "");
+                    payload.append("tags", editTags || "");
+                    payload.append("author", shopOwnerName || "");
                     payload.append("topic", editingBlog.topic || "");
                     payload.append("tabType", editingBlog.tabType || activeTabKey);
                     payload.append("tone", editingBlog.tone || tone);
@@ -3305,7 +3391,7 @@ export default function BlogPage() {
                     payload.append("promotion", editingBlog.promotion || promotion);
                     payload.append("offerText", editingBlog.offerText || effectiveOfferText);
                     payload.append("holiday", editingBlog.holiday || holiday);
-                    payload.append("productUrl", editingBlog.productUrl || productUrl);
+                    payload.append("productUrl", editingBlog.productUrl || "");
                   } else {
                     payload.append("intent", "save_blog_content");
                     payload.append("articleId", editingBlog.id);
@@ -3313,6 +3399,8 @@ export default function BlogPage() {
                     payload.append("title", editTitle);
                     payload.append("body", editBody || "");
                     payload.append("status", editStatus);
+                    payload.append("excerpt", editExcerpt || "");
+                    payload.append("tags", editTags || "");
                   }
 
                   fetcher.submit(payload, { method: "post" });
