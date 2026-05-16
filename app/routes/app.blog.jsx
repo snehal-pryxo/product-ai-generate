@@ -32,6 +32,7 @@ import {
 
 const BLOG_BODY_CREDIT_COST = 3;
 const BLOG_PILLAR_CREDIT_COST = 10;
+const BLOG_REGENERATE_CREDIT_COST = 10;
 const BLOG_OPENAI_MODEL = (process.env.OPENAI_MODEL || "gpt-4o-mini").trim();
 const BLOG_ANTHROPIC_MODEL = (process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001").trim();
 
@@ -2412,6 +2413,20 @@ export const action = async ({ request }) => {
             ? `${topic}: A Guide from ${productName}`
             : seed || `Shop ${productName} — Discover Our Collection`;
 
+    const regenCreditBalance = await getOrCreateShopCredits(session.shop);
+    if ((regenCreditBalance?.credits ?? 0) < BLOG_REGENERATE_CREDIT_COST) {
+      return {
+        ok: false,
+        intent,
+        error: buildInsufficientCreditsError(BLOG_REGENERATE_CREDIT_COST, regenCreditBalance?.credits ?? 0),
+      };
+    }
+
+    const regenCreditSnapshot = await deductCredits({
+      shopDomain: session.shop,
+      creditsUsed: BLOG_REGENERATE_CREDIT_COST,
+    });
+
     let title = fallbackTitle;
     let body = "";
     try {
@@ -2458,17 +2473,52 @@ export const action = async ({ request }) => {
         productContext,
       });
     }
+
+    let updatedArticle = null;
+    try {
+      const response = await admin.graphql(ARTICLE_UPDATE_MUTATION, {
+        variables: {
+          id: articleId,
+          article: {
+            title,
+            body,
+            isPublished: status === "published",
+          },
+        },
+      });
+      const json = await response.json();
+      const mutPayload = json?.data?.articleUpdate;
+      if (!mutPayload?.userErrors?.length && mutPayload?.article) {
+        updatedArticle = normalizeArticle(mutPayload.article);
+      }
+    } catch (_) {}
+
+    try {
+      await db.generatedContentLog.create({
+        data: {
+          shop: session.shop,
+          productId: articleId,
+          productTitle: title,
+          intent: "blog_regenerate",
+          resourceType: "blog",
+          language,
+          tone,
+          lengthOption: postLength,
+          generatedDescription: body,
+          creditsUsed: BLOG_REGENERATE_CREDIT_COST,
+          appliedToProduct: true,
+          aiProvider: cleanText(shopRecord?.defaultAiProvider) !== "auto" ? cleanText(shopRecord?.defaultAiProvider) : null,
+        },
+      });
+    } catch (_) {}
+
     return {
       ok: true,
       intent,
-      generated: {
-        articleId,
-        blogId,
-        title,
-        body,
-        status,
-      },
-      creditsUsed: 0,
+      article: updatedArticle,
+      creditsUsed: BLOG_REGENERATE_CREDIT_COST,
+      newCredits: regenCreditSnapshot.credits,
+      creditsUsedTotal: regenCreditSnapshot.creditsUsedTotal,
     };
   }
 
@@ -2760,11 +2810,7 @@ export default function BlogPage() {
 
   const [outlines, setOutlines] = useState([]);
   const [selectedOutlineId, setSelectedOutlineId] = useState(null);
-  const [regenerateTarget, setRegenerateTarget] = useState(null);
-  const [isRegenerateModalOpen, setIsRegenerateModalOpen] = useState(false);
-  const [regenerateTitle, setRegenerateTitle] = useState("");
-  const [regenerateStatus, setRegenerateStatus] = useState("draft");
-  const [regenerateBody, setRegenerateBody] = useState("");
+  const [regenerateConfirmTarget, setRegenerateConfirmTarget] = useState(null);
 
   const [editingBlog, setEditingBlog] = useState(null);
   const [editTitle, setEditTitle] = useState("");
@@ -2860,13 +2906,14 @@ export default function BlogPage() {
     }
 
     if (fetcher.data.intent === "regenerate_blog") {
-      if (fetcher.data.generated) {
-        setRegenerateTitle(fetcher.data.generated.title || regenerateTitle);
-        setRegenerateBody(fetcher.data.generated.body || "");
-        setRegenerateStatus(fetcher.data.generated.status || "draft");
+      setRegenerateConfirmTarget(null);
+      if (fetcher.data.article) {
+        setRows((prev) =>
+          prev.map((item) => (item.id === fetcher.data.article.id ? fetcher.data.article : item)),
+        );
       }
       setMessage(
-        `Blog regenerated successfully.${typeof fetcher.data.creditsUsed === "number" ? ` ${fetcher.data.creditsUsed} credit used${typeof fetcher.data.newCredits === "number" ? `. Remaining: ${fetcher.data.newCredits}` : ""}.` : ""}`,
+        `Article regenerated and saved.${typeof fetcher.data.creditsUsed === "number" ? ` ${fetcher.data.creditsUsed} credits used${typeof fetcher.data.newCredits === "number" ? `. Remaining: ${fetcher.data.newCredits}` : ""}.` : ""}`,
       );
       return;
     }
@@ -2892,11 +2939,6 @@ export default function BlogPage() {
       setEditingBlog(null);
       setEditExcerpt("");
       setEditTags("");
-      setIsRegenerateModalOpen(false);
-      setRegenerateTarget(null);
-      setRegenerateTitle("");
-      setRegenerateStatus("draft");
-      setRegenerateBody("");
       setMessage("Blog content saved.");
     }
   }, [fetcher.state, fetcher.data]);
@@ -2945,28 +2987,16 @@ export default function BlogPage() {
     fetcher.submit(payload, { method: "post" });
   }
 
-  function openRegenerateModal(article) {
-    setRegenerateTarget({
-      articleId: article.id,
-      seed: article.title,
-      blogId: article.blogId,
-    });
-    setRegenerateTitle(article.title || "");
-    setRegenerateStatus(article.publishedAt ? "published" : "draft");
-    setRegenerateBody(article.body || "");
-    setIsRegenerateModalOpen(true);
-  }
-
-  function submitRegenerateFromModal() {
-    if (!regenerateTarget?.articleId) return;
+  function submitRegenerate() {
+    if (!regenerateConfirmTarget?.articleId) return;
     const payload = new FormData();
     payload.append("intent", "regenerate_blog");
-    payload.append("articleId", regenerateTarget.articleId);
-    payload.append("blogId", regenerateTarget.blogId || "");
-    payload.append("seed", regenerateTarget.seed || "");
-    payload.append("status", regenerateStatus);
+    payload.append("articleId", regenerateConfirmTarget.articleId);
+    payload.append("blogId", regenerateConfirmTarget.blogId || "");
+    payload.append("seed", regenerateConfirmTarget.title || "");
+    payload.append("status", regenerateConfirmTarget.status || "draft");
     payload.append("tabType", activeTabKey);
-    payload.append("topic", topic);
+    payload.append("topic", regenerateConfirmTarget.title || "");
     payload.append("tone", tone);
     payload.append("postLength", postLength);
     payload.append("targetAudience", targetAudience);
@@ -2978,30 +3008,6 @@ export default function BlogPage() {
       title: r.title,
       type: r.type,
     }))));
-    payload.append("currentBody", regenerateBody || "");
-    fetcher.submit(payload, { method: "post" });
-  }
-
-  function saveRegeneratedBlogFromModal() {
-    if (!regenerateTarget?.articleId) return;
-    const payload = new FormData();
-    payload.append("intent", "save_blog_content");
-    payload.append("articleId", regenerateTarget.articleId);
-    payload.append("blogId", regenerateTarget.blogId || "");
-    payload.append("title", regenerateTitle || regenerateTarget.seed || "");
-    payload.append("body", regenerateBody || "");
-    payload.append("status", regenerateStatus);
-    payload.append("tabType", activeTabKey);
-    payload.append("tone", tone);
-    payload.append("postLength", postLength);
-    payload.append("targetAudience", targetAudience);
-    payload.append("promotion", promotion);
-    payload.append("offerText", effectiveOfferText);
-    payload.append("holiday", holiday);
-    payload.append("productUrl", selectedResources[0]
-      ? `https://${shopDomain}/${selectedResources[0].type === "product" ? "products" : "collections"}/${selectedResources[0].handle}`
-      : "");
-    payload.append("consumeCreditOnSave", "1");
     fetcher.submit(payload, { method: "post" });
   }
 
@@ -3059,7 +3065,12 @@ export default function BlogPage() {
               </Button>
               <Button
                 size="slim"
-                onClick={() => openRegenerateModal(article)}
+                onClick={() => setRegenerateConfirmTarget({
+                  articleId: article.id,
+                  blogId: article.blogId,
+                  title: article.title,
+                  status: article.publishedAt ? "published" : "draft",
+                })}
                 disabled={fetcher.state !== "idle"}
               >
                 Regenerate
@@ -3418,122 +3429,25 @@ export default function BlogPage() {
       </Modal>
 
       <Modal
-        open={isRegenerateModalOpen}
-        onClose={() => {
-          setIsRegenerateModalOpen(false);
-          setRegenerateTarget(null);
-          setRegenerateTitle("");
-          setRegenerateStatus("draft");
-          setRegenerateBody("");
+        open={Boolean(regenerateConfirmTarget)}
+        onClose={() => setRegenerateConfirmTarget(null)}
+        title="Regenerate article?"
+        primaryAction={{
+          content: "Regenerate (10 credits)",
+          onAction: submitRegenerate,
+          loading: fetcher.state !== "idle" && String(fetcher.formData?.get("intent")) === "regenerate_blog",
+          destructive: false,
         }}
-        title="Regenerate Blog"
-        size="large"
+        secondaryActions={[{ content: "Cancel", onAction: () => setRegenerateConfirmTarget(null) }]}
       >
         <Modal.Section>
-          <BlockStack gap="300">
-            <Text as="p" variant="bodyMd" tone="subdued">
-              Apply the same settings used in Create Blog, then regenerate this post.
+          <BlockStack gap="200">
+            <Text as="p" variant="bodyMd">
+              This will regenerate <strong>{regenerateConfirmTarget?.title}</strong> using AI and automatically save it.
             </Text>
-
-            <Tabs tabs={tabItems} selected={activeTab} onSelect={setActiveTab} />
-
-            {activeTabKey === TAB_KEYS.HOLIDAY ? (
-              <div className="blog-generator-fields">
-                <Select label="Holiday" options={holidayOptions} value={holiday} onChange={setHoliday} />
-                <Select label="Promotion" options={promotionOptions} value={promotion} onChange={handlePromotionChange} />
-                {showOfferTextField ? (
-                  <TextField label="Add your offer here" value={offerText} onChange={setOfferText} autoComplete="off" placeholder="40% off" />
-                ) : null}
-                <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
-                <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
-                <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                <ResourcePickerTrigger selectedResources={selectedResources} onRemove={(r) => setSelectedResources((prev) => prev.filter((x) => !(x.id === r.id && x.type === r.type)))} onOpen={() => setIsPickerOpen(true)} />
-              </div>
-            ) : null}
-
-            {activeTabKey === TAB_KEYS.PROMOTION ? (
-              <div className="blog-generator-fields">
-                <Select label="Promotion" options={promotionOptions} value={promotion} onChange={handlePromotionChange} />
-                {showOfferTextField ? (
-                  <TextField label="Add your offer here" value={offerText} onChange={setOfferText} autoComplete="off" placeholder="40% off" />
-                ) : null}
-                <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
-                <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
-                <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                <ResourcePickerTrigger selectedResources={selectedResources} onRemove={(r) => setSelectedResources((prev) => prev.filter((x) => !(x.id === r.id && x.type === r.type)))} onOpen={() => setIsPickerOpen(true)} />
-              </div>
-            ) : null}
-
-            {activeTabKey === TAB_KEYS.CUSTOM ? (
-              <div className="blog-generator-fields">
-                <TextField label="Post topic" value={topic} onChange={setTopic} autoComplete="off" placeholder="Write a specific topic for your post" />
-                <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
-                <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
-                <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                <ResourcePickerTrigger selectedResources={selectedResources} onRemove={(r) => setSelectedResources((prev) => prev.filter((x) => !(x.id === r.id && x.type === r.type)))} onOpen={() => setIsPickerOpen(true)} />
-              </div>
-            ) : null}
-
-
-            {activeTabKey === TAB_KEYS.BUSINESS ? (
-              <div className="blog-generator-fields">
-                <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
-                <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
-                <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                <ResourcePickerTrigger selectedResources={selectedResources} onRemove={(r) => setSelectedResources((prev) => prev.filter((x) => !(x.id === r.id && x.type === r.type)))} onOpen={() => setIsPickerOpen(true)} />
-              </div>
-            ) : null}
-
-            <BlockStack gap="200">
-              <Text as="h4" variant="headingSm">Current blog description</Text>
-              <TextField label="Title" value={regenerateTitle} onChange={setRegenerateTitle} autoComplete="off" />
-              <Select
-                label="Status"
-                options={[
-                  { label: "Draft", value: "draft" },
-                  { label: "Published", value: "published" },
-                ]}
-                value={regenerateStatus}
-                onChange={setRegenerateStatus}
-              />
-              <RichTextEditor
-                value={regenerateBody}
-                onChange={setRegenerateBody}
-                minHeight={220}
-                maxHeight={320}
-                showSourceToggle
-              />
-            </BlockStack>
-
-            <InlineStack align="end" gap="200">
-              <Button
-                onClick={() => {
-                  setIsRegenerateModalOpen(false);
-                  setRegenerateTarget(null);
-                  setRegenerateTitle("");
-                  setRegenerateStatus("draft");
-                  setRegenerateBody("");
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                onClick={submitRegenerateFromModal}
-                disabled={!regenerateTarget?.articleId}
-                loading={fetcher.state !== "idle" && String(fetcher.formData?.get("intent")) === "regenerate_blog"}
-              >
-                Regenerate
-              </Button>
-              <Button
-                variant="primary"
-                onClick={saveRegeneratedBlogFromModal}
-                disabled={!regenerateTarget?.articleId}
-                loading={fetcher.state !== "idle" && String(fetcher.formData?.get("intent")) === "save_blog_content"}
-              >
-                Save
-              </Button>
-            </InlineStack>
+            <Text as="p" variant="bodyMd" tone="subdued">
+              Cost: <strong>10 credits</strong>. The existing article content will be replaced.
+            </Text>
           </BlockStack>
         </Modal.Section>
       </Modal>
