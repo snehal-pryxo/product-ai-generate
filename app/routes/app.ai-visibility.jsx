@@ -25,29 +25,6 @@ const CREDITS_COMBINED = 5;
 // GraphQL
 // ---------------------------------------------------------------------------
 
-const THEME_FILES_QUERY = `#graphql
-  query GetActiveThemeEmbed {
-    themes(first: 1, roles: [MAIN]) {
-      edges {
-        node {
-          files(filenames: ["config/settings_data.json"]) {
-            edges {
-              node {
-                filename
-                body {
-                  ... on OnlineStoreThemeFileBodyText {
-                    content
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-`;
-
 const PRODUCTS_QUERY = `#graphql
   query GetProductsForVisibility($first: Int!) {
     products(first: $first) {
@@ -240,13 +217,27 @@ export const action = async ({ request }) => {
 
     if (intent === "verify_theme_embed") {
       try {
-        const themeRes = await admin.graphql(THEME_FILES_QUERY);
-        const themeJson = await themeRes.json();
-        const fileEdges = themeJson?.data?.themes?.edges?.[0]?.node?.files?.edges || [];
-        const settingsFile = fileEdges.find((e) => e.node.filename === "config/settings_data.json");
-        const content = settingsFile?.node?.body?.content || "{}";
+        const accessToken = session.accessToken;
+        const apiBase = `https://${shop}/admin/api/2026-04`;
+
+        // 1. Get the main (active) theme via REST
+        const themesResp = await fetch(`${apiBase}/themes.json?role=main`, {
+          headers: { "X-Shopify-Access-Token": accessToken },
+        });
+        const themesData = await themesResp.json();
+        const themeId = themesData?.themes?.[0]?.id;
+        if (!themeId) throw new Error("No main theme found");
+
+        // 2. Read config/settings_data.json asset
+        const assetResp = await fetch(
+          `${apiBase}/themes/${themeId}/assets.json?asset[key]=config/settings_data.json`,
+          { headers: { "X-Shopify-Access-Token": accessToken } }
+        );
+        const assetData = await assetResp.json();
+        const content = assetData?.asset?.value || "{}";
         const settings = JSON.parse(content);
         const blocks = settings?.current?.blocks || {};
+
         // Check if any block key contains our extension handle and is not explicitly disabled
         const embedEnabled = Object.entries(blocks).some(
           ([key, val]) => key.includes("ai-visibility-embed") && val?.disabled !== true
@@ -323,7 +314,7 @@ function ItemModal({ item, onClose, onGenerate, generatingKey }) {
                 loading={generatingKey === combinedKey}
                 onClick={() => onGenerate("generate_combined", item)}
               >
-                Generate Schema + FAQ ({CREDITS_COMBINED} credits)
+                Generate Schema + FAQ ({CREDITS_COMBINED} credits — saves 2)
               </Button>
             )}
             {(item.hasSchema || item.resourceType !== "product" || item.hasFaq) && (
