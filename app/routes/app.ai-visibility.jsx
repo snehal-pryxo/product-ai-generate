@@ -48,7 +48,6 @@ const ARTICLES_QUERY = `#graphql
           id title handle body summary publishedAt
           author { name }
           blog { id title handle }
-          seo { title description }
         }
       }
     }
