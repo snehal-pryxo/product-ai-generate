@@ -8,11 +8,10 @@ import {
   Box,
   Button,
   Card,
-  Combobox,
+  Checkbox,
   EmptyState,
   IndexTable,
   InlineStack,
-  Listbox,
   Modal,
   Page,
   Select,
@@ -1042,6 +1041,7 @@ async function generateBlogSuggestionsWithAI({
   holiday,
   language,
   productUrl,
+  productLinks = [],
   productContext = null,
   aiProvider = "auto",
   openaiApiKey,
@@ -1066,13 +1066,17 @@ async function generateBlogSuggestionsWithAI({
     throw new Error("A custom topic is required for the Custom tab.");
   }
 
+  const productLinksContext = productLinks.length > 0
+    ? `Products/collections to feature (embed links to these naturally throughout the article):\n${productLinks.map((l) => `- ${l.title}: ${l.url}`).join("\n")}`
+    : productUrl ? `- Product URL: ${productUrl}` : "";
+
   const productContextBlock = `
 Store & Product Details:
 - Store/Product name: ${storeName}
 - Product type: ${productType || "Not specified"}
 - Brand/Vendor: ${vendor || "Not specified"}
 - Product description: ${productDescription || "Not provided — describe based on the store name and context"}
-${productUrl ? `- Product URL: ${productUrl}` : ""}`.trim();
+${productLinksContext}`.trim();
 
   const jsonFormatInstruction = `
 Return ONLY valid JSON — no markdown, no extra text:
@@ -1102,7 +1106,7 @@ Post Settings:
 - Post Tone: ${tone}
 - Language: ${language}
 - Target Audience: ${targetAudience}
-${productUrl ? `- Product URL: ${productUrl}` : ""}
+${productLinksContext}
 
 SEO GOAL: Each article must target a specific search query that ${targetAudience.toLowerCase()} customers actually type into Google — a "how to", "best [product]", "what is", or "[problem] solution" style query related to the store's products. The store and its products are the ANSWER to that query, not the topic of the article.
 
@@ -1163,7 +1167,7 @@ ${hasOffer ? `- Offer: ${offerText}` : ""}
 - Post Tone: ${tone}
 - Language: ${language}
 - Target Audience: ${targetAudience}
-${productUrl ? `- Product URL: ${productUrl}` : ""}
+${productLinksContext}
 
 SEO GOAL: Each article must target a specific ${holiday}-related search query that ${targetAudience.toLowerCase()} customers actually type into Google — e.g., "best ${holiday} gifts for [type of person]", "${holiday} shopping guide for [audience]", "what to buy for ${holiday} [year]". The store's products are the recommended solution within that guide.
 ${hasPromotion ? `PROMOTION: The "${promotionOfferStr}" offer must be highlighted as an added reason to shop — but introduced after the article has already delivered value to the reader.` : ""}
@@ -1224,7 +1228,7 @@ ${hasOffer ? `- Offer: ${offerText}` : ""}
 - Post Tone: ${tone}
 - Language: ${language}
 - Target Audience: ${targetAudience}
-${productUrl ? `- Product URL: ${productUrl}` : ""}
+${productLinksContext}
 
 SEO GOAL: Each article must target a search query that deal-seeking ${targetAudience.toLowerCase()} customers actually type — e.g., "best [product type] deals", "where to get [product] at a discount", "how to save on [product category]". The promotion is the payoff — introduced AFTER the article has delivered genuine value.
 
@@ -1284,7 +1288,7 @@ Post Settings:
 - Post Tone: ${tone}
 - Language: ${language}
 - Target Audience: ${targetAudience}
-${productUrl ? `- Product URL: ${productUrl}` : ""}
+${productLinksContext}
 
 SEO GOAL: "${customTopic}" is the primary keyword cluster. Each article must target a specific long-tail search query within this topic that ${targetAudience.toLowerCase()} readers would actually search — a "how to", "best [X] for [audience]", "what is", or "guide to" variation. The article must answer that query fully, with ${storeName}'s products naturally woven in as part of the answer.
 
@@ -1343,7 +1347,7 @@ Post Settings:
 - Post Tone: ${tone}
 - Language: ${language}
 - Target Audience: ${targetAudience}
-${productUrl ? `- Product URL: ${productUrl}` : ""}
+${productLinksContext}
 
 SEO GOAL: Target the highest-volume, most competitive search query for "${pillarTopic}" that ${targetAudience.toLowerCase()} customers search. This article should rank for that head keyword AND capture dozens of related long-tail queries through comprehensive coverage. ${storeName}'s products are recommended throughout as the solution.
 
@@ -1503,6 +1507,7 @@ async function generateBlogOutlinesWithAI({
   holiday,
   language,
   productUrl,
+  productLinks = [],
   productContext = null,
   aiProvider = "auto",
   openaiApiKey,
@@ -1522,13 +1527,17 @@ async function generateBlogOutlinesWithAI({
   const promotionOfferStr = formatPromotionOffer(promotion, offerText);
   const customTopic = (tabType === TAB_KEYS.CUSTOM || tabType === TAB_KEYS.PILLAR) ? cleanText(topic) : "";
 
+  const productLinksContext = productLinks.length > 0
+    ? `Products/collections to feature (embed links naturally):\n${productLinks.map((l) => `- ${l.title}: ${l.url}`).join("\n")}`
+    : productUrl ? `- Product URL: ${productUrl}` : "";
+
   const productContextBlock = [
     `Store & Product Details:`,
     `- Store/Product name: ${storeName}`,
     `- Product type: ${productType || "Not specified"}`,
     `- Brand/Vendor: ${vendor || "Not specified"}`,
     `- Product description: ${productDescription || "Not provided"}`,
-    productUrl ? `- Product URL: ${productUrl}` : "",
+    productLinksContext,
   ].filter(Boolean).join("\n");
 
   let contextLine = "";
@@ -2011,7 +2020,9 @@ export const action = async ({ request }) => {
     const promotion = cleanText(formData.get("promotion")) || "No promotion";
     const offerText = cleanText(formData.get("offerText"));
     const holiday = cleanText(formData.get("holiday")) || "Choose a holiday to promote";
-    const productUrl = normalizeProductUrl(formData.get("productUrl"));
+    let productLinks = [];
+    try { productLinks = JSON.parse(formData.get("productUrls") || "[]"); } catch {}
+    const productUrl = productLinks[0]?.url || normalizeProductUrl(formData.get("productUrl") || "");
     const rawProductContext = await resolveProductContext(admin, productUrl);
     const shopName = getDefaultAuthorName(session.shop);
     const productContext = {
@@ -2036,6 +2047,7 @@ export const action = async ({ request }) => {
         holiday,
         language,
         productUrl,
+        productLinks,
         productContext,
         aiProvider: cleanText(shopRecord?.defaultAiProvider) || "auto",
         openaiApiKey: cleanText(shopRecord?.openaiApiKey) || process.env.OPENAI_API_KEY,
@@ -2071,7 +2083,9 @@ export const action = async ({ request }) => {
     const promotion = cleanText(formData.get("promotion")) || "No promotion";
     const offerText = cleanText(formData.get("offerText"));
     const holiday = cleanText(formData.get("holiday")) || "Choose a holiday to promote";
-    const productUrl = normalizeProductUrl(formData.get("productUrl"));
+    let productLinks = [];
+    try { productLinks = JSON.parse(formData.get("productUrls") || "[]"); } catch {}
+    const productUrl = productLinks[0]?.url || normalizeProductUrl(formData.get("productUrl") || "");
 
     if (!outlineTitle) return { ok: false, intent, error: "No outline selected." };
 
@@ -2115,6 +2129,7 @@ export const action = async ({ request }) => {
         holiday,
         language,
         productUrl,
+        productLinks,
         productContext,
         aiProvider: cleanText(shopRecord?.defaultAiProvider) || "auto",
         openaiApiKey: cleanText(shopRecord?.openaiApiKey) || process.env.OPENAI_API_KEY,
@@ -2303,7 +2318,9 @@ export const action = async ({ request }) => {
     const promotion = cleanText(formData.get("promotion")) || "No promotion";
     const offerText = cleanText(formData.get("offerText"));
     const holiday = cleanText(formData.get("holiday")) || "Choose a holiday to promote";
-    const productUrl = normalizeProductUrl(formData.get("productUrl"));
+    let productLinks = [];
+    try { productLinks = JSON.parse(formData.get("productUrls") || "[]"); } catch {}
+    const productUrl = productLinks[0]?.url || normalizeProductUrl(formData.get("productUrl") || "");
     const rawProductContext = await resolveProductContext(admin, productUrl);
     const shopName = getDefaultAuthorName(session.shop);
     const productContext = {
@@ -2350,6 +2367,7 @@ export const action = async ({ request }) => {
         holiday,
         language,
         productUrl,
+        productLinks,
         productContext,
         aiProvider: cleanText(shopRecord?.defaultAiProvider) || "auto",
         openaiApiKey: cleanText(shopRecord?.openaiApiKey) || process.env.OPENAI_API_KEY,
@@ -2507,91 +2525,150 @@ export const action = async ({ request }) => {
   return { ok: false, intent, error: "Unknown action." };
 };
 
-function ResourcePickerField({ products, collections, shopDomain, value, onChange, label = "Link to product or collection (optional)" }) {
-  const [inputValue, setInputValue] = useState("");
+function ResourcePickerModal({ open, products, collections, initialSelected, onDone, onClose }) {
+  const [activeTab, setActiveTab] = useState(0);
+  const [search, setSearch] = useState("");
+  const [checked, setChecked] = useState(() => new Set(initialSelected.map((r) => `${r.type}:${r.id}`)));
 
-  const selectedItem = useMemo(() => {
-    if (!value) return null;
-    try {
-      const parsed = new URL(value);
-      const parts = parsed.pathname.split("/").filter(Boolean);
-      const prodIdx = parts.findIndex((p) => p === "products");
-      const colIdx = parts.findIndex((p) => p === "collections");
-      if (prodIdx >= 0 && parts[prodIdx + 1]) {
-        const handle = decodeURIComponent(parts[prodIdx + 1]);
-        const found = products.find((p) => p.handle === handle);
-        return { title: found?.title || titleCaseFromSlug(handle), type: "Product" };
-      }
-      if (colIdx >= 0 && parts[colIdx + 1]) {
-        const handle = decodeURIComponent(parts[colIdx + 1]);
-        const found = collections.find((c) => c.handle === handle);
-        return { title: found?.title || titleCaseFromSlug(handle), type: "Collection" };
-      }
-    } catch {}
-    return null;
-  }, [value, products, collections]);
+  useEffect(() => {
+    if (open) {
+      setChecked(new Set(initialSelected.map((r) => `${r.type}:${r.id}`)));
+      setSearch("");
+      setActiveTab(0);
+    }
+  }, [open]);
+
+  const currentList = activeTab === 0 ? products : collections;
+  const currentType = activeTab === 0 ? "product" : "collection";
 
   const filtered = useMemo(() => {
-    const q = inputValue.toLowerCase();
-    return {
-      products: products.filter((p) => p.title.toLowerCase().includes(q)).slice(0, 20),
-      collections: collections.filter((c) => c.title.toLowerCase().includes(q)).slice(0, 20),
-    };
-  }, [inputValue, products, collections]);
+    const q = search.toLowerCase();
+    return currentList.filter((r) => r.title.toLowerCase().includes(q));
+  }, [search, currentList]);
 
-  const handleSelect = useCallback((val) => {
-    const [type, handle] = val.split("|");
-    const url = `https://${shopDomain}/${type === "product" ? "products" : "collections"}/${handle}`;
-    onChange(url);
-    setInputValue("");
-  }, [shopDomain, onChange]);
+  const toggleItem = useCallback((item) => {
+    const key = `${currentType}:${item.id}`;
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, [currentType]);
 
-  if (selectedItem) {
-    return (
-      <BlockStack gap="100">
-        <Text as="p" variant="bodyMd">{label}</Text>
-        <InlineStack gap="200" blockAlign="center">
-          <Text as="span" variant="bodySm" tone="subdued">{selectedItem.type}:</Text>
-          <Text as="span" variant="bodySm" fontWeight="semibold">{selectedItem.title}</Text>
-          <Button variant="plain" size="slim" onClick={() => onChange("")}>Remove</Button>
-        </InlineStack>
-      </BlockStack>
-    );
-  }
+  const handleDone = useCallback(() => {
+    const selected = [];
+    for (const p of products) {
+      if (checked.has(`product:${p.id}`)) selected.push({ id: p.id, title: p.title, handle: p.handle, type: "product" });
+    }
+    for (const c of collections) {
+      if (checked.has(`collection:${c.id}`)) selected.push({ id: c.id, title: c.title, handle: c.handle, type: "collection" });
+    }
+    onDone(selected);
+  }, [checked, products, collections, onDone]);
+
+  const checkedCount = checked.size;
 
   return (
-    <Combobox
-      activator={
-        <Combobox.TextField
-          label={label}
-          value={inputValue}
-          onChange={setInputValue}
-          autoComplete="off"
-          placeholder="Search products or collections..."
-          clearButton
-          onClearButtonClick={() => { setInputValue(""); onChange(""); }}
-        />
-      }
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Choose products or collections"
+      primaryAction={{ content: checkedCount > 0 ? `Done (${checkedCount} selected)` : "Done", onAction: handleDone }}
+      secondaryActions={[{ content: "Cancel", onAction: onClose }]}
     >
-      {(filtered.products.length > 0 || filtered.collections.length > 0) ? (
-        <Listbox onSelect={handleSelect}>
-          {filtered.products.length > 0 && (
-            <Listbox.Section title="Products">
-              {filtered.products.map((p) => (
-                <Listbox.Option key={p.id} value={`product|${p.handle}`} label={p.title} />
-              ))}
-            </Listbox.Section>
-          )}
-          {filtered.collections.length > 0 && (
-            <Listbox.Section title="Collections">
-              {filtered.collections.map((c) => (
-                <Listbox.Option key={c.id} value={`collection|${c.handle}`} label={c.title} />
-              ))}
-            </Listbox.Section>
-          )}
-        </Listbox>
-      ) : null}
-    </Combobox>
+      <Modal.Section>
+        <BlockStack gap="300">
+          <InlineStack gap="200">
+            <Button variant={activeTab === 0 ? "primary" : "secondary"} size="slim" onClick={() => { setActiveTab(0); setSearch(""); }}>
+              Products ({products.length})
+            </Button>
+            <Button variant={activeTab === 1 ? "primary" : "secondary"} size="slim" onClick={() => { setActiveTab(1); setSearch(""); }}>
+              Collections ({collections.length})
+            </Button>
+          </InlineStack>
+
+          <TextField
+            label=""
+            labelHidden
+            value={search}
+            onChange={setSearch}
+            placeholder={`Search ${activeTab === 0 ? "products" : "collections"}...`}
+            autoComplete="off"
+            clearButton
+            onClearButtonClick={() => setSearch("")}
+          />
+
+          <div style={{ maxHeight: "320px", overflowY: "auto" }}>
+            {filtered.length === 0 ? (
+              <Box padding="400">
+                <Text as="p" tone="subdued" alignment="center">
+                  No {activeTab === 0 ? "products" : "collections"} found.
+                </Text>
+              </Box>
+            ) : (
+              <BlockStack gap="050">
+                {filtered.map((item) => {
+                  const key = `${currentType}:${item.id}`;
+                  return (
+                    <Box key={item.id} paddingInline="200" paddingBlock="100">
+                      <Checkbox
+                        label={item.title}
+                        checked={checked.has(key)}
+                        onChange={() => toggleItem(item)}
+                      />
+                    </Box>
+                  );
+                })}
+              </BlockStack>
+            )}
+          </div>
+        </BlockStack>
+      </Modal.Section>
+    </Modal>
+  );
+}
+
+function ResourcePickerTrigger({ selectedResources, onRemove, onOpen }) {
+  return (
+    <BlockStack gap="150">
+      <Text as="p" variant="bodyMd">Link to product or collection (optional)</Text>
+      {selectedResources.length > 0 && (
+        <InlineStack gap="150" wrap blockAlign="center">
+          {selectedResources.map((r) => (
+            <div
+              key={`${r.type}:${r.id}`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+                padding: "2px 10px 2px 8px",
+                background: "var(--p-color-bg-surface-secondary)",
+                borderRadius: "var(--p-border-radius-200)",
+                border: "1px solid var(--p-color-border)",
+              }}
+            >
+              <Text as="span" variant="bodySm">
+                {r.type === "collection" ? "Collection: " : ""}{r.title}
+              </Text>
+              <button
+                type="button"
+                onClick={() => onRemove(r)}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: "0 0 0 4px", fontSize: "16px", lineHeight: 1, color: "var(--p-color-icon-secondary)" }}
+                aria-label={`Remove ${r.title}`}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </InlineStack>
+      )}
+      <InlineStack>
+        <Button variant="plain" size="slim" onClick={onOpen}>
+          {selectedResources.length > 0 ? "Edit selection" : "Choose products or collections"}
+        </Button>
+      </InlineStack>
+    </BlockStack>
   );
 }
 
@@ -2612,7 +2689,8 @@ export default function BlogPage() {
   const [promotion, setPromotion] = useState("Buy One Get One Free (BOGO)");
   const [offerText, setOfferText] = useState("40% off");
   const [holiday, setHoliday] = useState("Choose a holiday to promote");
-  const [productUrl, setProductUrl] = useState("");
+  const [selectedResources, setSelectedResources] = useState([]);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
 
   const [outlines, setOutlines] = useState([]);
   const [selectedOutlineId, setSelectedOutlineId] = useState(null);
@@ -2698,7 +2776,7 @@ export default function BlogPage() {
           promotion: g.promotion,
           offerText: g.offerText,
           holiday: g.holiday,
-          productUrl: g.productUrl || productUrl,
+          productUrl: g.productUrl || null,
         });
         setEditTitle(g.title || "");
         setEditStatus("draft");
@@ -2760,7 +2838,11 @@ export default function BlogPage() {
     payload.append("promotion", promotion);
     payload.append("offerText", effectiveOfferText);
     payload.append("holiday", holiday);
-    payload.append("productUrl", productUrl);
+    payload.append("productUrls", JSON.stringify(selectedResources.map((r) => ({
+      url: `https://${shopDomain}/${r.type === "product" ? "products" : "collections"}/${r.handle}`,
+      title: r.title,
+      type: r.type,
+    }))));
     fetcher.submit(payload, { method: "post" });
   }
 
@@ -2779,7 +2861,11 @@ export default function BlogPage() {
     payload.append("promotion", outline.promotion || promotion);
     payload.append("offerText", outline.offerText || effectiveOfferText);
     payload.append("holiday", outline.holiday || holiday);
-    payload.append("productUrl", outline.productUrl || productUrl);
+    payload.append("productUrls", JSON.stringify(selectedResources.map((r) => ({
+      url: `https://${shopDomain}/${r.type === "product" ? "products" : "collections"}/${r.handle}`,
+      title: r.title,
+      type: r.type,
+    }))));
     fetcher.submit(payload, { method: "post" });
   }
 
@@ -2811,7 +2897,11 @@ export default function BlogPage() {
     payload.append("promotion", promotion);
     payload.append("offerText", effectiveOfferText);
     payload.append("holiday", holiday);
-    payload.append("productUrl", productUrl);
+    payload.append("productUrls", JSON.stringify(selectedResources.map((r) => ({
+      url: `https://${shopDomain}/${r.type === "product" ? "products" : "collections"}/${r.handle}`,
+      title: r.title,
+      type: r.type,
+    }))));
     payload.append("currentBody", regenerateBody || "");
     fetcher.submit(payload, { method: "post" });
   }
@@ -2957,7 +3047,7 @@ export default function BlogPage() {
                       <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                       <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                       <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                      <ResourcePickerField products={products} collections={collections} shopDomain={shopDomain} value={productUrl} onChange={setProductUrl} />
+                      <ResourcePickerTrigger selectedResources={selectedResources} onRemove={(r) => setSelectedResources((prev) => prev.filter((x) => !(x.id === r.id && x.type === r.type)))} onOpen={() => setIsPickerOpen(true)} />
                     </div>
                   ) : null}
 
@@ -2970,7 +3060,7 @@ export default function BlogPage() {
                       <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                       <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                       <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                      <ResourcePickerField products={products} collections={collections} shopDomain={shopDomain} value={productUrl} onChange={setProductUrl} />
+                      <ResourcePickerTrigger selectedResources={selectedResources} onRemove={(r) => setSelectedResources((prev) => prev.filter((x) => !(x.id === r.id && x.type === r.type)))} onOpen={() => setIsPickerOpen(true)} />
                     </div>
                   ) : null}
 
@@ -2980,7 +3070,7 @@ export default function BlogPage() {
                       <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                       <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                       <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                      <ResourcePickerField products={products} collections={collections} shopDomain={shopDomain} value={productUrl} onChange={setProductUrl} />
+                      <ResourcePickerTrigger selectedResources={selectedResources} onRemove={(r) => setSelectedResources((prev) => prev.filter((x) => !(x.id === r.id && x.type === r.type)))} onOpen={() => setIsPickerOpen(true)} />
                     </div>
                   ) : null}
 
@@ -2989,7 +3079,7 @@ export default function BlogPage() {
                       <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                       <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                       <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                      <ResourcePickerField products={products} collections={collections} shopDomain={shopDomain} value={productUrl} onChange={setProductUrl} />
+                      <ResourcePickerTrigger selectedResources={selectedResources} onRemove={(r) => setSelectedResources((prev) => prev.filter((x) => !(x.id === r.id && x.type === r.type)))} onOpen={() => setIsPickerOpen(true)} />
                     </div>
                   ) : null}
 
@@ -3005,7 +3095,7 @@ export default function BlogPage() {
                       />
                       <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                       <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                      <ResourcePickerField products={products} collections={collections} shopDomain={shopDomain} value={productUrl} onChange={setProductUrl} />
+                      <ResourcePickerTrigger selectedResources={selectedResources} onRemove={(r) => setSelectedResources((prev) => prev.filter((x) => !(x.id === r.id && x.type === r.type)))} onOpen={() => setIsPickerOpen(true)} />
                     </div>
                   ) : null}
 
@@ -3256,7 +3346,7 @@ export default function BlogPage() {
                 <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                 <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                 <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                <ResourcePickerField products={products} collections={collections} shopDomain={shopDomain} value={productUrl} onChange={setProductUrl} />
+                <ResourcePickerTrigger selectedResources={selectedResources} onRemove={(r) => setSelectedResources((prev) => prev.filter((x) => !(x.id === r.id && x.type === r.type)))} onOpen={() => setIsPickerOpen(true)} />
               </div>
             ) : null}
 
@@ -3269,7 +3359,7 @@ export default function BlogPage() {
                 <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                 <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                 <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                <ResourcePickerField products={products} collections={collections} shopDomain={shopDomain} value={productUrl} onChange={setProductUrl} />
+                <ResourcePickerTrigger selectedResources={selectedResources} onRemove={(r) => setSelectedResources((prev) => prev.filter((x) => !(x.id === r.id && x.type === r.type)))} onOpen={() => setIsPickerOpen(true)} />
               </div>
             ) : null}
 
@@ -3279,7 +3369,7 @@ export default function BlogPage() {
                 <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                 <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                 <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                <ResourcePickerField products={products} collections={collections} shopDomain={shopDomain} value={productUrl} onChange={setProductUrl} />
+                <ResourcePickerTrigger selectedResources={selectedResources} onRemove={(r) => setSelectedResources((prev) => prev.filter((x) => !(x.id === r.id && x.type === r.type)))} onOpen={() => setIsPickerOpen(true)} />
               </div>
             ) : null}
 
@@ -3289,7 +3379,7 @@ export default function BlogPage() {
                 <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                 <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                 <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                <ResourcePickerField products={products} collections={collections} shopDomain={shopDomain} value={productUrl} onChange={setProductUrl} />
+                <ResourcePickerTrigger selectedResources={selectedResources} onRemove={(r) => setSelectedResources((prev) => prev.filter((x) => !(x.id === r.id && x.type === r.type)))} onOpen={() => setIsPickerOpen(true)} />
               </div>
             ) : null}
 
@@ -3375,6 +3465,15 @@ export default function BlogPage() {
           }
         }
       `}</style>
+
+      <ResourcePickerModal
+        open={isPickerOpen}
+        products={products}
+        collections={collections}
+        initialSelected={selectedResources}
+        onDone={(selected) => { setSelectedResources(selected); setIsPickerOpen(false); }}
+        onClose={() => setIsPickerOpen(false)}
+      />
     </Page>
   );
 }
