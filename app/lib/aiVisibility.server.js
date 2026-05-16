@@ -100,7 +100,7 @@ export async function generateSchema(shop, adminGraphQL, resourceType, resource)
       productType: resource.productType,
       price: variant?.price || resource.priceRange?.minVariantPrice?.amount,
       currencyCode: resource.priceRange?.minVariantPrice?.currencyCode || "USD",
-      available: resource.availableForSale,
+      available: resource.status === "ACTIVE",
       url: `https://${shop}/products/${resource.handle}`,
     });
     schemaType = "Product";
@@ -207,7 +207,7 @@ export async function generateCombined(shop, adminGraphQL, resource) {
     productType: resource.productType,
     price: variant?.price || resource.priceRange?.minVariantPrice?.amount,
     currencyCode: resource.priceRange?.minVariantPrice?.currencyCode || "USD",
-    available: resource.availableForSale,
+    available: resource.status === "ACTIVE",
     url: `https://${shop}/products/${resource.handle}`,
   });
 

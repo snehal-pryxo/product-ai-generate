@@ -30,7 +30,7 @@ const PRODUCTS_QUERY = `#graphql
     products(first: $first) {
       edges {
         node {
-          id title handle description vendor productType availableForSale
+          id title handle description vendor productType status
           seo { title description }
           priceRange { minVariantPrice { amount currencyCode } }
           variants(first: 1) { edges { node { price } } }
