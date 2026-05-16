@@ -127,25 +127,24 @@ export async function generateSchema(shop, adminGraphQL, resourceType, resource)
   }
 
   await deductCredits({ shopDomain: shop, creditsUsed: CREDITS_SCHEMA });
-  let schemaJson;
   try {
     const raw = await callAIRaw(promptObj.prompt, promptObj.systemPrompt, aiOptions);
     const obj = parseJsonResponse(raw);
-    schemaJson = JSON.stringify(obj);
+    const schemaJson = JSON.stringify(obj);
+
+    const metafieldId = await writeMetafield(adminGraphQL, resource.id, "schema_json", schemaJson);
+
+    await db.aiVisibilitySchema.upsert({
+      where: { shop_resourceType_resourceId: { shop, resourceType, resourceId: resource.id } },
+      create: { shop, resourceType, resourceId: resource.id, schemaType, schemaJson, metafieldId, creditsUsed: CREDITS_SCHEMA },
+      update: { schemaJson, metafieldId, creditsUsed: CREDITS_SCHEMA, updatedAt: new Date() },
+    });
+
+    return { schemaJson, creditsUsed: CREDITS_SCHEMA };
   } catch (err) {
     await refundCredits({ shopDomain: shop, creditsRefunded: CREDITS_SCHEMA });
     throw err;
   }
-
-  const metafieldId = await writeMetafield(adminGraphQL, resource.id, "schema_json", schemaJson);
-
-  await db.aiVisibilitySchema.upsert({
-    where: { shop_resourceType_resourceId: { shop, resourceType, resourceId: resource.id } },
-    create: { shop, resourceType, resourceId: resource.id, schemaType, schemaJson, metafieldId, creditsUsed: CREDITS_SCHEMA },
-    update: { schemaJson, metafieldId, creditsUsed: CREDITS_SCHEMA, updatedAt: new Date() },
-  });
-
-  return { schemaJson, creditsUsed: CREDITS_SCHEMA };
 }
 
 export async function generateFaq(shop, adminGraphQL, resourceType, resource) {
@@ -168,7 +167,6 @@ export async function generateFaq(shop, adminGraphQL, resourceType, resource) {
   }
 
   await deductCredits({ shopDomain: shop, creditsUsed: CREDITS_FAQ });
-  let faqPageJson;
   try {
     const raw = await callAIRaw(promptObj.prompt, promptObj.systemPrompt, aiOptions);
     const arr = parseJsonResponse(raw);
@@ -182,21 +180,21 @@ export async function generateFaq(shop, adminGraphQL, resourceType, resource) {
         acceptedAnswer: { "@type": "Answer", text: qa.answer },
       })),
     };
-    faqPageJson = JSON.stringify(faqPageSchema);
+    const faqPageJson = JSON.stringify(faqPageSchema);
+
+    const metafieldId = await writeMetafield(adminGraphQL, resource.id, "faq_json", faqPageJson);
+
+    await db.aiVisibilityFaq.upsert({
+      where: { shop_resourceType_resourceId: { shop, resourceType, resourceId: resource.id } },
+      create: { shop, resourceType, resourceId: resource.id, faqJson: faqPageJson, metafieldId, creditsUsed: CREDITS_FAQ },
+      update: { faqJson: faqPageJson, metafieldId, creditsUsed: CREDITS_FAQ, updatedAt: new Date() },
+    });
+
+    return { faqJson: faqPageJson, creditsUsed: CREDITS_FAQ };
   } catch (err) {
     await refundCredits({ shopDomain: shop, creditsRefunded: CREDITS_FAQ });
     throw err;
   }
-
-  const metafieldId = await writeMetafield(adminGraphQL, resource.id, "faq_json", faqPageJson);
-
-  await db.aiVisibilityFaq.upsert({
-    where: { shop_resourceType_resourceId: { shop, resourceType, resourceId: resource.id } },
-    create: { shop, resourceType, resourceId: resource.id, faqJson: faqPageJson, metafieldId, creditsUsed: CREDITS_FAQ },
-    update: { faqJson: faqPageJson, metafieldId, creditsUsed: CREDITS_FAQ, updatedAt: new Date() },
-  });
-
-  return { faqJson: faqPageJson, creditsUsed: CREDITS_FAQ };
 }
 
 export async function generateCombined(shop, adminGraphQL, resource) {
@@ -214,11 +212,10 @@ export async function generateCombined(shop, adminGraphQL, resource) {
   });
 
   await deductCredits({ shopDomain: shop, creditsUsed: CREDITS_COMBINED });
-  let schemaJson, faqPageJson;
   try {
     const raw = await callAIRaw(promptObj.prompt, promptObj.systemPrompt, aiOptions);
     const parsed = parseJsonResponse(raw);
-    schemaJson = JSON.stringify(parsed.schema);
+    const schemaJson = JSON.stringify(parsed.schema);
     const faqArr = Array.isArray(parsed.faqs) ? parsed.faqs : [];
     const faqPageSchema = {
       "@context": "https://schema.org",
@@ -229,29 +226,29 @@ export async function generateCombined(shop, adminGraphQL, resource) {
         acceptedAnswer: { "@type": "Answer", text: qa.answer },
       })),
     };
-    faqPageJson = JSON.stringify(faqPageSchema);
+    const faqPageJson = JSON.stringify(faqPageSchema);
+
+    await Promise.all([
+      writeMetafield(adminGraphQL, resource.id, "schema_json", schemaJson),
+      writeMetafield(adminGraphQL, resource.id, "faq_json", faqPageJson),
+    ]);
+
+    await db.aiVisibilitySchema.upsert({
+      where: { shop_resourceType_resourceId: { shop, resourceType: "product", resourceId: resource.id } },
+      create: { shop, resourceType: "product", resourceId: resource.id, schemaType: "Product", schemaJson, creditsUsed: CREDITS_COMBINED },
+      update: { schemaJson, creditsUsed: CREDITS_COMBINED, updatedAt: new Date() },
+    });
+    await db.aiVisibilityFaq.upsert({
+      where: { shop_resourceType_resourceId: { shop, resourceType: "product", resourceId: resource.id } },
+      create: { shop, resourceType: "product", resourceId: resource.id, faqJson: faqPageJson, creditsUsed: 0 },
+      update: { faqJson: faqPageJson, updatedAt: new Date() },
+    });
+
+    return { schemaJson, faqJson: faqPageJson, creditsUsed: CREDITS_COMBINED };
   } catch (err) {
     await refundCredits({ shopDomain: shop, creditsRefunded: CREDITS_COMBINED });
     throw err;
   }
-
-  await Promise.all([
-    writeMetafield(adminGraphQL, resource.id, "schema_json", schemaJson),
-    writeMetafield(adminGraphQL, resource.id, "faq_json", faqPageJson),
-  ]);
-
-  await db.aiVisibilitySchema.upsert({
-    where: { shop_resourceType_resourceId: { shop, resourceType: "product", resourceId: resource.id } },
-    create: { shop, resourceType: "product", resourceId: resource.id, schemaType: "Product", schemaJson, creditsUsed: CREDITS_COMBINED },
-    update: { schemaJson, creditsUsed: CREDITS_COMBINED, updatedAt: new Date() },
-  });
-  await db.aiVisibilityFaq.upsert({
-    where: { shop_resourceType_resourceId: { shop, resourceType: "product", resourceId: resource.id } },
-    create: { shop, resourceType: "product", resourceId: resource.id, faqJson: faqPageJson, creditsUsed: 0 },
-    update: { faqJson: faqPageJson, updatedAt: new Date() },
-  });
-
-  return { schemaJson, faqJson: faqPageJson, creditsUsed: CREDITS_COMBINED };
 }
 
 export async function generateLlmsTxt(shop, { products, articles, pages, shopName, shopDomain }) {
@@ -261,20 +258,19 @@ export async function generateLlmsTxt(shop, { products, articles, pages, shopNam
   const promptObj = buildLlmsTxtPrompt({ shopName, shopDomain, products, articles, pages });
 
   await deductCredits({ shopDomain: shop, creditsUsed: credits });
-  let content;
   try {
-    content = await callAIRaw(promptObj.prompt, promptObj.systemPrompt, aiOptions);
+    let content = await callAIRaw(promptObj.prompt, promptObj.systemPrompt, aiOptions);
     if (typeof content !== "string") content = JSON.stringify(content);
+
+    await db.aiVisibilityLlmsTxt.upsert({
+      where: { shop },
+      create: { shop, content, itemCount, creditsUsed: credits },
+      update: { content, itemCount, creditsUsed: credits, updatedAt: new Date() },
+    });
+
+    return { content, creditsUsed: credits };
   } catch (err) {
     await refundCredits({ shopDomain: shop, creditsRefunded: credits });
     throw err;
   }
-
-  await db.aiVisibilityLlmsTxt.upsert({
-    where: { shop },
-    create: { shop, content, itemCount, creditsUsed: credits },
-    update: { content, itemCount, creditsUsed: credits, updatedAt: new Date() },
-  });
-
-  return { content, creditsUsed: credits };
 }
