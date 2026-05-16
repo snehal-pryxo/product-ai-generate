@@ -377,7 +377,11 @@ function ItemDrawer({ item, onClose, onGenerate, generatingKey }) {
 // Resource Tab
 // ---------------------------------------------------------------------------
 
+const PAGE_SIZE = 20;
+
 function ResourceTab({ items, resourceType, onSelectItem }) {
+  const [page, setPage] = useState(0);
+
   if (items.length === 0) {
     return (
       <Box padding="400">
@@ -386,7 +390,10 @@ function ResourceTab({ items, resourceType, onSelectItem }) {
     );
   }
 
-  const rows = items.map((item) => [
+  const totalPages = Math.ceil(items.length / PAGE_SIZE);
+  const pageItems = items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  const rows = pageItems.map((item) => [
     <Button key="title" variant="plain" textAlign="left" onClick={() => onSelectItem(item)}>
       {item.title}
     </Button>,
@@ -399,11 +406,36 @@ function ResourceTab({ items, resourceType, onSelectItem }) {
   ]);
 
   return (
-    <DataTable
-      columnContentTypes={["text", "text", "text", "text", "text"]}
-      headings={["Title", "AI Score", "Schema", "FAQ", "Actions"]}
-      rows={rows}
-    />
+    <BlockStack gap="0">
+      <DataTable
+        columnContentTypes={["text", "text", "text", "text", "text"]}
+        headings={["Title", "AI Score", "Schema", "FAQ", "Actions"]}
+        rows={rows}
+      />
+      {totalPages > 1 && (
+        <Box padding="300" borderColor="border-secondary" borderBlockStartWidth="025">
+          <InlineStack align="center" gap="300">
+            <Button
+              size="slim"
+              disabled={page === 0}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              Previous
+            </Button>
+            <Text tone="subdued">
+              Page {page + 1} of {totalPages} ({items.length} total)
+            </Text>
+            <Button
+              size="slim"
+              disabled={page >= totalPages - 1}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next
+            </Button>
+          </InlineStack>
+        </Box>
+      )}
+    </BlockStack>
   );
 }
 
@@ -516,43 +548,37 @@ export default function AiVisibilityPage() {
             <div style={{ flex: 1 }}>
               <Card>
                 <BlockStack gap="300">
-                  <Text variant="headingMd">llms.txt</Text>
+                  <Text variant="headingMd">AI Content Index</Text>
+                  <Text tone="subdued">
+                    When shoppers ask ChatGPT, Perplexity, or Google AI about products like yours, these AI engines crawl the web to find the best answer. An AI Content Index (llms.txt) is a single file that tells AI crawlers exactly what your store sells — making it far more likely your products get recommended in AI-powered search results.
+                  </Text>
                   {llmsTxt ? (
-                    <>
-                      <Badge tone="success">Generated</Badge>
-                      <Text tone="subdued">
-                        Updated: {new Date(llmsTxt.updatedAt).toLocaleDateString()}
-                      </Text>
-                      <InlineStack gap="200">
-                        <Button
-                          size="slim"
-                          onClick={() => {
-                            if (typeof navigator !== "undefined") navigator.clipboard.writeText(llmsTxtUrl);
-                          }}
-                        >
-                          Copy URL
-                        </Button>
-                        <Button
-                          size="slim"
-                          loading={isSubmitting && generatingKey === "llmstxt"}
-                          onClick={handleGenerateLlmsTxt}
-                        >
-                          Regenerate ({llmsTxtCredits} credits)
-                        </Button>
-                      </InlineStack>
-                    </>
-                  ) : (
-                    <>
-                      <Badge tone="warning">Not generated</Badge>
-                      <Text tone="subdued">Help AI systems discover your store</Text>
+                    <InlineStack gap="200" wrap>
+                      <Badge tone="success">Index generated</Badge>
+                      <Button
+                        size="slim"
+                        onClick={() => {
+                          if (typeof navigator !== "undefined") navigator.clipboard.writeText(llmsTxtUrl);
+                        }}
+                      >
+                        Copy URL
+                      </Button>
                       <Button
                         size="slim"
                         loading={isSubmitting && generatingKey === "llmstxt"}
                         onClick={handleGenerateLlmsTxt}
                       >
-                        Generate ({llmsTxtCredits} credits)
+                        Regenerate ({llmsTxtCredits} credits)
                       </Button>
-                    </>
+                    </InlineStack>
+                  ) : (
+                    <Button
+                      size="slim"
+                      loading={isSubmitting && generatingKey === "llmstxt"}
+                      onClick={handleGenerateLlmsTxt}
+                    >
+                      Generate AI Index ({llmsTxtCredits} credits)
+                    </Button>
                   )}
                 </BlockStack>
               </Card>
