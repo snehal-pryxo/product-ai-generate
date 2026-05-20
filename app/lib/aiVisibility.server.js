@@ -14,6 +14,9 @@ import {
 export const CREDITS_SCHEMA = 2;
 export const CREDITS_FAQ = 5;
 export const CREDITS_COMBINED = 5;
+const SHOPIFY_ADMIN_API_VERSION = "2026-04";
+const METAFIELD_NAMESPACE = "content_ai_geo";
+const METAFIELD_TYPE = "json";
 
 export function calcLlmsTxtCredits(itemCount) {
   return Math.min(20, Math.max(5, Math.ceil(itemCount / 10)));
@@ -50,19 +53,139 @@ const METAFIELDS_SET_MUTATION = `#graphql
   }
 `;
 
-async function writeMetafield(adminGraphQL, ownerId, key, jsonValue) {
+function getAdminContext(adminContext) {
+  if (typeof adminContext === "function") {
+    return { adminGraphQL: adminContext, accessToken: null };
+  }
+  return {
+    adminGraphQL: adminContext?.adminGraphQL,
+    accessToken: adminContext?.accessToken || null,
+  };
+}
+
+function restIdFromGid(gid) {
+  const id = String(gid || "").split("/").pop();
+  if (!id || id === String(gid || "")) throw new Error(`Invalid Shopify resource ID: ${gid}`);
+  return id;
+}
+
+function restResourcePath(resourceType, resource) {
+  const id = restIdFromGid(resource.id);
+  if (resourceType === "product") return `products/${id}`;
+  if (resourceType === "article") return `articles/${id}`;
+  if (resourceType === "page") return `pages/${id}`;
+  throw new Error(`Unsupported metafield resourceType: ${resourceType}`);
+}
+
+async function shopifyRestJson(shop, accessToken, path, options = {}) {
+  if (!accessToken) throw new Error("Missing Shopify access token for REST metafield write.");
+
+  const response = await fetch(`https://${shop}/admin/api/${SHOPIFY_ADMIN_API_VERSION}/${path}`, {
+    method: options.method || "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Shopify-Access-Token": accessToken,
+    },
+    ...(options.body ? { body: JSON.stringify(options.body) } : {}),
+  });
+  const text = await response.text();
+  let json = {};
+  if (text) {
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = { message: text };
+    }
+  }
+
+  if (!response.ok) {
+    const message = json?.errors || json?.error || json?.message || response.statusText;
+    throw new Error(typeof message === "string" ? message : JSON.stringify(message));
+  }
+
+  return json;
+}
+
+async function writeMetafieldWithGraphQL(adminGraphQL, ownerId, key, jsonValue) {
   try {
     const res = await adminGraphQL(METAFIELDS_SET_MUTATION, {
       variables: {
-        metafields: [{ ownerId, namespace: "content_ai_geo", key, type: "json", value: jsonValue }],
+        metafields: [{ ownerId, namespace: METAFIELD_NAMESPACE, key, type: METAFIELD_TYPE, value: jsonValue }],
       },
     });
     const json = await res.json();
-    const errors = json?.data?.metafieldsSet?.userErrors || [];
-    if (errors.length > 0) throw new Error(errors.map((e) => e.message).join(", "));
-    return json?.data?.metafieldsSet?.metafields?.[0]?.id || null;
-  } catch {
-    return null;
+    const graphQLErrors = json?.errors || [];
+    if (graphQLErrors.length > 0) {
+      throw new Error(graphQLErrors.map((e) => e.message).join(", "));
+    }
+
+    const payload = json?.data?.metafieldsSet;
+    const userErrors = payload?.userErrors || [];
+    if (userErrors.length > 0) {
+      throw new Error(userErrors.map((e) => e.message).join(", "));
+    }
+
+    const metafieldId = payload?.metafields?.[0]?.id;
+    if (!metafieldId) throw new Error("Shopify did not return a metafield ID.");
+    return metafieldId;
+  } catch (err) {
+    throw new Error(`Unable to write ${key} metafield: ${err?.message || "unknown Shopify error"}`);
+  }
+}
+
+async function writeMetafieldWithRest({ shop, accessToken, resourceType, resource, key, jsonValue }) {
+  const resourcePath = restResourcePath(resourceType, resource);
+  const query = new URLSearchParams({ namespace: METAFIELD_NAMESPACE, key }).toString();
+  const existingJson = await shopifyRestJson(shop, accessToken, `${resourcePath}/metafields.json?${query}`);
+  const existing = (existingJson?.metafields || []).find(
+    (metafield) => metafield.namespace === METAFIELD_NAMESPACE && metafield.key === key,
+  );
+  const body = {
+    metafield: {
+      namespace: METAFIELD_NAMESPACE,
+      key,
+      type: METAFIELD_TYPE,
+      value: jsonValue,
+    },
+  };
+
+  const result = existing?.id
+    ? await shopifyRestJson(shop, accessToken, `${resourcePath}/metafields/${existing.id}.json`, {
+        method: "PUT",
+        body: {
+          metafield: {
+            id: existing.id,
+            namespace: METAFIELD_NAMESPACE,
+            key,
+            value: jsonValue,
+            type: METAFIELD_TYPE,
+          },
+        },
+      })
+    : await shopifyRestJson(shop, accessToken, `${resourcePath}/metafields.json`, {
+        method: "POST",
+        body,
+      });
+
+  const metafield = result?.metafield;
+  if (!metafield?.id && !metafield?.admin_graphql_api_id) {
+    throw new Error(`Shopify REST did not return a ${key} metafield ID.`);
+  }
+  return metafield.admin_graphql_api_id || `gid://shopify/Metafield/${metafield.id}`;
+}
+
+async function writeResourceMetafield({ shop, adminGraphQL, accessToken, resourceType, resource, key, jsonValue }) {
+  try {
+    if (!adminGraphQL) throw new Error("Missing Shopify GraphQL client.");
+    return await writeMetafieldWithGraphQL(adminGraphQL, resource.id, key, jsonValue);
+  } catch (graphqlErr) {
+    try {
+      return await writeMetafieldWithRest({ shop, accessToken, resourceType, resource, key, jsonValue });
+    } catch (restErr) {
+      throw new Error(
+        `Unable to write ${key} metafield on ${resourceType}: GraphQL failed (${graphqlErr?.message || "unknown error"}); REST failed (${restErr?.message || "unknown error"}).`,
+      );
+    }
   }
 }
 
@@ -86,7 +209,8 @@ async function getAiOptions(shop) {
   };
 }
 
-export async function generateSchema(shop, adminGraphQL, resourceType, resource) {
+export async function generateSchema(shop, adminContext, resourceType, resource) {
+  const { adminGraphQL, accessToken } = getAdminContext(adminContext);
   const aiOptions = await getAiOptions(shop);
   let promptObj;
   let schemaType;
@@ -132,7 +256,15 @@ export async function generateSchema(shop, adminGraphQL, resourceType, resource)
     const obj = parseJsonResponse(raw);
     const schemaJson = JSON.stringify(obj);
 
-    const metafieldId = await writeMetafield(adminGraphQL, resource.id, "schema_json", schemaJson);
+    const metafieldId = await writeResourceMetafield({
+      shop,
+      adminGraphQL,
+      accessToken,
+      resourceType,
+      resource,
+      key: "schema_json",
+      jsonValue: schemaJson,
+    });
 
     await db.aiVisibilitySchema.upsert({
       where: { shop_resourceType_resourceId: { shop, resourceType, resourceId: resource.id } },
@@ -147,7 +279,8 @@ export async function generateSchema(shop, adminGraphQL, resourceType, resource)
   }
 }
 
-export async function generateFaq(shop, adminGraphQL, resourceType, resource) {
+export async function generateFaq(shop, adminContext, resourceType, resource) {
+  const { adminGraphQL, accessToken } = getAdminContext(adminContext);
   if (resourceType === "page") throw new Error("FAQ is not supported for pages.");
   const aiOptions = await getAiOptions(shop);
   let promptObj;
@@ -182,7 +315,15 @@ export async function generateFaq(shop, adminGraphQL, resourceType, resource) {
     };
     const faqPageJson = JSON.stringify(faqPageSchema);
 
-    const metafieldId = await writeMetafield(adminGraphQL, resource.id, "faq_json", faqPageJson);
+    const metafieldId = await writeResourceMetafield({
+      shop,
+      adminGraphQL,
+      accessToken,
+      resourceType,
+      resource,
+      key: "faq_json",
+      jsonValue: faqPageJson,
+    });
 
     await db.aiVisibilityFaq.upsert({
       where: { shop_resourceType_resourceId: { shop, resourceType, resourceId: resource.id } },
@@ -197,7 +338,8 @@ export async function generateFaq(shop, adminGraphQL, resourceType, resource) {
   }
 }
 
-export async function generateCombined(shop, adminGraphQL, resource) {
+export async function generateCombined(shop, adminContext, resource) {
+  const { adminGraphQL, accessToken } = getAdminContext(adminContext);
   const aiOptions = await getAiOptions(shop);
   const variant = resource.variants?.edges?.[0]?.node;
   const promptObj = buildCombinedProductPrompt({
@@ -228,20 +370,51 @@ export async function generateCombined(shop, adminGraphQL, resource) {
     };
     const faqPageJson = JSON.stringify(faqPageSchema);
 
-    await Promise.all([
-      writeMetafield(adminGraphQL, resource.id, "schema_json", schemaJson),
-      writeMetafield(adminGraphQL, resource.id, "faq_json", faqPageJson),
+    const [schemaMetafieldId, faqMetafieldId] = await Promise.all([
+      writeResourceMetafield({
+        shop,
+        adminGraphQL,
+        accessToken,
+        resourceType: "product",
+        resource,
+        key: "schema_json",
+        jsonValue: schemaJson,
+      }),
+      writeResourceMetafield({
+        shop,
+        adminGraphQL,
+        accessToken,
+        resourceType: "product",
+        resource,
+        key: "faq_json",
+        jsonValue: faqPageJson,
+      }),
     ]);
 
     await db.aiVisibilitySchema.upsert({
       where: { shop_resourceType_resourceId: { shop, resourceType: "product", resourceId: resource.id } },
-      create: { shop, resourceType: "product", resourceId: resource.id, schemaType: "Product", schemaJson, creditsUsed: CREDITS_COMBINED },
-      update: { schemaJson, creditsUsed: CREDITS_COMBINED, updatedAt: new Date() },
+      create: {
+        shop,
+        resourceType: "product",
+        resourceId: resource.id,
+        schemaType: "Product",
+        schemaJson,
+        metafieldId: schemaMetafieldId,
+        creditsUsed: CREDITS_COMBINED,
+      },
+      update: { schemaJson, metafieldId: schemaMetafieldId, creditsUsed: CREDITS_COMBINED, updatedAt: new Date() },
     });
     await db.aiVisibilityFaq.upsert({
       where: { shop_resourceType_resourceId: { shop, resourceType: "product", resourceId: resource.id } },
-      create: { shop, resourceType: "product", resourceId: resource.id, faqJson: faqPageJson, creditsUsed: 0 },
-      update: { faqJson: faqPageJson, updatedAt: new Date() },
+      create: {
+        shop,
+        resourceType: "product",
+        resourceId: resource.id,
+        faqJson: faqPageJson,
+        metafieldId: faqMetafieldId,
+        creditsUsed: 0,
+      },
+      update: { faqJson: faqPageJson, metafieldId: faqMetafieldId, updatedAt: new Date() },
     });
 
     return { schemaJson, faqJson: faqPageJson, creditsUsed: CREDITS_COMBINED };

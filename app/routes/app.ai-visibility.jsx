@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
@@ -20,6 +20,28 @@ import {
 const CREDITS_SCHEMA = 2;
 const CREDITS_FAQ = 5;
 const CREDITS_COMBINED = 5;
+
+function calculateClientScore({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt }) {
+  let score = 0;
+  if (hasSeoTitle) score += 10;
+  if (hasSeoDescription) score += 10;
+  if (hasContent) score += 10;
+  if (hasSchema) score += 30;
+  if (hasFaq) score += 30;
+  if (hasLlmsTxt) score += 10;
+  return score;
+}
+
+function clientScoreBreakdown({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt }) {
+  return [
+    { signal: "Meta title", points: 10, achieved: hasSeoTitle },
+    { signal: "Meta description", points: 10, achieved: hasSeoDescription },
+    { signal: "Body / description content", points: 10, achieved: hasContent },
+    { signal: "Schema markup generated", points: 30, achieved: hasSchema },
+    { signal: "FAQ section generated", points: 30, achieved: hasFaq },
+    { signal: "Included in llms.txt", points: 10, achieved: hasLlmsTxt },
+  ];
+}
 
 // ---------------------------------------------------------------------------
 // GraphQL
@@ -130,6 +152,7 @@ export const loader = async ({ request }) => {
       score,
       hasSchema,
       hasFaq,
+      hasLlmsTxt,
       schemaJson: schemaMap[resource.id]?.schemaJson || null,
       faqJson: faqMap[resource.id]?.faqJson || null,
       breakdown: scoreBreakdown({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt }),
@@ -166,21 +189,35 @@ export const action = async ({ request }) => {
     if (intent === "generate_schema") {
       const resourceType = formData.get("resourceType");
       const resource = JSON.parse(formData.get("resourceJson"));
-      const result = await generateSchema(shop, admin.graphql, resourceType, resource);
-      return { ok: true, intent, ...result };
+      const result = await generateSchema(
+        shop,
+        { adminGraphQL: admin.graphql, accessToken: session.accessToken },
+        resourceType,
+        resource,
+      );
+      return { ok: true, intent, resourceType, resourceId: resource.id, ...result };
     }
 
     if (intent === "generate_faq") {
       const resourceType = formData.get("resourceType");
       const resource = JSON.parse(formData.get("resourceJson"));
-      const result = await generateFaq(shop, admin.graphql, resourceType, resource);
-      return { ok: true, intent, ...result };
+      const result = await generateFaq(
+        shop,
+        { adminGraphQL: admin.graphql, accessToken: session.accessToken },
+        resourceType,
+        resource,
+      );
+      return { ok: true, intent, resourceType, resourceId: resource.id, ...result };
     }
 
     if (intent === "generate_combined") {
       const resource = JSON.parse(formData.get("resourceJson"));
-      const result = await generateCombined(shop, admin.graphql, resource);
-      return { ok: true, intent, ...result };
+      const result = await generateCombined(
+        shop,
+        { adminGraphQL: admin.graphql, accessToken: session.accessToken },
+        resource,
+      );
+      return { ok: true, intent, resourceType: "product", resourceId: resource.id, ...result };
     }
 
     if (intent === "generate_llmstxt") {
@@ -508,24 +545,104 @@ function ResourceTab({ items, resourceType, onSelectItem }) {
 // ---------------------------------------------------------------------------
 
 export default function AiVisibilityPage() {
-  const { products, articles, pages, llmsTxt, shop, credits, themeEmbedEnabled: initialEmbedEnabled, llmsTxtCredits } =
-    useLoaderData();
+  const {
+    products: initialProducts,
+    articles: initialArticles,
+    pages: initialPages,
+    llmsTxt: initialLlmsTxt,
+    shop,
+    themeEmbedEnabled: initialEmbedEnabled,
+    llmsTxtCredits,
+    credits: initialCredits,
+  } = useLoaderData();
   const fetcher = useFetcher();
   const embedFetcher = useFetcher();
+  const [products, setProducts] = useState(initialProducts);
+  const [articles, setArticles] = useState(initialArticles);
+  const [pages, setPages] = useState(initialPages);
+  const [llmsTxt, setLlmsTxt] = useState(initialLlmsTxt);
   const [selectedTab, setSelectedTab] = useState(0);
-  const [selectedItem, setSelectedItem] = useState(null);
+  const [selectedItemKey, setSelectedItemKey] = useState(null); // { id, resourceType }
   const [generatingKey, setGeneratingKey] = useState(null);
   const [banner, setBanner] = useState(null);
   const [embedEnabled, setEmbedEnabled] = useState(initialEmbedEnabled);
+  const [credits, setCredits] = useState(initialCredits);
+
+  // Derive selectedItem from live list state so modal updates instantly after generation
+  const selectedItem = useMemo(() => {
+    if (!selectedItemKey) return null;
+    const { id, resourceType } = selectedItemKey;
+    const list = resourceType === "product" ? products : resourceType === "article" ? articles : pages;
+    return list.find((item) => item.id === id) || null;
+  }, [selectedItemKey, products, articles, pages]);
 
   const isSubmitting = fetcher.state !== "idle";
+
+  const rebuildItemScore = useCallback((item) => {
+    const hasSeoTitle = Boolean(item.seo?.title);
+    const hasSeoDescription = Boolean(item.seo?.description);
+    const hasContent = Boolean(item.description || item.body || item.bodySummary);
+    const hasSchema = Boolean(item.hasSchema);
+    const hasFaq = Boolean(item.hasFaq);
+    const hasLlmsTxt = Boolean(item.hasLlmsTxt);
+    return {
+      ...item,
+      score: calculateClientScore({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt }),
+      breakdown: clientScoreBreakdown({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt }),
+    };
+  }, []);
+
+  const updateResourceItem = useCallback((resourceType, resourceId, patch) => {
+    const updateItems = (items) =>
+      items.map((item) => (item.id === resourceId ? rebuildItemScore({ ...item, ...patch }) : item));
+
+    if (resourceType === "product") setProducts(updateItems);
+    if (resourceType === "article") setArticles(updateItems);
+    if (resourceType === "page") setPages(updateItems);
+  }, [rebuildItemScore]);
+
+  const markAllItemsInLlmsTxt = useCallback(() => {
+    const updateItems = (items) => items.map((item) => rebuildItemScore({ ...item, hasLlmsTxt: true }));
+    setProducts(updateItems);
+    setArticles(updateItems);
+    setPages(updateItems);
+  }, [rebuildItemScore]);
 
   useEffect(() => {
     if (fetcher.state === "idle" && generatingKey !== null && fetcher.data) {
       const data = fetcher.data;
       setGeneratingKey(null);
       if (data.ok) {
-        setBanner({ tone: "success", text: `Generated successfully (${data.creditsUsed} credits used). Reload to see the updated score.` });
+        if (data.intent === "generate_schema") {
+          updateResourceItem(data.resourceType, data.resourceId, {
+            hasSchema: true,
+            schemaJson: data.schemaJson,
+          });
+        }
+
+        if (data.intent === "generate_faq") {
+          updateResourceItem(data.resourceType, data.resourceId, {
+            hasFaq: true,
+            faqJson: data.faqJson,
+          });
+        }
+
+        if (data.intent === "generate_combined") {
+          updateResourceItem(data.resourceType, data.resourceId, {
+            hasSchema: true,
+            hasFaq: true,
+            schemaJson: data.schemaJson,
+            faqJson: data.faqJson,
+          });
+        }
+
+        if (data.intent === "generate_llmstxt") {
+          setLlmsTxt({ updatedAt: new Date().toISOString() });
+          markAllItemsInLlmsTxt();
+        }
+
+        if (data.creditsUsed) setCredits((c) => Math.max(0, c - data.creditsUsed));
+        setBanner({ tone: "success", text: `Generated successfully (${data.creditsUsed} credits used).` });
       } else {
         setBanner({ tone: "critical", text: data.error || "Generation failed." });
       }
@@ -552,13 +669,6 @@ export default function AiVisibilityPage() {
       }
     }
   }, [embedFetcher.state, embedFetcher.data]);
-
-  const handleToggleEmbed = useCallback((enabled) => {
-    const fd = new FormData();
-    fd.append("intent", "toggle_theme_embed");
-    fd.append("enabled", String(enabled));
-    embedFetcher.submit(fd, { method: "post" });
-  }, [embedFetcher]);
 
   const handleVerifyEmbed = useCallback(() => {
     const fd = new FormData();
@@ -633,7 +743,10 @@ export default function AiVisibilityPage() {
                   <Text variant="bodyLg" tone="subdued">/100</Text>
                 </InlineStack>
                 <ProgressBar progress={totalScore} size="small" tone={progressTone} />
-                <Text tone="subdued" variant="bodySm">{allItems.length} items analysed</Text>
+                <InlineStack align="space-between">
+                  <Text tone="subdued" variant="bodySm">{allItems.length} items analysed</Text>
+                  <Text tone="subdued" variant="bodySm">{credits} credits remaining</Text>
+                </InlineStack>
               </BlockStack>
             </Card>
 
@@ -724,9 +837,10 @@ export default function AiVisibilityPage() {
             <Tabs tabs={tabs} selected={selectedTab} onSelect={setSelectedTab}>
               <Box padding="0">
                 <ResourceTab
+                  key={selectedTab}
                   items={tabItems[selectedTab]}
                   resourceType={tabTypes[selectedTab]}
-                  onSelectItem={setSelectedItem}
+                  onSelectItem={(item) => setSelectedItemKey({ id: item.id, resourceType: item.resourceType })}
                 />
               </Box>
             </Tabs>
@@ -738,7 +852,7 @@ export default function AiVisibilityPage() {
       {selectedItem && (
         <ItemModal
           item={selectedItem}
-          onClose={() => setSelectedItem(null)}
+          onClose={() => setSelectedItemKey(null)}
           onGenerate={handleGenerate}
           generatingKey={generatingKey}
         />
