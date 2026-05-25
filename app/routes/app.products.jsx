@@ -36,7 +36,6 @@ import { buildProductContentPrompt, getProductSystemPrompt } from "../lib/conten
 import { TemplateLibraryModal } from "../components/TemplateLibraryModal";
 import { getExactWordLengthOption, normalizeStoredGlobalSettings, readGlobalSettings } from "../lib/globalSettings";
 import {
-  readStoredProductPromptTemplateSelection,
   PRODUCT_DESCRIPTION_TEMPLATES,
   PRODUCT_META_DESCRIPTION_TEMPLATES,
   PRODUCT_META_TITLE_TEMPLATES,
@@ -949,12 +948,7 @@ export const action = async ({ request }) => {
       const tone = readFormString(formData, "tone") || "Neutral";
       const lengthOption = getExactWordLengthOption(globalSettings, "productDescWords");
       const formatOption = readFormString(formData, "format") || "Single paragraph";
-      const submittedContextKeywords = readFormString(formData, "contextKeywords");
-      const contextKeywords = submittedContextKeywords || mergeUniqueKeywords(
-        splitKeywordString(globalSettings.productDescKeywords),
-        splitKeywordString(globalSettings.productMetaTitleKeywords),
-        splitKeywordString(globalSettings.productMetaDescKeywords),
-      ).join(", ");
+      const contextKeywords = readFormString(formData, "contextKeywords");
       const descriptionPromptTemplate = readFormString(formData, "descriptionPromptTemplate");
       const metaTitlePromptTemplate = readFormString(formData, "metaTitlePromptTemplate");
       const metaDescriptionPromptTemplate = readFormString(formData, "metaDescriptionPromptTemplate");
@@ -1276,13 +1270,10 @@ export default function ProductsPage() {
   const initialBulkSessionState = initialBulkSessionStateRef.current;
   const [searchValue, setSearchValue] = useState(filters.search);
   const [fallbackProducts, setFallbackProducts] = useState(products);
-  const [bulkDescTemplate, setBulkDescTemplate] = useState(() => initialBulkSessionState.bulkDescTemplate || "");
-  const [bulkMetaDescTemplate, setBulkMetaDescTemplate] = useState(() => initialBulkSessionState.bulkMetaDescTemplate || "");
-  const [bulkMetaTitleTemplate, setBulkMetaTitleTemplate] = useState(() => initialBulkSessionState.bulkMetaTitleTemplate || "");
-  const [selectedKeywords, setSelectedKeywords] = useState(() => {
-    const savedKeywords = readArrayState(initialBulkSessionState.selectedKeywords);
-    return (savedKeywords.length > 0 ? savedKeywords : readProductKeywordDefaults()).slice(0, 5);
-  });
+  const [bulkDescTemplate, setBulkDescTemplate] = useState("");
+  const [bulkMetaDescTemplate, setBulkMetaDescTemplate] = useState("");
+  const [bulkMetaTitleTemplate, setBulkMetaTitleTemplate] = useState("");
+  const [selectedKeywords, setSelectedKeywords] = useState([]);
   const [keywordInput, setKeywordInput] = useState("");
   const keywordLibrary = useMemo(() => {
     return readProductKeywordDefaults();
@@ -1312,9 +1303,9 @@ export default function ProductsPage() {
     () => PRODUCT_META_TITLE_TEMPLATES[0]?.id || ""
   );
   const bulkResultHandledRef = useRef(false);
-  const [useCustomDescInstructions, setUseCustomDescInstructions] = useState(() => !!initialBulkSessionState.useCustomDescInstructions);
-  const [useCustomMetaDescInstructions, setUseCustomMetaDescInstructions] = useState(() => !!initialBulkSessionState.useCustomMetaDescInstructions);
-  const [useCustomMetaTitleInstructions, setUseCustomMetaTitleInstructions] = useState(() => !!initialBulkSessionState.useCustomMetaTitleInstructions);
+  const [useCustomDescInstructions, setUseCustomDescInstructions] = useState(false);
+  const [useCustomMetaDescInstructions, setUseCustomMetaDescInstructions] = useState(false);
+  const [useCustomMetaTitleInstructions, setUseCustomMetaTitleInstructions] = useState(false);
   const [templateLibraryOpen, setTemplateLibraryOpen] = useState(false);
   const [templateLibraryContentType, setTemplateLibraryContentType] = useState("description");
   const [outputLanguage, setOutputLanguage] = useState(() => readGlobalSettings().language || "English");
@@ -1327,43 +1318,13 @@ export default function ProductsPage() {
   const queueIntervalRef = useRef(null);
 
   useEffect(() => {
-    const templateSelection = readStoredProductPromptTemplateSelection();
-    if (!initialBulkSessionState.useCustomDescInstructions && templateSelection.descriptionPromptTemplate) {
-      setBulkDescTemplate(templateSelection.descriptionPromptTemplate);
-      setUseCustomDescInstructions(true);
-    }
-    if (!initialBulkSessionState.useCustomMetaTitleInstructions && templateSelection.metaTitlePromptTemplate) {
-      setBulkMetaTitleTemplate(templateSelection.metaTitlePromptTemplate);
-      setUseCustomMetaTitleInstructions(true);
-    }
-    if (!initialBulkSessionState.useCustomMetaDescInstructions && templateSelection.metaDescriptionPromptTemplate) {
-      setBulkMetaDescTemplate(templateSelection.metaDescriptionPromptTemplate);
-      setUseCustomMetaDescInstructions(true);
-    }
-  }, [initialBulkSessionState]);
-
-  useEffect(() => {
     writeBulkSessionState(PRODUCT_BULK_SESSION_KEY, {
       selectedProductIds,
       bulkContentTypes,
-      bulkDescTemplate,
-      bulkMetaDescTemplate,
-      bulkMetaTitleTemplate,
-      useCustomDescInstructions,
-      useCustomMetaDescInstructions,
-      useCustomMetaTitleInstructions,
-      selectedKeywords,
     });
   }, [
     bulkContentTypes,
-    bulkDescTemplate,
-    bulkMetaDescTemplate,
-    bulkMetaTitleTemplate,
     selectedProductIds,
-    selectedKeywords,
-    useCustomDescInstructions,
-    useCustomMetaDescInstructions,
-    useCustomMetaTitleInstructions,
   ]);
 
   useEffect(() => {
