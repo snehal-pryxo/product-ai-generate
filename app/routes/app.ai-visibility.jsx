@@ -385,6 +385,7 @@ function ItemModal({ item, onClose, onGenerate, generatingKey, credits }) {
               <Button
                 variant="primary"
                 loading={generatingKey === combinedKey}
+                disabled={credits < CREDITS_COMBINED}
                 onClick={() => onGenerate("generate_combined", item)}
               >
                 Generate Schema + FAQ ({CREDITS_COMBINED} credits — saves 2)
@@ -393,6 +394,7 @@ function ItemModal({ item, onClose, onGenerate, generatingKey, credits }) {
             {showSchemaAction && (
               <Button
                 loading={generatingKey === schemaKey}
+                disabled={credits < CREDITS_SCHEMA}
                 onClick={() => onGenerate("generate_schema", item)}
               >
                 {item.hasSchema ? `Regenerate Schema (${CREDITS_SCHEMA} credits)` : `Generate Schema (${CREDITS_SCHEMA} credits)`}
@@ -401,6 +403,7 @@ function ItemModal({ item, onClose, onGenerate, generatingKey, credits }) {
             {canFaq && (
               <Button
                 loading={generatingKey === faqKey}
+                disabled={credits < CREDITS_FAQ}
                 onClick={() => onGenerate("generate_faq", item)}
               >
                 {item.hasFaq ? `Regenerate FAQ (${CREDITS_FAQ} credits)` : `Generate FAQ (${CREDITS_FAQ} credits)`}
@@ -846,6 +849,7 @@ export default function AiVisibilityPage() {
                         size="slim"
                         variant="plain"
                         loading={isSubmitting && generatingKey === "llmstxt"}
+                        disabled={credits < llmsTxtCredits}
                         onClick={handleGenerateLlmsTxt}
                       >
                         Regenerate ({llmsTxtCredits} cr)
@@ -856,6 +860,7 @@ export default function AiVisibilityPage() {
                       size="slim"
                       variant="primary"
                       loading={isSubmitting && generatingKey === "llmstxt"}
+                      disabled={credits < llmsTxtCredits}
                       onClick={handleGenerateLlmsTxt}
                     >
                       Generate ({llmsTxtCredits} credits)
