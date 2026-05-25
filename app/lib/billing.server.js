@@ -7,7 +7,6 @@ import {
 
 const ACTIVE_STATUSES = new Set(["ACTIVE"]);
 const THIRTY_DAYS_MS = BILLING_RENEWAL_DAYS * 24 * 60 * 60 * 1000;
-const DEFAULT_SHOPIFY_APP_HANDLE = "product-ai-generate";
 
 export function getBillingTestMode() {
   const raw = String(process.env.SHOPIFY_BILLING_TEST || "").trim().toLowerCase();
@@ -17,35 +16,23 @@ export function getBillingTestMode() {
 }
 
 export function getAppBaseUrl(request) {
-  const appUrl = String(process.env.SHOPIFY_APP_URL || process.env.APP_URL || "").trim();
-  if (appUrl) return appUrl.replace(/\/+$/, "");
   const requestUrl = new URL(request.url);
+  const requestOrigin = requestUrl.origin.replace(/\/+$/, "");
+  const envUrl = String(process.env.SHOPIFY_APP_URL || process.env.APP_URL || "").trim().replace(/\/+$/, "");
+
+  if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestOrigin)) {
+    return requestOrigin;
+  }
+
+  if (envUrl) return envUrl;
   return requestUrl.origin;
-}
-
-function getShopHandle(shop) {
-  return String(shop || "")
-    .trim()
-    .replace(/\.myshopify\.com$/i, "");
-}
-
-function getShopifyAppHandle() {
-  return String(
-    process.env.SHOPIFY_APP_HANDLE ||
-      process.env.SHOPIFY_APP_SLUG ||
-      DEFAULT_SHOPIFY_APP_HANDLE,
-  ).trim();
 }
 
 export function buildAppReturnUrl(request, params = {}) {
   const requestUrl = new URL(request.url);
   const shop = params.shop || requestUrl.searchParams.get("shop");
-  const shopHandle = getShopHandle(shop);
-  const appHandle = getShopifyAppHandle();
-  const returnUrl =
-    shopHandle && appHandle
-      ? new URL(`https://admin.shopify.com/store/${shopHandle}/apps/${appHandle}/app/billing`)
-      : new URL("/app/billing", getAppBaseUrl(request));
+  const returnUrl = new URL("/app/billing", getAppBaseUrl(request));
+
   if (shop) {
     returnUrl.searchParams.set("shop", String(shop));
   }

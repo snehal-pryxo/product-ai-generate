@@ -6,15 +6,19 @@ import {
   activateSubscription,
 } from "../lib/billing.server";
 
-function buildEmbeddedRedirect(pathname, sourceUrl) {
-  const redirectUrl = new URL(pathname, sourceUrl.origin);
+function buildPricingRedirect(sourceUrl, result) {
+  const pricingUrl = new URL("/app/pricing", sourceUrl.origin);
+  pricingUrl.searchParams.set("success", String(Boolean(result.success)));
+  pricingUrl.searchParams.set("message", result.message || "");
+
   ["shop", "host", "embedded"].forEach((key) => {
     const value = sourceUrl.searchParams.get(key);
     if (value) {
-      redirectUrl.searchParams.set(key, value);
+      pricingUrl.searchParams.set(key, value);
     }
   });
-  return redirectUrl.pathname + redirectUrl.search;
+
+  return pricingUrl.pathname + pricingUrl.search;
 }
 
 export const loader = async ({ request }) => {
@@ -36,9 +40,6 @@ export const loader = async ({ request }) => {
       shop: session.shop,
       planKey: String(url.searchParams.get("plan") || ""),
     });
-    if (result.success) {
-      throw redirect(buildEmbeddedRedirect("/app", url));
-    }
   } else if (type === "credits") {
     result = await activateExtraCreditPurchase({
       admin,
@@ -47,16 +48,7 @@ export const loader = async ({ request }) => {
     });
   }
 
-  const pricingUrl = new URL("/app/pricing", url.origin);
-  pricingUrl.searchParams.set("success", String(Boolean(result.success)));
-  pricingUrl.searchParams.set("message", result.message || "");
-  ["shop", "host", "embedded"].forEach((key) => {
-    const value = url.searchParams.get(key);
-    if (value) {
-      pricingUrl.searchParams.set(key, value);
-    }
-  });
-  throw redirect(pricingUrl.pathname + pricingUrl.search);
+  throw redirect(buildPricingRedirect(url, result));
 };
 
 export default function BillingReturnPage() {
