@@ -127,34 +127,43 @@ function ProductsModal({ job, onClose }) {
 }
 
 export default function JobsPage() {
-  const { jobs: initialJobs } = useLoaderData();
+  const { jobs } = useLoaderData();
   const revalidator = useRevalidator();
   const [selectedJob, setSelectedJob] = useState(null);
-  const intervalRef = useRef(null);
+  const revalidatorStateRef = useRef(revalidator.state);
 
-  const hasActiveJobs = initialJobs.some((j) => j.status === "pending" || j.status === "processing");
+  const hasActiveJobs = jobs.some((j) => j.status === "pending" || j.status === "processing");
 
   useEffect(() => {
-    if (hasActiveJobs && !intervalRef.current) {
-      intervalRef.current = setInterval(() => {
-        if (revalidator.state === "idle") {
-          revalidator.revalidate();
-        }
-      }, POLL_INTERVAL_MS);
-    }
-    if (!hasActiveJobs && intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
+    revalidatorStateRef.current = revalidator.state;
+  }, [revalidator.state]);
+
+  useEffect(() => {
+    if (!hasActiveJobs) return undefined;
+
+    const intervalId = setInterval(() => {
+      if (revalidatorStateRef.current === "idle") {
+        revalidator.revalidate();
+      }
+    }, POLL_INTERVAL_MS);
+
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      clearInterval(intervalId);
     };
   }, [hasActiveJobs, revalidator]);
+
+  useEffect(() => {
+    if (!selectedJob) return;
+    const latestSelectedJob = jobs.find((job) => job.id === selectedJob.id);
+    if (latestSelectedJob && latestSelectedJob !== selectedJob) {
+      setSelectedJob(latestSelectedJob);
+    }
+  }, [jobs, selectedJob]);
 
   return (
     <Page title="Bulk Jobs">
       <BlockStack gap="400">
-        {initialJobs.length === 0 ? (
+        {jobs.length === 0 ? (
           <Card>
             <EmptyState
               heading="No bulk jobs yet"
@@ -166,7 +175,7 @@ export default function JobsPage() {
             </EmptyState>
           </Card>
         ) : (
-          initialJobs.map((job) => {
+          jobs.map((job) => {
             const hasDetails = job.completedItemIds.length > 0 || job.failedItemIds.length > 0;
             return (
               <Card key={job.id}>

@@ -398,6 +398,22 @@ function mergeUniqueKeywords(...keywordLists) {
   return merged;
 }
 
+function splitKeywordString(value) {
+  return String(value || "")
+    .split(",")
+    .map((keyword) => normalizeKeyword(keyword))
+    .filter(Boolean);
+}
+
+function readProductKeywordDefaults() {
+  const settings = readGlobalSettings();
+  return mergeUniqueKeywords(
+    splitKeywordString(settings.productDescKeywords),
+    splitKeywordString(settings.productMetaTitleKeywords),
+    splitKeywordString(settings.productMetaDescKeywords),
+  );
+}
+
 function cleanInlineText(value, maxLength) {
   return (value || "")
     .replace(/\s+/g, " ")
@@ -933,7 +949,12 @@ export const action = async ({ request }) => {
       const tone = readFormString(formData, "tone") || "Neutral";
       const lengthOption = getExactWordLengthOption(globalSettings, "productDescWords");
       const formatOption = readFormString(formData, "format") || "Single paragraph";
-      const contextKeywords = readFormString(formData, "contextKeywords");
+      const submittedContextKeywords = readFormString(formData, "contextKeywords");
+      const contextKeywords = submittedContextKeywords || mergeUniqueKeywords(
+        splitKeywordString(globalSettings.productDescKeywords),
+        splitKeywordString(globalSettings.productMetaTitleKeywords),
+        splitKeywordString(globalSettings.productMetaDescKeywords),
+      ).join(", ");
       const descriptionPromptTemplate = readFormString(formData, "descriptionPromptTemplate");
       const metaTitlePromptTemplate = readFormString(formData, "metaTitlePromptTemplate");
       const metaDescriptionPromptTemplate = readFormString(formData, "metaDescriptionPromptTemplate");
@@ -1258,10 +1279,13 @@ export default function ProductsPage() {
   const [bulkDescTemplate, setBulkDescTemplate] = useState(() => initialBulkSessionState.bulkDescTemplate || "");
   const [bulkMetaDescTemplate, setBulkMetaDescTemplate] = useState(() => initialBulkSessionState.bulkMetaDescTemplate || "");
   const [bulkMetaTitleTemplate, setBulkMetaTitleTemplate] = useState(() => initialBulkSessionState.bulkMetaTitleTemplate || "");
-  const [selectedKeywords, setSelectedKeywords] = useState([]);
+  const [selectedKeywords, setSelectedKeywords] = useState(() => {
+    const savedKeywords = readArrayState(initialBulkSessionState.selectedKeywords);
+    return (savedKeywords.length > 0 ? savedKeywords : readProductKeywordDefaults()).slice(0, 5);
+  });
   const [keywordInput, setKeywordInput] = useState("");
   const keywordLibrary = useMemo(() => {
-    return (readGlobalSettings().productDescKeywords || "").split(",").map((k) => k.trim()).filter(Boolean);
+    return readProductKeywordDefaults();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [bulkSettings, setBulkSettings] = useState(() => {
     const gs = readGlobalSettings();
@@ -1304,6 +1328,10 @@ export default function ProductsPage() {
 
   useEffect(() => {
     const templateSelection = readStoredProductPromptTemplateSelection();
+    if (!initialBulkSessionState.useCustomDescInstructions && templateSelection.descriptionPromptTemplate) {
+      setBulkDescTemplate(templateSelection.descriptionPromptTemplate);
+      setUseCustomDescInstructions(true);
+    }
     if (!initialBulkSessionState.useCustomMetaTitleInstructions && templateSelection.metaTitlePromptTemplate) {
       setBulkMetaTitleTemplate(templateSelection.metaTitlePromptTemplate);
       setUseCustomMetaTitleInstructions(true);
@@ -1324,6 +1352,7 @@ export default function ProductsPage() {
       useCustomDescInstructions,
       useCustomMetaDescInstructions,
       useCustomMetaTitleInstructions,
+      selectedKeywords,
     });
   }, [
     bulkContentTypes,
@@ -1331,6 +1360,7 @@ export default function ProductsPage() {
     bulkMetaDescTemplate,
     bulkMetaTitleTemplate,
     selectedProductIds,
+    selectedKeywords,
     useCustomDescInstructions,
     useCustomMetaDescInstructions,
     useCustomMetaTitleInstructions,

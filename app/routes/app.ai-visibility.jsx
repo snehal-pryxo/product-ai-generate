@@ -21,6 +21,7 @@ import { getOrCreateShopCredits } from "../lib/credits.server";
 const CREDITS_SCHEMA = 2;
 const CREDITS_FAQ = 5;
 const CREDITS_COMBINED = 5;
+const PRICING_PATH = "/app/pricing";
 
 function isInsufficientCreditsMessage(message) {
   return /^Insufficient credits\./.test(String(message || ""));
@@ -31,6 +32,15 @@ function creditsForIntent(intent) {
   if (intent === "generate_faq") return CREDITS_FAQ;
   if (intent === "generate_combined") return CREDITS_COMBINED;
   return 0;
+}
+
+function buildInsufficientCreditsBanner(requiredCredits, currentCredits) {
+  return {
+    tone: "critical",
+    text: `Insufficient credits. You need ${requiredCredits} credits. Current balance: ${currentCredits}.`,
+    actionLabel: "Buy credits",
+    actionUrl: PRICING_PATH,
+  };
 }
 
 function calculateClientScore({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt }) {
@@ -53,6 +63,10 @@ function clientScoreBreakdown({ hasSeoTitle, hasSeoDescription, hasContent, hasS
     { signal: "FAQ section generated", points: 30, achieved: hasFaq },
     { signal: "Included in llms.txt", points: 10, achieved: hasLlmsTxt },
   ];
+}
+
+function removeFaqBreakdown(breakdown) {
+  return breakdown.filter((item) => item.signal !== "FAQ section generated");
 }
 
 // ---------------------------------------------------------------------------
@@ -153,22 +167,23 @@ export const loader = async ({ request }) => {
   const hasLlmsTxt = Boolean(llmsTxt);
 
   function buildItem(resource, resourceType) {
+    const supportsFaq = resourceType !== "page";
     const hasSchema = Boolean(schemaMap[resource.id]);
-    const hasFaq = Boolean(faqMap[resource.id]);
+    const hasFaq = supportsFaq && Boolean(faqMap[resource.id]);
     const hasSeoTitle = Boolean(resource.seo?.title);
     const hasSeoDescription = Boolean(resource.seo?.description);
     const hasContent = Boolean(resource.description || resource.body || resource.bodySummary);
-    const score = calculateScore({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt });
+    const breakdown = scoreBreakdown({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt });
     return {
       ...resource,
       resourceType,
-      score,
+      score: calculateScore({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt }),
       hasSchema,
       hasFaq,
       hasLlmsTxt,
       schemaJson: schemaMap[resource.id]?.schemaJson || null,
-      faqJson: faqMap[resource.id]?.faqJson || null,
-      breakdown: scoreBreakdown({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt }),
+      faqJson: supportsFaq ? faqMap[resource.id]?.faqJson || null : null,
+      breakdown: supportsFaq ? breakdown : removeFaqBreakdown(breakdown),
     };
   }
 
@@ -332,6 +347,15 @@ function ItemModal({ item, onClose, onGenerate, generatingKey, credits }) {
   const schemaKey = `schema_${item.id}`;
   const faqKey = `faq_${item.id}`;
   const combinedKey = `combined_${item.id}`;
+  const showCombinedAction = item.resourceType === "product" && !item.hasSchema && !item.hasFaq;
+  const showSchemaAction = item.hasSchema || item.resourceType !== "product" || item.hasFaq;
+  const availableActionCosts = [
+    showCombinedAction ? CREDITS_COMBINED : null,
+    showSchemaAction ? CREDITS_SCHEMA : null,
+    canFaq ? CREDITS_FAQ : null,
+  ].filter(Boolean);
+  const minimumRequiredCredits = Math.min(...availableActionCosts);
+  const hasAffordableAction = availableActionCosts.some((cost) => credits >= cost);
 
   return (
     <Modal
@@ -345,7 +369,7 @@ function ItemModal({ item, onClose, onGenerate, generatingKey, credits }) {
           <InlineStack gap="200">
             <ScoreBadge score={item.score} />
             {item.hasSchema && <Badge tone="success">Schema</Badge>}
-            {item.hasFaq && <Badge tone="success">FAQ</Badge>}
+            {canFaq && item.hasFaq && <Badge tone="success">FAQ</Badge>}
           </InlineStack>
 
           <Box>
@@ -362,7 +386,7 @@ function ItemModal({ item, onClose, onGenerate, generatingKey, credits }) {
           </Box>
 
           <InlineStack gap="200" wrap>
-            {item.resourceType === "product" && !item.hasSchema && !item.hasFaq && (
+            {showCombinedAction && (
               <Button
                 variant="primary"
                 loading={generatingKey === combinedKey}
@@ -372,7 +396,7 @@ function ItemModal({ item, onClose, onGenerate, generatingKey, credits }) {
                 Generate Schema + FAQ ({CREDITS_COMBINED} credits — saves 2)
               </Button>
             )}
-            {(item.hasSchema || item.resourceType !== "product" || item.hasFaq) && (
+            {showSchemaAction && (
               <Button
                 loading={generatingKey === schemaKey}
                 disabled={credits < CREDITS_SCHEMA}
@@ -391,6 +415,19 @@ function ItemModal({ item, onClose, onGenerate, generatingKey, credits }) {
               </Button>
             )}
           </InlineStack>
+
+          {!hasAffordableAction && Number.isFinite(minimumRequiredCredits) && (
+            <Banner tone="warning">
+              <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
+                <Text as="p">
+                  You have {credits} credits. This action needs at least {minimumRequiredCredits} credits.
+                </Text>
+                <Button size="slim" url={PRICING_PATH}>
+                  Buy credits
+                </Button>
+              </InlineStack>
+            </Banner>
+          )}
 
           {item.schemaJson && (
             <Box>
@@ -425,7 +462,7 @@ function ItemModal({ item, onClose, onGenerate, generatingKey, credits }) {
             </Box>
           )}
 
-          {item.faqJson && (() => {
+          {canFaq && item.faqJson && (() => {
             try {
               const faqPage = JSON.parse(item.faqJson);
               const entities = faqPage.mainEntity || [];
@@ -495,26 +532,32 @@ function ResourceTab({ items, resourceType, onSelectItem }) {
 
   const totalPages = Math.ceil(items.length / size);
   const pageItems = items.slice(page * size, (page + 1) * size);
+  const showFaqColumn = resourceType !== "page";
 
-  const rows = pageItems.map((item) => [
-    <Button key="title" variant="plain" textAlign="left" onClick={() => onSelectItem(item)}>
-      {item.title}
-    </Button>,
-    <ScoreBadge key="score" score={item.score} />,
-    item.hasSchema
-      ? <Badge key="schema" tone="success">Yes</Badge>
-      : <Badge key="schema">No</Badge>,
-    resourceType !== "page"
-      ? (item.hasFaq ? <Badge key="faq" tone="success">Yes</Badge> : <Badge key="faq">No</Badge>)
-      : <Text key="faq" tone="subdued">—</Text>,
-    <Button key="action" size="slim" onClick={() => onSelectItem(item)}>View</Button>,
-  ]);
+  const rows = pageItems.map((item) => {
+    const baseRow = [
+      <Button key="title" variant="plain" textAlign="left" onClick={() => onSelectItem(item)}>
+        {item.title}
+      </Button>,
+      <ScoreBadge key="score" score={item.score} />,
+      item.hasSchema
+        ? <Badge key="schema" tone="success">Yes</Badge>
+        : <Badge key="schema">No</Badge>,
+    ];
+
+    if (showFaqColumn) {
+      baseRow.push(item.hasFaq ? <Badge key="faq" tone="success">Yes</Badge> : <Badge key="faq">No</Badge>);
+    }
+
+    baseRow.push(<Button key="action" size="slim" onClick={() => onSelectItem(item)}>View</Button>);
+    return baseRow;
+  });
 
   return (
     <BlockStack gap="0">
       <DataTable
-        columnContentTypes={["text", "text", "text", "text", "text"]}
-        headings={["Title", "AI Score", "Schema", "FAQ", ""]}
+        columnContentTypes={showFaqColumn ? ["text", "text", "text", "text", "text"] : ["text", "text", "text", "text"]}
+        headings={showFaqColumn ? ["Title", "AI Score", "Schema", "FAQ", ""] : ["Title", "AI Score", "Schema", ""]}
         rows={rows}
       />
       <Box
@@ -599,16 +642,20 @@ export default function AiVisibilityPage() {
   const isSubmitting = fetcher.state !== "idle";
 
   const rebuildItemScore = useCallback((item) => {
+    const supportsFaq = item.resourceType !== "page";
     const hasSeoTitle = Boolean(item.seo?.title);
     const hasSeoDescription = Boolean(item.seo?.description);
     const hasContent = Boolean(item.description || item.body || item.bodySummary);
     const hasSchema = Boolean(item.hasSchema);
-    const hasFaq = Boolean(item.hasFaq);
+    const hasFaq = supportsFaq && Boolean(item.hasFaq);
     const hasLlmsTxt = Boolean(item.hasLlmsTxt);
+    const breakdown = clientScoreBreakdown({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt });
     return {
       ...item,
+      hasFaq,
+      faqJson: supportsFaq ? item.faqJson : null,
       score: calculateClientScore({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt }),
-      breakdown: clientScoreBreakdown({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt }),
+      breakdown: supportsFaq ? breakdown : removeFaqBreakdown(breakdown),
     };
   }, []);
 
@@ -664,7 +711,11 @@ export default function AiVisibilityPage() {
         if (data.creditsUsed) setCredits((c) => Math.max(0, c - data.creditsUsed));
         setBanner({ tone: "success", text: `Generated successfully (${data.creditsUsed} credits used).` });
       } else {
-        setBanner({ tone: "critical", text: data.error || "Generation failed." });
+        setBanner(
+          isInsufficientCreditsMessage(data.error)
+            ? { tone: "critical", text: data.error, actionLabel: "Buy credits", actionUrl: PRICING_PATH }
+            : { tone: "critical", text: data.error || "Generation failed." },
+        );
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -706,10 +757,7 @@ export default function AiVisibilityPage() {
     (intent, item) => {
       const requiredCredits = creditsForIntent(intent);
       if (requiredCredits > credits) {
-        setBanner({
-          tone: "critical",
-          text: `Insufficient credits. You need ${requiredCredits} credits. Current balance: ${credits}.`,
-        });
+        setBanner(buildInsufficientCreditsBanner(requiredCredits, credits));
         return;
       }
 
@@ -733,10 +781,7 @@ export default function AiVisibilityPage() {
 
   const handleGenerateLlmsTxt = useCallback(() => {
     if (llmsTxtCredits > credits) {
-      setBanner({
-        tone: "critical",
-        text: `Insufficient credits. You need ${llmsTxtCredits} credits. Current balance: ${credits}.`,
-      });
+      setBanner(buildInsufficientCreditsBanner(llmsTxtCredits, credits));
       return;
     }
 
@@ -763,7 +808,14 @@ export default function AiVisibilityPage() {
       {banner && (
         <Box paddingBlockEnd="400">
           <Banner tone={banner.tone} onDismiss={() => setBanner(null)}>
-            {banner.text}
+            <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
+              <Text as="p">{banner.text}</Text>
+              {banner.actionLabel && banner.actionUrl && (
+                <Button size="slim" url={banner.actionUrl}>
+                  {banner.actionLabel}
+                </Button>
+              )}
+            </InlineStack>
           </Banner>
         </Box>
       )}
