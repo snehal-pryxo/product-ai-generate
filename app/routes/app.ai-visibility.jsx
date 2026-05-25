@@ -21,6 +21,7 @@ import { getOrCreateShopCredits } from "../lib/credits.server";
 const CREDITS_SCHEMA = 2;
 const CREDITS_FAQ = 5;
 const CREDITS_COMBINED = 5;
+const PRICING_PATH = "/app/pricing";
 
 function isInsufficientCreditsMessage(message) {
   return /^Insufficient credits\./.test(String(message || ""));
@@ -31,6 +32,15 @@ function creditsForIntent(intent) {
   if (intent === "generate_faq") return CREDITS_FAQ;
   if (intent === "generate_combined") return CREDITS_COMBINED;
   return 0;
+}
+
+function buildInsufficientCreditsBanner(requiredCredits, currentCredits) {
+  return {
+    tone: "critical",
+    text: `Insufficient credits. You need ${requiredCredits} credits. Current balance: ${currentCredits}.`,
+    actionLabel: "Buy credits",
+    actionUrl: PRICING_PATH,
+  };
 }
 
 function calculateClientScore({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt }) {
@@ -332,6 +342,15 @@ function ItemModal({ item, onClose, onGenerate, generatingKey, credits }) {
   const schemaKey = `schema_${item.id}`;
   const faqKey = `faq_${item.id}`;
   const combinedKey = `combined_${item.id}`;
+  const showCombinedAction = item.resourceType === "product" && !item.hasSchema && !item.hasFaq;
+  const showSchemaAction = item.hasSchema || item.resourceType !== "product" || item.hasFaq;
+  const availableActionCosts = [
+    showCombinedAction ? CREDITS_COMBINED : null,
+    showSchemaAction ? CREDITS_SCHEMA : null,
+    canFaq ? CREDITS_FAQ : null,
+  ].filter(Boolean);
+  const minimumRequiredCredits = Math.min(...availableActionCosts);
+  const hasAffordableAction = availableActionCosts.some((cost) => credits >= cost);
 
   return (
     <Modal
@@ -362,7 +381,7 @@ function ItemModal({ item, onClose, onGenerate, generatingKey, credits }) {
           </Box>
 
           <InlineStack gap="200" wrap>
-            {item.resourceType === "product" && !item.hasSchema && !item.hasFaq && (
+            {showCombinedAction && (
               <Button
                 variant="primary"
                 loading={generatingKey === combinedKey}
@@ -371,7 +390,7 @@ function ItemModal({ item, onClose, onGenerate, generatingKey, credits }) {
                 Generate Schema + FAQ ({CREDITS_COMBINED} credits — saves 2)
               </Button>
             )}
-            {(item.hasSchema || item.resourceType !== "product" || item.hasFaq) && (
+            {showSchemaAction && (
               <Button
                 loading={generatingKey === schemaKey}
                 onClick={() => onGenerate("generate_schema", item)}
@@ -388,6 +407,19 @@ function ItemModal({ item, onClose, onGenerate, generatingKey, credits }) {
               </Button>
             )}
           </InlineStack>
+
+          {!hasAffordableAction && Number.isFinite(minimumRequiredCredits) && (
+            <Banner tone="warning">
+              <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
+                <Text as="p">
+                  You have {credits} credits. This action needs at least {minimumRequiredCredits} credits.
+                </Text>
+                <Button size="slim" url={PRICING_PATH}>
+                  Buy credits
+                </Button>
+              </InlineStack>
+            </Banner>
+          )}
 
           {item.schemaJson && (
             <Box>
@@ -661,7 +693,11 @@ export default function AiVisibilityPage() {
         if (data.creditsUsed) setCredits((c) => Math.max(0, c - data.creditsUsed));
         setBanner({ tone: "success", text: `Generated successfully (${data.creditsUsed} credits used).` });
       } else {
-        setBanner({ tone: "critical", text: data.error || "Generation failed." });
+        setBanner(
+          isInsufficientCreditsMessage(data.error)
+            ? { tone: "critical", text: data.error, actionLabel: "Buy credits", actionUrl: PRICING_PATH }
+            : { tone: "critical", text: data.error || "Generation failed." },
+        );
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -703,10 +739,7 @@ export default function AiVisibilityPage() {
     (intent, item) => {
       const requiredCredits = creditsForIntent(intent);
       if (requiredCredits > credits) {
-        setBanner({
-          tone: "critical",
-          text: `Insufficient credits. You need ${requiredCredits} credits. Current balance: ${credits}.`,
-        });
+        setBanner(buildInsufficientCreditsBanner(requiredCredits, credits));
         return;
       }
 
@@ -730,10 +763,7 @@ export default function AiVisibilityPage() {
 
   const handleGenerateLlmsTxt = useCallback(() => {
     if (llmsTxtCredits > credits) {
-      setBanner({
-        tone: "critical",
-        text: `Insufficient credits. You need ${llmsTxtCredits} credits. Current balance: ${credits}.`,
-      });
+      setBanner(buildInsufficientCreditsBanner(llmsTxtCredits, credits));
       return;
     }
 
@@ -760,7 +790,14 @@ export default function AiVisibilityPage() {
       {banner && (
         <Box paddingBlockEnd="400">
           <Banner tone={banner.tone} onDismiss={() => setBanner(null)}>
-            {banner.text}
+            <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
+              <Text as="p">{banner.text}</Text>
+              {banner.actionLabel && banner.actionUrl && (
+                <Button size="slim" url={banner.actionUrl}>
+                  {banner.actionLabel}
+                </Button>
+              )}
+            </InlineStack>
           </Banner>
         </Box>
       )}
