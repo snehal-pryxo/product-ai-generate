@@ -65,6 +65,10 @@ function clientScoreBreakdown({ hasSeoTitle, hasSeoDescription, hasContent, hasS
   ];
 }
 
+function removeFaqBreakdown(breakdown) {
+  return breakdown.filter((item) => item.signal !== "FAQ section generated");
+}
+
 // ---------------------------------------------------------------------------
 // GraphQL
 // ---------------------------------------------------------------------------
@@ -163,22 +167,23 @@ export const loader = async ({ request }) => {
   const hasLlmsTxt = Boolean(llmsTxt);
 
   function buildItem(resource, resourceType) {
+    const supportsFaq = resourceType !== "page";
     const hasSchema = Boolean(schemaMap[resource.id]);
-    const hasFaq = Boolean(faqMap[resource.id]);
+    const hasFaq = supportsFaq && Boolean(faqMap[resource.id]);
     const hasSeoTitle = Boolean(resource.seo?.title);
     const hasSeoDescription = Boolean(resource.seo?.description);
     const hasContent = Boolean(resource.description || resource.body || resource.bodySummary);
-    const score = calculateScore({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt });
+    const breakdown = scoreBreakdown({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt });
     return {
       ...resource,
       resourceType,
-      score,
+      score: calculateScore({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt }),
       hasSchema,
       hasFaq,
       hasLlmsTxt,
       schemaJson: schemaMap[resource.id]?.schemaJson || null,
-      faqJson: faqMap[resource.id]?.faqJson || null,
-      breakdown: scoreBreakdown({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt }),
+      faqJson: supportsFaq ? faqMap[resource.id]?.faqJson || null : null,
+      breakdown: supportsFaq ? breakdown : removeFaqBreakdown(breakdown),
     };
   }
 
@@ -364,7 +369,7 @@ function ItemModal({ item, onClose, onGenerate, generatingKey, credits }) {
           <InlineStack gap="200">
             <ScoreBadge score={item.score} />
             {item.hasSchema && <Badge tone="success">Schema</Badge>}
-            {item.hasFaq && <Badge tone="success">FAQ</Badge>}
+            {canFaq && item.hasFaq && <Badge tone="success">FAQ</Badge>}
           </InlineStack>
 
           <Box>
@@ -457,7 +462,7 @@ function ItemModal({ item, onClose, onGenerate, generatingKey, credits }) {
             </Box>
           )}
 
-          {item.faqJson && (() => {
+          {canFaq && item.faqJson && (() => {
             try {
               const faqPage = JSON.parse(item.faqJson);
               const entities = faqPage.mainEntity || [];
@@ -527,26 +532,32 @@ function ResourceTab({ items, resourceType, onSelectItem }) {
 
   const totalPages = Math.ceil(items.length / size);
   const pageItems = items.slice(page * size, (page + 1) * size);
+  const showFaqColumn = resourceType !== "page";
 
-  const rows = pageItems.map((item) => [
-    <Button key="title" variant="plain" textAlign="left" onClick={() => onSelectItem(item)}>
-      {item.title}
-    </Button>,
-    <ScoreBadge key="score" score={item.score} />,
-    item.hasSchema
-      ? <Badge key="schema" tone="success">Yes</Badge>
-      : <Badge key="schema">No</Badge>,
-    resourceType !== "page"
-      ? (item.hasFaq ? <Badge key="faq" tone="success">Yes</Badge> : <Badge key="faq">No</Badge>)
-      : <Text key="faq" tone="subdued">—</Text>,
-    <Button key="action" size="slim" onClick={() => onSelectItem(item)}>View</Button>,
-  ]);
+  const rows = pageItems.map((item) => {
+    const baseRow = [
+      <Button key="title" variant="plain" textAlign="left" onClick={() => onSelectItem(item)}>
+        {item.title}
+      </Button>,
+      <ScoreBadge key="score" score={item.score} />,
+      item.hasSchema
+        ? <Badge key="schema" tone="success">Yes</Badge>
+        : <Badge key="schema">No</Badge>,
+    ];
+
+    if (showFaqColumn) {
+      baseRow.push(item.hasFaq ? <Badge key="faq" tone="success">Yes</Badge> : <Badge key="faq">No</Badge>);
+    }
+
+    baseRow.push(<Button key="action" size="slim" onClick={() => onSelectItem(item)}>View</Button>);
+    return baseRow;
+  });
 
   return (
     <BlockStack gap="0">
       <DataTable
-        columnContentTypes={["text", "text", "text", "text", "text"]}
-        headings={["Title", "AI Score", "Schema", "FAQ", ""]}
+        columnContentTypes={showFaqColumn ? ["text", "text", "text", "text", "text"] : ["text", "text", "text", "text"]}
+        headings={showFaqColumn ? ["Title", "AI Score", "Schema", "FAQ", ""] : ["Title", "AI Score", "Schema", ""]}
         rows={rows}
       />
       <Box
@@ -631,16 +642,20 @@ export default function AiVisibilityPage() {
   const isSubmitting = fetcher.state !== "idle";
 
   const rebuildItemScore = useCallback((item) => {
+    const supportsFaq = item.resourceType !== "page";
     const hasSeoTitle = Boolean(item.seo?.title);
     const hasSeoDescription = Boolean(item.seo?.description);
     const hasContent = Boolean(item.description || item.body || item.bodySummary);
     const hasSchema = Boolean(item.hasSchema);
-    const hasFaq = Boolean(item.hasFaq);
+    const hasFaq = supportsFaq && Boolean(item.hasFaq);
     const hasLlmsTxt = Boolean(item.hasLlmsTxt);
+    const breakdown = clientScoreBreakdown({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt });
     return {
       ...item,
+      hasFaq,
+      faqJson: supportsFaq ? item.faqJson : null,
       score: calculateClientScore({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt }),
-      breakdown: clientScoreBreakdown({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt }),
+      breakdown: supportsFaq ? breakdown : removeFaqBreakdown(breakdown),
     };
   }, []);
 
