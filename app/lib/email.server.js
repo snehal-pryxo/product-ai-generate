@@ -7,6 +7,36 @@ import {
 } from "./emailTemplates.js";
 
 const APP_NAME = "Product AI Generate";
+const PLACEHOLDER_VALUES = new Set([
+  "your-email@gmail.com",
+  "your-app-password",
+]);
+
+function isPlaceholder(value) {
+  return PLACEHOLDER_VALUES.has(String(value || "").trim().toLowerCase());
+}
+
+function getEmailConfigError() {
+  const requiredValues = [
+    process.env.SMTP_HOST,
+    process.env.SMTP_USER,
+    process.env.SMTP_PASS,
+  ];
+
+  if (requiredValues.some((value) => !String(value || "").trim())) {
+    return "SMTP not configured";
+  }
+
+  if (
+    isPlaceholder(process.env.SMTP_USER) ||
+    isPlaceholder(process.env.SMTP_PASS) ||
+    isPlaceholder(process.env.APP_OWNER_EMAIL)
+  ) {
+    return "SMTP placeholder credentials are still configured";
+  }
+
+  return null;
+}
 
 function createTransporter() {
   return nodemailer.createTransport({
@@ -21,8 +51,9 @@ function createTransporter() {
 }
 
 async function sendMail({ to, subject, html }) {
-  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.warn("[email] SMTP not configured — skipping email to:", to);
+  const configError = getEmailConfigError();
+  if (configError) {
+    console.warn(`[email] ${configError} - skipping email to:`, to);
     return;
   }
 

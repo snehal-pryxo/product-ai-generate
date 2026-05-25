@@ -1,7 +1,12 @@
 import db from "../db.server";
 import { refreshMonthlyPlanCredits } from "./billing.server";
+import { getSubscriptionPlan } from "./billingPlans";
 
-export const DEFAULT_FREE_CREDITS = 150;
+export function getDefaultFreeCredits() {
+  return getSubscriptionPlan("free", process.env)?.credits ?? 150;
+}
+
+export const DEFAULT_FREE_CREDITS = getDefaultFreeCredits();
 export const CREDITS_PER_CONTENT_FIELD = 1;
 export const FULL_CONTENT_TYPES = ["description", "meta_title", "meta_description"];
 
@@ -46,14 +51,18 @@ export function creditsForBatch(contentTypes, itemsCount) {
 
 export async function getOrCreateShopCredits(shopDomain) {
   await refreshMonthlyPlanCredits(shopDomain);
+  const freeCredits = getDefaultFreeCredits();
 
   const row = await db.shop.upsert({
     where: { shop: shopDomain },
     update: {},
     create: {
       shop: shopDomain,
-      credits: DEFAULT_FREE_CREDITS,
+      credits: freeCredits,
       creditsUsedTotal: 0,
+      billingPlanKey: "free",
+      billingPlanName: "Free",
+      billingPlanCredits: freeCredits,
     },
     select: {
       credits: true,
@@ -62,7 +71,7 @@ export async function getOrCreateShopCredits(shopDomain) {
   });
 
   return {
-    credits: row?.credits ?? DEFAULT_FREE_CREDITS,
+    credits: row?.credits ?? freeCredits,
     creditsUsedTotal: row?.creditsUsedTotal ?? 0,
   };
 }

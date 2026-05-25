@@ -15,11 +15,23 @@ import {
   scoreBreakdown,
   calcLlmsTxtCredits,
 } from "../lib/aiVisibility.server";
+import { getOrCreateShopCredits } from "../lib/credits.server";
 
 // Credit costs — defined here (not imported from server module) so they are available client-side
 const CREDITS_SCHEMA = 2;
 const CREDITS_FAQ = 5;
 const CREDITS_COMBINED = 5;
+
+function isInsufficientCreditsMessage(message) {
+  return /^Insufficient credits\./.test(String(message || ""));
+}
+
+function creditsForIntent(intent) {
+  if (intent === "generate_schema") return CREDITS_SCHEMA;
+  if (intent === "generate_faq") return CREDITS_FAQ;
+  if (intent === "generate_combined") return CREDITS_COMBINED;
+  return 0;
+}
 
 function calculateClientScore({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt }) {
   let score = 0;
@@ -128,11 +140,12 @@ export const loader = async ({ request }) => {
     ...pages.map((p) => p.id),
   ];
 
-  const [schemas, faqs, llmsTxt, shopData] = await Promise.all([
+  const [schemas, faqs, llmsTxt, shopData, creditSnapshot] = await Promise.all([
     db.aiVisibilitySchema.findMany({ where: { shop, resourceId: { in: allResourceIds } } }),
     db.aiVisibilityFaq.findMany({ where: { shop, resourceId: { in: allResourceIds } } }),
     db.aiVisibilityLlmsTxt.findUnique({ where: { shop } }),
-    db.shop.findUnique({ where: { shop }, select: { credits: true, themeEmbedEnabled: true } }),
+    db.shop.findUnique({ where: { shop }, select: { themeEmbedEnabled: true } }),
+    getOrCreateShopCredits(shop),
   ]);
 
   const schemaMap = Object.fromEntries(schemas.map((s) => [s.resourceId, s]));
@@ -169,7 +182,7 @@ export const loader = async ({ request }) => {
     shopName,
     shopDomain,
     shop,
-    credits: shopData?.credits ?? 0,
+    credits: creditSnapshot.credits,
     themeEmbedEnabled: shopData?.themeEmbedEnabled ?? false,
     llmsTxtCredits: calcLlmsTxtCredits(products.length + articles.length + pages.length),
   };
@@ -289,7 +302,11 @@ export const action = async ({ request }) => {
 
     return { ok: false, error: "Unknown intent." };
   } catch (err) {
-    console.error("[AI Visibility action]", err);
+    if (isInsufficientCreditsMessage(err?.message)) {
+      console.warn("[AI Visibility action]", err.message);
+    } else {
+      console.error("[AI Visibility action]", err);
+    }
     return { ok: false, intent, error: err?.message || "Generation failed." };
   }
 };
@@ -308,7 +325,7 @@ function ScoreBadge({ score }) {
 // Item Drawer
 // ---------------------------------------------------------------------------
 
-function ItemModal({ item, onClose, onGenerate, generatingKey }) {
+function ItemModal({ item, onClose, onGenerate, generatingKey, credits }) {
   const [expandedFaqIndex, setExpandedFaqIndex] = useState(null);
   if (!item) return null;
   const canFaq = item.resourceType !== "page";
@@ -349,6 +366,7 @@ function ItemModal({ item, onClose, onGenerate, generatingKey }) {
               <Button
                 variant="primary"
                 loading={generatingKey === combinedKey}
+                disabled={credits < CREDITS_COMBINED}
                 onClick={() => onGenerate("generate_combined", item)}
               >
                 Generate Schema + FAQ ({CREDITS_COMBINED} credits — saves 2)
@@ -357,6 +375,7 @@ function ItemModal({ item, onClose, onGenerate, generatingKey }) {
             {(item.hasSchema || item.resourceType !== "product" || item.hasFaq) && (
               <Button
                 loading={generatingKey === schemaKey}
+                disabled={credits < CREDITS_SCHEMA}
                 onClick={() => onGenerate("generate_schema", item)}
               >
                 {item.hasSchema ? `Regenerate Schema (${CREDITS_SCHEMA} credits)` : `Generate Schema (${CREDITS_SCHEMA} credits)`}
@@ -365,6 +384,7 @@ function ItemModal({ item, onClose, onGenerate, generatingKey }) {
             {canFaq && (
               <Button
                 loading={generatingKey === faqKey}
+                disabled={credits < CREDITS_FAQ}
                 onClick={() => onGenerate("generate_faq", item)}
               >
                 {item.hasFaq ? `Regenerate FAQ (${CREDITS_FAQ} credits)` : `Generate FAQ (${CREDITS_FAQ} credits)`}
@@ -684,6 +704,15 @@ export default function AiVisibilityPage() {
 
   const handleGenerate = useCallback(
     (intent, item) => {
+      const requiredCredits = creditsForIntent(intent);
+      if (requiredCredits > credits) {
+        setBanner({
+          tone: "critical",
+          text: `Insufficient credits. You need ${requiredCredits} credits. Current balance: ${credits}.`,
+        });
+        return;
+      }
+
       const key =
         intent === "generate_combined"
           ? `combined_${item.id}`
@@ -699,15 +728,23 @@ export default function AiVisibilityPage() {
       }
       fetcher.submit(fd, { method: "post" });
     },
-    [fetcher],
+    [credits, fetcher],
   );
 
   const handleGenerateLlmsTxt = useCallback(() => {
+    if (llmsTxtCredits > credits) {
+      setBanner({
+        tone: "critical",
+        text: `Insufficient credits. You need ${llmsTxtCredits} credits. Current balance: ${credits}.`,
+      });
+      return;
+    }
+
     setGeneratingKey("llmstxt");
     const fd = new FormData();
     fd.append("intent", "generate_llmstxt");
     fetcher.submit(fd, { method: "post" });
-  }, [fetcher]);
+  }, [credits, fetcher, llmsTxtCredits]);
 
   const tabs = [
     { id: "products", content: `Products (${products.length})` },
@@ -775,6 +812,7 @@ export default function AiVisibilityPage() {
                         size="slim"
                         variant="plain"
                         loading={isSubmitting && generatingKey === "llmstxt"}
+                        disabled={credits < llmsTxtCredits}
                         onClick={handleGenerateLlmsTxt}
                       >
                         Regenerate ({llmsTxtCredits} cr)
@@ -785,6 +823,7 @@ export default function AiVisibilityPage() {
                       size="slim"
                       variant="primary"
                       loading={isSubmitting && generatingKey === "llmstxt"}
+                      disabled={credits < llmsTxtCredits}
                       onClick={handleGenerateLlmsTxt}
                     >
                       Generate ({llmsTxtCredits} credits)
@@ -855,6 +894,7 @@ export default function AiVisibilityPage() {
           onClose={() => setSelectedItemKey(null)}
           onGenerate={handleGenerate}
           generatingKey={generatingKey}
+          credits={credits}
         />
       )}
     </Page>
