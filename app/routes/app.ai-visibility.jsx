@@ -4,12 +4,10 @@ import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import {
   Page, Layout, Card, Text, Badge, Button, DataTable, Tabs, Box, BlockStack,
-  InlineStack, ProgressBar, Banner, Collapsible, Modal, Select,
+  InlineStack, ProgressBar, Banner, Collapsible, Modal, Select, Checkbox,
 } from "@shopify/polaris";
 import {
   generateSchema,
-  generateFaq,
-  generateCombined,
   generateLlmsTxt,
   calculateScore,
   scoreBreakdown,
@@ -29,8 +27,6 @@ function isInsufficientCreditsMessage(message) {
 
 function creditsForIntent(intent) {
   if (intent === "generate_schema") return CREDITS_SCHEMA;
-  if (intent === "generate_faq") return CREDITS_FAQ;
-  if (intent === "generate_combined") return CREDITS_COMBINED;
   return 0;
 }
 
@@ -45,23 +41,21 @@ function buildInsufficientCreditsBanner(requiredCredits, currentCredits) {
 
 function calculateClientScore({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt }) {
   let score = 0;
-  if (hasSeoTitle) score += 10;
-  if (hasSeoDescription) score += 10;
-  if (hasContent) score += 10;
-  if (hasSchema) score += 30;
-  if (hasFaq) score += 30;
-  if (hasLlmsTxt) score += 10;
+  if (hasSeoTitle) score += 15;
+  if (hasSeoDescription) score += 15;
+  if (hasContent) score += 15;
+  if (hasSchema) score += 40;
+  if (hasLlmsTxt) score += 15;
   return score;
 }
 
 function clientScoreBreakdown({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt }) {
   return [
-    { signal: "Meta title", points: 10, achieved: hasSeoTitle },
-    { signal: "Meta description", points: 10, achieved: hasSeoDescription },
-    { signal: "Body / description content", points: 10, achieved: hasContent },
-    { signal: "Schema markup generated", points: 30, achieved: hasSchema },
-    { signal: "FAQ section generated", points: 30, achieved: hasFaq },
-    { signal: "Included in llms.txt", points: 10, achieved: hasLlmsTxt },
+    { signal: "Meta title", points: 15, achieved: hasSeoTitle },
+    { signal: "Meta description", points: 15, achieved: hasSeoDescription },
+    { signal: "Body / description content", points: 15, achieved: hasContent },
+    { signal: "Schema markup generated", points: 40, achieved: hasSchema },
+    { signal: "Included in llms.txt", points: 15, achieved: hasLlmsTxt },
   ];
 }
 
@@ -197,6 +191,7 @@ export const loader = async ({ request }) => {
     shopName,
     shopDomain,
     shop,
+    appApiKey: process.env.SHOPIFY_API_KEY || "",
     credits: creditSnapshot.credits,
     themeEmbedEnabled: shopData?.themeEmbedEnabled ?? false,
     llmsTxtCredits: calcLlmsTxtCredits(products.length + articles.length + pages.length),
@@ -226,26 +221,27 @@ export const action = async ({ request }) => {
       return { ok: true, intent, resourceType, resourceId: resource.id, ...result };
     }
 
-    if (intent === "generate_faq") {
+    if (intent === "generate_bulk_schema") {
       const resourceType = formData.get("resourceType");
-      const resource = JSON.parse(formData.get("resourceJson"));
-      const result = await generateFaq(
-        shop,
-        { adminGraphQL: admin.graphql, accessToken: session.accessToken },
-        resourceType,
-        resource,
-      );
-      return { ok: true, intent, resourceType, resourceId: resource.id, ...result };
-    }
+      const resources = JSON.parse(formData.get("resourcesJson") || "[]");
+      if (!Array.isArray(resources) || resources.length === 0) {
+        return { ok: false, intent, error: "Select at least one item for bulk schema generation." };
+      }
 
-    if (intent === "generate_combined") {
-      const resource = JSON.parse(formData.get("resourceJson"));
-      const result = await generateCombined(
-        shop,
-        { adminGraphQL: admin.graphql, accessToken: session.accessToken },
-        resource,
-      );
-      return { ok: true, intent, resourceType: "product", resourceId: resource.id, ...result };
+      const results = [];
+      let creditsUsed = 0;
+      for (const resource of resources) {
+        const result = await generateSchema(
+          shop,
+          { adminGraphQL: admin.graphql, accessToken: session.accessToken },
+          resourceType,
+          resource,
+        );
+        creditsUsed += result.creditsUsed || 0;
+        results.push({ resourceId: resource.id, schemaJson: result.schemaJson });
+      }
+
+      return { ok: true, intent, resourceType, results, creditsUsed };
     }
 
     if (intent === "generate_llmstxt") {
@@ -303,9 +299,14 @@ export const action = async ({ request }) => {
         const settings = JSON.parse(content);
         const blocks = settings?.current?.blocks || {};
 
-        // Check if any block key contains our extension handle and is not explicitly disabled
+        // Shopify stores the app embed handle in either the block key or block type,
+        // depending on the theme/editor version.
         const embedEnabled = Object.entries(blocks).some(
-          ([key, val]) => key.includes("ai-visibility-embed") && val?.disabled !== true
+          ([key, val]) =>
+            [key, val?.type, val?.name]
+              .filter(Boolean)
+              .some((entry) => String(entry).includes("ai-visibility-embed")) &&
+            val?.disabled !== true
         );
         await db.shop.update({ where: { shop }, data: { themeEmbedEnabled: embedEnabled } });
         return { ok: true, intent, themeEmbedEnabled: embedEnabled };
@@ -343,19 +344,14 @@ function ScoreBadge({ score }) {
 function ItemModal({ item, onClose, onGenerate, generatingKey, credits }) {
   const [expandedFaqIndex, setExpandedFaqIndex] = useState(null);
   if (!item) return null;
-  const canFaq = item.resourceType !== "page";
+  const canFaq = false;
   const schemaKey = `schema_${item.id}`;
-  const faqKey = `faq_${item.id}`;
-  const combinedKey = `combined_${item.id}`;
-  const showCombinedAction = item.resourceType === "product" && !item.hasSchema && !item.hasFaq;
-  const showSchemaAction = item.hasSchema || item.resourceType !== "product" || item.hasFaq;
-  const availableActionCosts = [
-    showCombinedAction ? CREDITS_COMBINED : null,
-    showSchemaAction ? CREDITS_SCHEMA : null,
-    canFaq ? CREDITS_FAQ : null,
-  ].filter(Boolean);
-  const minimumRequiredCredits = Math.min(...availableActionCosts);
-  const hasAffordableAction = availableActionCosts.some((cost) => credits >= cost);
+  const minimumRequiredCredits = CREDITS_SCHEMA;
+  const hasAffordableAction = credits >= CREDITS_SCHEMA;
+  const showCombinedAction = false;
+  const showSchemaAction = true;
+  const faqKey = "";
+  const combinedKey = "";
 
   return (
     <Modal
@@ -516,7 +512,7 @@ const PAGE_SIZE_OPTIONS = [
   { label: "100 per page", value: "100" },
 ];
 
-function ResourceTab({ items, resourceType, onSelectItem }) {
+function ResourceTab({ items, resourceType, onSelectItem, selectedIds, onToggleItem, onTogglePage }) {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState("20");
 
@@ -533,9 +529,19 @@ function ResourceTab({ items, resourceType, onSelectItem }) {
   const totalPages = Math.ceil(items.length / size);
   const pageItems = items.slice(page * size, (page + 1) * size);
   const showFaqColumn = resourceType !== "page";
+  const pageSelectedCount = pageItems.filter((item) => selectedIds.includes(item.id)).length;
+  const pageSelectionChecked = pageItems.length > 0 && pageSelectedCount === pageItems.length;
+  const pageSelectionIndeterminate = pageSelectedCount > 0 && pageSelectedCount < pageItems.length;
 
   const rows = pageItems.map((item) => {
     const baseRow = [
+      <Checkbox
+        key="select"
+        label={`Select ${item.title}`}
+        labelHidden
+        checked={selectedIds.includes(item.id)}
+        onChange={(checked) => onToggleItem(item.id, checked)}
+      />,
       <Button key="title" variant="plain" textAlign="left" onClick={() => onSelectItem(item)}>
         {item.title}
       </Button>,
@@ -556,8 +562,18 @@ function ResourceTab({ items, resourceType, onSelectItem }) {
   return (
     <BlockStack gap="0">
       <DataTable
-        columnContentTypes={showFaqColumn ? ["text", "text", "text", "text", "text"] : ["text", "text", "text", "text"]}
-        headings={showFaqColumn ? ["Title", "AI Score", "Schema", "FAQ", ""] : ["Title", "AI Score", "Schema", ""]}
+        columnContentTypes={showFaqColumn ? ["text", "text", "text", "text", "text", "text"] : ["text", "text", "text", "text", "text"]}
+        headings={[
+          <Checkbox
+            key="select-page"
+            label="Select visible items"
+            labelHidden
+            checked={pageSelectionChecked}
+            indeterminate={pageSelectionIndeterminate}
+            onChange={(checked) => onTogglePage(pageItems.map((item) => item.id), checked)}
+          />,
+          ...(showFaqColumn ? ["Title", "AI Score", "Schema", "FAQ", ""] : ["Title", "AI Score", "Schema", ""]),
+        ]}
         rows={rows}
       />
       <Box
@@ -614,6 +630,7 @@ export default function AiVisibilityPage() {
     pages: initialPages,
     llmsTxt: initialLlmsTxt,
     shop,
+    appApiKey,
     themeEmbedEnabled: initialEmbedEnabled,
     llmsTxtCredits,
     credits: initialCredits,
@@ -630,6 +647,8 @@ export default function AiVisibilityPage() {
   const [banner, setBanner] = useState(null);
   const [embedEnabled, setEmbedEnabled] = useState(initialEmbedEnabled);
   const [credits, setCredits] = useState(initialCredits);
+  const [bulkSchemaEnabled, setBulkSchemaEnabled] = useState(false);
+  const [selectedIdsByType, setSelectedIdsByType] = useState({ product: [], article: [], page: [] });
 
   // Derive selectedItem from live list state so modal updates instantly after generation
   const selectedItem = useMemo(() => {
@@ -685,6 +704,16 @@ export default function AiVisibilityPage() {
             hasSchema: true,
             schemaJson: data.schemaJson,
           });
+        }
+
+        if (data.intent === "generate_bulk_schema") {
+          (data.results || []).forEach((result) => {
+            updateResourceItem(data.resourceType, result.resourceId, {
+              hasSchema: true,
+              schemaJson: result.schemaJson,
+            });
+          });
+          setSelectedIdsByType((current) => ({ ...current, [data.resourceType]: [] }));
         }
 
         if (data.intent === "generate_faq") {
@@ -798,10 +827,61 @@ export default function AiVisibilityPage() {
   ];
   const tabItems = [products, articles, pages];
   const tabTypes = ["product", "article", "page"];
+  const activeResourceType = tabTypes[selectedTab];
+  const activeItems = tabItems[selectedTab];
+  const selectedIds = selectedIdsByType[activeResourceType] || [];
+  const selectedItems = activeItems.filter((item) => selectedIds.includes(item.id));
+  const bulkSchemaCredits = selectedItems.length * CREDITS_SCHEMA;
 
   const llmsTxtUrl = `https://${shop}/apps/llms-txt`;
+  const appEmbedActivation = appApiKey
+    ? `&activateAppId=${encodeURIComponent(appApiKey)}/ai-visibility-embed`
+    : "";
+  const themeEditorUrl = `https://${shop}/admin/themes/current/editor?context=apps${appEmbedActivation}`;
 
   const progressTone = totalScore >= 80 ? "success" : "highlight";
+
+  const handleToggleBulkItem = useCallback((resourceType, itemId, checked) => {
+    setSelectedIdsByType((current) => {
+      const existing = current[resourceType] || [];
+      const next = checked
+        ? Array.from(new Set([...existing, itemId]))
+        : existing.filter((id) => id !== itemId);
+      return { ...current, [resourceType]: next };
+    });
+  }, []);
+
+  const handleToggleBulkPage = useCallback((resourceType, itemIds, checked) => {
+    setSelectedIdsByType((current) => {
+      const existing = current[resourceType] || [];
+      const next = checked
+        ? Array.from(new Set([...existing, ...itemIds]))
+        : existing.filter((id) => !itemIds.includes(id));
+      return { ...current, [resourceType]: next };
+    });
+  }, []);
+
+  const handleGenerateBulkSchema = useCallback(() => {
+    if (!bulkSchemaEnabled) {
+      setBanner({ tone: "warning", text: "Enable bulk schema generation first." });
+      return;
+    }
+    if (selectedItems.length === 0) {
+      setBanner({ tone: "warning", text: "Select at least one item for bulk schema generation." });
+      return;
+    }
+    if (bulkSchemaCredits > credits) {
+      setBanner(buildInsufficientCreditsBanner(bulkSchemaCredits, credits));
+      return;
+    }
+
+    setGeneratingKey("bulk_schema");
+    const fd = new FormData();
+    fd.append("intent", "generate_bulk_schema");
+    fd.append("resourceType", activeResourceType);
+    fd.append("resourcesJson", JSON.stringify(selectedItems));
+    fetcher.submit(fd, { method: "post" });
+  }, [activeResourceType, bulkSchemaCredits, bulkSchemaEnabled, credits, fetcher, selectedItems]);
 
   return (
     <Page title="AI Visibility" subtitle="Optimize your store for AI-powered search engines">
@@ -902,7 +982,7 @@ export default function AiVisibilityPage() {
                 <InlineStack gap="200" wrap>
                   {!embedEnabled && (
                     <Button
-                      url={`https://${shop}/admin/themes/current/editor?context=apps`}
+                      url={themeEditorUrl}
                       external
                       size="slim"
                       variant="primary"
@@ -925,6 +1005,29 @@ export default function AiVisibilityPage() {
 
         <Layout.Section>
           <Card padding="0">
+            <Box padding="400" borderColor="border" borderBlockEndWidth="025">
+              <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
+                <BlockStack gap="100">
+                  <Checkbox
+                    label="Generate bulk Schema"
+                    checked={bulkSchemaEnabled}
+                    onChange={setBulkSchemaEnabled}
+                  />
+                  <Text as="p" variant="bodySm" tone={bulkSchemaCredits > credits ? "critical" : "subdued"}>
+                    Credits used: {bulkSchemaCredits} ({selectedItems.length} items x {CREDITS_SCHEMA} credits)
+                    {bulkSchemaCredits > credits ? ` - not enough credits (${credits} available)` : ""}
+                  </Text>
+                </BlockStack>
+                <Button
+                  variant="primary"
+                  disabled={!bulkSchemaEnabled || selectedItems.length === 0 || bulkSchemaCredits > credits}
+                  loading={isSubmitting && generatingKey === "bulk_schema"}
+                  onClick={handleGenerateBulkSchema}
+                >
+                  Generate Schema ({bulkSchemaCredits} credits)
+                </Button>
+              </InlineStack>
+            </Box>
             <Tabs tabs={tabs} selected={selectedTab} onSelect={setSelectedTab}>
               <Box padding="0">
                 <ResourceTab
@@ -932,6 +1035,9 @@ export default function AiVisibilityPage() {
                   items={tabItems[selectedTab]}
                   resourceType={tabTypes[selectedTab]}
                   onSelectItem={(item) => setSelectedItemKey({ id: item.id, resourceType: item.resourceType })}
+                  selectedIds={selectedIds}
+                  onToggleItem={(itemId, checked) => handleToggleBulkItem(activeResourceType, itemId, checked)}
+                  onTogglePage={(itemIds, checked) => handleToggleBulkPage(activeResourceType, itemIds, checked)}
                 />
               </Box>
             </Tabs>

@@ -17,6 +17,14 @@ export const CREDITS_COMBINED = 5;
 const SHOPIFY_ADMIN_API_VERSION = "2026-04";
 const METAFIELD_NAMESPACE = "content_ai_geo";
 const METAFIELD_TYPE = "json";
+const PRODUCT_UPDATE_DESCRIPTION_MUTATION = `#graphql
+  mutation ProductUpdateDescription($product: ProductUpdateInput!) {
+    productUpdate(product: $product) {
+      product { id descriptionHtml }
+      userErrors { field message }
+    }
+  }
+`;
 
 export function calcLlmsTxtCredits(itemCount) {
   return Math.min(20, Math.max(5, Math.ceil(itemCount / 10)));
@@ -24,23 +32,21 @@ export function calcLlmsTxtCredits(itemCount) {
 
 export function calculateScore({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt }) {
   let score = 0;
-  if (hasSeoTitle) score += 10;
-  if (hasSeoDescription) score += 10;
-  if (hasContent) score += 10;
-  if (hasSchema) score += 30;
-  if (hasFaq) score += 30;
-  if (hasLlmsTxt) score += 10;
+  if (hasSeoTitle) score += 15;
+  if (hasSeoDescription) score += 15;
+  if (hasContent) score += 15;
+  if (hasSchema) score += 40;
+  if (hasLlmsTxt) score += 15;
   return score;
 }
 
 export function scoreBreakdown({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt }) {
   return [
-    { signal: "Meta title", points: 10, achieved: hasSeoTitle },
-    { signal: "Meta description", points: 10, achieved: hasSeoDescription },
-    { signal: "Body / description content", points: 10, achieved: hasContent },
-    { signal: "Schema markup generated", points: 30, achieved: hasSchema },
-    { signal: "FAQ section generated", points: 30, achieved: hasFaq },
-    { signal: "Included in llms.txt", points: 10, achieved: hasLlmsTxt },
+    { signal: "Meta title", points: 15, achieved: hasSeoTitle },
+    { signal: "Meta description", points: 15, achieved: hasSeoDescription },
+    { signal: "Body / description content", points: 15, achieved: hasContent },
+    { signal: "Schema markup generated", points: 40, achieved: hasSchema },
+    { signal: "Included in llms.txt", points: 15, achieved: hasLlmsTxt },
   ];
 }
 
@@ -72,6 +78,7 @@ function restIdFromGid(gid) {
 function restResourcePath(resourceType, resource) {
   const id = restIdFromGid(resource.id);
   if (resourceType === "product") return `products/${id}`;
+  if (resourceType === "collection") return `collections/${id}`;
   if (resourceType === "article") return `articles/${id}`;
   if (resourceType === "page") return `pages/${id}`;
   throw new Error(`Unsupported metafield resourceType: ${resourceType}`);
@@ -131,6 +138,23 @@ async function writeMetafieldWithGraphQL(adminGraphQL, ownerId, key, jsonValue) 
   } catch (err) {
     throw new Error(`Unable to write ${key} metafield: ${err?.message || "unknown Shopify error"}`);
   }
+}
+
+function buildAccessTokenGraphQLClient(shop, accessToken) {
+  if (!accessToken) return null;
+  return async (query, options = {}) => {
+    const response = await fetch(`https://${shop}/admin/api/${SHOPIFY_ADMIN_API_VERSION}/graphql.json`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": accessToken,
+      },
+      body: JSON.stringify({ query, variables: options.variables || {} }),
+    });
+    return {
+      json: async () => response.json(),
+    };
+  };
 }
 
 async function writeMetafieldWithRest({ shop, accessToken, resourceType, resource, key, jsonValue }) {
@@ -279,6 +303,132 @@ export async function generateSchema(shop, adminContext, resourceType, resource)
   }
 }
 
+export async function generateProductSchemaForBulk(shop, accessToken, resource, aiOptions) {
+  const variant = resource.variants?.edges?.[0]?.node;
+  const promptObj = buildProductSchemaPrompt({
+    title: resource.title,
+    description: (resource.description || resource.descriptionHtml || "").substring(0, 500),
+    vendor: resource.vendor,
+    productType: resource.productType,
+    price: variant?.price || resource.priceRangeV2?.minVariantPrice?.amount,
+    currencyCode: resource.priceRangeV2?.minVariantPrice?.currencyCode || "USD",
+    available: resource.status === "ACTIVE",
+    url: `https://${shop}/products/${resource.handle || ""}`,
+  });
+
+  const raw = await callAIRaw(promptObj.prompt, promptObj.systemPrompt, aiOptions);
+  const obj = parseJsonResponse(raw);
+  const schemaJson = JSON.stringify(obj);
+  const metafieldId = await writeResourceMetafield({
+    shop,
+    accessToken,
+    resourceType: "product",
+    resource,
+    key: "schema_json",
+    jsonValue: schemaJson,
+  });
+
+  await db.aiVisibilitySchema.upsert({
+    where: { shop_resourceType_resourceId: { shop, resourceType: "product", resourceId: resource.id } },
+    create: { shop, resourceType: "product", resourceId: resource.id, schemaType: "Product", schemaJson, metafieldId, creditsUsed: CREDITS_SCHEMA },
+    update: { schemaJson, metafieldId, creditsUsed: CREDITS_SCHEMA, updatedAt: new Date() },
+  });
+
+  return { schemaJson, creditsUsed: CREDITS_SCHEMA };
+}
+
+function buildFaqPageJson(items) {
+  return JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: items.map((qa) => ({
+      "@type": "Question",
+      name: qa.question,
+      acceptedAnswer: { "@type": "Answer", text: qa.answer },
+    })),
+  });
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildFaqHtml(items) {
+  if (!items.length) return "";
+  return [
+    '<section data-content-ai-faq="true">',
+    "<h2>Frequently Asked Questions</h2>",
+    ...items.map((qa) => (
+      `<h3>${escapeHtml(qa.question)}</h3><p>${escapeHtml(qa.answer)}</p>`
+    )),
+    "</section>",
+  ].join("");
+}
+
+function appendFaqHtmlToDescription(descriptionHtml, faqHtml) {
+  const cleaned = String(descriptionHtml || "")
+    .replace(/<section\b[^>]*data-content-ai-faq=["']true["'][^>]*>[\s\S]*?<\/section>/gi, "")
+    .trim();
+  return [cleaned, faqHtml].filter(Boolean).join("\n\n");
+}
+
+async function updateProductDescriptionHtml(shop, accessToken, productId, descriptionHtml) {
+  const adminGraphQL = buildAccessTokenGraphQLClient(shop, accessToken);
+  if (!adminGraphQL) throw new Error("Missing Shopify access token for product FAQ write.");
+  const res = await adminGraphQL(PRODUCT_UPDATE_DESCRIPTION_MUTATION, {
+    variables: { product: { id: productId, descriptionHtml } },
+  });
+  const json = await res.json();
+  const errors = json?.errors || json?.data?.productUpdate?.userErrors || [];
+  if (errors.length > 0) {
+    throw new Error(errors.map((e) => e.message).join(", "));
+  }
+}
+
+export async function generateBulkFaq(shop, accessToken, resourceType, resource, aiOptions, options = {}) {
+  const title = resource.title || resource.productTitle || resource.collectionTitle || "Untitled";
+  const description = (
+    resource.description ||
+    resource.descriptionHtml ||
+    resource.productDescHtml ||
+    ""
+  ).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().substring(0, 500);
+  const promptObj = buildProductFaqPrompt({ title, description });
+  const raw = await callAIRaw(promptObj.prompt, promptObj.systemPrompt, aiOptions);
+  const arr = parseJsonResponse(raw);
+  if (!Array.isArray(arr)) throw new Error("AI returned non-array for FAQ.");
+  const faqJson = buildFaqPageJson(arr);
+  const faqHtml = buildFaqHtml(arr);
+
+  if (resourceType === "product" && options.appendToProductDescription !== false) {
+    const nextDescriptionHtml = appendFaqHtmlToDescription(resource.descriptionHtml, faqHtml);
+    await updateProductDescriptionHtml(shop, accessToken, resource.id, nextDescriptionHtml);
+  }
+
+  const metafieldId = await writeResourceMetafield({
+    shop,
+    adminGraphQL: buildAccessTokenGraphQLClient(shop, accessToken),
+    accessToken,
+    resourceType,
+    resource,
+    key: "faq_json",
+    jsonValue: faqJson,
+  });
+
+  await db.aiVisibilityFaq.upsert({
+    where: { shop_resourceType_resourceId: { shop, resourceType, resourceId: resource.id } },
+    create: { shop, resourceType, resourceId: resource.id, faqJson, metafieldId, creditsUsed: CREDITS_FAQ },
+    update: { faqJson, metafieldId, creditsUsed: CREDITS_FAQ, updatedAt: new Date() },
+  });
+
+  return { faqJson, faqHtml, creditsUsed: CREDITS_FAQ };
+}
+
 export async function generateFaq(shop, adminContext, resourceType, resource) {
   const { adminGraphQL, accessToken } = getAdminContext(adminContext);
   if (resourceType === "page") throw new Error("FAQ is not supported for pages.");
@@ -304,16 +454,7 @@ export async function generateFaq(shop, adminContext, resourceType, resource) {
     const raw = await callAIRaw(promptObj.prompt, promptObj.systemPrompt, aiOptions);
     const arr = parseJsonResponse(raw);
     if (!Array.isArray(arr)) throw new Error("AI returned non-array for FAQ.");
-    const faqPageSchema = {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      mainEntity: arr.map((qa) => ({
-        "@type": "Question",
-        name: qa.question,
-        acceptedAnswer: { "@type": "Answer", text: qa.answer },
-      })),
-    };
-    const faqPageJson = JSON.stringify(faqPageSchema);
+    const faqPageJson = buildFaqPageJson(arr);
 
     const metafieldId = await writeResourceMetafield({
       shop,

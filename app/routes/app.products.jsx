@@ -53,8 +53,15 @@ const BULK_GENERATE_INTENT = "bulk_generate";
 const MAX_BULK_ITEMS = 1000;
 const MIN_BULK_PRODUCT_SELECTION_ERROR = "Select at least one product for bulk generation.";
 const MAX_BULK_PRODUCT_SELECTION_ERROR = `You can bulk generate up to ${MAX_BULK_ITEMS} products at a time.`;
-const PRODUCT_CONTENT_TYPES = ["description", "meta_title", "meta_description"];
+const PRODUCT_CONTENT_TYPES = ["description", "meta_title", "meta_description", "schema", "faq"];
 const DEFAULT_PRODUCT_CONTENT_TYPES = ["description", "meta_title", "meta_description"];
+const PRODUCT_CONTENT_TYPE_CREDIT_COSTS = {
+  description: 1,
+  meta_title: 1,
+  meta_description: 1,
+  schema: 2,
+  faq: 5,
+};
 const DEFAULT_AI_MODEL = "gpt-4o-mini";
 const DEFAULT_OLLAMA_MODEL = "llama3.2:1b";
 const DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434";
@@ -160,12 +167,16 @@ const COLLECTION_PRODUCTS_QUERY = `#graphql
             id
             title
             handle
+            vendor
+            productType
             status
             descriptionHtml
             seo {
               title
               description
             }
+            priceRangeV2 { minVariantPrice { amount currencyCode } }
+            variants(first: 1) { edges { node { price } } }
             }
         }
         pageInfo {
@@ -196,12 +207,16 @@ const PRODUCT_LIST_QUERY = `#graphql
           id
           title
           handle
+          vendor
+          productType
           status
           descriptionHtml
           seo {
             title
             description
           }
+          priceRangeV2 { minVariantPrice { amount currencyCode } }
+          variants(first: 1) { edges { node { price } } }
         }
       }
       pageInfo {
@@ -368,6 +383,18 @@ function toSeoPalette(tone) {
 
 function renderBadge({ label, tone }) {
   return <Badge tone={toBadgeTone(tone)}>{label}</Badge>;
+}
+
+function clientCreditsForContentTypes(contentTypes) {
+  return (contentTypes || []).reduce(
+    (sum, type) => sum + (PRODUCT_CONTENT_TYPE_CREDIT_COSTS[type] ?? 1),
+    0,
+  );
+}
+
+function clientCreditsForBatch(contentTypes, itemsCount) {
+  if (!itemsCount || itemsCount < 1) return 0;
+  return clientCreditsForContentTypes(contentTypes) * itemsCount;
 }
 
 function readFormString(formData, key) {
@@ -1015,6 +1042,7 @@ export const action = async ({ request }) => {
         metaTitlePromptTemplate: metaTitlePromptTemplate || "",
         metaDescriptionPromptTemplate: metaDescriptionPromptTemplate || "",
         contentTypes: selectedContentTypes,
+        creditsPerItem,
         aiProvider,
         addTitleAsHeading: addTitleAsHeadingFlag,
         preserveOldDescription: preserveOldDescriptionFlag,
@@ -1024,9 +1052,15 @@ export const action = async ({ request }) => {
       const jobItems = bulkProducts.map((p) => ({
         id: p.id,
         title: p.title,
+        handle: p.handle || "",
+        vendor: p.vendor || "",
+        productType: p.productType || "",
+        status: p.status || "ACTIVE",
         descriptionHtml: p.descriptionHtml || "",
         seoTitle: p.seoTitleValue || "",
         seoDescription: p.seoDescriptionValue || "",
+        priceRangeV2: p.priceRangeV2 || null,
+        variants: p.variants || null,
       }));
 
       const job = await db.bulkJob.create({
@@ -1205,10 +1239,15 @@ export const loader = async ({ request }) => {
       id: node.id,
       title: node.title,
       handle: node.handle,
+      vendor: node.vendor || "",
+      productType: node.productType || "",
+      priceRangeV2: node.priceRangeV2 || null,
+      variants: node.variants || null,
       descriptionHtml: node.descriptionHtml || "",
       descriptionText: stripHtml(node.descriptionHtml),
       descriptionStatus: evaluateDescription(stripHtml(node.descriptionHtml)),
       status: toStatusMeta(node.status),
+      statusValue: node.status,
       appStatus: toAppGenerationStatusMeta(generatedContent),
       generatedTime: formatRelativeGenerationTime(generatedContent?.updatedAt),
       seoTitle: evaluateSeoTitle(node.seo?.title || node.title),
@@ -1374,7 +1413,8 @@ export default function ProductsPage() {
     [filteredProducts, selectedProductIds],
   );
   const exceedsBulkLimit = selectedProducts.length > MAX_BULK_ITEMS;
-  const requiredBulkCredits = selectedProducts.length * bulkContentTypes.length;
+  const bulkCreditsPerProduct = clientCreditsForContentTypes(bulkContentTypes);
+  const requiredBulkCredits = clientCreditsForBatch(bulkContentTypes, selectedProducts.length);
   const insufficientCredits = requiredBulkCredits > 0 && requiredBulkCredits > credits;
   const hasRequiredBulkTemplates = useMemo(() => {
     if (bulkContentTypes.includes("description")) {
@@ -1511,9 +1551,15 @@ export default function ProductsPage() {
       selectedProducts.map((p) => ({
         id: p.id,
         title: p.title,
+        handle: p.handle,
+        vendor: p.vendor,
+        productType: p.productType,
+        status: p.statusValue,
         descriptionHtml: p.descriptionHtml,
         seoTitleValue: p.seoTitleValue,
         seoDescriptionValue: p.seoDescriptionValue,
+        priceRangeV2: p.priceRangeV2,
+        variants: p.variants,
       }))
     ));
     payload.append("language", outputLanguage || "English");
@@ -1930,6 +1976,8 @@ export default function ProductsPage() {
                     bulkContentTypes.includes("description") ? "Descriptions" : null,
                     bulkContentTypes.includes("meta_description") ? "Meta Descriptions" : null,
                     bulkContentTypes.includes("meta_title") ? "Meta Titles" : null,
+                    bulkContentTypes.includes("schema") ? "Schema Markup" : null,
+                    bulkContentTypes.includes("faq") ? "FAQ" : null,
                   ].filter(Boolean).join(", ")} will be generated for {selectedProducts.length} product{selectedProducts.length !== 1 ? "s" : ""}
                 </Text>
               </BlockStack>
@@ -1942,6 +1990,8 @@ export default function ProductsPage() {
                   { id: "description", label: "Description" },
                   { id: "meta_description", label: "Meta Description" },
                   { id: "meta_title", label: "Meta Title" },
+                  { id: "schema", label: "Schema Markup" },
+                  { id: "faq", label: "FAQ" },
                 ].map((type) => {
                   const isSelected = bulkContentTypes.includes(type.id);
                   return (
@@ -2279,8 +2329,8 @@ export default function ProductsPage() {
 
             <div style={{ padding: "8px 16px", borderTop: "1px solid var(--p-color-border)" }}>
               <Text as="p" variant="bodySm" tone={insufficientCredits ? "critical" : "subdued"}>
-                Estimated credits: {requiredBulkCredits} ({selectedProducts.length} products × {bulkContentTypes.length} types)
-                {insufficientCredits ? ` — not enough credits (${credits} available)` : ""}
+                Estimated credits used: {requiredBulkCredits} ({selectedProducts.length} products x {bulkCreditsPerProduct} credits each)
+                {insufficientCredits ? ` - not enough credits (${credits} available)` : ""}
               </Text>
             </div>
 
@@ -2301,7 +2351,7 @@ export default function ProductsPage() {
                 loading={isBulkGenerating}
                 tone="success"
               >
-                {`Generate ${selectedProducts.length} items (${selectedProducts.length} products × ${bulkContentTypes.length} types)`}
+                {`Generate ${selectedProducts.length} items (${requiredBulkCredits} credits)`}
               </Button>
             </div>
           </Card>

@@ -9,6 +9,13 @@ export function getDefaultFreeCredits() {
 export const DEFAULT_FREE_CREDITS = getDefaultFreeCredits();
 export const CREDITS_PER_CONTENT_FIELD = 1;
 export const FULL_CONTENT_TYPES = ["description", "meta_title", "meta_description"];
+const CONTENT_TYPE_CREDIT_COSTS = {
+  description: CREDITS_PER_CONTENT_FIELD,
+  meta_title: CREDITS_PER_CONTENT_FIELD,
+  meta_description: CREDITS_PER_CONTENT_FIELD,
+  schema: 2,
+  faq: 5,
+};
 
 function unique(values) {
   return Array.from(new Set(values));
@@ -41,7 +48,10 @@ export function parseSelectedContentTypes(rawValue, allowedTypes, fallbackTypes)
 }
 
 export function creditsForContentTypes(contentTypes) {
-  return (contentTypes?.length || 0) * CREDITS_PER_CONTENT_FIELD;
+  return (contentTypes || []).reduce(
+    (sum, type) => sum + (CONTENT_TYPE_CREDIT_COSTS[type] ?? CREDITS_PER_CONTENT_FIELD),
+    0,
+  );
 }
 
 export function creditsForBatch(contentTypes, itemsCount) {

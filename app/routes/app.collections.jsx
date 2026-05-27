@@ -61,8 +61,14 @@ const COLLECTION_PRODUCTS_MODE = "collection-products";
 const MAX_BULK_ITEMS = 500;
 const MIN_BULK_COLLECTION_SELECTION_ERROR = "Select at least one collection for bulk generation.";
 const MAX_BULK_COLLECTION_SELECTION_ERROR = `You can bulk generate up to ${MAX_BULK_ITEMS} collections at a time.`;
-const COLLECTION_CONTENT_TYPES = ["description", "meta_title", "meta_description"];
+const COLLECTION_CONTENT_TYPES = ["description", "meta_title", "meta_description", "faq"];
 const DEFAULT_COLLECTION_CONTENT_TYPES = ["description", "meta_title", "meta_description"];
+const COLLECTION_CONTENT_TYPE_CREDIT_COSTS = {
+  description: 1,
+  meta_title: 1,
+  meta_description: 1,
+  faq: 5,
+};
 const DEFAULT_AI_MODEL = "gpt-4o-mini";
 const DEFAULT_OLLAMA_MODEL = "llama3.2:1b";
 const DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434";
@@ -375,6 +381,18 @@ function toBadgeTone(tone) {
 
 function renderBadge({ label, tone }) {
   return <Badge tone={toBadgeTone(tone)}>{label}</Badge>;
+}
+
+function clientCreditsForContentTypes(contentTypes) {
+  return (contentTypes || []).reduce(
+    (sum, type) => sum + (COLLECTION_CONTENT_TYPE_CREDIT_COSTS[type] ?? 1),
+    0,
+  );
+}
+
+function clientCreditsForBatch(contentTypes, itemsCount) {
+  if (!itemsCount || itemsCount < 1) return 0;
+  return clientCreditsForContentTypes(contentTypes) * itemsCount;
 }
 
 function formatDate(dateValue) {
@@ -1107,6 +1125,7 @@ export const action = async ({ request }) => {
           metaTitlePromptTemplate: metaTitlePromptTemplate || "",
           metaDescriptionPromptTemplate: metaDescriptionPromptTemplate || "",
           contentTypes: selectedContentTypes,
+          creditsPerItem,
           aiProvider,
           addTitleAsHeading: addTitleAsHeadingFlag,
           preserveOldDescription: preserveOldDescriptionFlag,
@@ -1220,6 +1239,7 @@ export const action = async ({ request }) => {
         metaTitlePromptTemplate: metaTitlePromptTemplate || "",
         metaDescriptionPromptTemplate: metaDescriptionPromptTemplate || "",
         contentTypes: selectedContentTypes,
+        creditsPerItem,
         aiProvider,
         addTitleAsHeading: addTitleAsHeadingFlag,
         preserveOldDescription: preserveOldDescriptionFlag,
@@ -2037,7 +2057,8 @@ export default function CollectionsPage() {
     targetCollectionsForBulk,
   ]);
 
-  const requiredBulkCredits = estimatedTargetItems * bulkContentTypes.length;
+  const bulkCreditsPerItem = clientCreditsForContentTypes(bulkContentTypes);
+  const requiredBulkCredits = clientCreditsForBatch(bulkContentTypes, estimatedTargetItems);
   const insufficientCredits = requiredBulkCredits > 0 && requiredBulkCredits > credits;
 
   const allVisibleSelected =
@@ -2479,6 +2500,7 @@ export default function CollectionsPage() {
                     bulkContentTypes.includes("description") ? "Descriptions" : null,
                     bulkContentTypes.includes("meta_description") ? "Meta Descriptions" : null,
                     bulkContentTypes.includes("meta_title") ? "Meta Titles" : null,
+                    bulkContentTypes.includes("faq") ? "FAQ" : null,
                   ].filter(Boolean).join(", ")} will be generated for{" "}
                   {isCollectionProductsMode
                     ? `${estimatedTargetItems} product${estimatedTargetItems !== 1 ? "s" : ""}`
@@ -2495,6 +2517,7 @@ export default function CollectionsPage() {
                   { id: "description", label: "Description" },
                   { id: "meta_description", label: "Meta Description" },
                   { id: "meta_title", label: "Meta Title" },
+                  { id: "faq", label: "FAQ" },
                 ].map((type) => {
                   const isSelected = bulkContentTypes.includes(type.id);
                   return (
@@ -2797,11 +2820,11 @@ export default function CollectionsPage() {
 
             <div style={{ padding: "8px 16px", borderTop: "1px solid var(--p-color-border)" }}>
               <Text as="p" variant="bodySm" tone={insufficientCredits ? "critical" : "subdued"}>
-                Estimated credits: {requiredBulkCredits} (
+                Estimated credits used: {requiredBulkCredits} (
                 {isCollectionProductsMode
                   ? `${estimatedTargetItems} products`
-                  : `${selectedCollections.length} collections`} × {bulkContentTypes.length} types)
-                {insufficientCredits ? ` — not enough credits (${credits} available)` : ""}
+                  : `${selectedCollections.length} collections`} x {bulkCreditsPerItem} credits each)
+                {insufficientCredits ? ` - not enough credits (${credits} available)` : ""}
               </Text>
             </div>
 
@@ -2823,8 +2846,8 @@ export default function CollectionsPage() {
                 tone="success"
               >
                 {isCollectionProductsMode
-                  ? `Generate ${estimatedTargetItems} items (${estimatedTargetItems} products × ${bulkContentTypes.length} types)`
-                  : `Generate ${selectedCollections.length} items (${selectedCollections.length} collections × ${bulkContentTypes.length} types)`}
+                  ? `Generate ${estimatedTargetItems} items (${requiredBulkCredits} credits)`
+                  : `Generate ${selectedCollections.length} items (${requiredBulkCredits} credits)`}
               </Button>
             </div>
           </Card>

@@ -7,7 +7,10 @@ import {
   generateCollectionProductItem,
   updateJobProgress,
 } from "../lib/generateContent.server";
+import { generateBulkFaq, generateProductSchemaForBulk } from "../lib/aiVisibility.server";
 import { refundCredits } from "../lib/credits.server";
+
+const STANDARD_CONTENT_TYPES = ["description", "meta_title", "meta_description"];
 
 function chunkArray(arr, size) {
   const chunks = [];
@@ -17,10 +20,52 @@ function chunkArray(arr, size) {
   return chunks;
 }
 
-async function generateItem(jobType, item, settings, apiKeys) {
-  if (jobType === "collection") return generateCollectionItem(item, settings, apiKeys);
-  if (jobType === "collection_product") return generateCollectionProductItem(item, settings, apiKeys);
-  return generateProductItem(item, settings, apiKeys);
+async function generateItem(jobType, item, settings, apiKeys, accessToken) {
+  const standardContentTypes = (settings.contentTypes || []).filter((type) => STANDARD_CONTENT_TYPES.includes(type));
+  const aiOptions = {
+    aiProvider: settings.aiProvider,
+    openaiKey: apiKeys.openaiApiKey,
+    anthropicKey: apiKeys.anthropicApiKey,
+    geminiKey: apiKeys.geminiApiKey,
+  };
+
+  if (jobType === "collection") {
+    if (standardContentTypes.length > 0) {
+      await generateCollectionItem(item, { ...settings, contentTypes: standardContentTypes }, apiKeys);
+    }
+    if ((settings.contentTypes || []).includes("faq")) {
+      await generateBulkFaq(settings.shop, accessToken, "collection", item, aiOptions);
+    }
+    return { creditsUsed: settings.creditsPerItem || (settings.contentTypes?.length || 0) };
+  }
+
+  if (jobType === "collection_product") {
+    if (standardContentTypes.length > 0) {
+      await generateCollectionProductItem(item, { ...settings, contentTypes: standardContentTypes }, apiKeys);
+    }
+    if ((settings.contentTypes || []).includes("faq")) {
+      await generateBulkFaq(
+        settings.shop,
+        accessToken,
+        "product",
+        { id: item.productId, title: item.productTitle, descriptionHtml: item.productDescHtml },
+        aiOptions,
+      );
+    }
+    return { creditsUsed: settings.creditsPerItem || (settings.contentTypes?.length || 0) };
+  }
+
+  if (standardContentTypes.length > 0) {
+    await generateProductItem(item, { ...settings, contentTypes: standardContentTypes }, apiKeys);
+  }
+  if ((settings.contentTypes || []).includes("schema")) {
+    await generateProductSchemaForBulk(settings.shop, accessToken, item, aiOptions);
+  }
+  if ((settings.contentTypes || []).includes("faq")) {
+    await generateBulkFaq(settings.shop, accessToken, "product", item, aiOptions);
+  }
+
+  return { creditsUsed: settings.creditsPerItem || (settings.contentTypes?.length || 0) };
 }
 
 export const bulkGenerateFunction = inngest.createFunction(
@@ -55,15 +100,18 @@ export const bulkGenerateFunction = inngest.createFunction(
     );
 
     const apiKeys = await step.run("fetch-api-keys", () => getApiKeys(shop));
+    const shopData = await step.run("fetch-shop-access-token", () =>
+      db.shop.findUnique({ where: { shop }, select: { accessToken: true } }),
+    );
 
     const settingsWithShop = { ...settings, shop };
-    const creditsPerItem = (settings.contentTypes?.length || 0);
+    const creditsPerItem = settings.creditsPerItem || (settings.contentTypes?.length || 0);
     const chunks = chunkArray(items, 10);
 
     for (let i = 0; i < chunks.length; i++) {
       await step.run(`chunk-${i}`, async () => {
         const results = await Promise.allSettled(
-          chunks[i].map((item) => generateItem(jobType, item, settingsWithShop, apiKeys)),
+          chunks[i].map((item) => generateItem(jobType, item, settingsWithShop, apiKeys, shopData?.accessToken)),
         );
         await updateJobProgress(jobId, chunks[i], results, creditsPerItem);
       });
