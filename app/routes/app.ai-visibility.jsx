@@ -191,6 +191,7 @@ export const loader = async ({ request }) => {
     shopName,
     shopDomain,
     shop,
+    appApiKey: process.env.SHOPIFY_API_KEY || "",
     credits: creditSnapshot.credits,
     themeEmbedEnabled: shopData?.themeEmbedEnabled ?? false,
     llmsTxtCredits: calcLlmsTxtCredits(products.length + articles.length + pages.length),
@@ -298,9 +299,14 @@ export const action = async ({ request }) => {
         const settings = JSON.parse(content);
         const blocks = settings?.current?.blocks || {};
 
-        // Check if any block key contains our extension handle and is not explicitly disabled
+        // Shopify stores the app embed handle in either the block key or block type,
+        // depending on the theme/editor version.
         const embedEnabled = Object.entries(blocks).some(
-          ([key, val]) => key.includes("ai-visibility-embed") && val?.disabled !== true
+          ([key, val]) =>
+            [key, val?.type, val?.name]
+              .filter(Boolean)
+              .some((entry) => String(entry).includes("ai-visibility-embed")) &&
+            val?.disabled !== true
         );
         await db.shop.update({ where: { shop }, data: { themeEmbedEnabled: embedEnabled } });
         return { ok: true, intent, themeEmbedEnabled: embedEnabled };
@@ -624,6 +630,7 @@ export default function AiVisibilityPage() {
     pages: initialPages,
     llmsTxt: initialLlmsTxt,
     shop,
+    appApiKey,
     themeEmbedEnabled: initialEmbedEnabled,
     llmsTxtCredits,
     credits: initialCredits,
@@ -827,6 +834,10 @@ export default function AiVisibilityPage() {
   const bulkSchemaCredits = selectedItems.length * CREDITS_SCHEMA;
 
   const llmsTxtUrl = `https://${shop}/apps/llms-txt`;
+  const appEmbedActivation = appApiKey
+    ? `&activateAppId=${encodeURIComponent(appApiKey)}/ai-visibility-embed`
+    : "";
+  const themeEditorUrl = `https://${shop}/admin/themes/current/editor?context=apps${appEmbedActivation}`;
 
   const progressTone = totalScore >= 80 ? "success" : "highlight";
 
@@ -971,7 +982,7 @@ export default function AiVisibilityPage() {
                 <InlineStack gap="200" wrap>
                   {!embedEnabled && (
                     <Button
-                      url={`https://${shop}/admin/themes/current/editor?context=apps`}
+                      url={themeEditorUrl}
                       external
                       size="slim"
                       variant="primary"
