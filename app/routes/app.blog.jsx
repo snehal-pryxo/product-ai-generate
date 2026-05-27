@@ -2921,16 +2921,17 @@ const showOfferTextField = isDiscountPromotion(promotion);
   function submitGenerateOutlines() {
     setOutlines([]);
     setSelectedOutlineId(null);
+    const isFestival = activeTabKey === TAB_KEYS.PROMOTION && promotionType === "festival" && festivalText.trim();
     const payload = new FormData();
     payload.append("intent", "generate_outlines");
-    payload.append("tabType", activeTabKey);
+    payload.append("tabType", isFestival ? TAB_KEYS.HOLIDAY : activeTabKey);
     payload.append("topic", topic);
     payload.append("postLength", activeTabKey === TAB_KEYS.PILLAR ? "pillar" : postLength);
     payload.append("tone", tone);
     payload.append("targetAudience", targetAudience);
-    payload.append("promotion", promotion);
-    payload.append("offerText", effectiveOfferText);
-    payload.append("holiday", holiday);
+    payload.append("promotion", isFestival ? "No promotion" : promotion);
+    payload.append("offerText", isFestival ? "" : effectiveOfferText);
+    payload.append("holiday", isFestival ? festivalText.trim() : holiday);
     payload.append("productUrls", JSON.stringify(selectedResources.map((r) => ({
       url: `https://${shopDomain}/${r.type === "product" ? "products" : "collections"}/${r.handle}`,
       title: r.title,
@@ -3122,10 +3123,23 @@ const showOfferTextField = isDiscountPromotion(promotion);
                 <BlockStack gap="300">
                   {activeTabKey === TAB_KEYS.PROMOTION ? (
                     <div className="blog-generator-fields">
-                      <Select label="Promotion" options={promotionOptions} value={promotion} onChange={handlePromotionChange} />
-                      {showOfferTextField ? (
-                        <TextField label="Add your offer here" value={offerText} onChange={setOfferText} autoComplete="off" placeholder="40% off" />
-                      ) : null}
+                      <Select label="Type" options={PROMOTION_TYPE_OPTIONS} value={promotionType} onChange={setPromotionType} />
+                      {promotionType === "festival" ? (
+                        <TextField
+                          label="Festival name"
+                          value={festivalText}
+                          onChange={setFestivalText}
+                          autoComplete="off"
+                          placeholder="e.g. Christmas, Diwali, Black Friday"
+                        />
+                      ) : (
+                        <>
+                          <Select label="Promotion" options={promotionOptions} value={promotion} onChange={handlePromotionChange} />
+                          {showOfferTextField ? (
+                            <TextField label="Add your offer here" value={offerText} onChange={setOfferText} autoComplete="off" placeholder="40% off" />
+                          ) : null}
+                        </>
+                      )}
                       <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                       <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                       <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
@@ -3173,7 +3187,7 @@ const showOfferTextField = isDiscountPromotion(promotion);
                       variant="primary"
                       onClick={submitGenerateOutlines}
                       loading={fetcher.state !== "idle" && String(fetcher.formData?.get("intent")) === "generate_outlines"}
-                      disabled={blogs.length === 0}
+                      disabled={blogs.length === 0 || (activeTabKey === TAB_KEYS.PROMOTION && promotionType === "festival" && !festivalText.trim())}
                     >
                       Get Ideas
                     </Button>
