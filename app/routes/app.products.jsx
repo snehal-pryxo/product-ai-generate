@@ -1309,7 +1309,7 @@ function readArrayState(value, fallback = []) {
 }
 
 export default function ProductsPage() {
-  const { filters, products, collections, keywordLibrary, defaultAiProvider, credits, shopOwnerName } = useLoaderData();
+  const { filters, products, collections, keywordLibrary = [], defaultAiProvider, credits, shopOwnerName } = useLoaderData();
   const navigation = useNavigation();
   const navigate = useNavigate();
   const location = useLocation();
