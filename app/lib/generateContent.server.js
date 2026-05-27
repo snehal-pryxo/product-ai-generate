@@ -1140,31 +1140,46 @@ export async function applyProductToShopify(shop, accessToken, productId, conten
     });
     if (!content) return;
 
-    const hasDesc = contentTypes.includes("description") || contentTypes.includes("faq");
+    const hasDesc = contentTypes.includes("description");
     const hasMetaTitle = contentTypes.includes("meta_title");
     const hasMetaDesc = contentTypes.includes("meta_description");
     const hasFaq = contentTypes.includes("faq");
 
     const productInput = { id: productId };
-    if (hasDesc) productInput.descriptionHtml = content.descriptionHtml || "";
+    if (hasDesc) {
+      // Strip any appended FAQ section so only the clean description goes to Shopify
+      const cleanDesc = String(content.descriptionHtml || "")
+        .replace(/<section\b[^>]*data-content-ai-faq=["']true["'][^>]*>[\s\S]*?<\/section>/gi, "")
+        .trim();
+      productInput.descriptionHtml = cleanDesc;
+    }
     const seo = {};
     if (hasMetaTitle) seo.title = content.seoTitle || "";
     if (hasMetaDesc) seo.description = content.seoDescription || "";
     if (Object.keys(seo).length > 0) productInput.seo = seo;
 
-    const result = await shopifyGraphQL(shop, accessToken, SHOPIFY_PRODUCT_UPDATE_MUTATION, { product: productInput });
-    const userErrors = result?.data?.productUpdate?.userErrors || [];
-    if (userErrors.length > 0) {
-      console.error("applyProductToShopify productUpdate errors:", userErrors);
-      return;
+    if (Object.keys(productInput).length > 1) {
+      const result = await shopifyGraphQL(shop, accessToken, SHOPIFY_PRODUCT_UPDATE_MUTATION, { product: productInput });
+      const userErrors = result?.data?.productUpdate?.userErrors || [];
+      if (userErrors.length > 0) {
+        console.error("applyProductToShopify productUpdate errors:", userErrors);
+        return;
+      }
     }
 
-    if (hasFaq && content.faqJson) {
-      const mfResult = await shopifyGraphQL(shop, accessToken, SHOPIFY_METAFIELDS_SET_MUTATION, {
-        metafields: [{ ownerId: productId, namespace: "content_ai_geo", key: "faq_schema", type: "json", value: content.faqJson }],
-      });
-      const mfErrors = mfResult?.data?.metafieldsSet?.userErrors || [];
-      if (mfErrors.length > 0) console.error("applyProductToShopify metafield errors:", mfErrors);
+    if (hasFaq) {
+      const metafields = [];
+      if (content.faqJson) {
+        metafields.push({ ownerId: productId, namespace: "content_ai_geo", key: "faq_schema", type: "json", value: content.faqJson });
+      }
+      if (content.faqHtml) {
+        metafields.push({ ownerId: productId, namespace: "content_ai_geo", key: "faq_html", type: "multi_line_text_field", value: content.faqHtml });
+      }
+      if (metafields.length > 0) {
+        const mfResult = await shopifyGraphQL(shop, accessToken, SHOPIFY_METAFIELDS_SET_MUTATION, { metafields });
+        const mfErrors = mfResult?.data?.metafieldsSet?.userErrors || [];
+        if (mfErrors.length > 0) console.error("applyProductToShopify metafield errors:", mfErrors);
+      }
     }
 
     await db.productGeneratedContent.update({
