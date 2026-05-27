@@ -155,6 +155,8 @@ model ProductGeneratedContent {
   outputTokens    Int      @default(0)
   generationMs    Int?
   descriptionHtml String?  @db.LongText
+  faqHtml         String?  @db.LongText
+  faqJson         String?  @db.LongText
   seoTitle        String?
   seoDescription  String?  @db.Text
   creditsUsed     Int      @default(0)

@@ -91,12 +91,21 @@ const TEMPLATE_SELECTIONS_DEFAULT = {
 };
 
 const TONE_OPTIONS = [
-  { label: "Not specified", value: "" },
+  { label: "Select tone", value: "" },
   { label: "Professional / Formal", value: "professional" },
   { label: "Friendly / Casual", value: "friendly" },
   { label: "Persuasive / Sales-focused", value: "persuasive" },
   { label: "Informational / Technical", value: "informational" },
 ];
+
+const LANGUAGE_OPTIONS = [
+  "English", "Arabic", "Bengali", "Bulgarian",
+  "Chinese", "Chinese (Simplified)", "Chinese (Traditional)", "Croatian", "Czech",
+  "Danish", "Dutch", "Finnish", "French", "German", "Greek", "Hebrew", "Hindi",
+  "Hungarian", "Indonesian", "Italian", "Japanese", "Korean", "Malay", "Norwegian",
+  "Polish", "Portuguese", "Romanian", "Russian", "Spanish", "Swedish", "Tamil",
+  "Telugu", "Thai", "Turkish", "Ukrainian", "Urdu", "Vietnamese",
+].map((language) => ({ label: language, value: language }));
 
 const EMPTY_CUSTOM_FORM = {
   name: "",
@@ -105,7 +114,7 @@ const EMPTY_CUSTOM_FORM = {
   type: "description",
   template: "",
   tone: "",
-  language: "",
+  language: "English",
   exampleOutput: "",
 };
 
@@ -138,7 +147,7 @@ function normalizeCustomTemplates(value) {
       type: typeof entry.type === "string" ? entry.type : "description",
       template: typeof entry.template === "string" ? entry.template : "",
       tone: typeof entry.tone === "string" ? entry.tone : "",
-      language: typeof entry.language === "string" ? entry.language : "",
+      language: typeof entry.language === "string" && entry.language.trim() ? entry.language : "English",
       exampleOutput: typeof entry.exampleOutput === "string" ? entry.exampleOutput : "",
       createdAt: typeof entry.createdAt === "number" ? entry.createdAt : Date.now(),
     }));
@@ -1853,7 +1862,7 @@ export default function TemplatePage() {
       type: template.type,
       template: template.template,
       tone: template.tone || "",
-      language: template.language || "",
+      language: template.language || "English",
       exampleOutput: template.exampleOutput || "",
     });
     setFormErrors({});
@@ -1863,6 +1872,7 @@ export default function TemplatePage() {
   function validateForm() {
     const errors = {};
     if (!formData.name.trim()) errors.name = "Template name is required.";
+    if (!formData.tone.trim()) errors.tone = "Tone is required.";
     if (!formData.template.trim()) errors.template = "Template content is required.";
     return errors;
   }
@@ -2341,20 +2351,20 @@ export default function TemplatePage() {
             />
             <FormLayout.Group>
               <Select
-                label="Tone preference (optional)"
+                label={<span>Tone preference <span style={{ color: "#f59e0b", fontSize: "14px" }}>*</span></span>}
                 options={TONE_OPTIONS}
                 value={formData.tone}
                 onChange={(v) => setFormData((p) => ({ ...p, tone: v }))}
+                error={formErrors.tone}
                 helpText="Override the default tone for AI generation when this template is used."
                 disabled={isLoading}
               />
-              <TextField
-                label="Language (optional)"
+              <Select
+                label="Language"
+                options={LANGUAGE_OPTIONS}
                 value={formData.language}
                 onChange={(v) => setFormData((p) => ({ ...p, language: v }))}
-                placeholder="e.g. French, Spanish, German"
                 helpText="Generate content in a specific language when this template is applied."
-                autoComplete="off"
                 disabled={isLoading}
               />
             </FormLayout.Group>
@@ -2365,7 +2375,8 @@ export default function TemplatePage() {
               error={formErrors.template}
               multiline={10}
               autoComplete="off"
-              helpText="Use [brackets] for structure placeholders and {curly_braces} for dynamic values."
+              placeholder="Example: Write a clear description for {product_title} using the keyword {primary_keyword}."
+              helpText="Use [brackets] for structure placeholders and {curly_braces} for dynamic values, for example {product_title} or {primary_keyword}."
               monospaced
               disabled={isLoading}
             />

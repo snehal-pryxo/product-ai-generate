@@ -160,15 +160,122 @@ function parseAIResponse(rawContent, modelName, meta = {}) {
     if (!jsonMatch) throw new Error("AI response format was invalid.");
     parsed = JSON.parse(jsonMatch[0]);
   }
+  const faqItems = normalizeFaqItems(parsed?.faqs || parsed?.faqItems || parsed?.faq);
   return {
     description: (parsed?.productDescription || parsed?.collectionDescription || parsed?.description || "").trim(),
     seoTitle: cleanInlineText(parsed?.seoTitle || "", 70),
     seoDescription: cleanInlineText(parsed?.seoDescription || "", 160),
+    faqHtml: faqItems.length ? buildFaqHtml(faqItems) : normalizeGeneratedHtml(parsed?.faqHtml || ""),
+    faqJson: faqItems.length ? buildFaqJson(faqItems) : (parsed?.faqJson ? JSON.stringify(parsed.faqJson) : ""),
     aiModel: modelName || null,
     aiProvider: meta.aiProvider || null,
     inputTokens: meta.inputTokens || 0,
     outputTokens: meta.outputTokens || 0,
     generationMs: meta.generationMs || 0,
+  };
+}
+
+function normalizeFaqItems(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => ({
+      question: cleanInlineText(item?.question || item?.q || "", 180),
+      answer: cleanInlineText(item?.answer || item?.a || "", 600),
+    }))
+    .filter((item) => item.question && item.answer)
+    .slice(0, 8);
+}
+
+function buildFaqJson(faqItems) {
+  return JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqItems.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.answer,
+      },
+    })),
+  });
+}
+
+function buildFaqHtml(faqItems) {
+  if (!faqItems.length) return "";
+  return [
+    '<section data-content-ai-faq="true">',
+    "<h2>Frequently Asked Questions</h2>",
+    ...faqItems.map((item) => (
+      `<h3>${escapeHtml(item.question)}</h3><p>${escapeHtml(item.answer)}</p>`
+    )),
+    "</section>",
+  ].join("");
+}
+
+function appendFaqHtmlToDescription(descriptionHtml, faqHtml) {
+  const cleaned = String(descriptionHtml || "")
+    .replace(/<section\b[^>]*data-content-ai-faq=["']true["'][^>]*>[\s\S]*?<\/section>/gi, "")
+    .trim();
+  return [cleaned, faqHtml].filter(Boolean).join("\n\n");
+}
+
+function buildProductFaqPrompt(item, settings) {
+  return [
+    "Task: Generate product FAQ content for a Shopify product.",
+    "",
+    "Inputs:",
+    `- Product title: ${item.title || "Untitled product"}`,
+    `- Vendor: ${item.vendor || "Not provided"}`,
+    `- Product type: ${item.productType || "Not provided"}`,
+    `- Language: ${settings.language || "English"}`,
+    `- Tone: ${settings.tone || "Neutral"}`,
+    `- Keywords and context: ${settings.contextKeywords || "Not provided"}`,
+    `- Current product description: ${stripHtml(item.descriptionHtml || "").slice(0, 1200) || "Not available"}`,
+    "",
+    "Output (return valid JSON only, no markdown, no backticks):",
+    '{ "faqs": [{"question": "...", "answer": "..."}, ...] }',
+    "",
+    "Rules:",
+    "- Generate 4 to 6 useful customer FAQ question-and-answer pairs.",
+    "- Keep answers concise, accurate, and product-specific.",
+    "- Do not invent policies, shipping times, warranties, prices, or claims not present in the inputs.",
+  ].join("\n");
+}
+
+async function generateProductFaq(item, settings, apiKeys, fallbackMeta = {}) {
+  const generated = await callAI(buildProductFaqPrompt(item, settings), getProductSystemPrompt(), {
+    aiProvider: settings.aiProvider,
+    openaiKey: apiKeys.openaiApiKey,
+    anthropicKey: apiKeys.anthropicApiKey,
+    geminiKey: apiKeys.geminiApiKey,
+  });
+  let faqItems = [];
+  if (generated.faqJson) {
+    try {
+      const parsed = JSON.parse(generated.faqJson);
+      faqItems = normalizeFaqItems(parsed?.mainEntity?.map((entry) => ({
+        question: entry?.name,
+        answer: entry?.acceptedAnswer?.text,
+      })));
+    } catch {
+      faqItems = [];
+    }
+  }
+  if (!faqItems.length && generated.faqHtml) {
+    faqItems = [];
+  }
+  if (!faqItems.length) {
+    throw new Error("AI response did not include valid FAQ items.");
+  }
+  return {
+    faqHtml: buildFaqHtml(faqItems),
+    faqJson: buildFaqJson(faqItems),
+    aiModel: generated.aiModel || fallbackMeta.aiModel || null,
+    aiProvider: generated.aiProvider || fallbackMeta.aiProvider || null,
+    inputTokens: generated.inputTokens || 0,
+    outputTokens: generated.outputTokens || 0,
+    generationMs: generated.generationMs || null,
   };
 }
 
@@ -415,33 +522,43 @@ export async function generateProductItem(item, settings, apiKeys) {
   //             descriptionPromptTemplate, metaTitlePromptTemplate, metaDescriptionPromptTemplate,
   //             aiProvider, addTitleAsHeading, preserveOldDescription, removeImages, shop }
   // apiKeys: { openaiApiKey, anthropicApiKey, geminiApiKey }
-  const systemPrompt = getProductSystemPrompt();
-  const prompt = buildProductContentPrompt({
-    title: item.title,
-    descriptionText: stripHtml(item.descriptionHtml || ""),
-    seoTitle: item.seoTitle || "",
-    seoDescription: item.seoDescription || "",
-    language: settings.language,
-    tone: settings.tone,
-    lengthOption: settings.lengthOption,
-    format: settings.format,
-    contextKeywords: settings.contextKeywords,
-    descriptionPromptTemplate: settings.descriptionPromptTemplate,
-    metaTitlePromptTemplate: settings.metaTitlePromptTemplate,
-    metaDescriptionPromptTemplate: settings.metaDescriptionPromptTemplate,
-    intent: deriveIntent(settings.contentTypes),
-  });
-
-  const generated = await callAI(prompt, systemPrompt, {
-    aiProvider: settings.aiProvider,
-    openaiKey: apiKeys.openaiApiKey,
-    anthropicKey: apiKeys.anthropicApiKey,
-    geminiKey: apiKeys.geminiApiKey,
-  });
-
   const shouldUpdateDescription = settings.contentTypes.includes("description");
   const shouldUpdateMetaTitle = settings.contentTypes.includes("meta_title");
   const shouldUpdateMetaDescription = settings.contentTypes.includes("meta_description");
+  const shouldGenerateFaq = settings.contentTypes.includes("faq");
+  const shouldGenerateStandardContent = shouldUpdateDescription || shouldUpdateMetaTitle || shouldUpdateMetaDescription;
+
+  const generated = shouldGenerateStandardContent
+    ? await callAI(buildProductContentPrompt({
+        title: item.title,
+        descriptionText: stripHtml(item.descriptionHtml || ""),
+        seoTitle: item.seoTitle || "",
+        seoDescription: item.seoDescription || "",
+        language: settings.language,
+        tone: settings.tone,
+        lengthOption: settings.lengthOption,
+        format: settings.format,
+        contextKeywords: settings.contextKeywords,
+        descriptionPromptTemplate: settings.descriptionPromptTemplate,
+        metaTitlePromptTemplate: settings.metaTitlePromptTemplate,
+        metaDescriptionPromptTemplate: settings.metaDescriptionPromptTemplate,
+        intent: deriveIntent(settings.contentTypes.filter((type) => type !== "faq")),
+      }), getProductSystemPrompt(), {
+        aiProvider: settings.aiProvider,
+        openaiKey: apiKeys.openaiApiKey,
+        anthropicKey: apiKeys.anthropicApiKey,
+        geminiKey: apiKeys.geminiApiKey,
+      })
+    : {
+        description: "",
+        seoTitle: "",
+        seoDescription: "",
+        aiModel: null,
+        aiProvider: null,
+        inputTokens: 0,
+        outputTokens: 0,
+        generationMs: null,
+      };
 
   let nextDescription = shouldUpdateDescription
     ? (generated.description ? normalizeGeneratedHtml(generated.description) : item.descriptionHtml || "")
@@ -466,6 +583,19 @@ export async function generateProductItem(item, settings, apiKeys) {
 
   const nextSeoTitle = shouldUpdateMetaTitle ? (generated.seoTitle || item.seoTitle || "") : (item.seoTitle || "");
   const nextSeoDescription = shouldUpdateMetaDescription ? (generated.seoDescription || item.seoDescription || "") : (item.seoDescription || "");
+  const generatedFaq = shouldGenerateFaq ? await generateProductFaq(item, settings, apiKeys, generated) : null;
+  const nextFaqHtml = generatedFaq?.faqHtml || null;
+  const nextFaqJson = generatedFaq?.faqJson || null;
+  const nextDescriptionWithFaq = nextFaqHtml
+    ? appendFaqHtmlToDescription(nextDescription, nextFaqHtml)
+    : nextDescription;
+  const generationMeta = generated.aiModel || generatedFaq?.aiModel ? {
+    aiModel: generated.aiModel || generatedFaq?.aiModel || null,
+    aiProvider: generated.aiProvider || generatedFaq?.aiProvider || null,
+    inputTokens: (generated.inputTokens || 0) + (generatedFaq?.inputTokens || 0),
+    outputTokens: (generated.outputTokens || 0) + (generatedFaq?.outputTokens || 0),
+    generationMs: (generated.generationMs || 0) + (generatedFaq?.generationMs || 0),
+  } : generated;
   const creditsPerItem = creditsForContentTypes(settings.contentTypes);
 
   await db.productGeneratedContent.upsert({
@@ -482,12 +612,14 @@ export async function generateProductItem(item, settings, apiKeys) {
       descriptionPromptTemplate: settings.descriptionPromptTemplate || null,
       metaTitlePromptTemplate: settings.metaTitlePromptTemplate || null,
       metaDescriptionPromptTemplate: settings.metaDescriptionPromptTemplate || null,
-      aiModel: generated.aiModel || null,
-      aiProvider: generated.aiProvider || null,
-      inputTokens: generated.inputTokens || 0,
-      outputTokens: generated.outputTokens || 0,
-      generationMs: generated.generationMs || null,
-      descriptionHtml: nextDescription || null,
+      aiModel: generationMeta.aiModel || null,
+      aiProvider: generationMeta.aiProvider || null,
+      inputTokens: generationMeta.inputTokens || 0,
+      outputTokens: generationMeta.outputTokens || 0,
+      generationMs: generationMeta.generationMs || null,
+      descriptionHtml: nextDescriptionWithFaq || null,
+      faqHtml: nextFaqHtml,
+      faqJson: nextFaqJson,
       seoTitle: nextSeoTitle || null,
       seoDescription: nextSeoDescription || null,
       creditsUsed: creditsPerItem,
@@ -503,12 +635,13 @@ export async function generateProductItem(item, settings, apiKeys) {
       descriptionPromptTemplate: settings.descriptionPromptTemplate || null,
       metaTitlePromptTemplate: settings.metaTitlePromptTemplate || null,
       metaDescriptionPromptTemplate: settings.metaDescriptionPromptTemplate || null,
-      aiModel: generated.aiModel || null,
-      aiProvider: generated.aiProvider || null,
-      inputTokens: generated.inputTokens || 0,
-      outputTokens: generated.outputTokens || 0,
-      generationMs: generated.generationMs || null,
-      descriptionHtml: nextDescription || null,
+      aiModel: generationMeta.aiModel || null,
+      aiProvider: generationMeta.aiProvider || null,
+      inputTokens: generationMeta.inputTokens || 0,
+      outputTokens: generationMeta.outputTokens || 0,
+      generationMs: generationMeta.generationMs || null,
+      descriptionHtml: nextDescriptionWithFaq || null,
+      ...(shouldGenerateFaq ? { faqHtml: nextFaqHtml, faqJson: nextFaqJson } : {}),
       seoTitle: nextSeoTitle || null,
       seoDescription: nextSeoDescription || null,
       creditsUsed: creditsPerItem,
@@ -528,12 +661,12 @@ export async function generateProductItem(item, settings, apiKeys) {
       lengthOption: settings.lengthOption || null,
       formatOption: settings.format || null,
       contextKeywords: settings.contextKeywords || null,
-      aiModel: generated.aiModel || null,
-      aiProvider: generated.aiProvider || null,
-      inputTokens: generated.inputTokens || 0,
-      outputTokens: generated.outputTokens || 0,
-      generationMs: generated.generationMs || null,
-      generatedDescription: nextDescription || null,
+      aiModel: generationMeta.aiModel || null,
+      aiProvider: generationMeta.aiProvider || null,
+      inputTokens: generationMeta.inputTokens || 0,
+      outputTokens: generationMeta.outputTokens || 0,
+      generationMs: generationMeta.generationMs || null,
+      generatedDescription: nextDescriptionWithFaq || null,
       generatedSeoTitle: nextSeoTitle || null,
       generatedSeoDescription: nextSeoDescription || null,
       creditsUsed: creditsPerItem,
@@ -936,4 +1069,46 @@ export async function callAIRaw(prompt, systemPrompt, { aiProvider = "auto", ope
   if (aiProvider === "anthropic") return callWithAnthropicRaw(prompt, systemPrompt, effectiveAnthropic);
   if (aiProvider === "gemini") return callWithGeminiRaw(prompt, systemPrompt, effectiveGemini);
   return callWithOpenAIRaw(prompt, systemPrompt, effectiveOpenai);
+}
+
+// ---------------------------------------------------------------------------
+// Shopify collection helpers
+// ---------------------------------------------------------------------------
+
+const SHOPIFY_ADMIN_API_VERSION = "2026-04";
+
+const COLLECTION_ADD_PRODUCTS_MUTATION = `
+  mutation collectionAddProducts($id: ID!, $productIds: [ID!]!) {
+    collectionAddProducts(id: $id, productIds: $productIds) {
+      collection { id }
+      userErrors { field message }
+    }
+  }
+`;
+
+export async function addProductsToCollection(shop, accessToken, collectionId, productIds) {
+  if (!shop || !accessToken || !collectionId || !productIds?.length) return;
+  try {
+    const response = await fetch(
+      `https://${shop}/admin/api/${SHOPIFY_ADMIN_API_VERSION}/graphql.json`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Access-Token": accessToken,
+        },
+        body: JSON.stringify({
+          query: COLLECTION_ADD_PRODUCTS_MUTATION,
+          variables: { id: collectionId, productIds },
+        }),
+      },
+    );
+    const json = await response.json();
+    const userErrors = json?.data?.collectionAddProducts?.userErrors || [];
+    if (userErrors.length > 0) {
+      console.error("collectionAddProducts userErrors:", userErrors);
+    }
+  } catch (err) {
+    console.error("addProductsToCollection failed:", err?.message);
+  }
 }

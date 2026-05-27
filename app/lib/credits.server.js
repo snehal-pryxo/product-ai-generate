@@ -13,7 +13,6 @@ const CONTENT_TYPE_CREDIT_COSTS = {
   description: CREDITS_PER_CONTENT_FIELD,
   meta_title: CREDITS_PER_CONTENT_FIELD,
   meta_description: CREDITS_PER_CONTENT_FIELD,
-  schema: 2,
   faq: 5,
 };
 

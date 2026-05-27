@@ -52,6 +52,7 @@ import {
 import { buildInsufficientCreditsError, deductCredits } from "../lib/credits.server";
 // ─── Constants ───────────────────────────────────────────────────────────────
 const CREDITS_PER_GENERATION = 3;
+const CREDITS_PER_FAQ_GENERATION = 5;
 const FETCH_BATCH_SIZE = 250;
 const DEFAULT_AI_MODEL = "gpt-4o-mini";
 const DEFAULT_OLLAMA_MODEL = "llama3.2:1b";
@@ -74,16 +75,19 @@ const BASE_AI_MODEL_OPTIONS = [
 ];
 
 function creditsForGenerateScope(scope) {
+  if (scope === "faq") return CREDITS_PER_FAQ_GENERATION;
   return scope === "all" ? CREDITS_PER_GENERATION : 1;
 }
 
 function getGenerateScopeOptions(contentType) {
   const mainLabel = contentType === "pages" ? "Content" : "Description";
-  return [
+  const options = [
     { value: "main", label: mainLabel },
     { value: "meta_title", label: "Meta Title" },
     { value: "meta_description", label: "Meta Description" },
   ];
+  if (contentType === "products") options.push({ value: "faq", label: "FAQ" });
+  return options;
 }
 
 function resolveEnvDefaultAiModel() {
@@ -132,6 +136,7 @@ function getScopeDisplayLabel(contentType, scope) {
   if (scope === "main") return mainLabel;
   if (scope === "meta_title") return "Meta Title";
   if (scope === "meta_description") return "Meta Description";
+  if (scope === "faq") return "FAQ";
   return "All";
 }
 
@@ -156,6 +161,46 @@ function firstNonEmptyText(...values) {
     if (text) return text;
   }
   return "";
+}
+
+function normalizeFaqItems(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => ({
+      question: cleanInlineText(item?.question || item?.q || "", 180),
+      answer: cleanInlineText(item?.answer || item?.a || "", 600),
+    }))
+    .filter((item) => item.question && item.answer)
+    .slice(0, 8);
+}
+
+function buildFaqJson(faqItems) {
+  return JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqItems.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: { "@type": "Answer", text: item.answer },
+    })),
+  });
+}
+
+function buildFaqHtml(faqItems) {
+  if (!faqItems.length) return "";
+  return [
+    '<section data-content-ai-faq="true">',
+    "<h2>Frequently Asked Questions</h2>",
+    ...faqItems.map((item) => `<h3>${escapeHtml(item.question)}</h3><p>${escapeHtml(item.answer)}</p>`),
+    "</section>",
+  ].join("");
+}
+
+function appendFaqHtmlToDescription(descriptionHtml, faqHtml) {
+  const cleaned = String(descriptionHtml || "")
+    .replace(/<section\b[^>]*data-content-ai-faq=["']true["'][^>]*>[\s\S]*?<\/section>/gi, "")
+    .trim();
+  return [cleaned, faqHtml].filter(Boolean).join("\n\n");
 }
 
 function defaultTemplateSelection() {
@@ -438,6 +483,7 @@ function parseGenerationContent(rawContent, modelName, meta = {}) {
     if (!m) throw new Error("AI response format was invalid.");
     parsed = JSON.parse(m[0]);
   }
+  const faqItems = normalizeFaqItems(parsed?.faqs || parsed?.faqItems || parsed?.faq);
   return {
     description: (
       parsed?.productDescription ||
@@ -450,6 +496,8 @@ function parseGenerationContent(rawContent, modelName, meta = {}) {
     ).trim(),
     seoTitle: cleanInlineText(parsed?.seoTitle || "", 70),
     seoDescription: cleanInlineText(parsed?.seoDescription || "", 160),
+    faqHtml: faqItems.length ? buildFaqHtml(faqItems) : normalizeGeneratedHtml(parsed?.faqHtml || ""),
+    faqJson: faqItems.length ? buildFaqJson(faqItems) : (parsed?.faqJson ? JSON.stringify(parsed.faqJson) : ""),
     aiModel: modelName || null,
     aiProvider: meta.aiProvider || null,
     inputTokens: meta.inputTokens || 0,
@@ -629,6 +677,26 @@ function buildPrompt(
   generateScope = "all",
   generationOptions = {},
 ) {
+  if (generateScope === "faq" && contentType === "products") {
+    return [
+      "Task: Generate product FAQ content for a Shopify product.",
+      "",
+      "Inputs:",
+      `- Product title: ${item.title || "Untitled product"}`,
+      `- Language: ${generationOptions.language || "English"}`,
+      `- Keywords and context: ${generationOptions.contextKeywords || "Not provided"}`,
+      `- Current product description: ${stripHtml(item.descriptionHtml || "").slice(0, 1200) || "Not available"}`,
+      "",
+      "Output (return valid JSON only, no markdown, no backticks):",
+      '{ "faqs": [{"question": "...", "answer": "..."}, ...] }',
+      "",
+      "Rules:",
+      "- Generate 4 to 6 useful customer FAQ question-and-answer pairs.",
+      "- Keep answers concise, accurate, and product-specific.",
+      "- Do not invent policies, shipping times, warranties, prices, or claims not present in the inputs.",
+    ].join("\n");
+  }
+
   const promptIntent =
     generateScope === "meta_title"
       ? "seo_title"
@@ -780,6 +848,8 @@ export const loader = async ({ request }) => {
             productId: true,
             productTitle: true,
             descriptionHtml: true,
+            faqHtml: true,
+            faqJson: true,
             seoTitle: true,
             seoDescription: true,
             contextKeywords: true,
@@ -978,6 +1048,8 @@ export const loader = async ({ request }) => {
         handle: n.handle,
         status: n.status,
         descriptionHtml: firstNonEmptyHtml(generated.descriptionHtml, n.descriptionHtml),
+        faqHtml: generated.faqHtml || "",
+        faqJson: generated.faqJson || "",
         seoTitle: firstNonEmptyText(generated.seoTitle, n.seo?.title),
         seoDescription: firstNonEmptyText(generated.seoDescription, n.seo?.description),
         imageUrl: n.featuredMedia?.preview?.image?.url || null,
@@ -1104,6 +1176,8 @@ export const loader = async ({ request }) => {
         handle: n.handle,
         status: n.status,
         descriptionHtml: firstNonEmptyHtml(generated.descriptionHtml, n.descriptionHtml),
+        faqHtml: generated.faqHtml || "",
+        faqJson: generated.faqJson || "",
         seoTitle: firstNonEmptyText(generated.seoTitle, n.seo?.title),
         seoDescription: firstNonEmptyText(generated.seoDescription, n.seo?.description),
         imageUrl: n.featuredMedia?.preview?.image?.url || null,
@@ -1279,6 +1353,7 @@ export const action = async ({ request }) => {
     const shouldGenerateMain = generateScope === "all" || generateScope === "main";
     const shouldGenerateMetaTitle = generateScope === "all" || generateScope === "meta_title";
     const shouldGenerateMetaDescription = generateScope === "all" || generateScope === "meta_description";
+    const shouldGenerateFaq = contentType === "products" && generateScope === "faq";
     const customMainEnabled = String(formData.get("customMainEnabled") || "") === "1";
     const customMetaTitleEnabled = String(formData.get("customMetaTitleEnabled") || "") === "1";
     const customMetaDescriptionEnabled = String(formData.get("customMetaDescriptionEnabled") || "") === "1";
@@ -1288,7 +1363,7 @@ export const action = async ({ request }) => {
     const mainPromptTemplateValue =
       contentType === "pages" ? templateOverrides.bodyPromptTemplate : templateOverrides.descriptionPromptTemplate;
 
-    if (shouldGenerateMain && !String(mainPromptTemplateValue || "").trim()) {
+    if (!shouldGenerateFaq && shouldGenerateMain && !String(mainPromptTemplateValue || "").trim()) {
       return { ok: false, intent, error: "Main template/custom instructions are required." };
     }
     if (shouldGenerateMetaTitle && !String(templateOverrides.metaTitlePromptTemplate || "").trim()) {
@@ -1297,7 +1372,7 @@ export const action = async ({ request }) => {
     if (shouldGenerateMetaDescription && !String(templateOverrides.metaDescriptionPromptTemplate || "").trim()) {
       return { ok: false, intent, error: "Meta description template/custom instructions are required." };
     }
-    if (shouldGenerateMain && !customMainEnabled) {
+    if (!shouldGenerateFaq && shouldGenerateMain && !customMainEnabled) {
       return { ok: false, intent, error: "Enable 'Use custom instructions' for main content." };
     }
     if (shouldGenerateMetaTitle && !customMetaTitleEnabled) {
@@ -1306,7 +1381,7 @@ export const action = async ({ request }) => {
     if (shouldGenerateMetaDescription && !customMetaDescriptionEnabled) {
       return { ok: false, intent, error: "Enable 'Use custom instructions' for meta description." };
     }
-    if (shouldGenerateMain && !customMainPrompt) {
+    if (!shouldGenerateFaq && shouldGenerateMain && !customMainPrompt) {
       return { ok: false, intent, error: "Main custom instructions are required." };
     }
     if (shouldGenerateMetaTitle && !customMetaTitlePrompt) {
@@ -1330,11 +1405,16 @@ export const action = async ({ request }) => {
         systemPrompt: getSystemPromptForContentType(contentType),
       });
 
-      if (shouldGenerateMain && !stripHtml(generated.description || "")) {
+      if (!shouldGenerateFaq && shouldGenerateMain && !stripHtml(generated.description || "")) {
         throw new Error("AI response did not include generated description/content. Please retry or choose another model.");
       }
+      if (shouldGenerateFaq && !stripHtml(generated.faqHtml || "")) {
+        throw new Error("AI response did not include valid FAQ content. Please retry or choose another model.");
+      }
 
-      const descHtml = shouldGenerateMain && generated.description
+      const descHtml = shouldGenerateFaq
+        ? appendFaqHtmlToDescription(item.descriptionHtml || "", generated.faqHtml || "")
+        : shouldGenerateMain && generated.description
         ? normalizeGeneratedHtml(generated.description)
         : item.descriptionHtml || "";
       const seoTitle = shouldGenerateMetaTitle
@@ -1452,6 +1532,8 @@ export const action = async ({ request }) => {
               ? templateOverrides.metaDescriptionPromptTemplate || null
               : null,
             descriptionHtml: descHtml || null,
+            faqHtml: shouldGenerateFaq ? generated.faqHtml || null : null,
+            faqJson: shouldGenerateFaq ? generated.faqJson || null : null,
             ...commonUpsertData,
             creditsUsed: creditsToUse,
             appliedToProduct: true,
@@ -1461,6 +1543,13 @@ export const action = async ({ request }) => {
               ? {
                   descriptionPromptTemplate: templateOverrides.descriptionPromptTemplate || null,
                   descriptionHtml: descHtml || null,
+                }
+              : {}),
+            ...(shouldGenerateFaq
+              ? {
+                  descriptionHtml: descHtml || null,
+                  faqHtml: generated.faqHtml || null,
+                  faqJson: generated.faqJson || null,
                 }
               : {}),
             ...(shouldGenerateMetaTitle
@@ -1667,6 +1756,8 @@ export const action = async ({ request }) => {
         intent,
         itemId: item.id,
         descriptionHtml: descHtml,
+        faqHtml: generated.faqHtml || "",
+        faqJson: generated.faqJson || "",
         seoTitle,
         seoDescription,
         creditsUsed: creditsToUse,
@@ -1966,7 +2057,8 @@ function GenerateTemplateModal({
   const [editableMetaText, setEditableMetaText] = useState("");
   const isHydratedRef = useRef(false);
   const config = getGenerateTemplateConfig(contentType);
-  const showMain = generateScope === "all" || generateScope === "main";
+  const isFaqScope = contentType === "products" && generateScope === "faq";
+  const showMain = generateScope === "all" || generateScope === "main" || isFaqScope;
   const showMetaTitle = generateScope === "all" || generateScope === "meta_title";
   const showMetaDescription = generateScope === "all" || generateScope === "meta_description";
   const modalCredits = creditsForGenerateScope(generateScope);
@@ -1976,7 +2068,8 @@ function GenerateTemplateModal({
   const hasExistingContent = Boolean(
     stripHtml(item?.descriptionHtml || "") ||
     String(item?.seoTitle || "").trim() ||
-    String(item?.seoDescription || "").trim()
+    String(item?.seoDescription || "").trim() ||
+    stripHtml(item?.faqHtml || "")
   );
 
   useEffect(() => {
@@ -2020,7 +2113,7 @@ function GenerateTemplateModal({
   }, [contentType]);
 
   const visibleScopes = [
-    ...(showMain ? ["main"] : []),
+    ...(showMain && !isFaqScope ? ["main"] : []),
     ...(showMetaDescription ? ["meta_description"] : []),
     ...(showMetaTitle ? ["meta_title"] : []),
   ];
@@ -2406,6 +2499,8 @@ export default function ContentManagementPage() {
               ? {
                   ...it,
                   descriptionHtml: data.descriptionHtml,
+                  faqHtml: data.faqHtml || it.faqHtml || "",
+                  faqJson: data.faqJson || it.faqJson || "",
                   seoTitle: data.seoTitle,
                   seoDescription: data.seoDescription,
                   creditsUsed: Number(it.creditsUsed || 0) + usedCredits,
@@ -2672,7 +2767,8 @@ export default function ContentManagementPage() {
     const shouldGenerateMain = pendingGenerateScope === "all" || pendingGenerateScope === "main";
     const shouldGenerateMetaTitle = pendingGenerateScope === "all" || pendingGenerateScope === "meta_title";
     const shouldGenerateMetaDescription = pendingGenerateScope === "all" || pendingGenerateScope === "meta_description";
-    if (shouldGenerateMain && !String(mainTemplate || "").trim()) {
+    const shouldGenerateFaq = pendingGenerateContentType === "products" && pendingGenerateScope === "faq";
+    if (!shouldGenerateFaq && shouldGenerateMain && !String(mainTemplate || "").trim()) {
       setErrorMessage("Select a main template before generating.");
       return;
     }
@@ -2684,7 +2780,7 @@ export default function ContentManagementPage() {
       setErrorMessage("Select a meta description template before generating.");
       return;
     }
-    if (shouldGenerateMain && !customInstructions?.main?.enabled) {
+    if (!shouldGenerateFaq && shouldGenerateMain && !customInstructions?.main?.enabled) {
       setErrorMessage("Enable 'Use custom instructions' for main content.");
       return;
     }
@@ -2696,7 +2792,7 @@ export default function ContentManagementPage() {
       setErrorMessage("Enable 'Use custom instructions' for meta description.");
       return;
     }
-    if (shouldGenerateMain && !String(customInstructions?.main?.prompt || "").trim()) {
+    if (!shouldGenerateFaq && shouldGenerateMain && !String(customInstructions?.main?.prompt || "").trim()) {
       setErrorMessage("Main custom instructions are required.");
       return;
     }
@@ -2770,6 +2866,7 @@ export default function ContentManagementPage() {
     { title: "Item" },
     { title: "Credits" },
     { title: "Description" },
+    { title: "FAQ" },
     { title: "SEO Title" },
     { title: "SEO Description" },
     { title: "Generate" },
@@ -2810,12 +2907,14 @@ export default function ContentManagementPage() {
     const scopeOptions = getGenerateScopeOptions(effectiveContentType);
     const isPopoverOpen = openGeneratePopoverId === item.id;
     const descText = truncateText(item.descriptionHtml, 90);
+    const faqText = truncateText(stripHtml(item.faqHtml || ""), 80);
     const seoTitleText = truncateText(item.seoTitle, 70);
     const seoDescText = truncateText(item.seoDescription, 80);
     const hasGeneratedContent = Boolean(
       stripHtml(item.descriptionHtml || "") ||
       String(item.seoTitle || "").trim() ||
-      String(item.seoDescription || "").trim()
+      String(item.seoDescription || "").trim() ||
+      stripHtml(item.faqHtml || "")
     );
 
     return (
@@ -2869,6 +2968,17 @@ export default function ContentManagementPage() {
             >
               <Text variant="bodySm" as="span" tone="subdued">—</Text>
             </button>
+          )}
+        </IndexTable.Cell>
+
+        {/* FAQ */}
+        <IndexTable.Cell>
+          {faqText ? (
+            <Text variant="bodySm" as="span" tone="subdued" truncate>
+              {faqText}
+            </Text>
+          ) : (
+            <Text variant="bodySm" as="span" tone="subdued">-</Text>
           )}
         </IndexTable.Cell>
 

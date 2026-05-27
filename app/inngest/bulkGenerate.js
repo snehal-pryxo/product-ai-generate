@@ -6,6 +6,7 @@ import {
   generateCollectionItem,
   generateCollectionProductItem,
   updateJobProgress,
+  addProductsToCollection,
 } from "../lib/generateContent.server";
 import { generateBulkFaq, generateProductSchemaForBulk } from "../lib/aiVisibility.server";
 import { refundCredits } from "../lib/credits.server";
@@ -114,6 +115,29 @@ export const bulkGenerateFunction = inngest.createFunction(
           chunks[i].map((item) => generateItem(jobType, item, settingsWithShop, apiKeys, shopData?.accessToken)),
         );
         await updateJobProgress(jobId, chunks[i], results, creditsPerItem);
+
+        const successfulItems = chunks[i].filter((_, idx) => results[idx].status === "fulfilled");
+        if (successfulItems.length > 0 && shopData?.accessToken) {
+          if (jobType === "collection_product") {
+            const byCollection = {};
+            successfulItems.forEach((item) => {
+              if (!byCollection[item.collectionId]) byCollection[item.collectionId] = [];
+              byCollection[item.collectionId].push(item.productId);
+            });
+            await Promise.allSettled(
+              Object.entries(byCollection).map(([colId, productIds]) =>
+                addProductsToCollection(shop, shopData.accessToken, colId, productIds),
+              ),
+            );
+          } else if (jobType === "product" && settingsWithShop.collectionId) {
+            await addProductsToCollection(
+              shop,
+              shopData.accessToken,
+              settingsWithShop.collectionId,
+              successfulItems.map((item) => item.id),
+            );
+          }
+        }
       });
     }
 

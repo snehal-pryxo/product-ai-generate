@@ -259,6 +259,11 @@ const POST_LENGTH_OPTIONS = [
 
 const TARGET_AUDIENCE_OPTIONS = ["Everyone", "Women", "Men", "Kids", "Teens"];
 
+const PROMOTION_TYPE_OPTIONS = [
+  { label: "Promotion", value: "promotion" },
+  { label: "Festival", value: "festival" },
+];
+
 const PROMOTION_OPTIONS = [
   "Buy One Get One Free (BOGO)",
   "Free Shipping",
@@ -278,22 +283,6 @@ const PROMOTION_OPTIONS = [
   "No promotion",
 ];
 
-const HOLIDAY_OPTIONS = [
-  "Choose a holiday to promote",
-  "New Year",
-  "Valentine's Day",
-  "Women's Day",
-  "Easter",
-  "Mother's Day",
-  "Father's Day",
-  "Back to School",
-  "Halloween",
-  "Black Friday",
-  "Cyber Monday",
-  "Christmas",
-  "Diwali",
-  "Ramadan",
-];
 
 const TAB_KEYS = {
   BUSINESS: "business",
@@ -2788,9 +2777,11 @@ export default function BlogPage() {
   const [postLength, setPostLength] = useState("medium");
   const [tone, setTone] = useState(() => normalizeToneValue(settingsTone, "Casual"));
   const [targetAudience, setTargetAudience] = useState("Everyone");
+  const [promotionType, setPromotionType] = useState("promotion");
+  const [festivalText, setFestivalText] = useState("");
   const [promotion, setPromotion] = useState("Buy One Get One Free (BOGO)");
   const [offerText, setOfferText] = useState("40% off");
-  const [holiday, setHoliday] = useState("Choose a holiday to promote");
+  const holiday = "Choose a holiday to promote";
   const [selectedResources, setSelectedResources] = useState([]);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
 
@@ -2807,10 +2798,9 @@ export default function BlogPage() {
 
   const tabItems = [
     { id: TAB_KEYS.BUSINESS, content: "Business Blog" },
-    { id: TAB_KEYS.HOLIDAY, content: "Holiday" },
     { id: TAB_KEYS.PROMOTION, content: "Promotion" },
-    { id: TAB_KEYS.CUSTOM, content: "Custom Topic" },
     { id: TAB_KEYS.PILLAR, content: "Pillar Article" },
+    { id: TAB_KEYS.CUSTOM, content: "Create Your Own" },
   ];
 
   const activeTabKey = tabItems[activeTab]?.id || TAB_KEYS.BUSINESS;
@@ -2824,8 +2814,7 @@ export default function BlogPage() {
     () => PROMOTION_OPTIONS.map((value) => ({ label: value, value })),
     [],
   );
-  const holidayOptions = useMemo(() => HOLIDAY_OPTIONS.map((value) => ({ label: value, value })), []);
-  const showOfferTextField = isDiscountPromotion(promotion);
+const showOfferTextField = isDiscountPromotion(promotion);
   const effectiveOfferText = showOfferTextField ? offerText : "";
   function handlePromotionChange(nextPromotion) {
     setPromotion(nextPromotion);
@@ -2932,16 +2921,17 @@ export default function BlogPage() {
   function submitGenerateOutlines() {
     setOutlines([]);
     setSelectedOutlineId(null);
+    const isFestival = activeTabKey === TAB_KEYS.PROMOTION && promotionType === "festival" && festivalText.trim();
     const payload = new FormData();
     payload.append("intent", "generate_outlines");
-    payload.append("tabType", activeTabKey);
+    payload.append("tabType", isFestival ? TAB_KEYS.HOLIDAY : activeTabKey);
     payload.append("topic", topic);
     payload.append("postLength", activeTabKey === TAB_KEYS.PILLAR ? "pillar" : postLength);
     payload.append("tone", tone);
     payload.append("targetAudience", targetAudience);
-    payload.append("promotion", promotion);
-    payload.append("offerText", effectiveOfferText);
-    payload.append("holiday", holiday);
+    payload.append("promotion", isFestival ? "No promotion" : promotion);
+    payload.append("offerText", isFestival ? "" : effectiveOfferText);
+    payload.append("holiday", isFestival ? festivalText.trim() : holiday);
     payload.append("productUrls", JSON.stringify(selectedResources.map((r) => ({
       url: `https://${shopDomain}/${r.type === "product" ? "products" : "collections"}/${r.handle}`,
       title: r.title,
@@ -3131,26 +3121,25 @@ export default function BlogPage() {
 
               <Box padding="300" borderWidth="025" borderColor="border" borderRadius="300">
                 <BlockStack gap="300">
-                  {activeTabKey === TAB_KEYS.HOLIDAY ? (
-                    <div className="blog-generator-fields">
-                      <Select label="Holiday" options={holidayOptions} value={holiday} onChange={setHoliday} />
-                      <Select label="Promotion" options={promotionOptions} value={promotion} onChange={handlePromotionChange} />
-                      {showOfferTextField ? (
-                        <TextField label="Add your offer here" value={offerText} onChange={setOfferText} autoComplete="off" placeholder="40% off" />
-                      ) : null}
-                      <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
-                      <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
-                      <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
-                      <ResourcePickerTrigger selectedResources={selectedResources} onRemove={(r) => setSelectedResources((prev) => prev.filter((x) => !(x.id === r.id && x.type === r.type)))} onOpen={() => setIsPickerOpen(true)} />
-                    </div>
-                  ) : null}
-
                   {activeTabKey === TAB_KEYS.PROMOTION ? (
                     <div className="blog-generator-fields">
-                      <Select label="Promotion" options={promotionOptions} value={promotion} onChange={handlePromotionChange} />
-                      {showOfferTextField ? (
-                        <TextField label="Add your offer here" value={offerText} onChange={setOfferText} autoComplete="off" placeholder="40% off" />
-                      ) : null}
+                      <Select label="Type" options={PROMOTION_TYPE_OPTIONS} value={promotionType} onChange={setPromotionType} />
+                      {promotionType === "festival" ? (
+                        <TextField
+                          label="Festival name"
+                          value={festivalText}
+                          onChange={setFestivalText}
+                          autoComplete="off"
+                          placeholder="e.g. Christmas, Diwali, Black Friday"
+                        />
+                      ) : (
+                        <>
+                          <Select label="Promotion" options={promotionOptions} value={promotion} onChange={handlePromotionChange} />
+                          {showOfferTextField ? (
+                            <TextField label="Add your offer here" value={offerText} onChange={setOfferText} autoComplete="off" placeholder="40% off" />
+                          ) : null}
+                        </>
+                      )}
                       <Select label="Post length" options={POST_LENGTH_OPTIONS} value={postLength} onChange={setPostLength} />
                       <Select label="Post tone" options={toneOptions} value={tone} onChange={setTone} />
                       <Select label="Target audience" options={audienceOptions} value={targetAudience} onChange={setTargetAudience} />
@@ -3198,7 +3187,7 @@ export default function BlogPage() {
                       variant="primary"
                       onClick={submitGenerateOutlines}
                       loading={fetcher.state !== "idle" && String(fetcher.formData?.get("intent")) === "generate_outlines"}
-                      disabled={blogs.length === 0}
+                      disabled={blogs.length === 0 || (activeTabKey === TAB_KEYS.PROMOTION && promotionType === "festival" && !festivalText.trim())}
                     >
                       Get Ideas
                     </Button>
