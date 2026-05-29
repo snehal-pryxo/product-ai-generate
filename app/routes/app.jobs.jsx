@@ -51,6 +51,27 @@ function parseJsonField(raw) {
   try { return JSON.parse(raw); } catch { return []; }
 }
 
+function stripHtml(html) {
+  return String(html || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function truncateText(value, max = 260) {
+  const text = stripHtml(value);
+  if (text.length <= max) return text;
+  return `${text.slice(0, max).trim()}...`;
+}
+
+function DetailBlock({ label, value, html = false }) {
+  const text = html ? truncateText(value) : String(value || "").trim();
+  if (!text) return null;
+  return (
+    <BlockStack gap="050">
+      <Text as="p" variant="bodySm" fontWeight="semibold">{label}</Text>
+      <Text as="p" variant="bodySm" tone="subdued">{text}</Text>
+    </BlockStack>
+  );
+}
+
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
   const since = new Date(Date.now() - THIRTY_DAYS_MS);
@@ -80,8 +101,6 @@ export const loader = async ({ request }) => {
 };
 
 function ProductsModal({ job, onClose }) {
-  const itemLabel = job.jobType === "collection" ? "collection" : "product";
-
   // Build unified list: succeeded first, then failed
   const succeededItems = job.completedItemIds.map((item) => ({ ...item, status: "succeeded" }));
   const failedItems = job.failedItemIds.map((item) => ({ ...item, status: "failed" }));
@@ -112,6 +131,14 @@ function ProductsModal({ job, onClose }) {
                   </Text>
                   <BlockStack gap="050">
                     <Text as="p" variant="bodySm" fontWeight="semibold">{item.title || item.id}</Text>
+                    {item.status === "succeeded" && (
+                      <BlockStack gap="200">
+                        <DetailBlock label="Description" value={item.descriptionHtml} html />
+                        <DetailBlock label="Meta Title" value={item.seoTitle} />
+                        <DetailBlock label="Meta Description" value={item.seoDescription} />
+                        <DetailBlock label="FAQ" value={item.faqHtml} html />
+                      </BlockStack>
+                    )}
                     {item.status === "failed" && item.error && (
                       <Text as="p" variant="bodySm" tone="critical">{item.error}</Text>
                     )}

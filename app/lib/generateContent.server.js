@@ -967,7 +967,11 @@ export async function updateJobProgress(jobId, chunkItems, results, creditsPerIt
   const newCompletedItems = chunkItems
     .map((item, idx) =>
       results[idx].status === "fulfilled"
-        ? { id: item.id || item.productId, title: item.title || item.productTitle }
+        ? {
+            id: item.id || item.productId,
+            title: item.title || item.productTitle,
+            ...(results[idx].value?.details || {}),
+          }
         : null,
     )
     .filter(Boolean);

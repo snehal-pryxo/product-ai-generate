@@ -72,6 +72,57 @@ async function generateItem(jobType, item, settings, apiKeys, accessToken) {
   return { creditsUsed: settings.creditsPerItem || (settings.contentTypes?.length || 0) };
 }
 
+async function fetchGeneratedDetails(jobType, item, shop) {
+  if (jobType === "collection") {
+    const row = await db.collectionGeneratedContent.findUnique({
+      where: { shop_collectionId: { shop, collectionId: item.id } },
+      select: { descriptionHtml: true, seoTitle: true, seoDescription: true },
+    });
+    return {
+      descriptionHtml: row?.descriptionHtml || "",
+      seoTitle: row?.seoTitle || "",
+      seoDescription: row?.seoDescription || "",
+      faqHtml: "",
+    };
+  }
+
+  if (jobType === "collection_product") {
+    const row = await db.collectionProductGeneratedContent.findUnique({
+      where: {
+        shop_collectionId_productId: {
+          shop,
+          collectionId: item.collectionId,
+          productId: item.productId,
+        },
+      },
+      select: { descriptionHtml: true, seoTitle: true, seoDescription: true },
+    });
+    const faqRow = await db.productGeneratedContent.findUnique({
+      where: { shop_productId: { shop, productId: item.productId } },
+      select: { faqHtml: true, faqJson: true },
+    });
+    return {
+      descriptionHtml: row?.descriptionHtml || "",
+      seoTitle: row?.seoTitle || "",
+      seoDescription: row?.seoDescription || "",
+      faqHtml: faqRow?.faqHtml || "",
+      faqJson: faqRow?.faqJson || "",
+    };
+  }
+
+  const row = await db.productGeneratedContent.findUnique({
+    where: { shop_productId: { shop, productId: item.id } },
+    select: { descriptionHtml: true, seoTitle: true, seoDescription: true, faqHtml: true, faqJson: true },
+  });
+  return {
+    descriptionHtml: row?.descriptionHtml || "",
+    seoTitle: row?.seoTitle || "",
+    seoDescription: row?.seoDescription || "",
+    faqHtml: row?.faqHtml || "",
+    faqJson: row?.faqJson || "",
+  };
+}
+
 export const bulkGenerateFunction = inngest.createFunction(
   {
     id: "bulk-generate-content",
@@ -115,7 +166,11 @@ export const bulkGenerateFunction = inngest.createFunction(
     for (let i = 0; i < chunks.length; i++) {
       await step.run(`chunk-${i}`, async () => {
         const results = await Promise.allSettled(
-          chunks[i].map((item) => generateItem(jobType, item, settingsWithShop, apiKeys, shopData?.accessToken)),
+          chunks[i].map(async (item) => {
+            const result = await generateItem(jobType, item, settingsWithShop, apiKeys, shopData?.accessToken);
+            const details = await fetchGeneratedDetails(jobType, item, shop);
+            return { ...result, details };
+          }),
         );
         await updateJobProgress(jobId, chunks[i], results, creditsPerItem);
 

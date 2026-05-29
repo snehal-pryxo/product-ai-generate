@@ -196,6 +196,21 @@ function buildFaqHtml(faqItems) {
   ].join("");
 }
 
+function buildFaqJsonFromHtml(faqHtml) {
+  const html = String(faqHtml || "");
+  const faqItems = [];
+  const headingRegex = /<h[2-4]\b[^>]*>([\s\S]*?)<\/h[2-4]>\s*<p\b[^>]*>([\s\S]*?)<\/p>/gi;
+  let match;
+  while ((match = headingRegex.exec(html)) !== null) {
+    const question = cleanInlineText(stripHtml(match[1]), 180);
+    const answer = cleanInlineText(stripHtml(match[2]), 600);
+    if (question && answer && !/^frequently asked questions$/i.test(question)) {
+      faqItems.push({ question, answer });
+    }
+  }
+  return faqItems.length ? buildFaqJson(faqItems) : "";
+}
+
 function appendFaqHtmlToDescription(descriptionHtml, faqHtml) {
   const cleaned = String(descriptionHtml || "")
     .replace(/<section\b[^>]*data-content-ai-faq=["']true["'][^>]*>[\s\S]*?<\/section>/gi, "")
@@ -1774,6 +1789,8 @@ export const action = async ({ request }) => {
   if (intent === "save_content") {
     const itemId = formData.get("itemId");
     const descriptionHtml = formData.get("descriptionHtml") || "";
+    const faqHtml = formData.get("faqHtml") || "";
+    const faqJson = formData.get("faqJson") || buildFaqJsonFromHtml(faqHtml);
     const seoTitle = formData.get("seoTitle") || "";
     const seoDescription = formData.get("seoDescription") || "";
     const collectionId = String(formData.get("collectionId") || "").trim();
@@ -1797,6 +1814,8 @@ export const action = async ({ request }) => {
             shop: session.shop,
             productId,
             descriptionHtml,
+            faqHtml: faqHtml || null,
+            faqJson: faqJson || null,
             seoTitle,
             seoDescription,
             appliedToProduct: true,
@@ -1804,11 +1823,26 @@ export const action = async ({ request }) => {
           },
           update: {
             descriptionHtml,
+            faqHtml: faqHtml || null,
+            faqJson: faqJson || null,
             seoTitle,
             seoDescription,
             appliedToProduct: true,
           },
         });
+        const faqMetafields = [];
+        if (faqJson) {
+          faqMetafields.push({ ownerId: productId, namespace: "content_ai_geo", key: "faq_json", value: faqJson, type: "json" });
+        }
+        if (faqHtml) {
+          faqMetafields.push({ ownerId: productId, namespace: "content_ai_geo", key: "faq_html", value: faqHtml, type: "multi_line_text_field" });
+        }
+        if (faqMetafields.length > 0) {
+          const mfRes = await admin.graphql(METAFIELDS_SET_MUTATION, { variables: { metafields: faqMetafields } });
+          const mfJson = await mfRes.json();
+          const mfErrors = mfJson?.data?.metafieldsSet?.userErrors || [];
+          if (mfErrors.length > 0) throw new Error(mfErrors.map((e) => e.message).join(", "));
+        }
       } else if (contentType === "collection_products") {
         const productId = postedProductId || String(itemId || "").split("::").pop() || "";
         if (!productId) throw new Error("Missing product id for collection product save.");
@@ -1931,7 +1965,7 @@ export const action = async ({ request }) => {
           if (mfErrors.length > 0) throw new Error(mfErrors.map((e) => e.message).join(", "));
         }
       }
-      return { ok: true, intent, itemId, descriptionHtml, seoTitle, seoDescription };
+      return { ok: true, intent, itemId, descriptionHtml, faqHtml, faqJson, seoTitle, seoDescription };
     } catch (err) {
       console.error("Save content failed:", err);
       return { ok: false, intent, error: err?.message || "Save failed." };
@@ -1945,9 +1979,11 @@ export const action = async ({ request }) => {
 // ─── Editor Modal ─────────────────────────────────────────────────────────────
 function EditorModal({ open, item, field, contentType, onClose, onSave, isSaving }) {
   const [descHtml, setDescHtml] = useState("");
+  const [faqHtml, setFaqHtml] = useState("");
+  const [faqJson, setFaqJson] = useState("");
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
-  const [activeTab, setActiveTab] = useState(field === "seo" ? 1 : 0);
+  const [activeTab, setActiveTab] = useState(field === "seo" ? 1 : field === "faq" ? 2 : 0);
   const isHydratedRef = useRef(false);
 
   useEffect(() => {
@@ -1957,22 +1993,28 @@ function EditorModal({ open, item, field, contentType, onClose, onSave, isSaving
   useEffect(() => {
     if (!isHydratedRef.current || !item) return;
     setDescHtml(item.descriptionHtml || "");
+    setFaqHtml(item.faqHtml || "");
+    setFaqJson(item.faqJson || "");
     setSeoTitle(item.seoTitle || "");
     setSeoDescription(item.seoDescription || "");
-    setActiveTab(field === "seo" ? 1 : 0);
+    setActiveTab(field === "seo" ? 1 : field === "faq" ? 2 : 0);
   }, [item, field]);
 
   if (!item) return null;
 
+  const canEditFaq = (item.contentType || contentType) === "products";
   const tabs = [
     { id: "description", content: "Description" },
     { id: "seo", content: "SEO" },
+    ...(canEditFaq ? [{ id: "faq", content: "FAQ" }] : []),
   ];
 
   const handleSave = () => {
     onSave({
       itemId: item.id,
       descriptionHtml: descHtml,
+      faqHtml,
+      faqJson: faqJson || buildFaqJsonFromHtml(faqHtml),
       seoTitle,
       seoDescription,
       contentType: item.contentType || contentType,
@@ -2027,6 +2069,15 @@ function EditorModal({ open, item, field, contentType, onClose, onSave, isSaving
               helpText="Recommended: 120–160 characters"
               autoComplete="off"
             />
+          </BlockStack>
+        )}
+
+        {activeTab === 2 && canEditFaq && (
+          <BlockStack gap="300">
+            <Text variant="bodySm" as="p" tone="subdued">
+              Use heading lines for questions and paragraph text for answers.
+            </Text>
+            <RichTextEditor value={faqHtml} onChange={setFaqHtml} />
           </BlockStack>
         )}
       </Modal.Section>
@@ -2560,6 +2611,8 @@ export default function ContentManagementPage() {
               ? {
                   ...it,
                   descriptionHtml: data.descriptionHtml,
+                  faqHtml: data.faqHtml || it.faqHtml || "",
+                  faqJson: data.faqJson || it.faqJson || "",
                   seoTitle: data.seoTitle,
                   seoDescription: data.seoDescription,
                   updatedAt: new Date().toISOString(),
@@ -2626,12 +2679,14 @@ export default function ContentManagementPage() {
   }, []);
 
   const handleSaveContent = useCallback(
-    ({ itemId, descriptionHtml, seoTitle, seoDescription, contentType, collectionId, productId }) => {
+    ({ itemId, descriptionHtml, faqHtml, faqJson, seoTitle, seoDescription, contentType, collectionId, productId }) => {
       const fd = new FormData();
       fd.append("intent", "save_content");
       fd.append("contentType", contentType || tab);
       fd.append("itemId", itemId);
       fd.append("descriptionHtml", descriptionHtml);
+      fd.append("faqHtml", faqHtml || "");
+      fd.append("faqJson", faqJson || "");
       fd.append("seoTitle", seoTitle);
       fd.append("seoDescription", seoDescription);
       if (collectionId) fd.append("collectionId", collectionId);
@@ -2973,13 +3028,22 @@ export default function ContentManagementPage() {
 
         {/* FAQ */}
         <IndexTable.Cell>
-          {faqText ? (
-            <Text variant="bodySm" as="span" tone="subdued" truncate>
-              {faqText}
-            </Text>
-          ) : (
-            <Text variant="bodySm" as="span" tone="subdued">-</Text>
-          )}
+          <div className="content-mgmt-faq-cell">
+            {effectiveContentType === "products" ? (
+              <button
+                type="button"
+                onClick={() => openEditor(item, "faq")}
+                title={faqText ? "Click to edit FAQ" : "Click to add FAQ"}
+                className="content-mgmt-cell-button"
+              >
+                <Text variant="bodySm" as="span" tone="subdued" truncate>
+                  {faqText || "-"}
+                </Text>
+              </button>
+            ) : (
+              <Text variant="bodySm" as="span" tone="subdued">-</Text>
+            )}
+          </div>
         </IndexTable.Cell>
 
         {/* SEO Title */}
@@ -3259,6 +3323,21 @@ export default function ContentManagementPage() {
           border-radius: 10px;
           padding: 10px;
           background: #f9fafb;
+        }
+        .content-mgmt-faq-cell {
+          width: 180px;
+          min-width: 180px;
+          max-width: 180px;
+        }
+        .content-mgmt-cell-button {
+          background: none;
+          border: none;
+          padding: 0;
+          cursor: pointer;
+          text-align: left;
+          display: block;
+          width: 100%;
+          max-width: 100%;
         }
         @media (max-width: 960px) {
           .content-mgmt-generate-modal__grid {
