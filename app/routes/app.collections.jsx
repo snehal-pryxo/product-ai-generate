@@ -61,13 +61,12 @@ const COLLECTION_PRODUCTS_MODE = "collection-products";
 const MAX_BULK_ITEMS = 500;
 const MIN_BULK_COLLECTION_SELECTION_ERROR = "Select at least one collection for bulk generation.";
 const MAX_BULK_COLLECTION_SELECTION_ERROR = `You can bulk generate up to ${MAX_BULK_ITEMS} collections at a time.`;
-const COLLECTION_CONTENT_TYPES = ["description", "meta_title", "meta_description", "faq"];
+const COLLECTION_CONTENT_TYPES = ["description", "meta_title", "meta_description"];
 const DEFAULT_COLLECTION_CONTENT_TYPES = ["description", "meta_title", "meta_description"];
 const COLLECTION_CONTENT_TYPE_CREDIT_COSTS = {
   description: 1,
   meta_title: 1,
   meta_description: 1,
-  faq: 5,
 };
 const DEFAULT_AI_MODEL = "gpt-4o-mini";
 const DEFAULT_OLLAMA_MODEL = "llama3.2:1b";
@@ -2586,7 +2585,6 @@ export default function CollectionsPage() {
                     bulkContentTypes.includes("description") ? "Descriptions" : null,
                     bulkContentTypes.includes("meta_description") ? "Meta Descriptions" : null,
                     bulkContentTypes.includes("meta_title") ? "Meta Titles" : null,
-                    bulkContentTypes.includes("faq") ? "FAQ" : null,
                   ].filter(Boolean).join(", ")} will be generated for{" "}
                   {isCollectionProductsMode
                     ? `${estimatedTargetItems} product${estimatedTargetItems !== 1 ? "s" : ""}`
@@ -2603,7 +2601,6 @@ export default function CollectionsPage() {
                   { id: "description", label: "Description" },
                   { id: "meta_description", label: "Meta Description" },
                   { id: "meta_title", label: "Meta Title" },
-                  { id: "faq", label: "FAQ" },
                 ].map((type) => {
                   const isSelected = bulkContentTypes.includes(type.id);
                   return (

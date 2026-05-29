@@ -16,6 +16,12 @@ import { refundCredits } from "../lib/credits.server";
 
 const STANDARD_CONTENT_TYPES = ["description", "meta_title", "meta_description"];
 
+function contentTypesForJob(jobType, contentTypes) {
+  const types = Array.isArray(contentTypes) ? contentTypes : [];
+  if (jobType === "product") return types;
+  return types.filter((type) => STANDARD_CONTENT_TYPES.includes(type));
+}
+
 function chunkArray(arr, size) {
   const chunks = [];
   for (let i = 0; i < arr.length; i += size) {
@@ -25,7 +31,8 @@ function chunkArray(arr, size) {
 }
 
 async function generateItem(jobType, item, settings, apiKeys, accessToken) {
-  const standardContentTypes = (settings.contentTypes || []).filter((type) => STANDARD_CONTENT_TYPES.includes(type));
+  const effectiveContentTypes = contentTypesForJob(jobType, settings.contentTypes);
+  const standardContentTypes = effectiveContentTypes.filter((type) => STANDARD_CONTENT_TYPES.includes(type));
   const aiOptions = {
     aiProvider: settings.aiProvider,
     openaiKey: apiKeys.openaiApiKey,
@@ -37,29 +44,14 @@ async function generateItem(jobType, item, settings, apiKeys, accessToken) {
     if (standardContentTypes.length > 0) {
       await generateCollectionItem(item, { ...settings, contentTypes: standardContentTypes }, apiKeys);
     }
-    if ((settings.contentTypes || []).includes("faq")) {
-      await generateBulkFaq(settings.shop, accessToken, "collection", item, aiOptions, {
-        language: settings.language,
-      });
-    }
-    return { creditsUsed: settings.creditsPerItem || (settings.contentTypes?.length || 0) };
+    return { creditsUsed: settings.creditsPerItem || (effectiveContentTypes.length || 0) };
   }
 
   if (jobType === "collection_product") {
     if (standardContentTypes.length > 0) {
       await generateCollectionProductItem(item, { ...settings, contentTypes: standardContentTypes }, apiKeys);
     }
-    if ((settings.contentTypes || []).includes("faq")) {
-      await generateBulkFaq(
-        settings.shop,
-        accessToken,
-        "product",
-        { id: item.productId, title: item.productTitle, descriptionHtml: item.productDescHtml },
-        aiOptions,
-        { language: settings.language },
-      );
-    }
-    return { creditsUsed: settings.creditsPerItem || (settings.contentTypes?.length || 0) };
+    return { creditsUsed: settings.creditsPerItem || (effectiveContentTypes.length || 0) };
   }
 
   if (standardContentTypes.length > 0) {
@@ -164,8 +156,16 @@ export const bulkGenerateFunction = inngest.createFunction(
       db.shop.findUnique({ where: { shop }, select: { accessToken: true } }),
     );
 
-    const settingsWithShop = { ...settings, shop };
-    const creditsPerItem = settings.creditsPerItem || (settings.contentTypes?.length || 0);
+    const effectiveContentTypes = contentTypesForJob(jobType, settings.contentTypes);
+    const settingsWithShop = {
+      ...settings,
+      shop,
+      contentTypes: effectiveContentTypes,
+      creditsPerItem: jobType === "product"
+        ? settings.creditsPerItem || (effectiveContentTypes.length || 0)
+        : effectiveContentTypes.length,
+    };
+    const creditsPerItem = settingsWithShop.creditsPerItem || (settingsWithShop.contentTypes?.length || 0);
     const chunks = chunkArray(items, 10);
 
     for (let i = 0; i < chunks.length; i++) {
@@ -204,7 +204,7 @@ export const bulkGenerateFunction = inngest.createFunction(
 
           // Auto-apply generated content to Shopify Admin
           const applyableTypes = (settingsWithShop.contentTypes || []).filter((t) =>
-            ["description", "meta_title", "meta_description", "faq"].includes(t),
+            (jobType === "product" ? ["description", "meta_title", "meta_description", "faq"] : STANDARD_CONTENT_TYPES).includes(t),
           );
           if (applyableTypes.length > 0) {
             if (jobType === "product") {
