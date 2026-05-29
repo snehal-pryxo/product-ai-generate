@@ -51,24 +51,16 @@ function parseJsonField(raw) {
   try { return JSON.parse(raw); } catch { return []; }
 }
 
-function stripHtml(html) {
-  return String(html || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+function hasGeneratedValue(value) {
+  return String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().length > 0;
 }
 
-function truncateText(value, max = 260) {
-  const text = stripHtml(value);
-  if (text.length <= max) return text;
-  return `${text.slice(0, max).trim()}...`;
-}
-
-function DetailBlock({ label, value, html = false }) {
-  const text = html ? truncateText(value) : String(value || "").trim();
-  if (!text) return null;
+function DetailName({ label, value }) {
+  if (!hasGeneratedValue(value)) return null;
   return (
-    <BlockStack gap="050">
-      <Text as="p" variant="bodySm" fontWeight="semibold">{label}</Text>
-      <Text as="p" variant="bodySm" tone="subdued">{text}</Text>
-    </BlockStack>
+    <Text as="p" variant="bodySm" tone="subdued">
+      {label}
+    </Text>
   );
 }
 
@@ -132,11 +124,11 @@ function ProductsModal({ job, onClose }) {
                   <BlockStack gap="050">
                     <Text as="p" variant="bodySm" fontWeight="semibold">{item.title || item.id}</Text>
                     {item.status === "succeeded" && (
-                      <BlockStack gap="200">
-                        <DetailBlock label="Description" value={item.descriptionHtml} html />
-                        <DetailBlock label="Meta Title" value={item.seoTitle} />
-                        <DetailBlock label="Meta Description" value={item.seoDescription} />
-                        <DetailBlock label="FAQ" value={item.faqHtml} html />
+                      <BlockStack gap="050">
+                        <DetailName label="Description" value={item.descriptionHtml} />
+                        <DetailName label="Meta title" value={item.seoTitle} />
+                        <DetailName label="Meta description" value={item.seoDescription} />
+                        <DetailName label="FAQ" value={item.faqHtml} />
                       </BlockStack>
                     )}
                     {item.status === "failed" && item.error && (
