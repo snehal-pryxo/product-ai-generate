@@ -267,6 +267,43 @@ const COLLECTION_PRODUCTS_QUERY = `#graphql
   }
 `;
 
+const COLLECTION_PRODUCT_SEARCH_QUERY = `#graphql
+  query CollectionProductSearch(
+    $first: Int
+    $after: String
+    $query: String
+  ) {
+    products(first: $first, after: $after, query: $query, sortKey: TITLE) {
+      edges {
+        node {
+          id
+          title
+          handle
+          status
+          descriptionHtml
+          seo {
+            title
+            description
+          }
+          updatedAt
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
+const COLLECTION_TITLE_QUERY = `#graphql
+  query CollectionTitle($id: ID!) {
+    collection(id: $id) {
+      title
+    }
+  }
+`;
+
 const PRODUCT_UPDATE_MUTATION = `#graphql
   mutation ProductUpdate($product: ProductUpdateInput!) {
     productUpdate(product: $product) {
@@ -296,6 +333,13 @@ function toSearchQuery(search) {
   const escapedSearch = escapeSearchValue(search);
   const titleQuery = escapedSearch.includes(" ") ? `"${escapedSearch}"` : escapedSearch;
   return `title:${titleQuery}`;
+}
+
+function toCollectionProductSearchQuery(collectionId, searchQuery) {
+  const collectionLegacyId = String(collectionId || "").split("/").pop();
+  return [collectionLegacyId ? `collection_id:${collectionLegacyId}` : "", searchQuery]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function evaluateDescription(description) {
@@ -411,10 +455,52 @@ function toLegacyResourceId(gid) {
   return String(gid || "").split("/").pop() || "";
 }
 
-async function fetchCollectionProducts(admin, collectionId) {
+async function fetchCollectionProducts(admin, collectionId, searchQuery = "") {
   const productNodes = [];
   let productCursor;
   let collectionTitle = "";
+  const productSearchQuery = toCollectionProductSearchQuery(collectionId, searchQuery);
+
+  if (searchQuery) {
+    const titleRes = await admin.graphql(COLLECTION_TITLE_QUERY, { variables: { id: collectionId } });
+    const titleJson = await titleRes.json();
+    collectionTitle = titleJson?.data?.collection?.title || "";
+
+    while (true) {
+      const productRes = await admin.graphql(COLLECTION_PRODUCT_SEARCH_QUERY, {
+        variables: {
+          first: FETCH_BATCH_SIZE,
+          after: productCursor,
+          query: productSearchQuery || undefined,
+        },
+      });
+      const productJson = await productRes.json();
+      const productConnection = productJson?.data?.products;
+      if (!productConnection) break;
+
+      const nodes = (productConnection.edges || []).map(({ node }) => node);
+      productNodes.push(...nodes);
+
+      if (!productConnection.pageInfo?.hasNextPage || !productConnection.pageInfo?.endCursor) {
+        break;
+      }
+      productCursor = productConnection.pageInfo.endCursor;
+    }
+
+    return {
+      collectionTitle,
+      products: productNodes.map((node) => ({
+        id: node.id,
+        title: node.title,
+        handle: node.handle || "",
+        status: node.status,
+        descriptionHtml: node.descriptionHtml || "",
+        seoTitleValue: node.seo?.title || "",
+        seoDescriptionValue: node.seo?.description || "",
+        updatedAt: node.updatedAt,
+      })),
+    };
+  }
 
   while (true) {
     const productRes = await admin.graphql(COLLECTION_PRODUCTS_QUERY, {
@@ -1431,7 +1517,7 @@ export const loader = async ({ request }) => {
   let collectionProducts = [];
   let collectionProductsTitle = "";
   if (productsCollectionId) {
-    const fetched = await fetchCollectionProducts(admin, productsCollectionId);
+    const fetched = await fetchCollectionProducts(admin, productsCollectionId, query);
     collectionProductsTitle = fetched.collectionTitle;
     const collectionProductGeneratedContentByProductId = new Map();
     if (fetched.products.length > 0) {

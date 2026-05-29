@@ -1170,7 +1170,7 @@ export async function applyProductToShopify(shop, accessToken, productId, conten
     if (hasFaq) {
       const metafields = [];
       if (content.faqJson) {
-        metafields.push({ ownerId: productId, namespace: "content_ai_geo", key: "faq_schema", type: "json", value: content.faqJson });
+        metafields.push({ ownerId: productId, namespace: "content_ai_geo", key: "faq_json", type: "json", value: content.faqJson });
       }
       if (content.faqHtml) {
         metafields.push({ ownerId: productId, namespace: "content_ai_geo", key: "faq_html", type: "multi_line_text_field", value: content.faqHtml });
