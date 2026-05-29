@@ -74,6 +74,15 @@ const BASE_AI_MODEL_OPTIONS = [
   { label: "Cohere Command R+", value: "cohere-command-r-plus" },
 ];
 
+const LANGUAGE_OPTIONS = [
+  "English", "Arabic", "Bengali", "Bulgarian",
+  "Chinese", "Chinese (Simplified)", "Chinese (Traditional)", "Croatian", "Czech",
+  "Danish", "Dutch", "Finnish", "French", "German", "Greek", "Hebrew", "Hindi",
+  "Hungarian", "Indonesian", "Italian", "Japanese", "Korean", "Malay", "Norwegian",
+  "Polish", "Portuguese", "Romanian", "Russian", "Spanish", "Swedish", "Tamil",
+  "Telugu", "Thai", "Turkish", "Ukrainian", "Urdu", "Vietnamese",
+].map((language) => ({ label: language, value: language }));
+
 function creditsForGenerateScope(scope) {
   if (scope === "faq") return CREDITS_PER_FAQ_GENERATION;
   return scope === "all" ? CREDITS_PER_GENERATION : 1;
@@ -2092,9 +2101,15 @@ function GenerateTemplateModal({
   generateScope,
   templateSelection,
   customInstructions,
+  language,
+  seoKeyword,
+  additionalInformation,
   previewText,
   progress,
   onChange,
+  onLanguageChange,
+  onSeoKeywordChange,
+  onAdditionalInformationChange,
   onCustomInstructionToggle,
   onCustomInstructionPromptChange,
   onResetDefaults,
@@ -2203,7 +2218,7 @@ function GenerateTemplateModal({
   useEffect(() => {
     if (!isHydratedRef.current || !open || !item) return;
     if (showMain) {
-      setEditablePreviewHtml(normalizeGeneratedHtml(previewText || item.descriptionHtml || ""));
+      setEditablePreviewHtml(normalizeGeneratedHtml(previewText || (isFaqScope ? item.faqHtml : item.descriptionHtml) || ""));
       setEditableMetaText("");
       return;
     }
@@ -2214,7 +2229,7 @@ function GenerateTemplateModal({
     }
     setEditableMetaText(previewText || item.seoDescription || "");
     setEditablePreviewHtml("");
-  }, [open, item, previewText, showMain, generateScope]);
+  }, [open, item, previewText, showMain, generateScope, isFaqScope]);
 
   const hasSavableContent = showMain
     ? Boolean(stripHtml(editablePreviewHtml))
@@ -2223,8 +2238,11 @@ function GenerateTemplateModal({
   const handleSavePreview = useCallback(() => {
     if (!item || !onSave) return;
     const nextDescriptionHtml = showMain
-      ? normalizeGeneratedHtml(editablePreviewHtml || "")
+      ? isFaqScope
+        ? item.descriptionHtml || ""
+        : normalizeGeneratedHtml(editablePreviewHtml || "")
       : item.descriptionHtml || "";
+    const nextFaqHtml = isFaqScope ? normalizeGeneratedHtml(editablePreviewHtml || "") : item.faqHtml || "";
     const nextSeoTitle = generateScope === "meta_title"
       ? cleanInlineText(editableMetaText || "", 70)
       : (item.seoTitle || "");
@@ -2236,10 +2254,12 @@ function GenerateTemplateModal({
       itemId: item.id,
       contentType,
       descriptionHtml: nextDescriptionHtml,
+      faqHtml: nextFaqHtml,
+      faqJson: isFaqScope ? buildFaqJsonFromHtml(nextFaqHtml) : item.faqJson || "",
       seoTitle: nextSeoTitle,
       seoDescription: nextSeoDescription,
     });
-  }, [contentType, editableMetaText, editablePreviewHtml, generateScope, item, onSave, showMain]);
+  }, [contentType, editableMetaText, editablePreviewHtml, generateScope, isFaqScope, item, onSave, showMain]);
 
   const previewMetaText =
     !showMain && editableMetaText
@@ -2333,6 +2353,35 @@ function GenerateTemplateModal({
                 </BlockStack>
               </Card>
 
+              <Card>
+                <BlockStack gap="250">
+                  <Text as="h3" variant="headingSm">Generation Options</Text>
+                  <Select
+                    label="Language"
+                    options={LANGUAGE_OPTIONS}
+                    value={language || "English"}
+                    onChange={onLanguageChange}
+                  />
+                  <div className="content-mgmt-keyword-field">
+                    <TextField
+                      label="SEO keyword"
+                      value={seoKeyword || ""}
+                      onChange={onSeoKeywordChange}
+                      autoComplete="off"
+                      placeholder="Example: organic cotton shirt"
+                    />
+                  </div>
+                  <TextField
+                    label="Additional information"
+                    value={additionalInformation || ""}
+                    onChange={onAdditionalInformationChange}
+                    multiline={3}
+                    autoComplete="off"
+                    placeholder="Add product facts, audience, use cases, or keyword context."
+                  />
+                </BlockStack>
+              </Card>
+
               {visibleScopes.map((scope) => {
                 const scopeState =
                   customInstructions?.[scope] || { enabled: false, prompt: "" };
@@ -2356,7 +2405,7 @@ function GenerateTemplateModal({
                             }
                           }}
                         />
-                        <Button onClick={() => openTemplateLibraryForScope(scope)}>
+                        <Button variant="secondary" onClick={() => openTemplateLibraryForScope(scope)}>
                           {browseButtonLabel}
                         </Button>
                       </InlineStack>
@@ -2374,7 +2423,7 @@ function GenerateTemplateModal({
                             placeholder="Write detailed instructions for style, tone, structure, and required points."
                           />
                           <InlineStack gap="200">
-                            <Button onClick={() => openTemplateLibraryForScope(scope)}>Browse Templates</Button>
+                            <Button variant="secondary" onClick={() => openTemplateLibraryForScope(scope)}>Browse Templates</Button>
                             <Button
                               variant="secondary"
                               onClick={() => onResetDefaults(scope, scopeDefaultPrompt)}
@@ -2475,6 +2524,9 @@ export default function ContentManagementPage() {
   }));
   const [generationProgress, setGenerationProgress] = useState(0);
   const [generatedPreviewText, setGeneratedPreviewText] = useState("");
+  const [generationLanguage, setGenerationLanguage] = useState("English");
+  const [generationSeoKeyword, setGenerationSeoKeyword] = useState("");
+  const [generationAdditionalInformation, setGenerationAdditionalInformation] = useState("");
 
   // Track per-row generating state
   const [generatingId, setGeneratingId] = useState(null);
@@ -2567,6 +2619,8 @@ export default function ContentManagementPage() {
         setGeneratedPreviewText(data.seoTitle || "");
       } else if (pendingGenerateScope === "meta_description") {
         setGeneratedPreviewText(data.seoDescription || "");
+      } else if (pendingGenerateScope === "faq") {
+        setGeneratedPreviewText(data.faqHtml || "");
       } else {
         setGeneratedPreviewText(data.descriptionHtml || "");
       }
@@ -2707,6 +2761,9 @@ export default function ContentManagementPage() {
       setGenerateTemplateSelection(savedPrefs.templateSelection || defaultTemplateSelection());
       setCustomInstructions(savedPrefs.customInstructions || defaultCustomInstructionSettings());
       setGeneratedPreviewText("");
+      setGenerationLanguage(item.language || "English");
+      setGenerationSeoKeyword("");
+      setGenerationAdditionalInformation(item.contextKeywords || "");
       setGenerationProgress(0);
       setTemplateModalOpen(true);
     },
@@ -2877,6 +2934,9 @@ export default function ContentManagementPage() {
     fd.append("contentType", pendingGenerateContentType);
     fd.append("generateScope", pendingGenerateScope);
     fd.append("item", JSON.stringify(pendingGenerateItem));
+    fd.append("language", generationLanguage || "English");
+    fd.append("seoKeyword", generationSeoKeyword || "");
+    fd.append("additionalInformation", generationAdditionalInformation || "");
     fd.append("aiProvider", defaultAiProvider || "auto");
     fd.append("aiModel", envAiModel || DEFAULT_AI_MODEL);
     fd.append("metaTitlePromptTemplate", finalMetaTitleTemplate);
@@ -2901,6 +2961,9 @@ export default function ContentManagementPage() {
     generateTemplateSelection.mainTemplateId,
     generateTemplateSelection.metaDescriptionTemplateId,
     generateTemplateSelection.metaTitleTemplateId,
+    generationAdditionalInformation,
+    generationLanguage,
+    generationSeoKeyword,
     pendingGenerateContentType,
     pendingGenerateItem,
     pendingGenerateScope,
@@ -3277,13 +3340,6 @@ export default function ContentManagementPage() {
             </>
           )}
         </Card>
-
-        {/* Credit info footer */}
-        <Box paddingBlockEnd="400">
-          <Text variant="bodySm" as="p" tone="subdued" alignment="center">
-            Generate All uses {CREDITS_PER_GENERATION} credits. Description/Content, Meta Title, and Meta Description each use 1 credit. Clicking a description or SEO cell opens the editor and saves are free.
-          </Text>
-        </Box>
       </BlockStack>
 
       <style>{`
@@ -3323,6 +3379,12 @@ export default function ContentManagementPage() {
           border-radius: 10px;
           padding: 10px;
           background: #f9fafb;
+        }
+        .content-mgmt-keyword-field {
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          padding: 10px;
+          background: #ffffff;
         }
         .content-mgmt-faq-cell {
           width: 180px;
@@ -3367,9 +3429,15 @@ export default function ContentManagementPage() {
         generateScope={pendingGenerateScope}
         templateSelection={generateTemplateSelection}
         customInstructions={customInstructions}
+        language={generationLanguage}
+        seoKeyword={generationSeoKeyword}
+        additionalInformation={generationAdditionalInformation}
         previewText={generatedPreviewText}
         progress={generationProgress}
         onChange={updateGenerateTemplateSelection}
+        onLanguageChange={setGenerationLanguage}
+        onSeoKeywordChange={setGenerationSeoKeyword}
+        onAdditionalInformationChange={setGenerationAdditionalInformation}
         onCustomInstructionToggle={updateCustomInstructionToggle}
         onCustomInstructionPromptChange={updateCustomInstructionPrompt}
         onResetDefaults={resetGenerateModalDefaults}

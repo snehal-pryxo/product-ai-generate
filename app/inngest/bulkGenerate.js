@@ -38,7 +38,9 @@ async function generateItem(jobType, item, settings, apiKeys, accessToken) {
       await generateCollectionItem(item, { ...settings, contentTypes: standardContentTypes }, apiKeys);
     }
     if ((settings.contentTypes || []).includes("faq")) {
-      await generateBulkFaq(settings.shop, accessToken, "collection", item, aiOptions);
+      await generateBulkFaq(settings.shop, accessToken, "collection", item, aiOptions, {
+        language: settings.language,
+      });
     }
     return { creditsUsed: settings.creditsPerItem || (settings.contentTypes?.length || 0) };
   }
@@ -54,6 +56,7 @@ async function generateItem(jobType, item, settings, apiKeys, accessToken) {
         "product",
         { id: item.productId, title: item.productTitle, descriptionHtml: item.productDescHtml },
         aiOptions,
+        { language: settings.language },
       );
     }
     return { creditsUsed: settings.creditsPerItem || (settings.contentTypes?.length || 0) };
@@ -66,7 +69,9 @@ async function generateItem(jobType, item, settings, apiKeys, accessToken) {
     await generateProductSchemaForBulk(settings.shop, accessToken, item, aiOptions);
   }
   if ((settings.contentTypes || []).includes("faq")) {
-    await generateBulkFaq(settings.shop, accessToken, "product", item, aiOptions);
+    await generateBulkFaq(settings.shop, accessToken, "product", item, aiOptions, {
+      language: settings.language,
+    });
   }
 
   return { creditsUsed: settings.creditsPerItem || (settings.contentTypes?.length || 0) };

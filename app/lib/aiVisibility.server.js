@@ -399,7 +399,11 @@ export async function generateBulkFaq(shop, accessToken, resourceType, resource,
     resource.productDescHtml ||
     ""
   ).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().substring(0, 500);
-  const promptObj = buildProductFaqPrompt({ title, description });
+  const promptObj = buildProductFaqPrompt({
+    title,
+    description,
+    language: options.language || "English",
+  });
   const raw = await callAIRaw(promptObj.prompt, promptObj.systemPrompt, aiOptions);
   const arr = parseJsonResponse(raw);
   if (!Array.isArray(arr)) throw new Error("AI returned non-array for FAQ.");

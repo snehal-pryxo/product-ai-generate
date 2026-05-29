@@ -237,7 +237,7 @@ export default function JobsPage() {
                   {hasDetails && (
                     <Box>
                       <Button variant="plain" onClick={() => setSelectedJob(job)}>
-                        View {jobTypeLabel(job.jobType)} ({job.completedItems} succeeded
+                        View Generated SEO Content ({job.completedItems} succeeded
                         {job.failedItems > 0 ? `, ${job.failedItems} failed` : ""})
                       </Button>
                     </Box>

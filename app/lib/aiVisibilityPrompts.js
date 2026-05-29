@@ -43,11 +43,12 @@ Return a single JSON object with @context ("https://schema.org"), @type ("WebPag
   };
 }
 
-export function buildProductFaqPrompt({ title, description }) {
+export function buildProductFaqPrompt({ title, description, language = "English" }) {
   return {
     systemPrompt: "You generate FAQ pairs for Shopify products. Return ONLY a raw JSON array — no markdown fences, no explanation.",
     prompt: `Generate 4 to 6 FAQ question-and-answer pairs for this product.
 Focus on: purchase intent, sizing or compatibility, usage instructions, materials or ingredients, shipping, and common concerns.
+Write every question and answer in ${language}.
 
 Product: ${title}
 Description: ${description || "N/A"}
