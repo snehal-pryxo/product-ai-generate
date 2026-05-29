@@ -16,26 +16,34 @@ import {
 // ─── GraphQL ──────────────────────────────────────────────────────────────────
 
 const PRODUCTS_SEO_QUERY = `#graphql
-  query ProductsSEO($first: Int!) {
-    products(first: $first) { edges { node { id title seo { title description } } } }
+  query ProductsSEO($first: Int!, $after: String) {
+    products(first: $first, after: $after) {
+      edges { node { id title seo { title description } } }
+      pageInfo { hasNextPage endCursor }
+    }
   }`;
 
 const COLLECTIONS_SEO_QUERY = `#graphql
-  query CollectionsSEO($first: Int!) {
-    collections(first: $first) { edges { node { id title description seo { title description } } } }
+  query CollectionsSEO($first: Int!, $after: String) {
+    collections(first: $first, after: $after) {
+      edges { node { id title description seo { title description } } }
+      pageInfo { hasNextPage endCursor }
+    }
   }`;
 
 const PAGES_SEO_QUERY = `#graphql
-  query PagesSEO($first: Int!) {
-    pages(first: $first) {
+  query PagesSEO($first: Int!, $after: String) {
+    pages(first: $first, after: $after) {
       edges { node { id title metafields(first: 2, namespace: "global") { edges { node { key value } } } } }
+      pageInfo { hasNextPage endCursor }
     }
   }`;
 
 const ARTICLES_SEO_QUERY = `#graphql
-  query ArticlesSEO($first: Int!) {
-    articles(first: $first) {
+  query ArticlesSEO($first: Int!, $after: String) {
+    articles(first: $first, after: $after) {
       edges { node { id title metafields(first: 2, namespace: "global") { edges { node { key value } } } } }
+      pageInfo { hasNextPage endCursor }
     }
   }`;
 
@@ -53,15 +61,41 @@ function buildDailyMap(startDate, endDate) {
 
 function normalizeResourceType(log) {
   const resourceType = String(log?.resourceType || "").toLowerCase();
-  if (resourceType === "product" || resourceType === "collection" || resourceType === "page" || resourceType === "blog") {
+  if (
+    resourceType === "product" ||
+    resourceType === "collection" ||
+    resourceType === "collection_product" ||
+    resourceType === "page" ||
+    resourceType === "blog"
+  ) {
     return resourceType;
   }
 
   const intent = String(log?.intent || "").toLowerCase();
+  if (intent.includes("collection_product")) return "collection_product";
   if (intent.includes("collection")) return "collection";
   if (intent.includes("page")) return "page";
   if (intent.includes("blog") || intent.includes("article")) return "blog";
   return "product";
+}
+
+async function fetchAllConnectionNodes(admin, query, connectionName, pageSize = 250) {
+  const nodes = [];
+  let after = null;
+  let hasNextPage = true;
+
+  while (hasNextPage) {
+    const response = await admin.graphql(query, {
+      variables: { first: pageSize, after },
+    });
+    const json = await response.json();
+    const connection = json.data?.[connectionName];
+    nodes.push(...(connection?.edges || []).map((edge) => edge.node));
+    hasNextPage = Boolean(connection?.pageInfo?.hasNextPage);
+    after = connection?.pageInfo?.endCursor || null;
+  }
+
+  return nodes;
 }
 
 // ─── Loader ───────────────────────────────────────────────────────────────────
@@ -89,27 +123,22 @@ export const loader = async ({ request }) => {
   const startDateObj = new Date(startDate + "T00:00:00");
   const endDateObj   = new Date(endDate   + "T23:59:59");
 
-  const [productsRes, collectionsRes, pagesRes, articlesRes] = await Promise.all([
-    admin.graphql(PRODUCTS_SEO_QUERY,    { variables: { first: 100 } }),
-    admin.graphql(COLLECTIONS_SEO_QUERY, { variables: { first: 50  } }),
-    admin.graphql(PAGES_SEO_QUERY,       { variables: { first: 50  } }),
-    admin.graphql(ARTICLES_SEO_QUERY,    { variables: { first: 50  } }),
-  ]);
-  const [pj, cj, pgj, aj] = await Promise.all([
-    productsRes.json(), collectionsRes.json(), pagesRes.json(), articlesRes.json(),
+  const [products, collections, pageNodes, articleNodes] = await Promise.all([
+    fetchAllConnectionNodes(admin, PRODUCTS_SEO_QUERY, "products"),
+    fetchAllConnectionNodes(admin, COLLECTIONS_SEO_QUERY, "collections"),
+    fetchAllConnectionNodes(admin, PAGES_SEO_QUERY, "pages"),
+    fetchAllConnectionNodes(admin, ARTICLES_SEO_QUERY, "articles"),
   ]);
 
-  const products    = (pj.data?.products?.edges    || []).map(e => e.node);
-  const collections = (cj.data?.collections?.edges || []).map(e => e.node);
-  const pages = (pgj.data?.pages?.edges || []).map(e => {
-    const mfs = (e.node.metafields?.edges || []).map(me => me.node);
-    return { id: e.node.id, title: e.node.title,
+  const pages = pageNodes.map(node => {
+    const mfs = (node.metafields?.edges || []).map(me => me.node);
+    return { id: node.id, title: node.title,
       hasSeoTitle: !!mfs.find(m => m.key === "title_tag")?.value,
       hasSeoDesc:  !!mfs.find(m => m.key === "description_tag")?.value };
   });
-  const articles = (aj.data?.articles?.edges || []).map(e => {
-    const mfs = (e.node.metafields?.edges || []).map(me => me.node);
-    return { id: e.node.id, title: e.node.title,
+  const articles = articleNodes.map(node => {
+    const mfs = (node.metafields?.edges || []).map(me => me.node);
+    return { id: node.id, title: node.title,
       hasSeoTitle: !!mfs.find(m => m.key === "title_tag")?.value,
       hasSeoDesc:  !!mfs.find(m => m.key === "description_tag")?.value };
   });
@@ -183,7 +212,7 @@ export const loader = async ({ request }) => {
   const dailyCounts  = buildDailyMap(startDate, endDate);
   const dailyApplied = buildDailyMap(startDate, endDate);
   const dailyCredits = buildDailyMap(startDate, endDate);
-  const generationByResource = { product: 0, collection: 0, page: 0, blog: 0 };
+  const generationByResource = { product: 0, collection: 0, collection_product: 0, page: 0, blog: 0 };
   for (const log of rangeLogs) {
     const key = toDateStr(new Date(log.createdAt));
     if (key in dailyCounts) {
@@ -858,15 +887,21 @@ const INTENT_LABEL = {
   generate_all: "Full Content",
   product_bulk_generate: "Product Bulk Generate",
   collection_bulk_generate: "Collection Bulk Generate",
+  collection_product_bulk_generate: "Collection Product Bulk Generate",
   page_bulk_generate: "Page Bulk Generate",
   blog_bulk_generate: "Blog Bulk Generate",
   blog_create_article: "Create Blog Article",
+  content_management_products: "Product Content",
+  content_management_collections: "Collection Content",
+  content_management_collection_products: "Collection Product Content",
+  content_management_pages: "Page Content",
 };
 
 const RESOURCE_TABS = [
   { id: "all", content: "All" },
   { id: "product", content: "Product" },
   { id: "collection", content: "Collection" },
+  { id: "collection_product", content: "Collection Product" },
   { id: "page", content: "Pages" },
   { id: "blog", content: "Blogs" },
 ];
@@ -878,18 +913,27 @@ const GENERATE_TYPE_OPTIONS_BY_RESOURCE = {
     { label: "Content", value: "content" },
     { label: "Meta Title", value: "meta_title" },
     { label: "Meta Description", value: "meta_description" },
+    { label: "FAQ", value: "faq" },
   ],
   product: [
     { label: "All Generate", value: "all" },
     { label: "Description", value: "description" },
     { label: "Meta Title", value: "meta_title" },
     { label: "Meta Description", value: "meta_description" },
+    { label: "FAQ", value: "faq" },
   ],
   collection: [
     { label: "All Generate", value: "all" },
     { label: "Description", value: "description" },
     { label: "Meta Title", value: "meta_title" },
     { label: "Meta Description", value: "meta_description" },
+  ],
+  collection_product: [
+    { label: "All Generate", value: "all" },
+    { label: "Description", value: "description" },
+    { label: "Meta Title", value: "meta_title" },
+    { label: "Meta Description", value: "meta_description" },
+    { label: "FAQ", value: "faq" },
   ],
   page: [
     { label: "All Generate", value: "all" },
@@ -917,6 +961,9 @@ function matchesGenerateType(intentValue, generateType) {
   }
   if (generateType === "description") {
     return intent.includes("generate_description");
+  }
+  if (generateType === "faq") {
+    return intent.includes("faq");
   }
   if (generateType === "content") {
     return (
@@ -984,7 +1031,7 @@ export default function AnalyticsPage() {
   }, [endDate, filteredRangeLogs, startDate]);
 
   const filteredGenerationByResource = useMemo(() => {
-    const resourceMap = { product: 0, collection: 0, page: 0, blog: 0 };
+    const resourceMap = { product: 0, collection: 0, collection_product: 0, page: 0, blog: 0 };
     for (const log of filteredRangeLogs) {
       resourceMap[log.resourceType] = (resourceMap[log.resourceType] || 0) + 1;
     }
@@ -1223,6 +1270,7 @@ export default function AnalyticsPage() {
                   {[
                     { label: "Products", val: filteredGenerationByResource.product || 0 },
                     { label: "Collections", val: filteredGenerationByResource.collection || 0 },
+                    { label: "Collection Products", val: filteredGenerationByResource.collection_product || 0 },
                     { label: "Pages", val: filteredGenerationByResource.page || 0 },
                     { label: "Blogs", val: filteredGenerationByResource.blog || 0 },
                   ].map(({ label, val }) => (
