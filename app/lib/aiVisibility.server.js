@@ -113,11 +113,11 @@ async function shopifyRestJson(shop, accessToken, path, options = {}) {
   return json;
 }
 
-async function writeMetafieldWithGraphQL(adminGraphQL, ownerId, key, jsonValue) {
+async function writeMetafieldWithGraphQL(adminGraphQL, ownerId, key, value, type = METAFIELD_TYPE) {
   try {
     const res = await adminGraphQL(METAFIELDS_SET_MUTATION, {
       variables: {
-        metafields: [{ ownerId, namespace: METAFIELD_NAMESPACE, key, type: METAFIELD_TYPE, value: jsonValue }],
+        metafields: [{ ownerId, namespace: METAFIELD_NAMESPACE, key, type, value }],
       },
     });
     const json = await res.json();
@@ -157,7 +157,7 @@ function buildAccessTokenGraphQLClient(shop, accessToken) {
   };
 }
 
-async function writeMetafieldWithRest({ shop, accessToken, resourceType, resource, key, jsonValue }) {
+async function writeMetafieldWithRest({ shop, accessToken, resourceType, resource, key, value, type = METAFIELD_TYPE }) {
   const resourcePath = restResourcePath(resourceType, resource);
   const query = new URLSearchParams({ namespace: METAFIELD_NAMESPACE, key }).toString();
   const existingJson = await shopifyRestJson(shop, accessToken, `${resourcePath}/metafields.json?${query}`);
@@ -168,8 +168,8 @@ async function writeMetafieldWithRest({ shop, accessToken, resourceType, resourc
     metafield: {
       namespace: METAFIELD_NAMESPACE,
       key,
-      type: METAFIELD_TYPE,
-      value: jsonValue,
+      type,
+      value,
     },
   };
 
@@ -181,8 +181,8 @@ async function writeMetafieldWithRest({ shop, accessToken, resourceType, resourc
             id: existing.id,
             namespace: METAFIELD_NAMESPACE,
             key,
-            value: jsonValue,
-            type: METAFIELD_TYPE,
+            value,
+            type,
           },
         },
       })
@@ -198,13 +198,14 @@ async function writeMetafieldWithRest({ shop, accessToken, resourceType, resourc
   return metafield.admin_graphql_api_id || `gid://shopify/Metafield/${metafield.id}`;
 }
 
-async function writeResourceMetafield({ shop, adminGraphQL, accessToken, resourceType, resource, key, jsonValue }) {
+async function writeResourceMetafield({ shop, adminGraphQL, accessToken, resourceType, resource, key, jsonValue, value, type = METAFIELD_TYPE }) {
+  const metafieldValue = value ?? jsonValue;
   try {
     if (!adminGraphQL) throw new Error("Missing Shopify GraphQL client.");
-    return await writeMetafieldWithGraphQL(adminGraphQL, resource.id, key, jsonValue);
+    return await writeMetafieldWithGraphQL(adminGraphQL, resource.id, key, metafieldValue, type);
   } catch (graphqlErr) {
     try {
-      return await writeMetafieldWithRest({ shop, accessToken, resourceType, resource, key, jsonValue });
+      return await writeMetafieldWithRest({ shop, accessToken, resourceType, resource, key, value: metafieldValue, type });
     } catch (restErr) {
       throw new Error(
         `Unable to write ${key} metafield on ${resourceType}: GraphQL failed (${graphqlErr?.message || "unknown error"}); REST failed (${restErr?.message || "unknown error"}).`,
@@ -405,7 +406,7 @@ export async function generateBulkFaq(shop, accessToken, resourceType, resource,
   const faqJson = buildFaqPageJson(arr);
   const faqHtml = buildFaqHtml(arr);
 
-  if (resourceType === "product" && options.appendToProductDescription !== false) {
+  if (resourceType === "product" && options.appendToProductDescription === true) {
     const nextDescriptionHtml = appendFaqHtmlToDescription(resource.descriptionHtml, faqHtml);
     await updateProductDescriptionHtml(shop, accessToken, resource.id, nextDescriptionHtml);
   }
@@ -419,12 +420,46 @@ export async function generateBulkFaq(shop, accessToken, resourceType, resource,
     key: "faq_json",
     jsonValue: faqJson,
   });
+  await writeResourceMetafield({
+    shop,
+    adminGraphQL: buildAccessTokenGraphQLClient(shop, accessToken),
+    accessToken,
+    resourceType,
+    resource,
+    key: "faq_html",
+    type: "multi_line_text_field",
+    value: faqHtml,
+  });
 
   await db.aiVisibilityFaq.upsert({
     where: { shop_resourceType_resourceId: { shop, resourceType, resourceId: resource.id } },
     create: { shop, resourceType, resourceId: resource.id, faqJson, metafieldId, creditsUsed: CREDITS_FAQ },
     update: { faqJson, metafieldId, creditsUsed: CREDITS_FAQ, updatedAt: new Date() },
   });
+
+  if (resourceType === "product") {
+    await db.productGeneratedContent.upsert({
+      where: { shop_productId: { shop, productId: resource.id } },
+      create: {
+        shop,
+        productId: resource.id,
+        productTitle: title || null,
+        descriptionHtml: resource.descriptionHtml || null,
+        faqHtml,
+        faqJson,
+        creditsUsed: CREDITS_FAQ,
+        appliedToProduct: true,
+      },
+      update: {
+        productTitle: title || null,
+        faqHtml,
+        faqJson,
+        creditsUsed: CREDITS_FAQ,
+        appliedToProduct: true,
+        updatedAt: new Date(),
+      },
+    });
+  }
 
   return { faqJson, faqHtml, creditsUsed: CREDITS_FAQ };
 }
@@ -455,6 +490,7 @@ export async function generateFaq(shop, adminContext, resourceType, resource) {
     const arr = parseJsonResponse(raw);
     if (!Array.isArray(arr)) throw new Error("AI returned non-array for FAQ.");
     const faqPageJson = buildFaqPageJson(arr);
+    const faqHtml = buildFaqHtml(arr);
 
     const metafieldId = await writeResourceMetafield({
       shop,
@@ -465,6 +501,16 @@ export async function generateFaq(shop, adminContext, resourceType, resource) {
       key: "faq_json",
       jsonValue: faqPageJson,
     });
+    await writeResourceMetafield({
+      shop,
+      adminGraphQL,
+      accessToken,
+      resourceType,
+      resource,
+      key: "faq_html",
+      type: "multi_line_text_field",
+      value: faqHtml,
+    });
 
     await db.aiVisibilityFaq.upsert({
       where: { shop_resourceType_resourceId: { shop, resourceType, resourceId: resource.id } },
@@ -472,7 +518,31 @@ export async function generateFaq(shop, adminContext, resourceType, resource) {
       update: { faqJson: faqPageJson, metafieldId, creditsUsed: CREDITS_FAQ, updatedAt: new Date() },
     });
 
-    return { faqJson: faqPageJson, creditsUsed: CREDITS_FAQ };
+    if (resourceType === "product") {
+      await db.productGeneratedContent.upsert({
+        where: { shop_productId: { shop, productId: resource.id } },
+        create: {
+          shop,
+          productId: resource.id,
+          productTitle: resource.title || null,
+          descriptionHtml: resource.descriptionHtml || resource.description || null,
+          faqHtml,
+          faqJson: faqPageJson,
+          creditsUsed: CREDITS_FAQ,
+          appliedToProduct: true,
+        },
+        update: {
+          productTitle: resource.title || null,
+          faqHtml,
+          faqJson: faqPageJson,
+          creditsUsed: CREDITS_FAQ,
+          appliedToProduct: true,
+          updatedAt: new Date(),
+        },
+      });
+    }
+
+    return { faqJson: faqPageJson, faqHtml, creditsUsed: CREDITS_FAQ };
   } catch (err) {
     await refundCredits({ shopDomain: shop, creditsRefunded: CREDITS_FAQ });
     throw err;
@@ -510,6 +580,7 @@ export async function generateCombined(shop, adminContext, resource) {
       })),
     };
     const faqPageJson = JSON.stringify(faqPageSchema);
+    const faqHtml = buildFaqHtml(faqArr);
 
     const [schemaMetafieldId, faqMetafieldId] = await Promise.all([
       writeResourceMetafield({
@@ -529,6 +600,16 @@ export async function generateCombined(shop, adminContext, resource) {
         resource,
         key: "faq_json",
         jsonValue: faqPageJson,
+      }),
+      writeResourceMetafield({
+        shop,
+        adminGraphQL,
+        accessToken,
+        resourceType: "product",
+        resource,
+        key: "faq_html",
+        type: "multi_line_text_field",
+        value: faqHtml,
       }),
     ]);
 
@@ -557,8 +638,29 @@ export async function generateCombined(shop, adminContext, resource) {
       },
       update: { faqJson: faqPageJson, metafieldId: faqMetafieldId, updatedAt: new Date() },
     });
+    await db.productGeneratedContent.upsert({
+      where: { shop_productId: { shop, productId: resource.id } },
+      create: {
+        shop,
+        productId: resource.id,
+        productTitle: resource.title || null,
+        descriptionHtml: resource.descriptionHtml || resource.description || null,
+        faqHtml,
+        faqJson: faqPageJson,
+        creditsUsed: CREDITS_COMBINED,
+        appliedToProduct: true,
+      },
+      update: {
+        productTitle: resource.title || null,
+        faqHtml,
+        faqJson: faqPageJson,
+        creditsUsed: CREDITS_COMBINED,
+        appliedToProduct: true,
+        updatedAt: new Date(),
+      },
+    });
 
-    return { schemaJson, faqJson: faqPageJson, creditsUsed: CREDITS_COMBINED };
+    return { schemaJson, faqJson: faqPageJson, faqHtml, creditsUsed: CREDITS_COMBINED };
   } catch (err) {
     await refundCredits({ shopDomain: shop, creditsRefunded: CREDITS_COMBINED });
     throw err;

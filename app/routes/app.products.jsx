@@ -151,44 +151,6 @@ const COLLECTIONS_QUERY = `#graphql
   }
 `;
 
-const COLLECTION_PRODUCTS_QUERY = `#graphql
-  query CollectionProducts(
-    $id: ID!
-    $first: Int
-    $after: String
-  ) {
-    collection(id: $id) {
-      id
-      title
-      products(first: $first, after: $after, sortKey: TITLE) {
-        edges {
-          node {
-            id
-            title
-            handle
-            vendor
-            productType
-            status
-            descriptionHtml
-            seo {
-              title
-              description
-            }
-            priceRangeV2 { minVariantPrice { amount currencyCode } }
-            variants(first: 1) { edges { node { price } } }
-            }
-        }
-        pageInfo {
-          hasNextPage
-          hasPreviousPage
-          startCursor
-          endCursor
-        }
-      }
-    }
-  }
-`;
-
 const PRODUCT_LIST_QUERY = `#graphql
   query ProductList(
     $first: Int
@@ -265,6 +227,15 @@ function toSearchQuery({ search, status }) {
     filters.push(`title:${titleQuery}`);
   }
 
+  return filters.join(" ");
+}
+
+function toCollectionProductSearchQuery({ collectionId, search, status }) {
+  const collectionLegacyId = String(collectionId || "").split("/").pop();
+  const filters = [];
+  if (collectionLegacyId) filters.push(`collection_id:${collectionLegacyId}`);
+  const resourceQuery = toSearchQuery({ search, status });
+  if (resourceQuery) filters.push(resourceQuery);
   return filters.join(" ");
 }
 
@@ -432,11 +403,7 @@ function splitKeywordString(value) {
 
 function readProductKeywordDefaults() {
   const settings = readGlobalSettings();
-  return mergeUniqueKeywords(
-    splitKeywordString(settings.productDescKeywords),
-    splitKeywordString(settings.productMetaTitleKeywords),
-    splitKeywordString(settings.productMetaDescKeywords),
-  );
+  return splitKeywordString(settings.productDescKeywords);
 }
 
 function cleanInlineText(value, maxLength) {
@@ -1145,23 +1112,26 @@ export const loader = async ({ request }) => {
   const statusParam = (url.searchParams.get("status") || "all").toLowerCase();
   const status = STATUS_FILTERS.includes(statusParam) ? statusParam : "all";
   const collectionId = url.searchParams.get("collectionId") || "";
+  let parsedGlobalSettings = {};
+  try { parsedGlobalSettings = JSON.parse(shopData?.globalSettingsJson || "{}"); } catch { /* ignore */ }
 
   // Fetch collections for the filter dropdown (runs in parallel with products)
   const collectionsPromise = admin.graphql(COLLECTIONS_QUERY).then((r) => r.json());
   const productNodes = [];
 
   if (collectionId) {
+    const query = toCollectionProductSearchQuery({ collectionId, search: searchForQuery, status });
     let afterCursor;
     while (true) {
-      const colRes = await admin.graphql(COLLECTION_PRODUCTS_QUERY, {
+      const colRes = await admin.graphql(PRODUCT_LIST_QUERY, {
         variables: {
-          id: collectionId,
           first: FETCH_BATCH_SIZE,
           after: afterCursor,
+          query: query || undefined,
         },
       });
       const colJson = await colRes.json();
-      const productConnection = colJson?.data?.collection?.products;
+      const productConnection = colJson?.data?.products;
       if (!productConnection) break;
 
       const nodes = (productConnection.edges || []).map(({ node }) => node);
@@ -1212,6 +1182,7 @@ export const loader = async ({ request }) => {
       credits: shopData?.credits ?? 150,
       creditsUsedTotal: shopData?.creditsUsedTotal ?? 0,
       shopOwnerName,
+      keywordLibrary: splitKeywordString(parsedGlobalSettings.productDescKeywords),
     };
   }
   const generatedContentByProductId = new Map();
@@ -1259,13 +1230,7 @@ export const loader = async ({ request }) => {
     };
   });
 
-  let parsedGlobalSettings = {};
-  try { parsedGlobalSettings = JSON.parse(shopData?.globalSettingsJson || "{}"); } catch { /* ignore */ }
-  const keywordLibrary = mergeUniqueKeywords(
-    splitKeywordString(parsedGlobalSettings.productDescKeywords),
-    splitKeywordString(parsedGlobalSettings.productMetaTitleKeywords),
-    splitKeywordString(parsedGlobalSettings.productMetaDescKeywords),
-  );
+  const keywordLibrary = splitKeywordString(parsedGlobalSettings.productDescKeywords);
 
   return {
     filters: { search, status, collectionId },

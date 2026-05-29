@@ -88,7 +88,9 @@ const ARTICLES_QUERY = `#graphql
       edges {
         node {
           id title handle body summary publishedAt
-          seo { title description }
+          metafields(first: 10, namespace: "global") {
+            nodes { key value }
+          }
           author { name }
           blog { id title handle }
         }
@@ -103,7 +105,9 @@ const PAGES_QUERY = `#graphql
       edges {
         node {
           id title handle body bodySummary
-          seo { title description }
+          metafields(first: 10, namespace: "global") {
+            nodes { key value }
+          }
         }
       }
     }
@@ -115,6 +119,21 @@ const SHOP_QUERY = `#graphql
     shop { name primaryDomain { host } }
   }
 `;
+
+function metafieldValue(resource, key) {
+  return (resource?.metafields?.nodes || resource?.metafields?.edges?.map((edge) => edge.node) || [])
+    .find((item) => item?.key === key)?.value || "";
+}
+
+function normalizeSeoFromMetafields(resource) {
+  return {
+    ...resource,
+    seo: {
+      title: metafieldValue(resource, "title_tag"),
+      description: metafieldValue(resource, "description_tag"),
+    },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Loader
@@ -139,8 +158,8 @@ export const loader = async ({ request }) => {
   ]);
 
   const products = (productsJson?.data?.products?.edges || []).map((e) => e.node);
-  const articles = (articlesJson?.data?.articles?.edges || []).map((e) => e.node);
-  const pages = (pagesJson?.data?.pages?.edges || []).map((e) => e.node);
+  const articles = (articlesJson?.data?.articles?.edges || []).map((e) => normalizeSeoFromMetafields(e.node));
+  const pages = (pagesJson?.data?.pages?.edges || []).map((e) => normalizeSeoFromMetafields(e.node));
   const shopName = shopJson?.data?.shop?.name || shop;
   const shopDomain = shopJson?.data?.shop?.primaryDomain?.host || shop;
 

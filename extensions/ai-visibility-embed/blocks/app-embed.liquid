@@ -23,6 +23,95 @@
 <script type="application/ld+json">
   {{- faq_meta.value | json -}}
 </script>
+{%- if product -%}
+<style>
+  .content-ai-faq-accordion {
+    margin: 32px 0;
+    border-top: 1px solid rgba(0, 0, 0, 0.12);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+  }
+  .content-ai-faq-accordion__title {
+    margin: 0;
+    padding: 18px 0;
+    font-size: 1.35rem;
+    line-height: 1.25;
+  }
+  .content-ai-faq-accordion details {
+    border-top: 1px solid rgba(0, 0, 0, 0.12);
+    padding: 14px 0;
+  }
+  .content-ai-faq-accordion summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .content-ai-faq-accordion__answer {
+    margin: 10px 0 0;
+  }
+</style>
+<script>
+  (function() {
+    var faqData = {{ faq_meta.value | json }};
+    function text(value) {
+      return String(value || "").replace(/\s+/g, " ").trim();
+    }
+    function getItems(data) {
+      var parsed = data;
+      if (typeof parsed === "string") {
+        try { parsed = JSON.parse(parsed); } catch (error) { parsed = null; }
+      }
+      var entities = parsed && Array.isArray(parsed.mainEntity) ? parsed.mainEntity : [];
+      return entities.map(function(item) {
+        return {
+          question: text(item && item.name),
+          answer: text(item && item.acceptedAnswer && item.acceptedAnswer.text)
+        };
+      }).filter(function(item) {
+        return item.question && item.answer;
+      });
+    }
+    function appendFaqAccordion() {
+      if (document.querySelector("[data-content-ai-faq-accordion]")) return;
+      var items = getItems(faqData);
+      if (!items.length) return;
+
+      var section = document.createElement("section");
+      section.className = "content-ai-faq-accordion";
+      section.setAttribute("data-content-ai-faq-accordion", "true");
+
+      var title = document.createElement("h2");
+      title.className = "content-ai-faq-accordion__title";
+      title.textContent = "Frequently Asked Questions";
+      section.appendChild(title);
+
+      items.forEach(function(item) {
+        var detail = document.createElement("details");
+        var summary = document.createElement("summary");
+        var answer = document.createElement("div");
+        summary.textContent = item.question;
+        answer.className = "content-ai-faq-accordion__answer";
+        answer.textContent = item.answer;
+        detail.appendChild(summary);
+        detail.appendChild(answer);
+        section.appendChild(detail);
+      });
+
+      var target =
+        document.querySelector("product-info") ||
+        document.querySelector(".product__info-container") ||
+        document.querySelector(".product__description") ||
+        document.querySelector("[data-product-description]");
+      if (target) {
+        target.insertAdjacentElement("afterend", section);
+      }
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", appendFaqAccordion);
+    } else {
+      appendFaqAccordion();
+    }
+  })();
+</script>
+{%- endif -%}
 {%- endif -%}
 
 {% schema %}
