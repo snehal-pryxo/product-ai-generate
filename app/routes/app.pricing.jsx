@@ -169,12 +169,6 @@ export default function PricingPage() {
           </Banner>
         ) : null}
 
-        {billingTestMode ? (
-          <Banner tone="info">
-            <p>Billing test mode is enabled. Shopify approval pages will create test charges only.</p>
-          </Banner>
-        ) : null}
-
         <Card>
           <BlockStack gap="300">
             <InlineStack align="space-between" blockAlign="center" gap="300">
@@ -193,18 +187,6 @@ export default function PricingPage() {
                   {formatCredits(appData?.credits)} credits
                 </Text>
               </InlineStack>
-            </InlineStack>
-            <Divider />
-            <InlineStack gap="500" wrap>
-              <Text as="p" variant="bodySm" tone="subdued">
-                <Text as="span" fontWeight="semibold">1 credit</Text> = 1 AI-generated field (description, meta title, or meta description)
-              </Text>
-              <Text as="p" variant="bodySm" tone="subdued">
-                Generating all 3 fields for a product costs <Text as="span" fontWeight="semibold">3 credits</Text>
-              </Text>
-              <Text as="p" variant="bodySm" tone="subdued">
-                Blog post generation costs <Text as="span" fontWeight="semibold">3 credits</Text>
-              </Text>
             </InlineStack>
           </BlockStack>
         </Card>
@@ -229,8 +211,10 @@ export default function PricingPage() {
               const loading = isSubmitting && activePlanKey === plan.key;
               return (
                 <Grid.Cell key={plan.key}>
-                  <Card>
-                    <BlockStack gap="350">
+                  <div className="pricing-plan-card">
+                    <Card>
+                      <div className="pricing-plan-card__inner">
+                        <BlockStack gap="350">
                       <InlineStack align="space-between" blockAlign="start" gap="200">
                         <BlockStack gap="100">
                           <Text as="h3" variant="headingMd">
@@ -273,7 +257,9 @@ export default function PricingPage() {
                         ))}
                       </BlockStack>
 
-                      <Box paddingBlockStart="200">
+                        </BlockStack>
+
+                        <div className="pricing-plan-card__action">
                         {isFree ? (
                           <Button fullWidth disabled={isCurrent}>
                             {isCurrent ? "Current plan" : "Free plan"}
@@ -293,9 +279,10 @@ export default function PricingPage() {
                             </Button>
                           </Form>
                         )}
-                      </Box>
-                    </BlockStack>
-                  </Card>
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
                 </Grid.Cell>
               );
             })}
@@ -306,9 +293,6 @@ export default function PricingPage() {
           <BlockStack gap="100">
             <Text as="h2" variant="headingMd">
               Extra credits
-            </Text>
-            <Text as="p" variant="bodySm" tone="subdued">
-              One-time credit packs are added to your balance after Shopify approves the purchase.
             </Text>
             {billingTestMode ? (
               <InlineStack>
@@ -352,6 +336,28 @@ export default function PricingPage() {
 
         <Box paddingBlockEnd="800" />
       </BlockStack>
+      <style>{`
+        .pricing-plan-card,
+        .pricing-plan-card > .Polaris-ShadowBevel {
+          height: 100%;
+        }
+
+        .pricing-plan-card__inner {
+          min-height: 330px;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .pricing-plan-card__action {
+          margin-top: auto;
+          padding-top: 16px;
+        }
+
+        .pricing-plan-card__action form {
+          margin: 0;
+        }
+      `}</style>
     </Page>
   );
 }
