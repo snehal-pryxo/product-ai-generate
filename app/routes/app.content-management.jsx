@@ -1365,9 +1365,8 @@ export const action = async ({ request }) => {
     const resolvedAiProvider =
       providerHint || aiProvider;
     const generationLanguage = String(formData.get("language") || "English").trim() || "English";
-    const seoKeyword = String(formData.get("seoKeyword") || "").trim();
     const additionalInformation = String(formData.get("additionalInformation") || "").trim();
-    const contextKeywords = [seoKeyword, additionalInformation].filter(Boolean).join(" | ");
+    const contextKeywords = additionalInformation;
     const templateOverrides = {
       descriptionPromptTemplate: String(formData.get("descriptionPromptTemplate") || ""),
       bodyPromptTemplate: String(formData.get("bodyPromptTemplate") || ""),
@@ -2251,13 +2250,11 @@ function GenerateTemplateModal({
   templateSelection,
   customInstructions,
   language,
-  seoKeyword,
   additionalInformation,
   previewText,
   progress,
   onChange,
   onLanguageChange,
-  onSeoKeywordChange,
   onAdditionalInformationChange,
   onCustomInstructionToggle,
   onCustomInstructionPromptChange,
@@ -2511,15 +2508,6 @@ function GenerateTemplateModal({
                     value={language || "English"}
                     onChange={onLanguageChange}
                   />
-                  <div className="content-mgmt-keyword-field">
-                    <TextField
-                      label="SEO keyword"
-                      value={seoKeyword || ""}
-                      onChange={onSeoKeywordChange}
-                      autoComplete="off"
-                      placeholder="Example: organic cotton shirt"
-                    />
-                  </div>
                   <KeywordsInput
                     value={additionalInformation || ""}
                     onChange={onAdditionalInformationChange}
@@ -2671,7 +2659,6 @@ export default function ContentManagementPage() {
   const [generationProgress, setGenerationProgress] = useState(0);
   const [generatedPreviewText, setGeneratedPreviewText] = useState("");
   const [generationLanguage, setGenerationLanguage] = useState("English");
-  const [generationSeoKeyword, setGenerationSeoKeyword] = useState("");
   const [generationAdditionalInformation, setGenerationAdditionalInformation] = useState("");
 
   // Track per-row generating state
@@ -2908,7 +2895,6 @@ export default function ContentManagementPage() {
       setCustomInstructions(savedPrefs.customInstructions || defaultCustomInstructionSettings());
       setGeneratedPreviewText("");
       setGenerationLanguage(item.language || "English");
-      setGenerationSeoKeyword("");
       setGenerationAdditionalInformation(item.contextKeywords || "");
       setGenerationProgress(0);
       setTemplateModalOpen(true);
@@ -3081,7 +3067,6 @@ export default function ContentManagementPage() {
     fd.append("generateScope", pendingGenerateScope);
     fd.append("item", JSON.stringify(pendingGenerateItem));
     fd.append("language", generationLanguage || "English");
-    fd.append("seoKeyword", generationSeoKeyword || "");
     fd.append("additionalInformation", generationAdditionalInformation || "");
     fd.append("aiProvider", defaultAiProvider || "auto");
     fd.append("aiModel", envAiModel || DEFAULT_AI_MODEL);
@@ -3109,7 +3094,6 @@ export default function ContentManagementPage() {
     generateTemplateSelection.metaTitleTemplateId,
     generationAdditionalInformation,
     generationLanguage,
-    generationSeoKeyword,
     pendingGenerateContentType,
     pendingGenerateItem,
     pendingGenerateScope,
@@ -3702,13 +3686,11 @@ export default function ContentManagementPage() {
         templateSelection={generateTemplateSelection}
         customInstructions={customInstructions}
         language={generationLanguage}
-        seoKeyword={generationSeoKeyword}
         additionalInformation={generationAdditionalInformation}
         previewText={generatedPreviewText}
         progress={generationProgress}
         onChange={updateGenerateTemplateSelection}
         onLanguageChange={setGenerationLanguage}
-        onSeoKeywordChange={setGenerationSeoKeyword}
         onAdditionalInformationChange={setGenerationAdditionalInformation}
         onCustomInstructionToggle={updateCustomInstructionToggle}
         onCustomInstructionPromptChange={updateCustomInstructionPrompt}
