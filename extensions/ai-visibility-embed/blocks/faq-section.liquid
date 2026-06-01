@@ -1,108 +1,91 @@
 {%- liquid
-  assign heading_prefix  = section.settings.heading_prefix  | default: 'Frequently Asked'
-  assign heading_bold    = section.settings.heading_bold    | default: 'Questions'
-  assign subheading      = section.settings.subheading
-  assign bg_color        = section.settings.background_color
-  assign heading_color   = section.settings.heading_color
-  assign text_color      = section.settings.text_color
-  assign open_first      = section.settings.open_first
-  assign show_divider    = section.settings.show_divider
-  assign container_width = section.settings.container_width
-  assign sid             = section.id
+  assign heading_prefix  = block.settings.heading_prefix  | default: 'Frequently Asked'
+  assign heading_bold    = block.settings.heading_bold    | default: 'Questions'
+  assign subheading      = block.settings.subheading
+  assign bg_color        = block.settings.background_color
+  assign heading_color   = block.settings.heading_color
+  assign text_color      = block.settings.text_color
+  assign open_first      = block.settings.open_first
+  assign show_divider    = block.settings.show_divider
+  assign container_width = block.settings.container_width
+  assign bid             = block.id
 -%}
 
-{%- if section.blocks.size > 0 -%}
+{%- if block.blocks.size > 0 -%}
 
 <style>
-  /* ── Scoped to this section instance ── */
-  #cai-faq-{{ sid }} {
+  /* Scoped to this block instance so multiple FAQ blocks on one page never conflict */
+  #cai-faq-{{ bid }} {
     background-color: {{ bg_color }};
-    padding: {{ section.settings.padding_top }}px 0 {{ section.settings.padding_bottom }}px;
+    padding: {{ block.settings.padding_top }}px 0 {{ block.settings.padding_bottom }}px;
   }
-
-  #cai-faq-{{ sid }} .cai-faq__inner {
+  #cai-faq-{{ bid }} .cai-faq__inner {
     max-width: {{ container_width }}px;
     margin: 0 auto;
     padding: 0 20px;
     box-sizing: border-box;
   }
-
-  /* Heading */
-  #cai-faq-{{ sid }} .cai-faq__heading {
+  #cai-faq-{{ bid }} .cai-faq__heading {
     text-align: center;
     font-size: clamp(1.25rem, 3vw, 1.65rem);
     font-weight: 400;
     line-height: 1.3;
-    margin: 0 0 {{ section.settings.heading_spacing }}px;
+    margin: 0 0 {{ block.settings.heading_spacing }}px;
     color: {{ heading_color }};
   }
-  #cai-faq-{{ sid }} .cai-faq__heading strong {
+  #cai-faq-{{ bid }} .cai-faq__heading strong {
     font-weight: 700;
     color: {{ heading_color }};
   }
-
-  /* Subheading */
-  #cai-faq-{{ sid }} .cai-faq__subheading {
+  #cai-faq-{{ bid }} .cai-faq__subheading {
     text-align: center;
     font-size: 1rem;
-    color: {{ section.settings.subheading_color }};
+    color: {{ block.settings.subheading_color }};
     margin: -8px 0 24px;
   }
-
-  /* Item list */
-  #cai-faq-{{ sid }} .cai-faq__list {
+  #cai-faq-{{ bid }} .cai-faq__list {
     display: flex;
     flex-direction: column;
-    gap: {{ section.settings.item_gap }}px;
+    gap: {{ block.settings.item_gap }}px;
   }
-
-  /* Card item */
-  #cai-faq-{{ sid }} .cai-faq__item {
-    background-color: {{ section.settings.card_bg }};
-    border: 1px solid {{ section.settings.card_border }};
-    border-radius: {{ section.settings.card_radius }}px;
+  #cai-faq-{{ bid }} .cai-faq__item {
+    background-color: {{ block.settings.card_bg }};
+    border: 1px solid {{ block.settings.card_border }};
+    border-radius: {{ block.settings.card_radius }}px;
     box-shadow: 0 1px 4px rgba(0,0,0,0.06);
     overflow: hidden;
   }
-
-  /* Divider style override */
-  #cai-faq-{{ sid }} .cai-faq__item--divider {
+  #cai-faq-{{ bid }} .cai-faq__item--divider {
     background-color: transparent;
     border: none;
-    border-bottom: 1px solid {{ section.settings.card_border }};
+    border-bottom: 1px solid {{ block.settings.card_border }};
     border-radius: 0;
     box-shadow: none;
   }
-  #cai-faq-{{ sid }} .cai-faq__item--divider:first-child {
-    border-top: 1px solid {{ section.settings.card_border }};
+  #cai-faq-{{ bid }} .cai-faq__item--divider:first-child {
+    border-top: 1px solid {{ block.settings.card_border }};
   }
-
-  /* Summary row */
-  #cai-faq-{{ sid }} .cai-faq__summary {
+  #cai-faq-{{ bid }} .cai-faq__summary {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: {{ section.settings.item_pad_v }}px {{ section.settings.item_pad_h }}px;
+    padding: {{ block.settings.item_pad_v }}px {{ block.settings.item_pad_h }}px;
     cursor: pointer;
     list-style: none;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
   }
-  #cai-faq-{{ sid }} .cai-faq__summary::-webkit-details-marker { display: none; }
-  #cai-faq-{{ sid }} .cai-faq__summary::marker { display: none; }
-
-  /* Question text — uses the main text_color */
-  #cai-faq-{{ sid }} .cai-faq__question {
+  #cai-faq-{{ bid }} .cai-faq__summary::-webkit-details-marker { display: none; }
+  #cai-faq-{{ bid }} .cai-faq__summary::marker { display: none; }
+  #cai-faq-{{ bid }} .cai-faq__question {
     flex: 1;
-    font-size: {{ section.settings.question_size }}px;
-    font-weight: {{ section.settings.question_weight }};
+    font-size: {{ block.settings.question_size }}px;
+    font-weight: {{ block.settings.question_weight }};
     color: {{ text_color }};
     line-height: 1.4;
   }
-
-  /* Chevron circle */
-  #cai-faq-{{ sid }} .cai-faq__chevron {
+  #cai-faq-{{ bid }} .cai-faq__chevron {
     flex-shrink: 0;
     width: 28px;
     height: 28px;
@@ -114,29 +97,27 @@
     color: #888;
     transition: transform 0.25s ease, border-color 0.2s ease, color 0.2s ease;
   }
-  #cai-faq-{{ sid }} .cai-faq__item[open] .cai-faq__chevron {
+  #cai-faq-{{ bid }} .cai-faq__item[open] .cai-faq__chevron {
     transform: rotate(180deg);
-    border-color: {{ section.settings.accent_color }};
-    color: {{ section.settings.accent_color }};
+    border-color: {{ block.settings.accent_color }};
+    color: {{ block.settings.accent_color }};
   }
-
-  /* Answer text — also uses text_color */
-  #cai-faq-{{ sid }} .cai-faq__answer {
-    padding: 0 {{ section.settings.item_pad_h }}px {{ section.settings.item_pad_v }}px;
-    font-size: {{ section.settings.answer_size }}px;
+  #cai-faq-{{ bid }} .cai-faq__answer {
+    padding: 0 {{ block.settings.item_pad_h }}px {{ block.settings.item_pad_v }}px;
+    font-size: {{ block.settings.answer_size }}px;
     color: {{ text_color }};
     line-height: 1.7;
     opacity: 0.85;
   }
-  #cai-faq-{{ sid }} .cai-faq__answer p   { margin: 0 0 10px; }
-  #cai-faq-{{ sid }} .cai-faq__answer p:last-child { margin: 0; }
-  #cai-faq-{{ sid }} .cai-faq__answer ul,
-  #cai-faq-{{ sid }} .cai-faq__answer ol  { margin: 0 0 10px; padding-left: 20px; }
-  #cai-faq-{{ sid }} .cai-faq__answer li  { margin-bottom: 4px; }
-  #cai-faq-{{ sid }} .cai-faq__answer a   { color: {{ section.settings.accent_color }}; }
+  #cai-faq-{{ bid }} .cai-faq__answer p  { margin: 0 0 10px; }
+  #cai-faq-{{ bid }} .cai-faq__answer p:last-child { margin: 0; }
+  #cai-faq-{{ bid }} .cai-faq__answer ul,
+  #cai-faq-{{ bid }} .cai-faq__answer ol { margin: 0 0 10px; padding-left: 20px; }
+  #cai-faq-{{ bid }} .cai-faq__answer li { margin-bottom: 4px; }
+  #cai-faq-{{ bid }} .cai-faq__answer a  { color: {{ block.settings.accent_color }}; }
 </style>
 
-<section id="cai-faq-{{ sid }}" class="cai-faq-section">
+<div id="cai-faq-{{ bid }}" class="cai-faq-block" {{ block.shopify_attributes }}>
   <div class="cai-faq__inner">
 
     {%- if heading_prefix != blank or heading_bold != blank -%}
@@ -152,27 +133,26 @@
     {%- endif -%}
 
     <div class="cai-faq__list">
-      {%- for block in section.blocks -%}
-        {%- if block.type == 'faq_item'
-              and block.settings.question != blank
-              and block.settings.answer   != blank -%}
+      {%- for item in block.blocks -%}
+        {%- if item.type == 'faq_item'
+              and item.settings.question != blank
+              and item.settings.answer   != blank -%}
 
-          {%- comment -%} Per-block color overrides (optional) {%- endcomment -%}
-          {%- assign b_bg   = block.settings.block_background_color -%}
-          {%- assign b_text = block.settings.block_text_color -%}
+          {%- assign i_bg   = item.settings.item_background_color -%}
+          {%- assign i_text = item.settings.item_text_color -%}
 
           <details
             class="cai-faq__item{% if show_divider %} cai-faq__item--divider{% endif %}"
-            {{ block.shopify_attributes }}
+            {{ item.shopify_attributes }}
             {%- if open_first and forloop.first %} open{% endif %}
-            {%- if b_bg != blank or b_text != blank %}
-            style="{% if b_bg != blank %}background-color:{{ b_bg }};{% endif %}{% if b_text != blank %}color:{{ b_text }};{% endif %}"
+            {%- if i_bg != blank or i_text != blank %}
+            style="{% if i_bg != blank %}background-color:{{ i_bg }};{% endif %}{% if i_text != blank %}color:{{ i_text }};{% endif %}"
             {%- endif %}
           >
             <summary class="cai-faq__summary">
               <span class="cai-faq__question"
-                {%- if b_text != blank %} style="color:{{ b_text }}"{% endif %}>
-                {{- block.settings.question | escape -}}
+                {%- if i_text != blank %} style="color:{{ i_text }}"{% endif %}>
+                {{- item.settings.question | escape -}}
               </span>
               <span class="cai-faq__chevron" aria-hidden="true">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"
@@ -182,12 +162,10 @@
                 </svg>
               </span>
             </summary>
-
             <div class="cai-faq__answer"
-              {%- if b_text != blank %} style="color:{{ b_text }}"{% endif %}>
-              {{- block.settings.answer -}}
+              {%- if i_text != blank %} style="color:{{ i_text }}"{% endif %}>
+              {{- item.settings.answer -}}
             </div>
-
           </details>
 
         {%- endif -%}
@@ -195,17 +173,14 @@
     </div>
 
   </div>
-</section>
+</div>
 
 {%- endif -%}
 
 {% schema %}
 {
   "name": "FAQ Section",
-  "tag": "section",
-  "class": "cai-faq-section-wrapper",
   "settings": [
-
     {
       "type": "header",
       "content": "Colors"
@@ -215,21 +190,20 @@
       "id": "background_color",
       "label": "Background Color",
       "default": "#ffffff",
-      "info": "Background of the entire FAQ section."
+      "info": "Background of the entire FAQ block."
     },
     {
       "type": "color",
       "id": "heading_color",
       "label": "Heading Color",
-      "default": "#111827",
-      "info": "Color of the main heading (e.g. \"Frequently Asked Questions\")."
+      "default": "#111827"
     },
     {
       "type": "color",
       "id": "text_color",
       "label": "Text Color",
       "default": "#111111",
-      "info": "Color applied to all question and answer text."
+      "info": "Applied to all question and answer text."
     },
     {
       "type": "color",
@@ -254,9 +228,8 @@
       "id": "accent_color",
       "label": "Accent Color",
       "default": "#6366f1",
-      "info": "Chevron color when an item is open. Also used for links inside answers."
+      "info": "Chevron color when open. Also used for links inside answers."
     },
-
     {
       "type": "header",
       "content": "Heading"
@@ -290,7 +263,6 @@
       "unit": "px",
       "default": 24
     },
-
     {
       "type": "header",
       "content": "Layout"
@@ -325,7 +297,6 @@
       "unit": "px",
       "default": 48
     },
-
     {
       "type": "header",
       "content": "FAQ Items"
@@ -341,7 +312,7 @@
       "id": "show_divider",
       "label": "Use divider style (instead of cards)",
       "default": false,
-      "info": "Removes card border/background and uses a simple line between items."
+      "info": "Removes card border/background; adds a simple line between items."
     },
     {
       "type": "range",
@@ -383,7 +354,6 @@
       "unit": "px",
       "default": 10
     },
-
     {
       "type": "header",
       "content": "Typography"
@@ -420,7 +390,6 @@
       "unit": "px",
       "default": 14
     }
-
   ],
   "blocks": [
     {
@@ -437,7 +406,7 @@
           "type": "richtext",
           "id": "answer",
           "label": "Answer",
-          "default": "<p>We take security and privacy seriously. All data is encrypted in transit and at rest. We never sell your data to third parties.</p>"
+          "default": "<p>We take security and privacy seriously. All data is encrypted in transit and at rest.</p>"
         },
         {
           "type": "header",
@@ -445,57 +414,15 @@
         },
         {
           "type": "color",
-          "id": "block_background_color",
+          "id": "item_background_color",
           "label": "Card background color",
-          "info": "Leave blank to use the section card background."
+          "info": "Leave blank to use the block-level card background."
         },
         {
           "type": "color",
-          "id": "block_text_color",
+          "id": "item_text_color",
           "label": "Text color",
-          "info": "Leave blank to inherit the section text color."
-        }
-      ]
-    }
-  ],
-  "presets": [
-    {
-      "name": "FAQ Section",
-      "blocks": [
-        {
-          "type": "faq_item",
-          "settings": {
-            "question": "How do you handle security and privacy?",
-            "answer": "<p>We take security and privacy seriously. All data is encrypted in transit and at rest. We never share your information with third parties.</p>"
-          }
-        },
-        {
-          "type": "faq_item",
-          "settings": {
-            "question": "Is there a limit to the number of messages I can send?",
-            "answer": "<p>No — there is no limit. You can send as many messages as you need, on any plan.</p>"
-          }
-        },
-        {
-          "type": "faq_item",
-          "settings": {
-            "question": "Can I send attachments?",
-            "answer": "<p>Yes. You can attach images, documents, and files up to 25 MB each.</p>"
-          }
-        },
-        {
-          "type": "faq_item",
-          "settings": {
-            "question": "How does your pricing work?",
-            "answer": "<p>We offer monthly and annual plans. Annual plans save you 20%. You can upgrade or downgrade at any time with no penalties.</p>"
-          }
-        },
-        {
-          "type": "faq_item",
-          "settings": {
-            "question": "Can I use my own domain?",
-            "answer": "<p>Yes — all paid plans include custom domain support. You can connect your domain in your account settings within minutes.</p>"
-          }
+          "info": "Leave blank to inherit the block text color."
         }
       ]
     }
