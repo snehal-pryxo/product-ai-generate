@@ -402,6 +402,80 @@ export const action = async ({ request }) => {
       }
     }
 
+    if (intent === "auto_enable_embed") {
+      try {
+        const accessToken = session.accessToken;
+        const apiBase = `https://${shop}/admin/api/2025-10`;
+        const apiKey = process.env.SHOPIFY_API_KEY || "";
+
+        // 1. Get the active theme id
+        const themesResp = await fetch(`${apiBase}/themes.json?role=main`, {
+          headers: { "X-Shopify-Access-Token": accessToken },
+        });
+        if (!themesResp.ok) throw new Error(`Failed to fetch themes (${themesResp.status}).`);
+        const themesData = await themesResp.json();
+        const themeId = themesData?.themes?.[0]?.id;
+        if (!themeId) throw new Error("No active theme found.");
+
+        // 2. Read current settings_data.json
+        const assetResp = await fetch(
+          `${apiBase}/themes/${themeId}/assets.json?asset[key]=config/settings_data.json`,
+          { headers: { "X-Shopify-Access-Token": accessToken } }
+        );
+        if (!assetResp.ok) throw new Error(`Failed to read theme settings (${assetResp.status}).`);
+        const assetData = await assetResp.json();
+        const rawContent = assetData?.asset?.value || "{}";
+        let settings;
+        try { settings = JSON.parse(rawContent); } catch { settings = { current: {} }; }
+
+        // 3. If already enabled — just sync DB and return
+        const EMBED_HANDLES = ["app-embed", "ai-visibility-embed"];
+        const currentBlocks = settings?.current?.blocks || {};
+        const alreadyEnabled = Object.entries(currentBlocks).some(([k, v]) =>
+          [k, v?.type].filter(Boolean).map(String)
+            .some((s) => EMBED_HANDLES.some((h) => s.toLowerCase().includes(h))) &&
+          v?.disabled !== true
+        );
+        if (alreadyEnabled) {
+          await db.shop.update({ where: { shop }, data: { themeEmbedEnabled: true } });
+          return { ok: true, intent, themeEmbedEnabled: true };
+        }
+
+        // 4. Insert the app embed block into settings_data.json
+        const uid = `cai-${Date.now()}`;
+        const blockKey  = `shopify://apps/${apiKey}/blocks/app-embed/${uid}`;
+        const blockType = `shopify://apps/${apiKey}/blocks/app-embed`;
+        if (!settings.current) settings.current = {};
+        if (!settings.current.blocks) settings.current.blocks = {};
+        settings.current.blocks[blockKey] = { type: blockType, disabled: false, settings: {} };
+
+        // 5. Write the updated settings_data.json back to the theme
+        const writeResp = await fetch(`${apiBase}/themes/${themeId}/assets.json`, {
+          method: "PUT",
+          headers: {
+            "X-Shopify-Access-Token": accessToken,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            asset: { key: "config/settings_data.json", value: JSON.stringify(settings) },
+          }),
+        });
+        if (!writeResp.ok) {
+          const errBody = await writeResp.json().catch(() => ({}));
+          const msg = typeof errBody?.errors === "string"
+            ? errBody.errors
+            : errBody?.errors ? JSON.stringify(errBody.errors) : `HTTP ${writeResp.status}`;
+          throw new Error(`Failed to update theme (${msg}). Make sure the app has write_themes scope.`);
+        }
+
+        await db.shop.update({ where: { shop }, data: { themeEmbedEnabled: true } });
+        return { ok: true, intent, themeEmbedEnabled: true };
+      } catch (err) {
+        console.error("[auto_enable_embed]", err);
+        return { ok: false, intent, error: err?.message || "Failed to auto-enable schema injection." };
+      }
+    }
+
     return { ok: false, error: "Unknown intent." };
   } catch (err) {
     if (isInsufficientCreditsMessage(err?.message)) {
@@ -720,6 +794,7 @@ export default function AiVisibilityPage() {
   } = useLoaderData();
   const fetcher = useFetcher();
   const embedFetcher = useFetcher();
+  const autoEnableFetcher = useFetcher();
   const [products, setProducts] = useState(initialProducts);
   const [articles, setArticles] = useState(initialArticles);
   const [pages, setPages] = useState(initialPages);
@@ -854,6 +929,27 @@ export default function AiVisibilityPage() {
     fd.append("intent", "verify_theme_embed");
     embedFetcher.submit(fd, { method: "post" });
   }, [embedFetcher]);
+
+  useEffect(() => {
+    if (autoEnableFetcher.state === "idle" && autoEnableFetcher.data) {
+      const d = autoEnableFetcher.data;
+      if (d.intent === "auto_enable_embed") {
+        if (d.ok) {
+          setEmbedEnabled(d.themeEmbedEnabled);
+          setVerifyResult({ ok: true, enabled: true, auto: true });
+        } else {
+          setVerifyResult({ ok: false, error: d.error || "Auto-enable failed." });
+        }
+      }
+    }
+  }, [autoEnableFetcher.state, autoEnableFetcher.data]);
+
+  const handleAutoEnable = useCallback(() => {
+    setVerifyResult(null);
+    const fd = new FormData();
+    fd.append("intent", "auto_enable_embed");
+    autoEnableFetcher.submit(fd, { method: "post" });
+  }, [autoEnableFetcher]);
 
   const allItems = [...products, ...articles, ...pages];
   const totalScore =
@@ -1112,21 +1208,30 @@ export default function AiVisibilityPage() {
                           </svg>
                         )}
                       </span>
+                      <Text variant="bodySm" as="span">
+                        {!verifyResult.ok
+                          ? verifyResult.error
+                          : verifyResult.enabled
+                            ? verifyResult.auto
+                              ? "Schema injection enabled automatically — schema & FAQ are now live on your storefront."
+                              : "Verified — App Embed is active. Schema & FAQ are live on your storefront."
+                            : "App Embed is not active. Click Auto-enable to activate it automatically."}
+                      </Text>
                     </InlineStack>
                   </Box>
                 )}
 
                 {/* Action buttons */}
-                <InlineStack gap="200" blockAlign="center">
+                <InlineStack gap="200" blockAlign="center" wrap>
                   {!embedEnabled && (
                     <Button
-                      url={themeEditorUrl}
-                      external
                       variant="primary"
                       size="slim"
-                      onClick={() => setVerifyResult(null)}
+                      loading={autoEnableFetcher.state !== "idle"}
+                      disabled={autoEnableFetcher.state !== "idle"}
+                      onClick={handleAutoEnable}
                     >
-                      Enable in Theme Editor
+                      Auto-enable
                     </Button>
                   )}
                   <Button
@@ -1136,6 +1241,17 @@ export default function AiVisibilityPage() {
                   >
                     Verify
                   </Button>
+                  {!embedEnabled && (
+                    <Button
+                      url={themeEditorUrl}
+                      external
+                      size="slim"
+                      variant="plain"
+                      onClick={() => setVerifyResult(null)}
+                    >
+                      Open Theme Editor
+                    </Button>
+                  )}
                 </InlineStack>
 
                 {/* FAQ Section on Product Page */}
