@@ -2104,6 +2104,145 @@ function EditorModal({ open, item, field, contentType, onClose, onSave, isSaving
   );
 }
 
+// ─── Keywords Input ───────────────────────────────────────────────────────────
+const MAX_KEYWORDS = 5;
+
+const DEFAULT_KEYWORD_SUGGESTIONS = [
+  "high quality", "premium", "durable", "best value", "best selling",
+  "eco-friendly", "handmade", "lightweight", "waterproof", "ergonomic",
+];
+
+function parseKeywordString(v) {
+  return String(v || "")
+    .split(/[,|]+/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function KeywordsInput({ value, onChange, savedSuggestions = [] }) {
+  const lastEmittedRef = useRef("");
+
+  const [keywords, setKeywords] = useState(() => parseKeywordString(value));
+  const [inputValue, setInputValue] = useState("");
+
+  // Sync with parent value changes (e.g. modal opens with item's contextKeywords).
+  // Skip if the change originated from us to avoid re-parse loops.
+  useEffect(() => {
+    if (value === lastEmittedRef.current) return;
+    setKeywords(parseKeywordString(value));
+  }, [value]);
+
+  const emit = useCallback((next) => {
+    const joined = next.join(", ");
+    lastEmittedRef.current = joined;
+    onChange(joined);
+  }, [onChange]);
+
+  const addKeyword = useCallback((raw) => {
+    const clean = raw.trim().toLowerCase();
+    if (!clean) return;
+    setKeywords((prev) => {
+      if (prev.includes(clean) || prev.length >= MAX_KEYWORDS) return prev;
+      const next = [...prev, clean];
+      emit(next);
+      return next;
+    });
+  }, [emit]);
+
+  const removeKeyword = useCallback((idx) => {
+    setKeywords((prev) => {
+      const next = prev.filter((_, i) => i !== idx);
+      emit(next);
+      return next;
+    });
+  }, [emit]);
+
+  const handleKeyDown = useCallback((e) => {
+    if ((e.key === "Tab" || e.key === "Enter") && inputValue.trim()) {
+      e.preventDefault();
+      addKeyword(inputValue);
+      setInputValue("");
+      return;
+    }
+    if (e.key === "Backspace" && !inputValue) {
+      setKeywords((prev) => {
+        if (prev.length === 0) return prev;
+        const next = prev.slice(0, -1);
+        emit(next);
+        return next;
+      });
+    }
+  }, [addKeyword, emit, inputValue]);
+
+  // Merge default + saved suggestions, de-dupe against already-selected
+  const suggestions = Array.from(
+    new Set([...savedSuggestions, ...DEFAULT_KEYWORD_SUGGESTIONS])
+  ).filter((s) => !keywords.includes(s)).slice(0, 8);
+
+  const atMax = keywords.length >= MAX_KEYWORDS;
+
+  return (
+    <div className="cai-kw-root">
+      {/* Header */}
+      <div className="cai-kw-header">
+        <span className="cai-kw-label">Keywords</span>
+        <span className="cai-kw-counter">{keywords.length}/{MAX_KEYWORDS}</span>
+      </div>
+
+      {/* Tag box + inline input */}
+      <div className="cai-kw-box" onClick={() => document.getElementById("cai-kw-field")?.focus()}>
+        {keywords.map((kw, idx) => (
+          <span key={kw} className="cai-kw-tag">
+            {kw}
+            <button
+              type="button"
+              className="cai-kw-tag-remove"
+              onClick={(e) => { e.stopPropagation(); removeKeyword(idx); }}
+              aria-label={`Remove ${kw}`}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        {!atMax && (
+          <input
+            id="cai-kw-field"
+            type="text"
+            className="cai-kw-field"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={keywords.length === 0 ? "Type a keyword, press Tab or Enter to add" : ""}
+            autoComplete="off"
+          />
+        )}
+        {atMax && (
+          <span className="cai-kw-max-note">Max {MAX_KEYWORDS} keywords</span>
+        )}
+      </div>
+
+      {/* Suggestions */}
+      {suggestions.length > 0 && !atMax && (
+        <div className="cai-kw-suggestions">
+          <span className="cai-kw-suggestions-label">From your saved keywords:</span>
+          <div className="cai-kw-chips">
+            {suggestions.map((kw) => (
+              <button
+                key={kw}
+                type="button"
+                className="cai-kw-chip"
+                onClick={() => addKeyword(kw)}
+              >
+                + {kw}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function GenerateTemplateModal({
   open,
   item,
@@ -2381,13 +2520,10 @@ function GenerateTemplateModal({
                       placeholder="Example: organic cotton shirt"
                     />
                   </div>
-                  <TextField
-                    label="Additional information"
+                  <KeywordsInput
                     value={additionalInformation || ""}
                     onChange={onAdditionalInformationChange}
-                    multiline={3}
-                    autoComplete="off"
-                    placeholder="Add product facts, audience, use cases, or keyword context."
+                    savedSuggestions={parseKeywordString(item?.contextKeywords || "")}
                   />
                 </BlockStack>
               </Card>
@@ -3373,6 +3509,115 @@ export default function ContentManagementPage() {
           border-radius: 8px;
           padding: 10px;
           background: #ffffff;
+        }
+
+        /* ── Keywords Input ── */
+        .cai-kw-root {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .cai-kw-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .cai-kw-label {
+          font-size: 14px;
+          font-weight: 500;
+          color: #202223;
+        }
+        .cai-kw-counter {
+          font-size: 13px;
+          color: #6b7280;
+        }
+        .cai-kw-box {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 6px;
+          min-height: 42px;
+          padding: 7px 12px;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          background: #ffffff;
+          cursor: text;
+          transition: border-color 150ms ease, box-shadow 150ms ease;
+        }
+        .cai-kw-box:focus-within {
+          border-color: #6366f1;
+          box-shadow: 0 0 0 2px rgba(99,102,241,0.12);
+        }
+        .cai-kw-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          background: #f3f4f6;
+          border: 1px solid #e5e7eb;
+          border-radius: 20px;
+          padding: 3px 6px 3px 10px;
+          font-size: 13px;
+          color: #374151;
+          white-space: nowrap;
+          line-height: 1.4;
+        }
+        .cai-kw-tag-remove {
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: #9ca3af;
+          font-size: 16px;
+          line-height: 1;
+          padding: 0 2px;
+          display: flex;
+          align-items: center;
+          transition: color 100ms ease;
+        }
+        .cai-kw-tag-remove:hover { color: #ef4444; }
+        .cai-kw-field {
+          flex: 1;
+          min-width: 160px;
+          border: none;
+          outline: none;
+          font-size: 13px;
+          color: #374151;
+          background: transparent;
+          padding: 2px 0;
+        }
+        .cai-kw-field::placeholder { color: #9ca3af; }
+        .cai-kw-max-note {
+          font-size: 12px;
+          color: #9ca3af;
+          padding: 2px 0;
+        }
+        .cai-kw-suggestions {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .cai-kw-suggestions-label {
+          font-size: 12px;
+          color: #6b7280;
+        }
+        .cai-kw-chips {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+        .cai-kw-chip {
+          background: none;
+          border: 1px solid #e5e7eb;
+          border-radius: 20px;
+          padding: 4px 12px;
+          font-size: 13px;
+          color: #374151;
+          cursor: pointer;
+          transition: background 120ms ease, border-color 120ms ease;
+          white-space: nowrap;
+        }
+        .cai-kw-chip:hover {
+          background: #f3f4f6;
+          border-color: #9ca3af;
         }
         .content-mgmt-faq-cell {
           width: 180px;
