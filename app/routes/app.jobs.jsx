@@ -51,18 +51,6 @@ function parseJsonField(raw) {
   try { return JSON.parse(raw); } catch { return []; }
 }
 
-function hasGeneratedValue(value) {
-  return String(value || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().length > 0;
-}
-
-function DetailName({ label, value }) {
-  if (!hasGeneratedValue(value)) return null;
-  return (
-    <Text as="p" variant="bodySm" tone="subdued">
-      {label}
-    </Text>
-  );
-}
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
@@ -123,14 +111,6 @@ function ProductsModal({ job, onClose }) {
                   </Text>
                   <BlockStack gap="050">
                     <Text as="p" variant="bodySm" fontWeight="semibold">{item.title || item.id}</Text>
-                    {item.status === "succeeded" && (
-                      <BlockStack gap="050">
-                        <DetailName label="Description" value={item.descriptionHtml} />
-                        <DetailName label="Meta title" value={item.seoTitle} />
-                        <DetailName label="Meta description" value={item.seoDescription} />
-                        <DetailName label="FAQ" value={item.faqHtml} />
-                      </BlockStack>
-                    )}
                     {item.status === "failed" && item.error && (
                       <Text as="p" variant="bodySm" tone="critical">{item.error}</Text>
                     )}
