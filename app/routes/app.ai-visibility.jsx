@@ -1363,23 +1363,6 @@ export default function AiVisibilityPage() {
                   )}
                 </InlineStack>
 
-                {/* FAQ Section on Product Page */}
-                <Box background="bg-surface-secondary" borderRadius="200" padding="300">
-                  <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
-                    <BlockStack gap="050">
-                      <Text variant="bodySm" fontWeight="semibold" as="p">
-                        FAQ Section on Product Page
-                      </Text>
-                      <Text variant="bodySm" tone="subdued" as="p">
-                        Add a standalone FAQ section to your product page template in the theme editor.
-                      </Text>
-                    </BlockStack>
-                    <Button url={faqProductPageUrl} external size="slim">
-                      Add to Product Page
-                    </Button>
-                  </InlineStack>
-                </Box>
-
               </BlockStack>
             </Card>
           </div>
