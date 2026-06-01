@@ -9,8 +9,24 @@
   assign open_first     = block.settings.open_first
   assign show_divider   = block.settings.show_divider
 
-  assign has_any = false
-  if block.settings.q1 != blank and block.settings.a1 != blank
+  # Try AI-generated FAQ from the product metafield first.
+  # Metafield namespace: content_ai_geo, key: faq_json (type: json)
+  # Structure: { "mainEntity": [{ "name": "Q", "acceptedAnswer": { "text": "A" } }] }
+  assign ai_faq_items = nil
+  if product
+    assign faq_meta = product.metafields.content_ai_geo.faq_json
+    if faq_meta != blank
+      assign ai_faq_items = faq_meta.value.mainEntity
+    endif
+  endif
+
+  # Determine whether we have anything to render
+  assign use_ai   = false
+  assign has_any  = false
+  if ai_faq_items != blank and ai_faq_items.size > 0
+    assign use_ai  = true
+    assign has_any = true
+  elsif block.settings.q1 != blank and block.settings.a1 != blank
     assign has_any = true
   elsif block.settings.q2 != blank and block.settings.a2 != blank
     assign has_any = true
@@ -162,61 +178,80 @@
 
     <div class="cai-faq__list">
 
-      {%- assign faq_index = 0 -%}
+      {%- if use_ai -%}
+        {%- comment -%} ── AI-generated FAQ from product metafield ── {%- endcomment -%}
+        {%- for entity in ai_faq_items -%}
+          {%- assign q = entity.name -%}
+          {%- assign a = entity.acceptedAnswer.text -%}
+          {%- if q != blank and a != blank -%}
+            <details class="{{ item_class }}"{% if open_first and forloop.first %} open{% endif %}>
+              <summary class="cai-faq__summary">
+                <span class="cai-faq__question">{{ q | escape }}</span>{{ faq_chevron }}
+              </summary>
+              <div class="cai-faq__answer">{{ a }}</div>
+            </details>
+          {%- endif -%}
+        {%- endfor -%}
 
-      {%- if block.settings.q1 != blank and block.settings.a1 != blank -%}
-        {%- assign faq_index = faq_index | plus: 1 -%}
-        <details class="{{ item_class }}"{% if open_first and faq_index == 1 %} open{% endif %}>
-          <summary class="cai-faq__summary"><span class="cai-faq__question">{{ block.settings.q1 | escape }}</span>{{ faq_chevron }}</summary>
-          <div class="cai-faq__answer">{{ block.settings.a1 }}</div>
-        </details>
-      {%- endif -%}
+      {%- else -%}
+        {%- comment -%} ── Manual FAQ items from block settings ── {%- endcomment -%}
+        {%- assign faq_index = 0 -%}
 
-      {%- if block.settings.q2 != blank and block.settings.a2 != blank -%}
-        {%- assign faq_index = faq_index | plus: 1 -%}
-        <details class="{{ item_class }}"{% if open_first and faq_index == 1 %} open{% endif %}>
-          <summary class="cai-faq__summary"><span class="cai-faq__question">{{ block.settings.q2 | escape }}</span>{{ faq_chevron }}</summary>
-          <div class="cai-faq__answer">{{ block.settings.a2 }}</div>
-        </details>
-      {%- endif -%}
+        {%- if block.settings.q1 != blank and block.settings.a1 != blank -%}
+          {%- assign faq_index = faq_index | plus: 1 -%}
+          <details class="{{ item_class }}"{% if open_first and faq_index == 1 %} open{% endif %}>
+            <summary class="cai-faq__summary"><span class="cai-faq__question">{{ block.settings.q1 | escape }}</span>{{ faq_chevron }}</summary>
+            <div class="cai-faq__answer">{{ block.settings.a1 }}</div>
+          </details>
+        {%- endif -%}
 
-      {%- if block.settings.q3 != blank and block.settings.a3 != blank -%}
-        {%- assign faq_index = faq_index | plus: 1 -%}
-        <details class="{{ item_class }}"{% if open_first and faq_index == 1 %} open{% endif %}>
-          <summary class="cai-faq__summary"><span class="cai-faq__question">{{ block.settings.q3 | escape }}</span>{{ faq_chevron }}</summary>
-          <div class="cai-faq__answer">{{ block.settings.a3 }}</div>
-        </details>
-      {%- endif -%}
+        {%- if block.settings.q2 != blank and block.settings.a2 != blank -%}
+          {%- assign faq_index = faq_index | plus: 1 -%}
+          <details class="{{ item_class }}"{% if open_first and faq_index == 1 %} open{% endif %}>
+            <summary class="cai-faq__summary"><span class="cai-faq__question">{{ block.settings.q2 | escape }}</span>{{ faq_chevron }}</summary>
+            <div class="cai-faq__answer">{{ block.settings.a2 }}</div>
+          </details>
+        {%- endif -%}
 
-      {%- if block.settings.q4 != blank and block.settings.a4 != blank -%}
-        {%- assign faq_index = faq_index | plus: 1 -%}
-        <details class="{{ item_class }}"{% if open_first and faq_index == 1 %} open{% endif %}>
-          <summary class="cai-faq__summary"><span class="cai-faq__question">{{ block.settings.q4 | escape }}</span>{{ faq_chevron }}</summary>
-          <div class="cai-faq__answer">{{ block.settings.a4 }}</div>
-        </details>
-      {%- endif -%}
+        {%- if block.settings.q3 != blank and block.settings.a3 != blank -%}
+          {%- assign faq_index = faq_index | plus: 1 -%}
+          <details class="{{ item_class }}"{% if open_first and faq_index == 1 %} open{% endif %}>
+            <summary class="cai-faq__summary"><span class="cai-faq__question">{{ block.settings.q3 | escape }}</span>{{ faq_chevron }}</summary>
+            <div class="cai-faq__answer">{{ block.settings.a3 }}</div>
+          </details>
+        {%- endif -%}
 
-      {%- if block.settings.q5 != blank and block.settings.a5 != blank -%}
-        {%- assign faq_index = faq_index | plus: 1 -%}
-        <details class="{{ item_class }}"{% if open_first and faq_index == 1 %} open{% endif %}>
-          <summary class="cai-faq__summary"><span class="cai-faq__question">{{ block.settings.q5 | escape }}</span>{{ faq_chevron }}</summary>
-          <div class="cai-faq__answer">{{ block.settings.a5 }}</div>
-        </details>
-      {%- endif -%}
+        {%- if block.settings.q4 != blank and block.settings.a4 != blank -%}
+          {%- assign faq_index = faq_index | plus: 1 -%}
+          <details class="{{ item_class }}"{% if open_first and faq_index == 1 %} open{% endif %}>
+            <summary class="cai-faq__summary"><span class="cai-faq__question">{{ block.settings.q4 | escape }}</span>{{ faq_chevron }}</summary>
+            <div class="cai-faq__answer">{{ block.settings.a4 }}</div>
+          </details>
+        {%- endif -%}
 
-      {%- if block.settings.q6 != blank and block.settings.a6 != blank -%}
-        {%- assign faq_index = faq_index | plus: 1 -%}
-        <details class="{{ item_class }}"{% if open_first and faq_index == 1 %} open{% endif %}>
-          <summary class="cai-faq__summary"><span class="cai-faq__question">{{ block.settings.q6 | escape }}</span>{{ faq_chevron }}</summary>
-          <div class="cai-faq__answer">{{ block.settings.a6 }}</div>
-        </details>
-      {%- endif -%}
+        {%- if block.settings.q5 != blank and block.settings.a5 != blank -%}
+          {%- assign faq_index = faq_index | plus: 1 -%}
+          <details class="{{ item_class }}"{% if open_first and faq_index == 1 %} open{% endif %}>
+            <summary class="cai-faq__summary"><span class="cai-faq__question">{{ block.settings.q5 | escape }}</span>{{ faq_chevron }}</summary>
+            <div class="cai-faq__answer">{{ block.settings.a5 }}</div>
+          </details>
+        {%- endif -%}
 
-      {%- if block.settings.q7 != blank and block.settings.a7 != blank -%}
-        <details class="{{ item_class }}">
-          <summary class="cai-faq__summary"><span class="cai-faq__question">{{ block.settings.q7 | escape }}</span>{{ faq_chevron }}</summary>
-          <div class="cai-faq__answer">{{ block.settings.a7 }}</div>
-        </details>
+        {%- if block.settings.q6 != blank and block.settings.a6 != blank -%}
+          {%- assign faq_index = faq_index | plus: 1 -%}
+          <details class="{{ item_class }}"{% if open_first and faq_index == 1 %} open{% endif %}>
+            <summary class="cai-faq__summary"><span class="cai-faq__question">{{ block.settings.q6 | escape }}</span>{{ faq_chevron }}</summary>
+            <div class="cai-faq__answer">{{ block.settings.a6 }}</div>
+          </details>
+        {%- endif -%}
+
+        {%- if block.settings.q7 != blank and block.settings.a7 != blank -%}
+          <details class="{{ item_class }}">
+            <summary class="cai-faq__summary"><span class="cai-faq__question">{{ block.settings.q7 | escape }}</span>{{ faq_chevron }}</summary>
+            <div class="cai-faq__answer">{{ block.settings.a7 }}</div>
+          </details>
+        {%- endif -%}
+
       {%- endif -%}
 
     </div>
