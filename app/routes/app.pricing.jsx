@@ -44,7 +44,7 @@ export const loader = async ({ request }) => {
 
   const url = new URL(request.url);
   const allPlans = getSubscriptionPlans(process.env);
-  // Use the popular (Growth) plan as the featured paid plan
+  const freePlan = allPlans.find((p) => p.price <= 0);
   const featuredPlan = allPlans.find((p) => p.popular) || allPlans.find((p) => p.price > 0) || allPlans[1];
 
   return {
@@ -54,6 +54,7 @@ export const loader = async ({ request }) => {
     billingSubscriptionStatus: shopData?.billingSubscriptionStatus || null,
     billingMessage: url.searchParams.get("message") || "",
     billingSuccess: url.searchParams.get("success") || "",
+    freePlan,
     featuredPlan,
     extraCreditPackages: getExtraCreditPackages(process.env),
     billingTestMode: getBillingTestMode(),
@@ -131,6 +132,7 @@ export default function PricingPage() {
     billingSubscriptionStatus,
     billingMessage,
     billingSuccess,
+    freePlan,
     featuredPlan,
     extraCreditPackages,
     billingTestMode,
@@ -191,28 +193,63 @@ export default function PricingPage() {
           </InlineStack>
         </Card>
 
-        {/* Free plan note */}
-        <div className="pricing-free-note">
-          <InlineStack gap="200" blockAlign="center">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="#008060">
-              <circle cx="10" cy="10" r="10" />
-              <path d="M6 10.5l3 3 5-6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <Text as="p" variant="bodySm">
-              <strong>Free plan included</strong> — 150 credits after install. No credit card required.
-              {currentPlanKey === "free" && <> &nbsp;<Badge tone="success">Your current plan</Badge></>}
-            </Text>
-          </InlineStack>
-        </div>
-
-        {/* Monthly + Yearly plan cards */}
+        {/* Free + Monthly + Yearly plan cards */}
         <BlockStack gap="300">
           <InlineStack align="space-between" blockAlign="center">
             <Text as="h2" variant="headingMd">Plans</Text>
             {billingTestMode ? <Badge tone="attention">Test mode</Badge> : null}
           </InlineStack>
 
-          <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 2 }}>
+          <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
+
+            {/* ── Free plan ── */}
+            <Grid.Cell>
+              <div className="pricing-plan-card">
+                <Card>
+                  <div className="pricing-plan-card__inner">
+                    <BlockStack gap="300">
+
+                      <InlineStack align="space-between" blockAlign="start">
+                        <BlockStack gap="050">
+                          <Text as="h3" variant="headingLg">{freePlan?.name || "Free"}</Text>
+                          <Text as="p" variant="bodySm" tone="subdued">No credit card required</Text>
+                        </BlockStack>
+                        {currentPlanKey === "free" && <Badge tone="success">Current</Badge>}
+                      </InlineStack>
+
+                      <BlockStack gap="050">
+                        <Text as="p" variant="heading2xl">Free</Text>
+                        <Text as="p" variant="bodySm" tone="subdued">Included after install · Always free</Text>
+                      </BlockStack>
+
+                      <Divider />
+
+                      <BlockStack gap="200">
+                        <InlineStack gap="150" blockAlign="start" wrap={false}>
+                          <CheckIcon />
+                          <Text as="p" variant="bodySm">
+                            <strong>{formatCredits(freePlan?.credits || 150)} credits</strong> included
+                          </Text>
+                        </InlineStack>
+                        {(freePlan?.features || []).slice(1).map((f) => (
+                          <InlineStack key={f} gap="150" blockAlign="start" wrap={false}>
+                            <CheckIcon />
+                            <Text as="p" variant="bodySm">{f}</Text>
+                          </InlineStack>
+                        ))}
+                      </BlockStack>
+
+                    </BlockStack>
+
+                    <div className="pricing-plan-card__action">
+                      <Button fullWidth disabled={currentPlanKey === "free"}>
+                        {currentPlanKey === "free" ? "Current plan" : "Get started free"}
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            </Grid.Cell>
 
             {/* ── Monthly plan ── */}
             <Grid.Cell>
@@ -262,9 +299,7 @@ export default function PricingPage() {
                         <input type="hidden" name="planKey" value={featuredPlan.key} />
                         <input type="hidden" name="interval" value="monthly" />
                         <Button
-                          fullWidth
-                          submit
-                          variant="secondary"
+                          fullWidth submit variant="secondary"
                           loading={isSubmitting && activePlanInterval === "monthly"}
                           disabled={isSubmitting || isMonthlyCurrentPlan}
                         >
@@ -289,16 +324,12 @@ export default function PricingPage() {
                           <Text as="h3" variant="headingLg">{featuredPlan.name}</Text>
                           <Text as="p" variant="bodySm" tone="subdued">Yearly billing</Text>
                         </BlockStack>
-                        <InlineStack gap="100">
-                          <Badge tone="success">Best value</Badge>
-                        </InlineStack>
+                        <Badge tone="success">Best value</Badge>
                       </InlineStack>
 
                       <BlockStack gap="100">
                         <InlineStack gap="100" blockAlign="end">
-                          <Text as="p" variant="heading2xl">
-                            ${yearlyPerMonth.toFixed(2)}
-                          </Text>
+                          <Text as="p" variant="heading2xl">${yearlyPerMonth.toFixed(2)}</Text>
                           <Text as="span" variant="bodySm" tone="subdued">/month</Text>
                         </InlineStack>
                         <Text as="p" variant="bodySm" tone="subdued">
@@ -334,9 +365,7 @@ export default function PricingPage() {
                         <input type="hidden" name="planKey" value={featuredPlan.key} />
                         <input type="hidden" name="interval" value="yearly" />
                         <Button
-                          fullWidth
-                          submit
-                          variant="primary"
+                          fullWidth submit variant="primary"
                           loading={isSubmitting && activePlanInterval === "yearly"}
                           disabled={isSubmitting}
                         >
@@ -403,12 +432,6 @@ export default function PricingPage() {
       </BlockStack>
 
       <style>{`
-        .pricing-free-note {
-          background: #f6fdf9;
-          border: 1px solid #b5e3cb;
-          border-radius: 10px;
-          padding: 12px 16px;
-        }
         .pricing-plan-card,
         .pricing-plan-card > .Polaris-ShadowBevel {
           height: 100%;
