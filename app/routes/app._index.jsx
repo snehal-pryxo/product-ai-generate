@@ -28,6 +28,7 @@ import {
   Box,
 } from "@shopify/polaris";
 import { AppPageHeader } from "../components/AppPageHeader";
+import { autoAddFaqSectionToProductPage } from "../lib/themeUtils.server";
 import {
   ProductIcon,
   CollectionIcon,
@@ -398,6 +399,21 @@ export const action = async ({ request }) => {
     return { success: true, message: "Review popup dismissed." };
   }
 
+  if (intent === "auto_add_faq_section") {
+    const { session } = await authenticate.admin(request);
+    const result = await autoAddFaqSectionToProductPage(session.shop, session.accessToken);
+    if (!result.ok) {
+      return { success: false, intent, message: result.error || "Failed to add FAQ section." };
+    }
+    return {
+      success: true,
+      intent,
+      message: result.alreadyAdded
+        ? "FAQ section is already on your product page."
+        : "FAQ section successfully added to your product page!",
+    };
+  }
+
   return { success: false, message: "Unknown action." };
 };
 
@@ -543,6 +559,7 @@ export default function Index() {
   } = useLoaderData();
   const actionData = useActionData();
   const reviewFetcher = useFetcher();
+  const faqFetcher = useFetcher();
   const navigate = useNavigate();
   const location = useLocation();
   const formattedGeneratedWords = Number(generatedWords || 0).toLocaleString("en-US");
@@ -899,27 +916,39 @@ export default function Index() {
 
           {/* FAQ Section on Product Page */}
           <Card>
-            <InlineStack align="space-between" blockAlign="center" gap="400" wrap>
-              <BlockStack gap="100">
-                <Text as="h3" variant="headingSm" fontWeight="semibold">
-                  FAQ Section on Product Page
-                </Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Add a standalone FAQ section to your product page template in the theme editor.
-                </Text>
-              </BlockStack>
-              <Button
-                size="slim"
-                url={
-                  appApiKey
-                    ? `https://${shop}/admin/themes/current/editor?template=product&activateAppId=${encodeURIComponent(appApiKey)}/faq-section`
-                    : `https://${shop}/admin/themes/current/editor?template=product`
-                }
-                external
-              >
-                Add to Product Page
-              </Button>
-            </InlineStack>
+            <BlockStack gap="300">
+              <InlineStack align="space-between" blockAlign="center" gap="400" wrap>
+                <BlockStack gap="100">
+                  <Text as="h3" variant="headingSm" fontWeight="semibold">
+                    FAQ Section on Product Page
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Automatically adds the FAQ block to your product page template — no theme editor steps needed.
+                  </Text>
+                </BlockStack>
+                <faqFetcher.Form method="post">
+                  <input type="hidden" name="intent" value="auto_add_faq_section" />
+                  <Button
+                    size="slim"
+                    variant="primary"
+                    submit
+                    loading={faqFetcher.state !== "idle"}
+                    disabled={faqFetcher.state !== "idle"}
+                  >
+                    Add to Product Page
+                  </Button>
+                </faqFetcher.Form>
+              </InlineStack>
+
+              {faqFetcher.data && (
+                <Banner
+                  tone={faqFetcher.data.success ? "success" : "critical"}
+                  onDismiss={() => {}}
+                >
+                  <p>{faqFetcher.data.message}</p>
+                </Banner>
+              )}
+            </BlockStack>
           </Card>
 
           <Card>

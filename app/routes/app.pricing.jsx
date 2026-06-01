@@ -18,6 +18,7 @@ import db from "../db.server";
 import { AppPageHeader } from "../components/AppPageHeader";
 import {
   BILLING_CURRENCY,
+  YEARLY_DISCOUNT_MONTHS,
   getExtraCreditPackages,
   getExtraCreditPackage,
   getSubscriptionPlans,
@@ -42,6 +43,10 @@ export const loader = async ({ request }) => {
   });
 
   const url = new URL(request.url);
+  const allPlans = getSubscriptionPlans(process.env);
+  const freePlan = allPlans.find((p) => p.price <= 0);
+  const featuredPlan = allPlans.find((p) => p.popular) || allPlans.find((p) => p.price > 0) || allPlans[1];
+
   return {
     credits: shopData?.credits ?? 150,
     currentPlanKey: shopData?.billingPlanKey || "free",
@@ -49,7 +54,8 @@ export const loader = async ({ request }) => {
     billingSubscriptionStatus: shopData?.billingSubscriptionStatus || null,
     billingMessage: url.searchParams.get("message") || "",
     billingSuccess: url.searchParams.get("success") || "",
-    subscriptionPlans: getSubscriptionPlans(process.env),
+    freePlan,
+    featuredPlan,
     extraCreditPackages: getExtraCreditPackages(process.env),
     billingTestMode: getBillingTestMode(),
   };
@@ -63,18 +69,14 @@ export const action = async ({ request }) => {
   try {
     if (intent === "subscribe") {
       const planKey = String(formData.get("planKey") || "");
+      const interval = String(formData.get("interval") || "monthly");
       const plan = getSubscriptionPlan(planKey, process.env);
       if (!plan || plan.price <= 0) {
         return { success: false, message: "Please select a paid subscription plan." };
       }
-
       const confirmationUrl = await createRecurringSubscription({
-        admin,
-        request,
-        shop: session.shop,
-        plan,
+        admin, request, shop: session.shop, plan, interval,
       });
-
       if (!confirmationUrl) {
         return { success: false, message: "Shopify did not return a billing approval URL." };
       }
@@ -87,24 +89,16 @@ export const action = async ({ request }) => {
       if (!creditPackage) {
         return { success: false, message: "Please select a valid extra credit package." };
       }
-
       const confirmationUrl = await createExtraCreditPurchase({
-        admin,
-        request,
-        shop: session.shop,
-        creditPackage,
+        admin, request, shop: session.shop, creditPackage,
       });
-
       if (!confirmationUrl) {
         return { success: false, message: "Shopify did not return a credit approval URL." };
       }
       return { success: true, confirmationUrl };
     }
   } catch (error) {
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : "Billing request failed.",
-    };
+    return { success: false, message: error instanceof Error ? error.message : "Billing request failed." };
   }
 
   return { success: false, message: "Unknown billing action." };
@@ -122,6 +116,15 @@ function formatCredits(credits) {
   return Number(credits || 0).toLocaleString("en-US");
 }
 
+function CheckIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0, marginTop: 2 }}>
+      <circle cx="10" cy="10" r="10" fill="#008060" />
+      <path d="M6 10.5l3 3 5-6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export default function PricingPage() {
   const {
     currentPlanKey,
@@ -129,7 +132,8 @@ export default function PricingPage() {
     billingSubscriptionStatus,
     billingMessage,
     billingSuccess,
-    subscriptionPlans,
+    freePlan,
+    featuredPlan,
     extraCreditPackages,
     billingTestMode,
   } = useLoaderData();
@@ -138,17 +142,18 @@ export default function PricingPage() {
   const appData = useRouteLoaderData("routes/app");
   const isSubmitting = navigation.state === "submitting";
   const activeFormData = navigation.formData;
-  const activePlanKey = String(activeFormData?.get("planKey") || "");
+  const activePlanInterval = String(activeFormData?.get("interval") || "");
   const activePackageKey = String(activeFormData?.get("packageKey") || "");
+
   const bannerMessage = actionData?.message || billingMessage;
   const bannerSuccess =
     typeof actionData?.success === "boolean"
       ? actionData.success
-      : billingSuccess === "true"
-        ? true
-        : billingSuccess === "false"
-          ? false
-          : null;
+      : billingSuccess === "true" ? true : billingSuccess === "false" ? false : null;
+
+  const isMonthlyCurrentPlan = currentPlanKey === featuredPlan.key;
+  const yearlyPerMonth = featuredPlan.yearlyPrice ? featuredPlan.yearlyPrice / 10 : featuredPlan.price * 0.83;
+  const yearlySavings = featuredPlan.price * 12 - (featuredPlan.yearlyPrice || featuredPlan.price * 10);
 
   useEffect(() => {
     if (!actionData?.confirmationUrl) return;
@@ -157,10 +162,10 @@ export default function PricingPage() {
 
   return (
     <Page title="Pricing" fullWidth>
-      <BlockStack gap="500">
+      <BlockStack gap="600">
         <AppPageHeader
           title="Pricing"
-          description="Choose a monthly plan or top up with one-time credits. Credits renew every 30 days on paid plans."
+          description="Choose monthly or yearly billing. Credits renew every 30 days on paid plans."
         />
 
         {bannerMessage ? (
@@ -169,140 +174,229 @@ export default function PricingPage() {
           </Banner>
         ) : null}
 
+        {/* Current balance */}
         <Card>
-          <BlockStack gap="300">
-            <InlineStack align="space-between" blockAlign="center" gap="300">
-              <BlockStack gap="100">
-                <Text as="h2" variant="headingMd">
-                  Current balance
-                </Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  Credits reset every 30 days on paid plans. Manual edits and saves never cost credits.
-                </Text>
-              </BlockStack>
-              <InlineStack gap="200" blockAlign="center">
-                <Badge tone="info">{currentPlanName}</Badge>
-                {billingSubscriptionStatus ? <Badge>{billingSubscriptionStatus}</Badge> : null}
-                <Text as="span" variant="headingLg">
-                  {formatCredits(appData?.credits)} credits
-                </Text>
-              </InlineStack>
+          <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
+            <BlockStack gap="100">
+              <Text as="h2" variant="headingMd">Current balance</Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                Credits reset every 30 days on paid plans. Manual edits never cost credits.
+              </Text>
+            </BlockStack>
+            <InlineStack gap="200" blockAlign="center">
+              <Badge tone="info">{currentPlanName}</Badge>
+              {billingSubscriptionStatus ? <Badge>{billingSubscriptionStatus}</Badge> : null}
+              <Text as="span" variant="headingLg">
+                {formatCredits(appData?.credits)} credits
+              </Text>
             </InlineStack>
-          </BlockStack>
+          </InlineStack>
         </Card>
 
+        {/* Free + Monthly + Yearly plan cards */}
         <BlockStack gap="300">
-          <InlineStack align="space-between" blockAlign="end">
-            <BlockStack gap="100">
-              <Text as="h2" variant="headingMd">
-                Monthly plans
-              </Text>
+          <InlineStack align="space-between" blockAlign="center">
+            <Text as="h2" variant="headingMd">Plans</Text>
+            {billingTestMode ? <Badge tone="attention">Test mode</Badge> : null}
+          </InlineStack>
+
+          <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
+
+            {/* ── Free plan ── */}
+            <Grid.Cell>
+              <div className="pricing-plan-card">
+                <Card>
+                  <div className="pricing-plan-card__inner">
+                    <BlockStack gap="300">
+
+                      <InlineStack align="space-between" blockAlign="start">
+                        <BlockStack gap="050">
+                          <Text as="h3" variant="headingLg">{freePlan?.name || "Free"}</Text>
+                          <Text as="p" variant="bodySm" tone="subdued">No credit card required</Text>
+                        </BlockStack>
+                        {currentPlanKey === "free" && <Badge tone="success">Current</Badge>}
+                      </InlineStack>
+
+                      <BlockStack gap="050">
+                        <Text as="p" variant="heading2xl">Free</Text>
+                        <Text as="p" variant="bodySm" tone="subdued">Included after install · Always free</Text>
+                      </BlockStack>
+
+                      <Divider />
+
+                      <BlockStack gap="200">
+                        <InlineStack gap="150" blockAlign="start" wrap={false}>
+                          <CheckIcon />
+                          <Text as="p" variant="bodySm">
+                            <strong>{formatCredits(freePlan?.credits || 150)} credits</strong> included
+                          </Text>
+                        </InlineStack>
+                        {(freePlan?.features || []).slice(1).map((f) => (
+                          <InlineStack key={f} gap="150" blockAlign="start" wrap={false}>
+                            <CheckIcon />
+                            <Text as="p" variant="bodySm">{f}</Text>
+                          </InlineStack>
+                        ))}
+                      </BlockStack>
+
+                    </BlockStack>
+
+                    <div className="pricing-plan-card__action">
+                      <Button fullWidth disabled={currentPlanKey === "free"}>
+                        {currentPlanKey === "free" ? "Current plan" : "Get started free"}
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            </Grid.Cell>
+
+            {/* ── Monthly plan ── */}
+            <Grid.Cell>
+              <div className="pricing-plan-card">
+                <Card>
+                  <div className="pricing-plan-card__inner">
+                    <BlockStack gap="300">
+
+                      <InlineStack align="space-between" blockAlign="start">
+                        <BlockStack gap="050">
+                          <Text as="h3" variant="headingLg">{featuredPlan.name}</Text>
+                          <Text as="p" variant="bodySm" tone="subdued">Monthly billing</Text>
+                        </BlockStack>
+                        <Badge tone="info">Monthly</Badge>
+                      </InlineStack>
+
+                      <BlockStack gap="050">
+                        <InlineStack gap="100" blockAlign="end">
+                          <Text as="p" variant="heading2xl">{formatPrice(featuredPlan.price)}</Text>
+                          <Text as="span" variant="bodySm" tone="subdued">/month</Text>
+                        </InlineStack>
+                        <Text as="p" variant="bodySm" tone="subdued">Billed monthly · Cancel any time</Text>
+                      </BlockStack>
+
+                      <Divider />
+
+                      <BlockStack gap="200">
+                        <InlineStack gap="150" blockAlign="start" wrap={false}>
+                          <CheckIcon />
+                          <Text as="p" variant="bodySm">
+                            <strong>{formatCredits(featuredPlan.credits)} credits</strong> every month
+                          </Text>
+                        </InlineStack>
+                        {featuredPlan.features.slice(1).map((f) => (
+                          <InlineStack key={f} gap="150" blockAlign="start" wrap={false}>
+                            <CheckIcon />
+                            <Text as="p" variant="bodySm">{f}</Text>
+                          </InlineStack>
+                        ))}
+                      </BlockStack>
+
+                    </BlockStack>
+
+                    <div className="pricing-plan-card__action">
+                      <Form method="post">
+                        <input type="hidden" name="intent" value="subscribe" />
+                        <input type="hidden" name="planKey" value={featuredPlan.key} />
+                        <input type="hidden" name="interval" value="monthly" />
+                        <Button
+                          fullWidth submit variant="secondary"
+                          loading={isSubmitting && activePlanInterval === "monthly"}
+                          disabled={isSubmitting || isMonthlyCurrentPlan}
+                        >
+                          {isMonthlyCurrentPlan ? "Current plan" : "Choose Monthly"}
+                        </Button>
+                      </Form>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            </Grid.Cell>
+
+            {/* ── Yearly plan ── */}
+            <Grid.Cell>
+              <div className="pricing-plan-card pricing-plan-card--popular">
+                <Card>
+                  <div className="pricing-plan-card__inner">
+                    <BlockStack gap="300">
+
+                      <InlineStack align="space-between" blockAlign="start">
+                        <BlockStack gap="050">
+                          <Text as="h3" variant="headingLg">{featuredPlan.name}</Text>
+                          <Text as="p" variant="bodySm" tone="subdued">Yearly billing</Text>
+                        </BlockStack>
+                        <Badge tone="success">Best value</Badge>
+                      </InlineStack>
+
+                      <BlockStack gap="100">
+                        <InlineStack gap="100" blockAlign="end">
+                          <Text as="p" variant="heading2xl">${yearlyPerMonth.toFixed(2)}</Text>
+                          <Text as="span" variant="bodySm" tone="subdued">/month</Text>
+                        </InlineStack>
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Billed {formatPrice(featuredPlan.yearlyPrice || featuredPlan.price * 10)}/year
+                        </Text>
+                        <div className="pricing-save-badge">
+                          Save {formatPrice(Math.round(yearlySavings * 100) / 100)} — {YEARLY_DISCOUNT_MONTHS} months free
+                        </div>
+                      </BlockStack>
+
+                      <Divider />
+
+                      <BlockStack gap="200">
+                        <InlineStack gap="150" blockAlign="start" wrap={false}>
+                          <CheckIcon />
+                          <Text as="p" variant="bodySm">
+                            <strong>{formatCredits(featuredPlan.credits)} credits</strong> every month
+                          </Text>
+                        </InlineStack>
+                        {featuredPlan.features.slice(1).map((f) => (
+                          <InlineStack key={f} gap="150" blockAlign="start" wrap={false}>
+                            <CheckIcon />
+                            <Text as="p" variant="bodySm">{f}</Text>
+                          </InlineStack>
+                        ))}
+                      </BlockStack>
+
+                    </BlockStack>
+
+                    <div className="pricing-plan-card__action">
+                      <Form method="post">
+                        <input type="hidden" name="intent" value="subscribe" />
+                        <input type="hidden" name="planKey" value={featuredPlan.key} />
+                        <input type="hidden" name="interval" value="yearly" />
+                        <Button
+                          fullWidth submit variant="primary"
+                          loading={isSubmitting && activePlanInterval === "yearly"}
+                          disabled={isSubmitting}
+                        >
+                          Choose Yearly
+                        </Button>
+                      </Form>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            </Grid.Cell>
+
+          </Grid>
+        </BlockStack>
+
+        {/* Extra credits */}
+        <BlockStack gap="300">
+          <InlineStack align="space-between" blockAlign="center">
+            <BlockStack gap="050">
+              <Text as="h2" variant="headingMd">Extra Credits</Text>
               <Text as="p" variant="bodySm" tone="subdued">
-                Recurring billing is processed by Shopify every 30 days in {BILLING_CURRENCY}.
+                One-time top-up. Credits never expire and stack on top of your plan.
               </Text>
             </BlockStack>
             {billingTestMode ? <Badge tone="attention">Test mode</Badge> : null}
           </InlineStack>
 
-          <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 3, xl: 5 }}>
-            {subscriptionPlans.map((plan) => {
-              const isCurrent = plan.key === currentPlanKey;
-              const isFree = plan.price <= 0;
-              const loading = isSubmitting && activePlanKey === plan.key;
-              return (
-                <Grid.Cell key={plan.key}>
-                  <div className="pricing-plan-card">
-                    <Card>
-                      <div className="pricing-plan-card__inner">
-                        <BlockStack gap="350">
-                      <InlineStack align="space-between" blockAlign="start" gap="200">
-                        <BlockStack gap="100">
-                          <Text as="h3" variant="headingMd">
-                            {plan.name}
-                          </Text>
-                          <Text as="p" variant="bodySm" tone="subdued">
-                            {plan.description}
-                          </Text>
-                        </BlockStack>
-                        <InlineStack gap="100">
-                          {billingTestMode && !isFree ? <Badge tone="attention">Test</Badge> : null}
-                          {plan.popular ? <Badge tone="success">Popular</Badge> : null}
-                        </InlineStack>
-                      </InlineStack>
-
-                      <BlockStack gap="100">
-                        <Text as="p" variant="heading2xl">
-                          {formatPrice(plan.price)}
-                        </Text>
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          {isFree ? "Included after install" : "per month"}
-                        </Text>
-                      </BlockStack>
-
-                      <Divider />
-
-                      <BlockStack gap="150">
-                        <BlockStack gap="0">
-                          <Text as="p" variant="headingSm">
-                            {formatCredits(plan.credits)} credits{!isFree ? " / month" : ""}
-                          </Text>
-                          <Text as="p" variant="bodySm" tone="subdued">
-                            ≈ {formatCredits(Math.floor(plan.credits / 3))} full product generations
-                          </Text>
-                        </BlockStack>
-                        {plan.features.slice(1).map((feature) => (
-                          <Text key={feature} as="p" variant="bodySm">
-                            • {feature}
-                          </Text>
-                        ))}
-                      </BlockStack>
-
-                        </BlockStack>
-
-                        <div className="pricing-plan-card__action">
-                        {isFree ? (
-                          <Button fullWidth disabled={isCurrent}>
-                            {isCurrent ? "Current plan" : "Free plan"}
-                          </Button>
-                        ) : (
-                          <Form method="post">
-                            <input type="hidden" name="intent" value="subscribe" />
-                            <input type="hidden" name="planKey" value={plan.key} />
-                            <Button
-                              fullWidth
-                              submit
-                              variant={plan.popular ? "primary" : "secondary"}
-                              loading={loading}
-                              disabled={isSubmitting || isCurrent}
-                            >
-                              {isCurrent ? "Current plan" : `Choose ${plan.name}`}
-                            </Button>
-                          </Form>
-                        )}
-                        </div>
-                      </div>
-                    </Card>
-                  </div>
-                </Grid.Cell>
-              );
-            })}
-          </Grid>
-        </BlockStack>
-
-        <BlockStack gap="300">
-          <BlockStack gap="100">
-            <Text as="h2" variant="headingMd">
-              Extra credits
-            </Text>
-            {billingTestMode ? (
-              <InlineStack>
-                <Badge tone="attention">Test mode</Badge>
-              </InlineStack>
-            ) : null}
-          </BlockStack>
           <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
             {extraCreditPackages.map((creditPackage) => {
               const loading = isSubmitting && activePackageKey === creditPackage.key;
+              const costPerCredit = (creditPackage.price / creditPackage.credits * 100).toFixed(2);
               return (
                 <Grid.Cell key={creditPackage.key}>
                   <Card>
@@ -311,18 +405,18 @@ export default function PricingPage() {
                         <Text as="h3" variant="headingMd">
                           {formatCredits(creditPackage.credits)} credits
                         </Text>
-                        <Text as="p" variant="headingLg">
-                          {formatPrice(creditPackage.price)}
+                        <Text as="p" variant="heading2xl">{formatPrice(creditPackage.price)}</Text>
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          {costPerCredit}¢ per credit · Never expire
                         </Text>
                         <Text as="p" variant="bodySm" tone="subdued">
-                          ≈ {formatCredits(Math.floor(creditPackage.credits / 3))} product generations · One-time
+                          ≈ {formatCredits(Math.floor(creditPackage.credits / 3))} product generations
                         </Text>
                       </BlockStack>
-
                       <Form method="post">
                         <input type="hidden" name="intent" value="buy_credits" />
                         <input type="hidden" name="packageKey" value={creditPackage.key} />
-                        <Button fullWidth submit loading={loading} disabled={isSubmitting}>
+                        <Button fullWidth submit loading={loading} disabled={isSubmitting} variant="primary">
                           Buy credits
                         </Button>
                       </Form>
@@ -336,26 +430,37 @@ export default function PricingPage() {
 
         <Box paddingBlockEnd="800" />
       </BlockStack>
+
       <style>{`
         .pricing-plan-card,
         .pricing-plan-card > .Polaris-ShadowBevel {
           height: 100%;
         }
-
+        .pricing-plan-card--popular > .Polaris-ShadowBevel,
+        .pricing-plan-card--popular > div {
+          outline: 2px solid #008060;
+          border-radius: 13px;
+        }
         .pricing-plan-card__inner {
-          min-height: 330px;
+          min-height: 380px;
           height: 100%;
           display: flex;
           flex-direction: column;
         }
-
         .pricing-plan-card__action {
           margin-top: auto;
           padding-top: 16px;
         }
-
-        .pricing-plan-card__action form {
-          margin: 0;
+        .pricing-plan-card__action form { margin: 0; }
+        .pricing-save-badge {
+          display: inline-block;
+          background: #e3f5e1;
+          color: #008060;
+          font-size: 12px;
+          font-weight: 600;
+          padding: 3px 10px;
+          border-radius: 20px;
+          width: fit-content;
         }
       `}</style>
     </Page>

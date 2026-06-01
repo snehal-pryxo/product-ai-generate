@@ -16,6 +16,7 @@ import {
   calcLlmsTxtCredits,
 } from "../lib/aiVisibility.server";
 import { getOrCreateShopCredits } from "../lib/credits.server";
+import { autoAddFaqSectionToProductPage } from "../lib/themeUtils.server";
 
 // Credit costs — defined here (not imported from server module) so they are available client-side
 const CREDITS_SCHEMA = 2;
@@ -36,63 +37,6 @@ function creditsForIntent(intent) {
 
 // Automatically adds the faq-section block as a standalone section in
 // templates/product.json so FAQ appears on the product page without the
-// merchant doing anything in the theme editor.
-async function autoAddFaqSectionToProductPage(shop, accessToken) {
-  try {
-    const appHandle = process.env.SHOPIFY_APP_HANDLE || "content-ai-seo-generator";
-    const apiBase  = `https://${shop}/admin/api/2025-10`;
-
-    // 1. Active theme id
-    const themesResp = await fetch(`${apiBase}/themes.json?role=main`, {
-      headers: { "X-Shopify-Access-Token": accessToken },
-    });
-    if (!themesResp.ok) return;
-    const themeId = (await themesResp.json())?.themes?.[0]?.id;
-    if (!themeId) return;
-
-    // 2. Read templates/product.json
-    const assetResp = await fetch(
-      `${apiBase}/themes/${themeId}/assets.json?asset[key]=templates/product.json`,
-      { headers: { "X-Shopify-Access-Token": accessToken } }
-    );
-    if (!assetResp.ok) return;
-    const rawContent = (await assetResp.json())?.asset?.value || "{}";
-    let template;
-    try { template = JSON.parse(rawContent); } catch { return; }
-
-    const sections = template?.sections || {};
-    const order    = Array.isArray(template?.order) ? [...template.order] : [];
-    const FAQ_TYPE = `shopify://apps/${appHandle}/blocks/faq-section`;
-
-    // 3. Already present? Skip.
-    const alreadyAdded = Object.values(sections).some(
-      (s) => String(s?.type || "").includes("faq-section")
-    );
-    if (alreadyAdded) return;
-
-    // 4. Append the faq-section as a standalone section at the bottom
-    const uid = `cai-faq-${Date.now()}`;
-    template.sections = {
-      ...sections,
-      [uid]: { type: FAQ_TYPE, disabled: false, settings: {}, blocks: {}, block_order: [] },
-    };
-    template.order = [...order, uid];
-
-    // 5. Write back
-    await fetch(`${apiBase}/themes/${themeId}/assets.json`, {
-      method: "PUT",
-      headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        asset: { key: "templates/product.json", value: JSON.stringify(template, null, 2) },
-      }),
-    });
-    console.log(`[autoAddFaqSection] Added faq-section to product page template for ${shop}`);
-  } catch (err) {
-    // Non-blocking — FAQ generation still succeeds even if this fails
-    console.error("[autoAddFaqSection]", err);
-  }
-}
-
 function buildInsufficientCreditsBanner(requiredCredits, currentCredits) {
   return {
     tone: "critical",

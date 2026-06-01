@@ -1,6 +1,8 @@
 export const BILLING_CURRENCY = "USD";
 export const BILLING_INTERVAL = "EVERY_30_DAYS";
+export const BILLING_INTERVAL_ANNUAL = "ANNUAL";
 export const BILLING_RENEWAL_DAYS = 30;
+export const YEARLY_DISCOUNT_MONTHS = 2; // "2 months free" = pay 10, get 12
 
 const DEFAULT_SUBSCRIPTION_PLANS = [
   {
@@ -165,8 +167,21 @@ function applyExtraCreditEnv(creditPackage, env) {
   };
 }
 
+// Yearly price = 10 monthly payments (2 months free)
+function computeYearlyPrice(monthlyPrice) {
+  if (monthlyPrice <= 0) return 0;
+  return Math.round(monthlyPrice * (12 - YEARLY_DISCOUNT_MONTHS) * 100) / 100;
+}
+
 export function getSubscriptionPlans(env = {}) {
-  return DEFAULT_SUBSCRIPTION_PLANS.map((plan) => applyPlanEnv(plan, env));
+  return DEFAULT_SUBSCRIPTION_PLANS.map((plan) => {
+    const monthly = applyPlanEnv(plan, env);
+    return {
+      ...monthly,
+      yearlyPrice: computeYearlyPrice(monthly.price),
+      yearlyCreditsPerMonth: monthly.credits,
+    };
+  });
 }
 
 export function getExtraCreditPackages(env = {}) {

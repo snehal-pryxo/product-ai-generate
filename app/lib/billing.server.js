@@ -2,6 +2,7 @@ import db from "../db.server";
 import {
   BILLING_CURRENCY,
   BILLING_INTERVAL,
+  BILLING_INTERVAL_ANNUAL,
   BILLING_RENEWAL_DAYS,
 } from "./billingPlans";
 
@@ -69,7 +70,9 @@ async function readGraphqlPayload(response, fieldName) {
   return payload;
 }
 
-export async function createRecurringSubscription({ admin, request, shop, plan }) {
+export async function createRecurringSubscription({ admin, request, shop, plan, interval }) {
+  const billingInterval = interval === "yearly" ? BILLING_INTERVAL_ANNUAL : BILLING_INTERVAL;
+  const chargePrice = interval === "yearly" ? (plan.yearlyPrice ?? plan.price * 10) : plan.price;
   const response = await admin.graphql(
     `#graphql
       mutation AppSubscriptionCreate(
@@ -109,10 +112,10 @@ export async function createRecurringSubscription({ admin, request, shop, plan }
             plan: {
               appRecurringPricingDetails: {
                 price: {
-                  amount: plan.price,
+                  amount: chargePrice,
                   currencyCode: BILLING_CURRENCY,
                 },
-                interval: BILLING_INTERVAL,
+                interval: billingInterval,
               },
             },
           },
