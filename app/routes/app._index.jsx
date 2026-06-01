@@ -346,6 +346,8 @@ export const loader = async ({ request }) => {
     creditsUsedTotal,
     currentPlan,
     currentPlanPrice,
+    shop: session.shop,
+    appApiKey: process.env.SHOPIFY_API_KEY || "",
   };
 };
 
@@ -536,6 +538,8 @@ export default function Index() {
     creditsUsedTotal,
     currentPlan,
     currentPlanPrice,
+    shop,
+    appApiKey,
   } = useLoaderData();
   const actionData = useActionData();
   const reviewFetcher = useFetcher();
@@ -892,6 +896,31 @@ export default function Index() {
               </BlockStack>
             </Card>
           </div>
+
+          {/* FAQ Section on Product Page */}
+          <Card>
+            <InlineStack align="space-between" blockAlign="center" gap="400" wrap>
+              <BlockStack gap="100">
+                <Text as="h3" variant="headingSm" fontWeight="semibold">
+                  FAQ Section on Product Page
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Add a standalone FAQ section to your product page template in the theme editor.
+                </Text>
+              </BlockStack>
+              <Button
+                size="slim"
+                url={
+                  appApiKey
+                    ? `https://${shop}/admin/themes/current/editor?template=product&activateAppId=${encodeURIComponent(appApiKey)}/faq-section`
+                    : `https://${shop}/admin/themes/current/editor?template=product`
+                }
+                external
+              >
+                Add to Product Page
+              </Button>
+            </InlineStack>
+          </Card>
 
           <Card>
             <BlockStack gap="400">

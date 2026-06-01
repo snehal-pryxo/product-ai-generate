@@ -951,6 +951,16 @@ export default function AiVisibilityPage() {
     autoEnableFetcher.submit(fd, { method: "post" });
   }, [autoEnableFetcher]);
 
+  // Auto-enable schema injection on first load if not already enabled.
+  const autoEnableCalledRef = useRef(false);
+  useEffect(() => {
+    if (!embedEnabled && !autoEnableCalledRef.current) {
+      autoEnableCalledRef.current = true;
+      handleAutoEnable();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const allItems = [...products, ...articles, ...pages];
   const totalScore =
     allItems.length > 0
@@ -1153,16 +1163,12 @@ export default function AiVisibilityPage() {
                   <Text variant="headingSm" as="h3">Schema Injection</Text>
                   {embedEnabled
                     ? <Badge tone="success">Active</Badge>
-                    : <Badge tone="warning">Not enabled</Badge>}
+                    : <Badge tone="info">Automatic</Badge>}
                 </InlineStack>
 
-                {/* Status description */}
-                {embedEnabled ? (
-                  <Box
-                    background="bg-surface-success"
-                    borderRadius="200"
-                    padding="300"
-                  >
+                {/* Active status description — only when confirmed enabled */}
+                {embedEnabled && (
+                  <Box background="bg-surface-success" borderRadius="200" padding="300">
                     <InlineStack gap="200" blockAlign="start" wrap={false}>
                       <span style={{ color: "#008060", flexShrink: 0, marginTop: 1 }}>
                         <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
@@ -1174,49 +1180,18 @@ export default function AiVisibilityPage() {
                       </Text>
                     </InlineStack>
                   </Box>
-                ) : null}
+                )}
 
-                {/* Inline verification result */}
-                {verifyResult && (
-                  <Box
-                    background={verifyResult.ok
-                      ? (verifyResult.enabled ? "bg-surface-success" : "bg-surface-caution")
-                      : "bg-surface-critical"}
-                    borderRadius="200"
-                    padding="200"
-                  >
+                {/* Only show error results — suppress "not active" warnings since auto-enable handles it */}
+                {verifyResult && !verifyResult.ok && (
+                  <Box background="bg-surface-critical" borderRadius="200" padding="200">
                     <InlineStack gap="150" blockAlign="center">
-                      <span style={{
-                        color: verifyResult.ok
-                          ? (verifyResult.enabled ? "#008060" : "#b98900")
-                          : "#d72c0d",
-                        flexShrink: 0,
-                      }}>
-                        {verifyResult.ok && verifyResult.enabled && (
-                          <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
-                          </svg>
-                        )}
-                        {verifyResult.ok && !verifyResult.enabled && (
-                          <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92z" clipRule="evenodd"/>
-                          </svg>
-                        )}
-                        {!verifyResult.ok && (
-                          <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
-                          </svg>
-                        )}
+                      <span style={{ color: "#d72c0d", flexShrink: 0 }}>
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
+                        </svg>
                       </span>
-                      <Text variant="bodySm" as="span">
-                        {!verifyResult.ok
-                          ? verifyResult.error
-                          : verifyResult.enabled
-                            ? verifyResult.auto
-                              ? "Schema injection enabled automatically — schema & FAQ are now live on your storefront."
-                              : "Verified — App Embed is active. Schema & FAQ are live on your storefront."
-                            : "App Embed is not active. Click Auto-enable to activate it automatically."}
-                      </Text>
+                      <Text variant="bodySm" as="span">{verifyResult.error}</Text>
                     </InlineStack>
                   </Box>
                 )}
