@@ -846,7 +846,7 @@ export const loader = async ({ request }) => {
 
   const shopData = await db.shop.findUnique({
     where: { shop: session.shop },
-    select: { credits: true, creditsUsedTotal: true, defaultAiProvider: true, openaiApiKey: true, anthropicApiKey: true, geminiApiKey: true },
+    select: { credits: true, creditsUsedTotal: true, defaultAiProvider: true, openaiApiKey: true, anthropicApiKey: true, geminiApiKey: true, globalSettingsJson: true },
   });
   const credits = shopData?.credits ?? 150;
   const defaultAiProvider = shopData?.defaultAiProvider || "auto";
@@ -1316,6 +1316,16 @@ export const loader = async ({ request }) => {
   }
   items = sortByNewestGenerated(items);
 
+  // Parse saved keywords from the Keywords Library in Settings
+  let savedKeywords = [];
+  try {
+    const gs = JSON.parse(shopData?.globalSettingsJson || "{}");
+    savedKeywords = String(gs.productDescKeywords || "")
+      .split(",")
+      .map((k) => k.trim().toLowerCase())
+      .filter(Boolean);
+  } catch { /* ignore */ }
+
   return {
     tab,
     filter,
@@ -1324,6 +1334,7 @@ export const loader = async ({ request }) => {
     defaultAiProvider,
     envAiModel,
     creditsUsageByType,
+    savedKeywords,
     hasOpenaiKey: !!(shopData?.openaiApiKey || process.env.OPENAI_API_KEY),
     hasAnthropicKey: !!(shopData?.anthropicApiKey || process.env.ANTHROPIC_API_KEY),
     hasGeminiKey: !!(shopData?.geminiApiKey || process.env.GOOGLE_GEMINI_API_KEY),
@@ -2106,10 +2117,7 @@ function EditorModal({ open, item, field, contentType, onClose, onSave, isSaving
 // ─── Keywords Input ───────────────────────────────────────────────────────────
 const MAX_KEYWORDS = 5;
 
-const DEFAULT_KEYWORD_SUGGESTIONS = [
-  "high quality", "premium", "durable", "best value", "best selling",
-  "eco-friendly", "handmade", "lightweight", "waterproof", "ergonomic",
-];
+// No hardcoded fallback keywords — suggestions come from Settings → Keywords Library
 
 function parseKeywordString(v) {
   return String(v || "")
@@ -2173,10 +2181,10 @@ function KeywordsInput({ value, onChange, savedSuggestions = [] }) {
     }
   }, [addKeyword, emit, inputValue]);
 
-  // Merge default + saved suggestions, de-dupe against already-selected
-  const suggestions = Array.from(
-    new Set([...savedSuggestions, ...DEFAULT_KEYWORD_SUGGESTIONS])
-  ).filter((s) => !keywords.includes(s)).slice(0, 8);
+  // Suggestions = Keywords Library (from settings) + item's prior contextKeywords, de-duped
+  const suggestions = Array.from(new Set(savedSuggestions))
+    .filter((s) => !keywords.includes(s))
+    .slice(0, 10);
 
   const atMax = keywords.length >= MAX_KEYWORDS;
 
@@ -2251,6 +2259,7 @@ function GenerateTemplateModal({
   customInstructions,
   language,
   additionalInformation,
+  savedKeywords,
   previewText,
   progress,
   onChange,
@@ -2511,7 +2520,10 @@ function GenerateTemplateModal({
                   <KeywordsInput
                     value={additionalInformation || ""}
                     onChange={onAdditionalInformationChange}
-                    savedSuggestions={parseKeywordString(item?.contextKeywords || "")}
+                    savedSuggestions={Array.from(new Set([
+                      ...parseKeywordString(item?.contextKeywords || ""),
+                      ...(savedKeywords || []),
+                    ]))}
                   />
                 </BlockStack>
               </Card>
@@ -2630,7 +2642,7 @@ function statusBadge(status) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ContentManagementPage() {
-  const { tab, filter, items, credits, defaultAiProvider, envAiModel, creditsUsageByType } = useLoaderData();
+  const { tab, filter, items, credits, defaultAiProvider, envAiModel, creditsUsageByType, savedKeywords = [] } = useLoaderData();
   const navigate = useNavigate();
   const location = useLocation();
   const shopify = useAppBridge();
@@ -3687,6 +3699,7 @@ export default function ContentManagementPage() {
         customInstructions={customInstructions}
         language={generationLanguage}
         additionalInformation={generationAdditionalInformation}
+        savedKeywords={savedKeywords}
         previewText={generatedPreviewText}
         progress={generationProgress}
         onChange={updateGenerateTemplateSelection}
