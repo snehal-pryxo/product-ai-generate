@@ -28,7 +28,7 @@ export function AppPageHeader({ title, description }) {
               Available credits: {formattedCredits}
             </Text>
             <Button onClick={openAddCreditModal}>
-              Add Credit
+              Add Credits
             </Button>
             <button
               onClick={() => navigate({ pathname: "/app/pricing", search: location.search })}

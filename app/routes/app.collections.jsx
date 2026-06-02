@@ -2933,7 +2933,7 @@ export default function CollectionsPage() {
               </Button>
               {insufficientCredits ? (
                 <Button onClick={openAddCreditModal}>
-                  Add Credit
+                  Add Credits
                 </Button>
               ) : null}
             </div>

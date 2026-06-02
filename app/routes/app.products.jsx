@@ -2352,7 +2352,7 @@ export default function ProductsPage() {
               </Button>
               {insufficientCredits ? (
                 <Button onClick={openAddCreditModal}>
-                  Add Credit
+                  Add Credits
                 </Button>
               ) : null}
             </div>
