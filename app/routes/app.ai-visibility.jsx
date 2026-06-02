@@ -197,7 +197,7 @@ export const loader = async ({ request }) => {
     db.aiVisibilitySchema.findMany({ where: { shop, resourceId: { in: allResourceIds } } }),
     db.aiVisibilityFaq.findMany({ where: { shop, resourceId: { in: allResourceIds } } }),
     db.aiVisibilityLlmsTxt.findUnique({ where: { shop } }),
-    db.shop.findUnique({ where: { shop }, select: { themeEmbedEnabled: true } }),
+    db.shop.findUnique({ where: { shop }, select: { themeEmbedEnabled: true, billingPlanKey: true } }),
     getOrCreateShopCredits(shop),
   ]);
 
@@ -239,6 +239,7 @@ export const loader = async ({ request }) => {
     shop,
     appApiKey: process.env.SHOPIFY_API_KEY || "",
     credits: creditSnapshot.credits,
+    isFreePlan: (shopData?.billingPlanKey || "free") === "free",
     themeEmbedEnabled: shopData?.themeEmbedEnabled ?? false,
     llmsTxtCredits: calcLlmsTxtCredits(products.length + collections.length + articles.length + pages.length),
   };
@@ -880,6 +881,7 @@ export default function AiVisibilityPage() {
     themeEmbedEnabled: initialEmbedEnabled,
     llmsTxtCredits,
     credits: initialCredits,
+    isFreePlan,
   } = useLoaderData();
   const fetcher = useFetcher();
   const embedFetcher = useFetcher();
@@ -1086,7 +1088,7 @@ export default function AiVisibilityPage() {
   );
 
   const handleGenerateLlmsTxt = useCallback(() => {
-    if (llmsTxtCredits > credits) {
+    if (!isFreePlan && llmsTxtCredits > credits) {
       setBanner(buildInsufficientCreditsBanner(llmsTxtCredits, credits));
       return;
     }
@@ -1095,7 +1097,7 @@ export default function AiVisibilityPage() {
     const fd = new FormData();
     fd.append("intent", "generate_llmstxt");
     fetcher.submit(fd, { method: "post" });
-  }, [credits, fetcher, llmsTxtCredits]);
+  }, [credits, fetcher, isFreePlan, llmsTxtCredits]);
 
   const tabs = [
     { id: "products", content: `Products (${products.length})` },
@@ -1226,10 +1228,10 @@ export default function AiVisibilityPage() {
                         size="slim"
                         variant="plain"
                         loading={isSubmitting && generatingKey === "llmstxt"}
-                        disabled={credits < llmsTxtCredits}
+                        disabled={!isFreePlan && credits < llmsTxtCredits}
                         onClick={handleGenerateLlmsTxt}
                       >
-                        Regenerate ({llmsTxtCredits} cr)
+                        {isFreePlan ? "Regenerate" : `Regenerate (${llmsTxtCredits} cr)`}
                       </Button>
                     </>
                   ) : (
@@ -1237,10 +1239,10 @@ export default function AiVisibilityPage() {
                       size="slim"
                       variant="primary"
                       loading={isSubmitting && generatingKey === "llmstxt"}
-                      disabled={credits < llmsTxtCredits}
+                      disabled={!isFreePlan && credits < llmsTxtCredits}
                       onClick={handleGenerateLlmsTxt}
                     >
-                      Generate ({llmsTxtCredits} credits)
+                      {isFreePlan ? "Generate" : `Generate (${llmsTxtCredits} credits)`}
                     </Button>
                   )}
                 </InlineStack>

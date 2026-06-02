@@ -915,9 +915,11 @@ export const action = async ({ request }) => {
       geminiApiKey: true,
       credits: true,
       creditsUsedTotal: true,
+      billingPlanKey: true,
       globalSettingsJson: true,
     },
   });
+  const isFreePlan = (shopData?.billingPlanKey || "free") === "free";
   const globalSettings = parseShopGlobalSettings(shopData);
 
   try {
@@ -976,9 +978,9 @@ export const action = async ({ request }) => {
       const shouldUpdateDescription = selectedContentTypes.includes("description");
       const shouldUpdateMetaTitle = selectedContentTypes.includes("meta_title");
       const shouldUpdateMetaDescription = selectedContentTypes.includes("meta_description");
-      const creditsPerItem = creditsForContentTypes(selectedContentTypes);
+      const creditsPerItem = isFreePlan ? 0 : creditsForContentTypes(selectedContentTypes);
       const availableCredits = shopData?.credits ?? 150;
-      const requiredCredits = creditsForBatch(selectedContentTypes, bulkProducts.length);
+      const requiredCredits = isFreePlan ? 0 : creditsForBatch(selectedContentTypes, bulkProducts.length);
 
       if (availableCredits < requiredCredits) {
         return {
@@ -1085,6 +1087,7 @@ export const loader = async ({ request }) => {
       defaultAiProvider: true,
       credits: true,
       creditsUsedTotal: true,
+      billingPlanKey: true,
       globalSettingsJson: true,
       ownerName: true,
       name: true,
@@ -1182,6 +1185,7 @@ export const loader = async ({ request }) => {
       defaultAiProvider: shopData?.defaultAiProvider || "auto",
       credits: shopData?.credits ?? 150,
       creditsUsedTotal: shopData?.creditsUsedTotal ?? 0,
+      isFreePlan: (shopData?.billingPlanKey || "free") === "free",
       shopOwnerName,
       keywordLibrary: splitKeywordString(parsedGlobalSettings.productDescKeywords),
     };
@@ -1244,6 +1248,7 @@ export const loader = async ({ request }) => {
     defaultAiProvider: shopData?.defaultAiProvider || "auto",
     credits: shopData?.credits ?? 150,
     creditsUsedTotal: shopData?.creditsUsedTotal ?? 0,
+    isFreePlan: (shopData?.billingPlanKey || "free") === "free",
     shopOwnerName,
     shop: session.shop,
     appApiKey: process.env.SHOPIFY_API_KEY || "",
@@ -1277,7 +1282,7 @@ function readArrayState(value, fallback = []) {
 }
 
 export default function ProductsPage() {
-  const { filters, products, collections, keywordLibrary = [], defaultAiProvider, credits, shopOwnerName, shop, appApiKey } = useLoaderData();
+  const { filters, products, collections, keywordLibrary = [], defaultAiProvider, credits, isFreePlan, shopOwnerName, shop, appApiKey } = useLoaderData();
   const navigation = useNavigation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -1389,8 +1394,8 @@ export default function ProductsPage() {
     [filteredProducts, selectedProductIds],
   );
   const exceedsBulkLimit = selectedProducts.length > MAX_BULK_ITEMS;
-  const bulkCreditsPerProduct = clientCreditsForContentTypes(bulkContentTypes);
-  const requiredBulkCredits = clientCreditsForBatch(bulkContentTypes, selectedProducts.length);
+  const bulkCreditsPerProduct = isFreePlan ? 0 : clientCreditsForContentTypes(bulkContentTypes);
+  const requiredBulkCredits = isFreePlan ? 0 : clientCreditsForBatch(bulkContentTypes, selectedProducts.length);
   const insufficientCredits = requiredBulkCredits > 0 && requiredBulkCredits > credits;
   const isFaqTabSelected = bulkContentTypes.includes("faq");
   const faqProductPageUrl = appApiKey

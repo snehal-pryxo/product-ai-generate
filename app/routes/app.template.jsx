@@ -157,7 +157,7 @@ export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
   const shopData = await db.shop.findUnique({
     where: { shop: session.shop },
-    select: { templateSelectionsJson: true, customPromptTemplatesJson: true },
+    select: { templateSelectionsJson: true, customPromptTemplatesJson: true, billingPlanKey: true },
   });
 
   let parsedSelections = {};
@@ -173,9 +173,11 @@ export const loader = async ({ request }) => {
     parsedCustomTemplates = [];
   }
 
+  const isFreePlan = (shopData?.billingPlanKey || "free") === "free";
   return {
     initialSelections: normalizeTemplateSelections(parsedSelections),
-    initialCustomTemplates: normalizeCustomTemplates(parsedCustomTemplates),
+    initialCustomTemplates: isFreePlan ? [] : normalizeCustomTemplates(parsedCustomTemplates),
+    isFreePlan,
   };
 };
 
@@ -200,6 +202,15 @@ export const action = async ({ request }) => {
     nextCustomTemplates = normalizeCustomTemplates(JSON.parse(String(formData.get("customTemplatesJson") || "[]")));
   } catch {
     return { success: false, error: "Invalid custom templates payload.", requestId };
+  }
+
+  const shopData = await db.shop.findUnique({
+    where: { shop: session.shop },
+    select: { billingPlanKey: true },
+  });
+  const isFreePlan = (shopData?.billingPlanKey || "free") === "free";
+  if (isFreePlan && nextCustomTemplates.length > 0) {
+    return { success: false, error: "Custom templates are not available on the free plan.", requestId };
   }
 
   await db.shop.upsert({
@@ -1629,7 +1640,7 @@ function FilterBar({ resourceFilter, typeFilter, onResourceChange, onTypeChange 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function TemplatePage() {
-  const { initialSelections, initialCustomTemplates } = useLoaderData();
+  const { initialSelections, initialCustomTemplates, isFreePlan } = useLoaderData();
   const persistFetcher = useFetcher();
   const persistPromiseRef = useRef(null);
   const shopify = useAppBridge();
@@ -1706,6 +1717,10 @@ export default function TemplatePage() {
   }, [persistFetcher.state, persistFetcher.data]);
 
   async function persistTemplateConfiguration(nextSelections, nextCustomTemplates) {
+    if (isFreePlan && nextCustomTemplates.length > 0) {
+      showConfigErrorMessage("Custom templates are not available on the free plan.");
+      return Promise.reject(new Error("Custom templates are not available on the free plan."));
+    }
     return new Promise((resolve, reject) => {
       const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       persistPromiseRef.current = { resolve, reject, requestId };
@@ -1847,6 +1862,10 @@ export default function TemplatePage() {
   // ── Custom template form ────────────────────────────────────────────────────
 
   function openCreateModal() {
+    if (isFreePlan) {
+      showConfigErrorMessage("Custom templates are not available on the free plan.");
+      return;
+    }
     setEditingId(null);
     setFormData(EMPTY_CUSTOM_FORM);
     setFormErrors({});
@@ -1854,6 +1873,10 @@ export default function TemplatePage() {
   }
 
   function openEditModal(template) {
+    if (isFreePlan) {
+      showConfigErrorMessage("Custom templates are not available on the free plan.");
+      return;
+    }
     setEditingId(template.id);
     setFormData({
       name: template.name,
@@ -1878,6 +1901,10 @@ export default function TemplatePage() {
   }
 
   async function handleFormSave() {
+    if (isFreePlan) {
+      showConfigErrorMessage("Custom templates are not available on the free plan.");
+      return;
+    }
     const errors = validateForm();
     if (Object.keys(errors).length) {
       setFormErrors(errors);
@@ -2058,7 +2085,7 @@ export default function TemplatePage() {
                   </Text>
                 </BlockStack>
                 {!isSystemTab && (
-                  <Button variant="primary" size="slim" onClick={openCreateModal} disabled={isLoading}>
+                  <Button variant="primary" size="slim" onClick={openCreateModal} disabled={isLoading || isFreePlan}>
                     Create template
                   </Button>
                 )}
@@ -2077,6 +2104,13 @@ export default function TemplatePage() {
 
         {/* Template grid */}
         <Layout.Section>
+          {!isSystemTab && isFreePlan ? (
+            <div style={{ marginBottom: "16px" }}>
+              <Banner tone="info">
+                <Text as="p">Custom templates are available after upgrading from the free plan.</Text>
+              </Banner>
+            </div>
+          ) : null}
           {templates.length === 0 ? (
             <Card>
               <EmptyState
@@ -2087,7 +2121,7 @@ export default function TemplatePage() {
                 }
                 image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
                 action={
-                  !isSystemTab && !isLoading
+                  !isSystemTab && !isLoading && !isFreePlan
                     ? { content: "Create template", onAction: openCreateModal }
                     : undefined
                 }

@@ -40,6 +40,7 @@ export const loader = async ({ request }) => {
       billingPlanKey: true,
       billingPlanName: true,
       billingSubscriptionStatus: true,
+      freePlanUsedAt: true,
     },
   });
 
@@ -53,6 +54,7 @@ export const loader = async ({ request }) => {
     currentPlanKey: shopData?.billingPlanKey || "free",
     currentPlanName: shopData?.billingPlanName || "Free",
     billingSubscriptionStatus: shopData?.billingSubscriptionStatus || null,
+    freePlanUsed: Boolean(shopData?.freePlanUsedAt || !shopData || (shopData?.billingPlanKey || "free") === "free"),
     billingMessage: url.searchParams.get("message") || "",
     billingSuccess: url.searchParams.get("success") || "",
     freePlan,
@@ -82,6 +84,45 @@ export const action = async ({ request }) => {
         return { success: false, message: "Shopify did not return a billing approval URL." };
       }
       return { success: true, confirmationUrl };
+    }
+
+    if (intent === "select_free") {
+      const freePlan = getSubscriptionPlans(process.env).find((p) => p.price <= 0);
+      const shopData = await db.shop.findUnique({
+        where: { shop: session.shop },
+        select: { billingPlanKey: true, freePlanUsedAt: true },
+      });
+      const currentPlanKey = shopData?.billingPlanKey || "free";
+      if (shopData?.freePlanUsedAt && currentPlanKey !== "free") {
+        return { success: false, message: "The free plan can only be used once per store." };
+      }
+
+      await db.shop.upsert({
+        where: { shop: session.shop },
+        update: {
+          billingPlanKey: "free",
+          billingPlanName: "Free",
+          billingPlanCredits: freePlan?.credits || 150,
+          billingPlanPrice: 0,
+          billingSubscriptionId: null,
+          billingSubscriptionStatus: null,
+          billingPlanActivatedAt: new Date(),
+          freePlanUsedAt: shopData?.freePlanUsedAt || new Date(),
+        },
+        create: {
+          shop: session.shop,
+          installed: true,
+          credits: freePlan?.credits || 150,
+          billingPlanKey: "free",
+          billingPlanName: "Free",
+          billingPlanCredits: freePlan?.credits || 150,
+          billingPlanPrice: 0,
+          billingPlanActivatedAt: new Date(),
+          freePlanUsedAt: new Date(),
+        },
+      });
+
+      return { success: true, message: "Free plan selected." };
     }
 
     if (intent === "buy_credits") {
@@ -146,6 +187,7 @@ export default function PricingPage() {
     billingMessage,
     billingSuccess,
     freePlan,
+    freePlanUsed,
     featuredPlan,
     extraCreditPackages,
     billingTestMode,
@@ -165,6 +207,7 @@ export default function PricingPage() {
       : billingSuccess === "true" ? true : billingSuccess === "false" ? false : null;
 
   const isMonthlyCurrentPlan = currentPlanKey === featuredPlan.key;
+  const freePlanDisabled = currentPlanKey === "free" || freePlanUsed;
   const yearlyPrice = featuredPlan.yearlyPrice || featuredPlan.price * 10;
   const yearlyPerMonth = yearlyPrice / 12;
   const yearlySavings = featuredPlan.price * 12 - yearlyPrice;
@@ -256,9 +299,12 @@ export default function PricingPage() {
                     </BlockStack>
 
                     <div className="pricing-plan-card__action">
-                      <Button fullWidth disabled={currentPlanKey === "free"}>
-                        {currentPlanKey === "free" ? "Current plan" : "Get started free"}
-                      </Button>
+                      <Form method="post">
+                        <input type="hidden" name="intent" value="select_free" />
+                        <Button fullWidth submit disabled={isSubmitting || freePlanDisabled}>
+                          {currentPlanKey === "free" ? "Current plan" : freePlanUsed ? "Free used" : "Get started free"}
+                        </Button>
+                      </Form>
                     </div>
                   </div>
                 </Card>

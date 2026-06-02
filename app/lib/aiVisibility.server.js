@@ -681,11 +681,18 @@ export async function generateCombined(shop, adminContext, resource) {
 
 export async function generateLlmsTxt(shop, { products, articles, pages, collections = [], shopName, shopDomain }) {
   const itemCount = products.length + articles.length + pages.length + collections.length;
-  const credits = calcLlmsTxtCredits(itemCount);
+  const shopData = await db.shop.findUnique({
+    where: { shop },
+    select: { billingPlanKey: true },
+  });
+  const isFreePlan = (shopData?.billingPlanKey || "free") === "free";
+  const credits = isFreePlan ? 0 : calcLlmsTxtCredits(itemCount);
   const aiOptions = await getAiOptions(shop);
   const promptObj = buildLlmsTxtPrompt({ shopName, shopDomain, products, articles, pages, collections });
 
-  await deductCredits({ shopDomain: shop, creditsUsed: credits });
+  if (credits > 0) {
+    await deductCredits({ shopDomain: shop, creditsUsed: credits });
+  }
   try {
     let content = await callAIRaw(promptObj.prompt, promptObj.systemPrompt, aiOptions);
     if (typeof content !== "string") content = JSON.stringify(content);
@@ -698,7 +705,9 @@ export async function generateLlmsTxt(shop, { products, articles, pages, collect
 
     return { content, creditsUsed: credits };
   } catch (err) {
-    await refundCredits({ shopDomain: shop, creditsRefunded: credits });
+    if (credits > 0) {
+      await refundCredits({ shopDomain: shop, creditsRefunded: credits });
+    }
     throw err;
   }
 }

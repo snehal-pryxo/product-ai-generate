@@ -1059,9 +1059,11 @@ export const action = async ({ request }) => {
       geminiApiKey: true,
       credits: true,
       creditsUsedTotal: true,
+      billingPlanKey: true,
       globalSettingsJson: true,
     },
   });
+  const isFreePlan = (shopData?.billingPlanKey || "free") === "free";
   const globalSettings = parseShopGlobalSettings(shopData);
 
   try {
@@ -1138,7 +1140,7 @@ export const action = async ({ request }) => {
         const shouldUpdateDescription = selectedContentTypes.includes("description");
         const shouldUpdateMetaTitle = selectedContentTypes.includes("meta_title");
         const shouldUpdateMetaDescription = selectedContentTypes.includes("meta_description");
-        const creditsPerItem = creditsForContentTypes(selectedContentTypes);
+        const creditsPerItem = isFreePlan ? 0 : creditsForContentTypes(selectedContentTypes);
 
         const collectionsWithProducts = await Promise.all(
           bulkCollections.map(async (collection) => {
@@ -1171,7 +1173,7 @@ export const action = async ({ request }) => {
         }
 
         const availableCredits = shopData?.credits ?? 150;
-        const requiredCredits = creditsForBatch(selectedContentTypes, targetProductsCount);
+        const requiredCredits = isFreePlan ? 0 : creditsForBatch(selectedContentTypes, targetProductsCount);
         if (availableCredits < requiredCredits) {
           return {
             ok: false,
@@ -1295,9 +1297,9 @@ export const action = async ({ request }) => {
       const shouldUpdateDescription = selectedContentTypes.includes("description");
       const shouldUpdateMetaTitle = selectedContentTypes.includes("meta_title");
       const shouldUpdateMetaDescription = selectedContentTypes.includes("meta_description");
-      const creditsPerItem = creditsForContentTypes(selectedContentTypes);
+      const creditsPerItem = isFreePlan ? 0 : creditsForContentTypes(selectedContentTypes);
       const availableCredits = shopData?.credits ?? 150;
-      const requiredCredits = creditsForBatch(selectedContentTypes, bulkCollections.length);
+      const requiredCredits = isFreePlan ? 0 : creditsForBatch(selectedContentTypes, bulkCollections.length);
 
       if (availableCredits < requiredCredits) {
         return {
@@ -1397,6 +1399,7 @@ export const loader = async ({ request }) => {
       defaultAiProvider: true,
       credits: true,
       creditsUsedTotal: true,
+      billingPlanKey: true,
       ownerName: true,
       name: true,
     },
@@ -1455,6 +1458,7 @@ export const loader = async ({ request }) => {
       defaultAiProvider: shopData?.defaultAiProvider || "auto",
       credits: shopData?.credits ?? 150,
       creditsUsedTotal: shopData?.creditsUsedTotal ?? 0,
+      isFreePlan: (shopData?.billingPlanKey || "free") === "free",
       shopOwnerName,
     };
   }
@@ -1563,6 +1567,7 @@ export const loader = async ({ request }) => {
     defaultAiProvider: shopData?.defaultAiProvider || "auto",
     credits: shopData?.credits ?? 150,
     creditsUsedTotal: shopData?.creditsUsedTotal ?? 0,
+    isFreePlan: (shopData?.billingPlanKey || "free") === "free",
     shopOwnerName,
   };
 };
@@ -1604,6 +1609,7 @@ export default function CollectionsPage() {
     collectionProductsTitle,
     defaultAiProvider,
     credits,
+    isFreePlan,
     shopOwnerName,
   } = useLoaderData();
   const navigation = useNavigation();
@@ -2143,8 +2149,8 @@ export default function CollectionsPage() {
     targetCollectionsForBulk,
   ]);
 
-  const bulkCreditsPerItem = clientCreditsForContentTypes(bulkContentTypes);
-  const requiredBulkCredits = clientCreditsForBatch(bulkContentTypes, estimatedTargetItems);
+  const bulkCreditsPerItem = isFreePlan ? 0 : clientCreditsForContentTypes(bulkContentTypes);
+  const requiredBulkCredits = isFreePlan ? 0 : clientCreditsForBatch(bulkContentTypes, estimatedTargetItems);
   const insufficientCredits = requiredBulkCredits > 0 && requiredBulkCredits > credits;
 
   const allVisibleSelected =
