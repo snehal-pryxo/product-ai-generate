@@ -96,6 +96,17 @@ const COLLECTIONS_QUERY = `#graphql
         node {
           id title handle description descriptionHtml
           seo { title description }
+          image { url altText }
+          products(first: 20) {
+            edges {
+              node {
+                id title handle
+                description
+                featuredImage { url altText }
+                priceRangeV2 { minVariantPrice { amount currencyCode } }
+              }
+            }
+          }
         }
       }
     }

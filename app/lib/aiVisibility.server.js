@@ -275,10 +275,14 @@ export async function generateSchema(shop, adminContext, resourceType, resource)
     });
     schemaType = "BlogPosting";
   } else if (resourceType === "collection") {
+    const collectionProducts = normalizeCollectionProductsForSchema(shop, resource);
+    const collectionImage = resource.image?.url || collectionProducts.find((product) => product.image)?.image || "";
     promptObj = buildCollectionSchemaPrompt({
       title: resource.title,
       description: (resource.description || resource.descriptionHtml || "").substring(0, 500),
       url: `https://${shop}/collections/${resource.handle}`,
+      image: collectionImage,
+      products: collectionProducts,
     });
     schemaType = "CollectionPage";
   } else if (resourceType === "page") {
@@ -297,7 +301,18 @@ export async function generateSchema(shop, adminContext, resourceType, resource)
   }
   try {
     const raw = await callAIRaw(promptObj.prompt, promptObj.systemPrompt, aiOptions);
-    const obj = parseJsonResponse(raw);
+    let obj = parseJsonResponse(raw);
+    if (resourceType === "collection") {
+      const collectionProducts = normalizeCollectionProductsForSchema(shop, resource);
+      const collectionImage = resource.image?.url || collectionProducts.find((product) => product.image)?.image || "";
+      obj = normalizeCollectionPageSchema(obj, {
+        title: resource.title,
+        description: resource.description || resource.descriptionHtml || "",
+        url: `https://${shop}/collections/${resource.handle}`,
+        image: collectionImage,
+        products: collectionProducts,
+      });
+    }
     const schemaJson = JSON.stringify(obj);
 
     const metafieldId = await writeResourceMetafield({
@@ -323,6 +338,67 @@ export async function generateSchema(shop, adminContext, resourceType, resource)
     }
     throw err;
   }
+}
+
+function normalizeCollectionProductsForSchema(shop, collection) {
+  return (collection?.products?.edges || collection?.products?.nodes || [])
+    .map((entry) => entry?.node || entry)
+    .filter((product) => product?.title)
+    .map((product) => ({
+      name: product.title,
+      description: product.description || "",
+      url: `https://${shop}/products/${product.handle || ""}`,
+      image: product.featuredImage?.url || product.image?.url || "",
+      price: product.priceRangeV2?.minVariantPrice?.amount || "",
+      currencyCode: product.priceRangeV2?.minVariantPrice?.currencyCode || "",
+    }));
+}
+
+function normalizeCollectionPageSchema(schema, { title, description, url, image, products }) {
+  const cleanDescription = String(description || "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const normalized = {
+    ...(schema && typeof schema === "object" && !Array.isArray(schema) ? schema : {}),
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: schema?.name || title,
+    description: schema?.description || cleanDescription || title,
+    url,
+    mainEntity: {
+      "@type": "ItemList",
+      itemListElement: products.map((product, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        item: {
+          "@type": "Product",
+          name: product.name,
+          url: product.url,
+          ...(product.image ? { image: product.image } : {}),
+          ...(product.description ? { description: product.description } : {}),
+          ...(product.price
+            ? {
+                offers: {
+                  "@type": "Offer",
+                  price: product.price,
+                  ...(product.currencyCode ? { priceCurrency: product.currencyCode } : {}),
+                  url: product.url,
+                },
+              }
+            : {}),
+        },
+      })),
+    },
+  };
+
+  if (image) {
+    normalized.image = image;
+  } else {
+    delete normalized.image;
+  }
+
+  return normalized;
 }
 
 export async function generateProductSchemaForBulk(shop, accessToken, resource, aiOptions, options = {}) {

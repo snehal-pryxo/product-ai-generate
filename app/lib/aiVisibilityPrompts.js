@@ -43,16 +43,50 @@ Return a single JSON object with @context ("https://schema.org"), @type ("WebPag
   };
 }
 
-export function buildCollectionSchemaPrompt({ title, description, url }) {
+export function buildCollectionSchemaPrompt({ title, description, url, image, products = [] }) {
   const excerpt = (description || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().substring(0, 500);
+  const productLines = products.length
+    ? products.map((product, index) => {
+        const productDescription = (product.description || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().substring(0, 160);
+        return `${index + 1}. ${product.name || product.title} | URL: ${product.url || "N/A"} | Image: ${product.image || "N/A"} | Price: ${product.price || "N/A"} ${product.currencyCode || ""} | Description: ${productDescription || "N/A"}`;
+      }).join("\n")
+    : "No products provided";
   return {
     systemPrompt: "You generate valid Schema.org JSON-LD for Shopify collections. Return ONLY raw JSON - no markdown fences, no explanation.",
     prompt: `Generate a complete Schema.org CollectionPage JSON-LD object for this Shopify collection:
 - Name: ${title}
 - Description: ${excerpt || "N/A"}
 - URL: ${url}
+- Image: ${image || "N/A"}
+- Products:
+${productLines}
 
-Return a single JSON object with @context ("https://schema.org"), @type ("CollectionPage"), name, description, url, and mainEntity as an ItemList when appropriate.`,
+Return a single JSON object in this exact structure:
+{
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  "name": "...",
+  "description": "...",
+  "url": "...",
+  "image": "...",
+  "mainEntity": {
+    "@type": "ItemList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "item": {
+          "@type": "Product",
+          "name": "...",
+          "url": "...",
+          "image": "..."
+        }
+      }
+    ]
+  }
+}
+
+Use every provided product as one ListItem. Omit image only when no image is provided.`,
   };
 }
 
