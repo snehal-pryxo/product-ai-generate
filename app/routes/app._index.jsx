@@ -403,7 +403,17 @@ export const action = async ({ request }) => {
     const { session } = await authenticate.admin(request);
     const result = await autoAddFaqSectionToProductPage(session.shop, session.accessToken);
     if (!result.ok) {
-      return { success: false, intent, message: result.error || "Failed to add FAQ section." };
+      const appApiKey = process.env.SHOPIFY_API_KEY || "";
+      const fallbackUrl = appApiKey
+        ? `https://${session.shop}/admin/themes/current/editor?template=product&addAppBlockId=${encodeURIComponent(appApiKey)}/faq-section&target=newAppsSection`
+        : `https://${session.shop}/admin/themes/current/editor?template=product`;
+      return {
+        success: false,
+        intent,
+        needsManualAdd: true,
+        fallbackUrl,
+        message: result.error || "Could not auto-add the FAQ section. Open the theme editor to add it manually.",
+      };
     }
     return {
       success: true,
@@ -560,6 +570,11 @@ export default function Index() {
   const actionData = useActionData();
   const reviewFetcher = useFetcher();
   const faqFetcher = useFetcher();
+  useEffect(() => {
+    if (faqFetcher.data?.needsManualAdd && faqFetcher.data?.fallbackUrl) {
+      window.open(faqFetcher.data.fallbackUrl, "_blank");
+    }
+  }, [faqFetcher.data]);
   const navigate = useNavigate();
   const location = useLocation();
   const formattedGeneratedWords = Number(generatedWords || 0).toLocaleString("en-US");
@@ -942,10 +957,21 @@ export default function Index() {
 
               {faqFetcher.data && (
                 <Banner
-                  tone={faqFetcher.data.success ? "success" : "critical"}
+                  tone={faqFetcher.data.success ? "success" : "warning"}
                   onDismiss={() => {}}
                 >
-                  <p>{faqFetcher.data.message}</p>
+                  <BlockStack gap="200">
+                    <p>{faqFetcher.data.message}</p>
+                    {faqFetcher.data.fallbackUrl && (
+                      <Button
+                        size="slim"
+                        url={faqFetcher.data.fallbackUrl}
+                        external
+                      >
+                        Open Theme Editor
+                      </Button>
+                    )}
+                  </BlockStack>
                 </Banner>
               )}
             </BlockStack>
