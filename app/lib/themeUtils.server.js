@@ -23,19 +23,36 @@ export async function autoAddFaqSectionToProductPage(shop, accessToken) {
     const themeId = (await themesResp.json())?.themes?.[0]?.id;
     if (!themeId) throw new Error("No active theme found.");
 
-    // 2. Read templates/product.json
-    const assetResp = await fetch(
-      `${apiBase}/themes/${themeId}/assets.json?asset[key]=templates/product.json`,
-      { headers: { "X-Shopify-Access-Token": accessToken } }
-    );
-    if (!assetResp.ok) throw new Error(`product.json read failed (${assetResp.status})`);
-    const rawContent = (await assetResp.json())?.asset?.value || "{}";
-    let template;
-    try { template = JSON.parse(rawContent); } catch { throw new Error("Failed to parse templates/product.json"); }
+    const FAQ_TYPE = `shopify://apps/${appHandle}/blocks/faq-section/${extensionUid}`;
+
+    // 2. Try product.json, then product.default.json as fallback (some themes use the latter)
+    const TEMPLATE_KEYS = ["templates/product.json", "templates/product.default.json"];
+    let assetKey = null;
+    let template = null;
+
+    for (const key of TEMPLATE_KEYS) {
+      const assetResp = await fetch(
+        `${apiBase}/themes/${themeId}/assets.json?asset[key]=${key}`,
+        { headers: { "X-Shopify-Access-Token": accessToken } }
+      );
+      if (!assetResp.ok) continue;
+      const rawContent = (await assetResp.json())?.asset?.value;
+      if (!rawContent) continue;
+      try {
+        template = JSON.parse(rawContent);
+        assetKey = key;
+        break;
+      } catch {
+        continue;
+      }
+    }
+
+    if (!template || !assetKey) {
+      return { ok: false, needsManualAdd: true, error: "Could not read product template. The theme may use an unsupported format." };
+    }
 
     const sections = template?.sections || {};
     const order    = Array.isArray(template?.order) ? [...template.order] : [];
-    const FAQ_TYPE = `shopify://apps/${appHandle}/blocks/faq-section/${extensionUid}`;
 
     // 3. Already present? Return early.
     const alreadyAdded = Object.values(sections).some((section) => {
@@ -73,7 +90,7 @@ export async function autoAddFaqSectionToProductPage(shop, accessToken) {
       method: "PUT",
       headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
       body: JSON.stringify({
-        asset: { key: "templates/product.json", value: JSON.stringify(template, null, 2) },
+        asset: { key: assetKey, value: JSON.stringify(template, null, 2) },
       }),
     });
     if (!writeResp.ok) {
@@ -85,15 +102,15 @@ export async function autoAddFaqSectionToProductPage(shop, accessToken) {
         errBody = errText ? { errors: errText } : {};
       }
       if (writeResp.status === 403) {
-        throw new Error("Permission denied. The app needs write_themes scope. Please reinstall the app.");
+        return { ok: false, needsManualAdd: true, error: "Permission denied updating the theme. Please reinstall the app with theme permissions, or add the block manually via the theme editor." };
       }
       const msg = errBody?.errors ? JSON.stringify(errBody.errors) : `HTTP ${writeResp.status}`;
-      throw new Error(`Failed to update product template: ${msg}`);
+      return { ok: false, needsManualAdd: true, error: `Could not update product template (${msg}). Please add the block manually via the theme editor.` };
     }
 
     return { ok: true, alreadyAdded: false };
   } catch (err) {
     console.error("[autoAddFaqSection]", err);
-    return { ok: false, error: err?.message || "Failed to add FAQ section." };
+    return { ok: false, needsManualAdd: true, error: err?.message || "Failed to add FAQ section." };
   }
 }
