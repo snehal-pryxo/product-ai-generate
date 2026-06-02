@@ -179,8 +179,6 @@ export default function SettingsPage() {
 
   return (
     <Page
-      title="Settings"
-      subtitle="Configure global defaults for AI content generation."
       primaryAction={{
         content: isSaving ? "Saving..." : saved ? "Saved!" : "Save Settings",
         onAction: handleSave,

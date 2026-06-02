@@ -1077,9 +1077,6 @@ export default function AnalyticsPage() {
   return (
     <Page
       fullWidth
-      title="SEO Analytics"
-      subtitle="Track SEO health and AI content generation across your store"
-      backAction={{ content: "Dashboard", onAction: () => navigateInApp("/app") }}
     >
       <BlockStack gap="600">
         <AppPageHeader
