@@ -1096,7 +1096,7 @@ export default function AiVisibilityPage() {
   // Deep-link to the product page template in the theme editor with the FAQ Section block activated.
   // blocks/faq-section.liquid → handle = "faq-section"
   const faqProductPageUrl = appApiKey
-    ? `https://${shop}/admin/themes/current/editor?template=product&activateAppId=${encodeURIComponent(appApiKey)}/faq-section`
+    ? `https://${shop}/admin/themes/current/editor?template=product&addAppBlockId=${encodeURIComponent(appApiKey)}/faq-section&target=newAppsSection`
     : `https://${shop}/admin/themes/current/editor?template=product`;
 
   const progressTone = totalScore >= 80 ? "success" : "highlight";

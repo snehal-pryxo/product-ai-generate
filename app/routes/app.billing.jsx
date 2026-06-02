@@ -6,17 +6,21 @@ import {
   activateSubscription,
 } from "../lib/billing.server";
 
+function buildEmbeddedHost(shop) {
+  if (!shop) return "";
+  return Buffer.from(`${shop}/admin`).toString("base64");
+}
+
 function buildPricingRedirect(sourceUrl, result) {
   const pricingUrl = new URL("/app/pricing", sourceUrl.origin);
   pricingUrl.searchParams.set("success", String(Boolean(result.success)));
   pricingUrl.searchParams.set("message", result.message || "");
 
-  ["shop", "host", "embedded"].forEach((key) => {
-    const value = sourceUrl.searchParams.get(key);
-    if (value) {
-      pricingUrl.searchParams.set(key, value);
-    }
-  });
+  const shop = sourceUrl.searchParams.get("shop");
+  const host = sourceUrl.searchParams.get("host") || buildEmbeddedHost(shop);
+  if (shop) pricingUrl.searchParams.set("shop", shop);
+  if (host) pricingUrl.searchParams.set("host", host);
+  pricingUrl.searchParams.set("embedded", sourceUrl.searchParams.get("embedded") || "1");
 
   return pricingUrl.pathname + pricingUrl.search;
 }

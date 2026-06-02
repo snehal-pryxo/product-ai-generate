@@ -152,8 +152,9 @@ export default function PricingPage() {
       : billingSuccess === "true" ? true : billingSuccess === "false" ? false : null;
 
   const isMonthlyCurrentPlan = currentPlanKey === featuredPlan.key;
-  const yearlyPerMonth = featuredPlan.yearlyPrice ? featuredPlan.yearlyPrice / 10 : featuredPlan.price * 0.83;
-  const yearlySavings = featuredPlan.price * 12 - (featuredPlan.yearlyPrice || featuredPlan.price * 10);
+  const yearlyPrice = featuredPlan.yearlyPrice || featuredPlan.price * 10;
+  const yearlyPerMonth = yearlyPrice / 12;
+  const yearlySavings = featuredPlan.price * 12 - yearlyPrice;
 
   useEffect(() => {
     if (!actionData?.confirmationUrl) return;
@@ -329,11 +330,11 @@ export default function PricingPage() {
 
                       <BlockStack gap="100">
                         <InlineStack gap="100" blockAlign="end">
-                          <Text as="p" variant="heading2xl">${yearlyPerMonth.toFixed(2)}</Text>
-                          <Text as="span" variant="bodySm" tone="subdued">/month</Text>
+                          <Text as="p" variant="heading2xl">{formatPrice(yearlyPrice)}</Text>
+                          <Text as="span" variant="bodySm" tone="subdued">/year</Text>
                         </InlineStack>
                         <Text as="p" variant="bodySm" tone="subdued">
-                          Billed {formatPrice(featuredPlan.yearlyPrice || featuredPlan.price * 10)}/year
+                          Billed yearly - Equivalent to ${yearlyPerMonth.toFixed(2)}/month
                         </Text>
                         <div className="pricing-save-badge">
                           Save {formatPrice(Math.round(yearlySavings * 100) / 100)} — {YEARLY_DISCOUNT_MONTHS} months free
@@ -442,7 +443,7 @@ export default function PricingPage() {
           border-radius: 13px;
         }
         .pricing-plan-card__inner {
-          min-height: 380px;
+          min-height: 340px;
           height: 100%;
           display: flex;
           flex-direction: column;

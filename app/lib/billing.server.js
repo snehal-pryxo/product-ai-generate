@@ -29,6 +29,11 @@ export function getAppBaseUrl(request) {
   return requestUrl.origin;
 }
 
+function buildEmbeddedHost(shop) {
+  if (!shop) return "";
+  return Buffer.from(`${shop}/admin`).toString("base64");
+}
+
 export function buildAppReturnUrl(request, params = {}) {
   const requestUrl = new URL(request.url);
   const shop = params.shop || requestUrl.searchParams.get("shop");
@@ -37,12 +42,11 @@ export function buildAppReturnUrl(request, params = {}) {
   if (shop) {
     returnUrl.searchParams.set("shop", String(shop));
   }
-  ["host"].forEach((key) => {
-    const value = requestUrl.searchParams.get(key);
-    if (value) {
-      returnUrl.searchParams.set(key, value);
-    }
-  });
+  const host = requestUrl.searchParams.get("host") || buildEmbeddedHost(shop);
+  if (host) {
+    returnUrl.searchParams.set("host", host);
+  }
+  returnUrl.searchParams.set("embedded", requestUrl.searchParams.get("embedded") || "1");
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
       returnUrl.searchParams.set(key, String(value));
