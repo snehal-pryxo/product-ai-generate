@@ -1773,6 +1773,7 @@ export default function ProductsPage() {
           </div>
           <InlineStack gap="200" blockAlign="center">
             <Text as="span" variant="headingSm" tone="subdued">{credits} credits.</Text>
+            <Button onClick={openAddCreditModal}>Add Credits</Button>
             <Button onClick={() => navigateInApp("/app/pricing")} variant="secondary">
               Upgrade
             </Button>

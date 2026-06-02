@@ -40,6 +40,7 @@ import {
   PAGE_META_TITLE_TEMPLATES,
 } from "../lib/pagePromptTemplateLibrary";
 import { TemplateLibraryModal } from "../components/TemplateLibraryModal";
+import { openAddCreditModal } from "../components/AddCreditModal";
 import { RichTextEditor } from "../components/RichTextEditor";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
@@ -3350,6 +3351,7 @@ export default function ContentManagementPage() {
             </Text>
             <span style={{ color: "#2563eb", fontWeight: 600 }}>Upgrade</span>
           </button>
+          <Button onClick={openAddCreditModal} size="slim">Add Credits</Button>
         </InlineStack>
       }
     >

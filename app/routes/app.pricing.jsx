@@ -6,12 +6,12 @@ import {
   BlockStack,
   Box,
   Button,
+  ButtonGroup,
   Card,
   Divider,
   Grid,
   InlineStack,
   Page,
-  Tabs,
   Text,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
@@ -213,10 +213,6 @@ export default function PricingPage() {
 
   const freePlanDisabled = currentPlanKey === "free" || freePlanUsed;
   const [selectedPlanTab, setSelectedPlanTab] = useState(0);
-  const billingTabs = [
-    { id: "monthly", content: "Monthly", panelID: "monthly-plans" },
-    { id: "yearly", content: "Yearly", panelID: "yearly-plans" },
-  ];
   const selectedInterval = selectedPlanTab === 1 ? "yearly" : "monthly";
 
   function isCurrentPaidPlan(plan, interval) {
@@ -306,6 +302,63 @@ export default function PricingPage() {
     );
   }
 
+  function FreePlanCard({ interval }) {
+    const isYearly = interval === "yearly";
+    return (
+      <Grid.Cell>
+        <div className="pricing-plan-card">
+          <Card>
+            <div className="pricing-plan-card__inner">
+              <BlockStack gap="300">
+                <InlineStack align="space-between" blockAlign="start">
+                  <BlockStack gap="050">
+                    <Text as="h3" variant="headingLg">{freePlan?.name || "Free"}</Text>
+                    <Text as="p" variant="bodySm" tone="subdued">No credit card required</Text>
+                  </BlockStack>
+                  {currentPlanKey === "free" && <Badge tone="success">Current</Badge>}
+                </InlineStack>
+
+                <BlockStack gap="050">
+                  <InlineStack gap="100" blockAlign="end">
+                    <Text as="p" variant="heading2xl">$0</Text>
+                    <Text as="span" variant="bodySm" tone="subdued">/{isYearly ? "year" : "month"}</Text>
+                  </InlineStack>
+                  <Text as="p" variant="bodySm" tone="subdued">Included after install - Always free</Text>
+                </BlockStack>
+
+                <Divider />
+
+                <BlockStack gap="200">
+                  <InlineStack gap="150" blockAlign="start" wrap={false}>
+                    <CheckIcon />
+                    <Text as="p" variant="bodySm">
+                      <strong>{formatCredits(freePlan?.credits || 150)} credits</strong> included
+                    </Text>
+                  </InlineStack>
+                  {(freePlan?.features || []).slice(1).map((f) => (
+                    <InlineStack key={f} gap="150" blockAlign="start" wrap={false}>
+                      <CheckIcon />
+                      <Text as="p" variant="bodySm">{f}</Text>
+                    </InlineStack>
+                  ))}
+                </BlockStack>
+              </BlockStack>
+
+              <div className="pricing-plan-card__action">
+                <Form method="post">
+                  <input type="hidden" name="intent" value="select_free" />
+                  <Button fullWidth submit disabled={isSubmitting || freePlanDisabled}>
+                    {currentPlanKey === "free" ? "Current plan" : freePlanUsed ? "Free used" : "Get started free"}
+                  </Button>
+                </Form>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </Grid.Cell>
+    );
+  }
+
   useEffect(() => {
     if (!actionData?.confirmationUrl) return;
     window.open(actionData.confirmationUrl, "_top");
@@ -351,76 +404,26 @@ export default function PricingPage() {
             {billingTestMode ? <Badge tone="attention">Test mode</Badge> : null}
           </InlineStack>
 
-          <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
+          <InlineStack align="center">
+            <ButtonGroup variant="segmented">
+              <Button pressed={selectedPlanTab === 0} onClick={() => setSelectedPlanTab(0)}>Monthly</Button>
+              <Button pressed={selectedPlanTab === 1} onClick={() => setSelectedPlanTab(1)}>Yearly</Button>
+            </ButtonGroup>
+          </InlineStack>
 
-            {/* ── Free plan ── */}
-            <Grid.Cell>
-              <div className="pricing-plan-card">
-                <Card>
-                  <div className="pricing-plan-card__inner">
-                    <BlockStack gap="300">
-
-                      <InlineStack align="space-between" blockAlign="start">
-                        <BlockStack gap="050">
-                          <Text as="h3" variant="headingLg">{freePlan?.name || "Free"}</Text>
-                          <Text as="p" variant="bodySm" tone="subdued">No credit card required</Text>
-                        </BlockStack>
-                        {currentPlanKey === "free" && <Badge tone="success">Current</Badge>}
-                      </InlineStack>
-
-                      <BlockStack gap="050">
-                        <Text as="p" variant="heading2xl">Free</Text>
-                        <Text as="p" variant="bodySm" tone="subdued">Included after install · Always free</Text>
-                      </BlockStack>
-
-                      <Divider />
-
-                      <BlockStack gap="200">
-                        <InlineStack gap="150" blockAlign="start" wrap={false}>
-                          <CheckIcon />
-                          <Text as="p" variant="bodySm">
-                            <strong>{formatCredits(freePlan?.credits || 150)} credits</strong> included
-                          </Text>
-                        </InlineStack>
-                        {(freePlan?.features || []).slice(1).map((f) => (
-                          <InlineStack key={f} gap="150" blockAlign="start" wrap={false}>
-                            <CheckIcon />
-                            <Text as="p" variant="bodySm">{f}</Text>
-                          </InlineStack>
-                        ))}
-                      </BlockStack>
-
-                    </BlockStack>
-
-                    <div className="pricing-plan-card__action">
-                      <Form method="post">
-                        <input type="hidden" name="intent" value="select_free" />
-                        <Button fullWidth submit disabled={isSubmitting || freePlanDisabled}>
-                          {currentPlanKey === "free" ? "Current plan" : freePlanUsed ? "Free used" : "Get started free"}
-                        </Button>
-                      </Form>
-                    </div>
-                  </div>
-                </Card>
-              </div>
-            </Grid.Cell>
-
-          </Grid>
-
-          <Tabs tabs={billingTabs} selected={selectedPlanTab} onSelect={setSelectedPlanTab}>
-            <BlockStack gap="300">
+          <BlockStack gap="300">
               {selectedInterval === "yearly" ? (
                 <Banner tone="success">
                   <p>Annual plans include 10 months paid and 2 months free.</p>
                 </Banner>
               ) : null}
-              <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 2 }}>
+              <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
+                <FreePlanCard interval={selectedInterval} />
                 {paidPlans.map((plan) => (
                   <PaidPlanCard key={`${plan.key}-${selectedInterval}`} plan={plan} interval={selectedInterval} />
                 ))}
               </Grid>
             </BlockStack>
-          </Tabs>
         </BlockStack>
 
         {/* Extra credits */}
@@ -470,6 +473,9 @@ export default function PricingPage() {
       <style>{`
         .pricing-plan-card,
         .pricing-plan-card > .Polaris-ShadowBevel {
+          height: 100%;
+        }
+        .pricing-plan-card .Polaris-Card {
           height: 100%;
         }
         .pricing-plan-card--popular > .Polaris-ShadowBevel,

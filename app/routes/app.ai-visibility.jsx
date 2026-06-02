@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useLoaderData, useFetcher } from "react-router";
+import { AppPageHeader } from "../components/AppPageHeader";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import {
@@ -1184,7 +1185,9 @@ export default function AiVisibilityPage() {
   }, [activeResourceType, bulkSchemaCredits, credits, fetcher, hasUnlimitedVisibility, selectedItems]);
 
   return (
-    <Page title="AI Visibility" subtitle="Optimize your store for AI-powered search engines">
+    <Page fullWidth>
+      <BlockStack gap="400">
+      <AppPageHeader title="AI Visibility" description="Optimize your store for AI-powered search engines" />
       {banner && (
         <Box paddingBlockEnd="400">
           <Banner tone={banner.tone} onDismiss={() => setBanner(null)}>
@@ -1404,6 +1407,7 @@ export default function AiVisibilityPage() {
           hasUnlimitedVisibility={hasUnlimitedVisibility}
         />
       )}
+      </BlockStack>
     </Page>
   );
 }
