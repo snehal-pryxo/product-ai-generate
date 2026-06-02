@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Form, useActionData, useLoaderData, useNavigation, useRouteLoaderData } from "react-router";
 import {
   Badge,
@@ -11,6 +11,7 @@ import {
   Grid,
   InlineStack,
   Page,
+  Tabs,
   Text,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
@@ -210,14 +211,13 @@ export default function PricingPage() {
       ? actionData.success
       : billingSuccess === "true" ? true : billingSuccess === "false" ? false : null;
 
-  const featuredPlan = paidPlans[0] || { key: "", name: "Starter", price: 0, credits: 0, features: [] };
-  const isMonthlyCurrentPlan = isCurrentPaidPlan(featuredPlan, "monthly");
   const freePlanDisabled = currentPlanKey === "free" || freePlanUsed;
-  const yearlyPrice = featuredPlan.yearlyPrice || featuredPlan.price * 10;
-  const yearlyCredits = featuredPlan.yearlyCredits || featuredPlan.credits * (12 - YEARLY_DISCOUNT_MONTHS);
-  const yearlyPerMonth = yearlyPrice / 12;
-  const yearlySavings = featuredPlan.price * 12 - yearlyPrice;
-  const isYearlyCurrentPlan = isCurrentPaidPlan(featuredPlan, "yearly");
+  const [selectedPlanTab, setSelectedPlanTab] = useState(0);
+  const billingTabs = [
+    { id: "monthly", content: "Monthly", panelID: "monthly-plans" },
+    { id: "yearly", content: "Yearly", panelID: "yearly-plans" },
+  ];
+  const selectedInterval = selectedPlanTab === 1 ? "yearly" : "monthly";
 
   function isCurrentPaidPlan(plan, interval) {
     const intervalPrice = interval === "yearly" ? plan.yearlyPrice : plan.price;
@@ -344,14 +344,14 @@ export default function PricingPage() {
           </InlineStack>
         </Card>
 
-        {/* Free + Monthly + Yearly plan cards */}
+        {/* Plan cards */}
         <BlockStack gap="300">
           <InlineStack align="space-between" blockAlign="center">
             <Text as="h2" variant="headingMd">Plans</Text>
             {billingTestMode ? <Badge tone="attention">Test mode</Badge> : null}
           </InlineStack>
 
-          <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 3, xl: 3 }}>
+          <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
 
             {/* ── Free plan ── */}
             <Grid.Cell>
@@ -405,137 +405,22 @@ export default function PricingPage() {
               </div>
             </Grid.Cell>
 
-            {/* ── Monthly plan ── */}
-            <Grid.Cell>
-              <div className="pricing-plan-card">
-                <Card>
-                  <div className="pricing-plan-card__inner">
-                    <BlockStack gap="300">
-
-                      <InlineStack align="space-between" blockAlign="start">
-                        <BlockStack gap="050">
-                          <Text as="h3" variant="headingLg">{featuredPlan.name}</Text>
-                          <Text as="p" variant="bodySm" tone="subdued">Monthly billing</Text>
-                        </BlockStack>
-                        <Badge tone="info">Monthly</Badge>
-                      </InlineStack>
-
-                      <BlockStack gap="050">
-                        <InlineStack gap="100" blockAlign="end">
-                          <Text as="p" variant="heading2xl">{formatPrice(featuredPlan.price)}</Text>
-                          <Text as="span" variant="bodySm" tone="subdued">/month</Text>
-                        </InlineStack>
-                        <Text as="p" variant="bodySm" tone="subdued">Billed monthly · Cancel any time</Text>
-                      </BlockStack>
-
-                      <Divider />
-
-                      <BlockStack gap="200">
-                        <InlineStack gap="150" blockAlign="start" wrap={false}>
-                          <CheckIcon />
-                          <Text as="p" variant="bodySm">
-                            <strong>{formatCredits(featuredPlan.credits)} credits</strong> every month
-                          </Text>
-                        </InlineStack>
-                        {featuredPlan.features.slice(1).map((f) => (
-                          <InlineStack key={f} gap="150" blockAlign="start" wrap={false}>
-                            <CheckIcon />
-                            <Text as="p" variant="bodySm">{f}</Text>
-                          </InlineStack>
-                        ))}
-                      </BlockStack>
-
-                    </BlockStack>
-
-                    <div className="pricing-plan-card__action">
-                      <Form method="post">
-                        <input type="hidden" name="intent" value="subscribe" />
-                        <input type="hidden" name="planKey" value={featuredPlan.key} />
-                        <input type="hidden" name="interval" value="monthly" />
-                        <Button
-                          fullWidth submit variant="secondary"
-                          loading={isSubmitting && activePlanInterval === "monthly" && activePlanKey === featuredPlan.key}
-                          disabled={isSubmitting || isMonthlyCurrentPlan}
-                        >
-                          {isMonthlyCurrentPlan ? "Current plan" : "Choose Monthly"}
-                        </Button>
-                      </Form>
-                    </div>
-                  </div>
-                </Card>
-              </div>
-            </Grid.Cell>
-
-            {/* ── Yearly plan ── */}
-            <Grid.Cell>
-              <div className="pricing-plan-card pricing-plan-card--popular">
-                <Card>
-                  <div className="pricing-plan-card__inner">
-                    <BlockStack gap="300">
-
-                      <InlineStack align="space-between" blockAlign="start">
-                        <BlockStack gap="050">
-                          <Text as="h3" variant="headingLg">{featuredPlan.name}</Text>
-                          <Text as="p" variant="bodySm" tone="subdued">Yearly billing</Text>
-                        </BlockStack>
-                        {isYearlyCurrentPlan ? <Badge tone="success">Current</Badge> : <Badge tone="success">Best value</Badge>}
-                      </InlineStack>
-
-                      <BlockStack gap="100">
-                        <InlineStack gap="100" blockAlign="end">
-                          <Text as="p" variant="heading2xl">{formatPrice(yearlyPrice)}</Text>
-                          <Text as="span" variant="bodySm" tone="subdued">/year</Text>
-                        </InlineStack>
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          Billed yearly - Equivalent to ${yearlyPerMonth.toFixed(2)}/month
-                        </Text>
-                        <div className="pricing-save-badge">
-                          Save {formatPrice(Math.round(yearlySavings * 100) / 100)} — {YEARLY_DISCOUNT_MONTHS} months free
-                        </div>
-                      </BlockStack>
-
-                      <Divider />
-
-                      <BlockStack gap="200">
-                        <InlineStack gap="150" blockAlign="start" wrap={false}>
-                          <CheckIcon />
-                          <Text as="p" variant="bodySm">
-                            <strong>{formatCredits(yearlyCredits)} credits</strong> included yearly
-                          </Text>
-                        </InlineStack>
-                        {featuredPlan.features.slice(1).map((f) => (
-                          <InlineStack key={f} gap="150" blockAlign="start" wrap={false}>
-                            <CheckIcon />
-                            <Text as="p" variant="bodySm">{f}</Text>
-                          </InlineStack>
-                        ))}
-                      </BlockStack>
-
-                    </BlockStack>
-
-                    <div className="pricing-plan-card__action">
-                      <Form method="post">
-                        <input type="hidden" name="intent" value="subscribe" />
-                        <input type="hidden" name="planKey" value={featuredPlan.key} />
-                        <input type="hidden" name="interval" value="yearly" />
-                        <Button
-                          fullWidth submit variant="primary"
-                          loading={isSubmitting && activePlanInterval === "yearly" && activePlanKey === featuredPlan.key}
-                          disabled={isSubmitting || isYearlyCurrentPlan}
-                        >
-                          {isYearlyCurrentPlan ? "Current plan" : "Choose Yearly"}
-                        </Button>
-                      </Form>
-                    </div>
-                  </div>
-                </Card>
-              </div>
-            </Grid.Cell>
-
-            {paidPlans.slice(1).map((plan) => <PaidPlanCard key={`${plan.key}-monthly`} plan={plan} interval="monthly" />)}
-            {paidPlans.slice(1).map((plan) => <PaidPlanCard key={`${plan.key}-yearly`} plan={plan} interval="yearly" />)}
-
           </Grid>
+
+          <Tabs tabs={billingTabs} selected={selectedPlanTab} onSelect={setSelectedPlanTab}>
+            <BlockStack gap="300">
+              {selectedInterval === "yearly" ? (
+                <Banner tone="success">
+                  <p>Annual plans include 10 months paid and 2 months free.</p>
+                </Banner>
+              ) : null}
+              <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 2 }}>
+                {paidPlans.map((plan) => (
+                  <PaidPlanCard key={`${plan.key}-${selectedInterval}`} plan={plan} interval={selectedInterval} />
+                ))}
+              </Grid>
+            </BlockStack>
+          </Tabs>
         </BlockStack>
 
         {/* Extra credits */}
