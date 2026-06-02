@@ -36,6 +36,7 @@ import {
   InlineStack,
 } from "@shopify/polaris";
 import { PageIcon, ViewIcon } from "@shopify/polaris-icons";
+import { openAddCreditModal } from "../components/AddCreditModal";
 
 const PAGE_CONTENT_TYPES = ["body", "meta_title", "meta_description"];
 const DEFAULT_PAGE_CONTENT_TYPES = ["body", "meta_title", "meta_description"];
@@ -1271,7 +1272,7 @@ export default function PagesPage() {
               <div style={{ fontSize: "13px", color: "#000000", lineHeight: 1.4 }}>Generate and manage AI content for your Shopify storefront pages</div>
             </div>
           </div>
-          <div style={{ "--p-color-text": "#000", "--p-color-bg-fill": "#ffffff", "--p-color-border": "#d1d5db" }}>
+          <div style={{ "--p-color-text": "#000", "--p-color-bg-fill": "#ffffff", "--p-color-border": "#d1d5db", display: "flex", alignItems: "center", gap: "8px" }}>
             {/* Credits badge */}
             <button
               type="button"
@@ -1291,7 +1292,6 @@ export default function PagesPage() {
                 lineHeight: 1,
                 whiteSpace: "nowrap",
                 cursor: "pointer",
-                marginRight: "8px",
               }}
             >
               <svg width="13" height="13" viewBox="0 0 20 20" fill="#f59e0b">
@@ -1300,6 +1300,7 @@ export default function PagesPage() {
               <span>{localCredits} credits.</span>
               <span style={{ color: "#000000" }}>Upgrade</span>
             </button>
+            <Button onClick={openAddCreditModal} size="slim">Add Credits</Button>
             <Button onClick={() => navigateInApp("/app")} variant="secondary" size="slim">← Dashboard</Button>
           </div>
         </div>

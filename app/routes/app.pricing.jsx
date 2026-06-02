@@ -6,12 +6,12 @@ import {
   BlockStack,
   Box,
   Button,
+  ButtonGroup,
   Card,
   Divider,
   Grid,
   InlineStack,
   Page,
-  Tabs,
   Text,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
@@ -213,10 +213,6 @@ export default function PricingPage() {
 
   const freePlanDisabled = currentPlanKey === "free" || freePlanUsed;
   const [selectedPlanTab, setSelectedPlanTab] = useState(0);
-  const billingTabs = [
-    { id: "monthly", content: "Monthly", panelID: "monthly-plans" },
-    { id: "yearly", content: "Yearly", panelID: "yearly-plans" },
-  ];
   const selectedInterval = selectedPlanTab === 1 ? "yearly" : "monthly";
 
   function isCurrentPaidPlan(plan, interval) {
@@ -408,9 +404,12 @@ export default function PricingPage() {
             {billingTestMode ? <Badge tone="attention">Test mode</Badge> : null}
           </InlineStack>
 
-          <div className="pricing-tabs">
-            <Tabs tabs={billingTabs} selected={selectedPlanTab} onSelect={setSelectedPlanTab} />
-          </div>
+          <InlineStack align="center">
+            <ButtonGroup variant="segmented">
+              <Button pressed={selectedPlanTab === 0} onClick={() => setSelectedPlanTab(0)}>Monthly</Button>
+              <Button pressed={selectedPlanTab === 1} onClick={() => setSelectedPlanTab(1)}>Yearly</Button>
+            </ButtonGroup>
+          </InlineStack>
 
           <BlockStack gap="300">
               {selectedInterval === "yearly" ? (
@@ -476,24 +475,8 @@ export default function PricingPage() {
         .pricing-plan-card > .Polaris-ShadowBevel {
           height: 100%;
         }
-        .pricing-tabs {
-          align-self: center;
-          background: #ffffff;
-          border: 1px solid #d9d9d9;
-          border-radius: 12px;
-          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-          padding: 6px;
-          width: fit-content;
-        }
-        .pricing-tabs .Polaris-Tabs__Wrapper {
-          padding: 0;
-        }
-        .pricing-tabs .Polaris-Tabs {
-          gap: 4px;
-        }
-        .pricing-tabs .Polaris-Tabs__Tab {
-          border-radius: 8px;
-          min-width: 94px;
+        .pricing-plan-card .Polaris-Card {
+          height: 100%;
         }
         .pricing-plan-card--popular > .Polaris-ShadowBevel,
         .pricing-plan-card--popular > div {
