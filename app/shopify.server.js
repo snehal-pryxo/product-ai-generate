@@ -49,6 +49,7 @@ const shopify = shopifyApp({
             accessToken: session.accessToken ?? null,
             installed: true,
             onboardedAt: new Date(),
+            freePlanUsedAt: new Date(),
             ...(shopInfo && {
               name: shopInfo.name,
               ownerName: shopInfo.ownerName,

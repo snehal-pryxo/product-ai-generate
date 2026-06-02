@@ -30,8 +30,7 @@ import {
   getOrCreateShopCredits,
 } from "../lib/credits.server";
 
-const BLOG_BODY_CREDIT_COST = 3;
-const BLOG_PILLAR_CREDIT_COST = 10;
+const FREE_PLAN_BLOG_LIMIT = 2;
 const BLOG_OPENAI_MODEL = (process.env.OPENAI_MODEL || "gpt-4o-mini").trim();
 const BLOG_ANTHROPIC_MODEL = (process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001").trim();
 
@@ -1912,8 +1911,9 @@ export const loader = async ({ request }) => {
 
   const shopRecord = await db.shop.findUnique({
     where: { shop: session.shop },
-    select: { globalSettingsJson: true, defaultAiProvider: true, openaiApiKey: true, anthropicApiKey: true, geminiApiKey: true },
+    select: { globalSettingsJson: true, defaultAiProvider: true, openaiApiKey: true, anthropicApiKey: true, geminiApiKey: true, billingPlanKey: true },
   });
+  const isFreePlan = (shopRecord?.billingPlanKey || "free") === "free";
 
   let parsedSettings = {};
   try {
@@ -2039,7 +2039,21 @@ export const loader = async ({ request }) => {
     if (ownerName) shopOwnerName = ownerName;
   } catch { /* ignore */ }
 
-  return { blogs, articles, settingsLanguage, settingsTone, products, collections, shopDomain: session.shop, shopOwnerName };
+  const generatedBlogCount = await db.blogGeneratedContent.count({ where: { shop: session.shop } });
+
+  return {
+    blogs,
+    articles,
+    settingsLanguage,
+    settingsTone,
+    products,
+    collections,
+    shopDomain: session.shop,
+    shopOwnerName,
+    isFreePlan,
+    generatedBlogCount,
+    freePlanBlogLimit: FREE_PLAN_BLOG_LIMIT,
+  };
 };
 
 export const action = async ({ request }) => {
@@ -2055,8 +2069,10 @@ export const action = async ({ request }) => {
       openaiApiKey: true,
       anthropicApiKey: true,
       geminiApiKey: true,
+      billingPlanKey: true,
     },
   });
+  const isFreePlan = (shopRecord?.billingPlanKey || "free") === "free";
   let parsedSettings = {};
   try {
     parsedSettings = JSON.parse(shopRecord?.globalSettingsJson || "{}");
@@ -2088,6 +2104,9 @@ export const action = async ({ request }) => {
 
     if ((tabType === TAB_KEYS.CUSTOM || tabType === TAB_KEYS.PILLAR) && !topic) {
       return { ok: false, intent, error: "Post topic is required for this post type." };
+    }
+    if (isFreePlan && tabType === TAB_KEYS.PILLAR) {
+      return { ok: false, intent, error: "Pillar articles are not available on the free plan." };
     }
 
     let outlines = [];
@@ -2146,10 +2165,21 @@ export const action = async ({ request }) => {
 
     if (!outlineTitle) return { ok: false, intent, error: "No outline selected." };
 
-    const creditCost = tabType === TAB_KEYS.PILLAR ? BLOG_PILLAR_CREDIT_COST : BLOG_BODY_CREDIT_COST;
+    if (isFreePlan && tabType === TAB_KEYS.PILLAR) {
+      return { ok: false, intent, error: "Pillar articles are not available on the free plan." };
+    }
 
-    const creditBalance = await getOrCreateShopCredits(session.shop);
-    if ((creditBalance?.credits ?? 0) < creditCost) {
+    if (isFreePlan) {
+      const generatedBlogCount = await db.blogGeneratedContent.count({ where: { shop: session.shop } });
+      if (generatedBlogCount >= FREE_PLAN_BLOG_LIMIT) {
+        return { ok: false, intent, error: `Free plan allows ${FREE_PLAN_BLOG_LIMIT} blog articles. Upgrade to generate more blogs.` };
+      }
+    }
+
+    const creditCost = 0;
+
+    const creditBalance = creditCost > 0 ? await getOrCreateShopCredits(session.shop) : null;
+    if (creditCost > 0 && (creditBalance?.credits ?? 0) < creditCost) {
       return {
         ok: false,
         intent,
@@ -2157,10 +2187,9 @@ export const action = async ({ request }) => {
       };
     }
 
-    const creditSnapshot = await deductCredits({
-      shopDomain: session.shop,
-      creditsUsed: creditCost,
-    });
+    const creditSnapshot = creditCost > 0
+      ? await deductCredits({ shopDomain: session.shop, creditsUsed: creditCost })
+      : { credits: creditBalance?.credits ?? null, creditsUsedTotal: null };
 
     const rawProductContext = await resolveProductContext(admin, productUrl);
     const shopName = getDefaultAuthorName(session.shop);
@@ -2277,6 +2306,12 @@ export const action = async ({ request }) => {
     if (!blogId) return { ok: false, intent, error: "Please select a blog." };
     if (!title) return { ok: false, intent, error: "Title is required." };
     if (!body) return { ok: false, intent, error: "Content is required." };
+    if (isFreePlan) {
+      const generatedBlogCount = await db.blogGeneratedContent.count({ where: { shop: session.shop } });
+      if (generatedBlogCount >= FREE_PLAN_BLOG_LIMIT) {
+        return { ok: false, intent, error: `Free plan allows ${FREE_PLAN_BLOG_LIMIT} blog articles. Upgrade to save more blogs.` };
+      }
+    }
 
     let authorName = authorFromForm || getDefaultAuthorName(session.shop);
     if (!authorFromForm) {
@@ -2428,9 +2463,13 @@ export const action = async ({ request }) => {
             ? `${topic}: A Guide from ${productName}`
             : seed || `Shop ${productName} — Discover Our Collection`;
 
-    const regenCreditCost = tabType === TAB_KEYS.PILLAR ? BLOG_PILLAR_CREDIT_COST : BLOG_BODY_CREDIT_COST;
-    const regenCreditBalance = await getOrCreateShopCredits(session.shop);
-    if ((regenCreditBalance?.credits ?? 0) < regenCreditCost) {
+    if (isFreePlan && tabType === TAB_KEYS.PILLAR) {
+      return { ok: false, intent, error: "Pillar articles are not available on the free plan." };
+    }
+
+    const regenCreditCost = 0;
+    const regenCreditBalance = regenCreditCost > 0 ? await getOrCreateShopCredits(session.shop) : null;
+    if (regenCreditCost > 0 && (regenCreditBalance?.credits ?? 0) < regenCreditCost) {
       return {
         ok: false,
         intent,
@@ -2438,10 +2477,9 @@ export const action = async ({ request }) => {
       };
     }
 
-    const regenCreditSnapshot = await deductCredits({
-      shopDomain: session.shop,
-      creditsUsed: regenCreditCost,
-    });
+    const regenCreditSnapshot = regenCreditCost > 0
+      ? await deductCredits({ shopDomain: session.shop, creditsUsed: regenCreditCost })
+      : { credits: regenCreditBalance?.credits ?? null, creditsUsedTotal: null };
 
     let title = fallbackTitle;
     let body = "";
@@ -2764,7 +2802,18 @@ function ResourcePickerTrigger({ selectedResources, onRemove, onOpen }) {
 }
 
 export default function BlogPage() {
-  const { blogs, articles, settingsTone, products, collections, shopDomain, shopOwnerName } = useLoaderData();
+  const {
+    blogs,
+    articles,
+    settingsTone,
+    products,
+    collections,
+    shopDomain,
+    shopOwnerName,
+    isFreePlan,
+    generatedBlogCount,
+    freePlanBlogLimit,
+  } = useLoaderData();
   const fetcher = useFetcher();
 
   const [rows, setRows] = useState(() => articles);
@@ -2799,12 +2848,12 @@ export default function BlogPage() {
   const tabItems = [
     { id: TAB_KEYS.BUSINESS, content: "Business Blog" },
     { id: TAB_KEYS.PROMOTION, content: "Promotion" },
-    { id: TAB_KEYS.PILLAR, content: "Pillar Article" },
+    ...(isFreePlan ? [] : [{ id: TAB_KEYS.PILLAR, content: "Pillar Article" }]),
     { id: TAB_KEYS.CUSTOM, content: "Create Your Own" },
   ];
 
   const activeTabKey = tabItems[activeTab]?.id || TAB_KEYS.BUSINESS;
-  const fullBlogCreditCost = activeTabKey === TAB_KEYS.PILLAR ? BLOG_PILLAR_CREDIT_COST : BLOG_BODY_CREDIT_COST;
+  const freePlanBlogLimitReached = isFreePlan && Number(generatedBlogCount || 0) >= Number(freePlanBlogLimit || FREE_PLAN_BLOG_LIMIT);
   const toneOptions = useMemo(() => POST_TONE_OPTIONS.map((value) => ({ label: value, value })), []);
   const audienceOptions = useMemo(
     () => TARGET_AUDIENCE_OPTIONS.map((value) => ({ label: value, value })),
@@ -3066,7 +3115,7 @@ const showOfferTextField = isDiscountPromotion(promotion);
                     offerText: article.genOfferText || null,
                     holiday: article.genHoliday || null,
                     topic: article.genTopic || null,
-                    creditCost: resolvedTabType === TAB_KEYS.PILLAR ? BLOG_PILLAR_CREDIT_COST : BLOG_BODY_CREDIT_COST,
+                    creditCost: 0,
                   });
                 }}
                 disabled={fetcher.state !== "idle"}
@@ -3270,20 +3319,24 @@ const showOfferTextField = isDiscountPromotion(promotion);
                         </Text>
                         <Text as="p" variant="bodySm" tone="subdued">
                           {selectedOutlineId
-                            ? `${fullBlogCreditCost} credits will be used to generate the full article.`
+                            ? isFreePlan
+                              ? `${Math.max(0, Number(freePlanBlogLimit || FREE_PLAN_BLOG_LIMIT) - Number(generatedBlogCount || 0))} free blog article${Math.max(0, Number(freePlanBlogLimit || FREE_PLAN_BLOG_LIMIT) - Number(generatedBlogCount || 0)) === 1 ? "" : "s"} remaining.`
+                              : "No credits will be used to generate the full article."
                             : "Click an idea card or its Select button to continue."}
                         </Text>
                       </BlockStack>
                       <Button
                         variant="primary"
                         onClick={submitGenerateFullBlog}
-                        disabled={!selectedOutlineId || (fetcher.state !== "idle")}
+                        disabled={!selectedOutlineId || freePlanBlogLimitReached || (fetcher.state !== "idle")}
                         loading={
                           fetcher.state !== "idle" &&
                           String(fetcher.formData?.get("intent")) === "generate_full_blog"
                         }
                       >
-                        {activeTabKey === TAB_KEYS.PILLAR ? "Generate Pillar Article (10 credits)" : "Generate Full Blog (3 credits)"}
+                        {activeTabKey === TAB_KEYS.PILLAR
+                          ? "Generate Pillar Article (10 credits)"
+                          : "Generate Full Blog"}
                       </Button>
                     </InlineStack>
                   </Box>
@@ -3430,7 +3483,7 @@ const showOfferTextField = isDiscountPromotion(promotion);
         onClose={() => setRegenerateConfirmTarget(null)}
         title="Regenerate article?"
         primaryAction={{
-          content: `Regenerate (${regenerateConfirmTarget?.creditCost ?? BLOG_BODY_CREDIT_COST} credits)`,
+          content: "Regenerate",
           onAction: submitRegenerate,
           loading: fetcher.state !== "idle" && String(fetcher.formData?.get("intent")) === "regenerate_blog",
           destructive: false,

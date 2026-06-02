@@ -44,14 +44,14 @@ async function generateItem(jobType, item, settings, apiKeys, accessToken) {
     if (standardContentTypes.length > 0) {
       await generateCollectionItem(item, { ...settings, contentTypes: standardContentTypes }, apiKeys);
     }
-    return { creditsUsed: settings.creditsPerItem || (effectiveContentTypes.length || 0) };
+    return { creditsUsed: settings.creditsPerItem ?? (effectiveContentTypes.length || 0) };
   }
 
   if (jobType === "collection_product") {
     if (standardContentTypes.length > 0) {
       await generateCollectionProductItem(item, { ...settings, contentTypes: standardContentTypes }, apiKeys);
     }
-    return { creditsUsed: settings.creditsPerItem || (effectiveContentTypes.length || 0) };
+    return { creditsUsed: settings.creditsPerItem ?? (effectiveContentTypes.length || 0) };
   }
 
   if (standardContentTypes.length > 0) {
@@ -66,7 +66,7 @@ async function generateItem(jobType, item, settings, apiKeys, accessToken) {
     });
   }
 
-  return { creditsUsed: settings.creditsPerItem || (settings.contentTypes?.length || 0) };
+  return { creditsUsed: settings.creditsPerItem ?? (settings.contentTypes?.length || 0) };
 }
 
 async function fetchGeneratedDetails(jobType, item, shop) {
@@ -162,10 +162,10 @@ export const bulkGenerateFunction = inngest.createFunction(
       shop,
       contentTypes: effectiveContentTypes,
       creditsPerItem: jobType === "product"
-        ? settings.creditsPerItem || (effectiveContentTypes.length || 0)
+        ? settings.creditsPerItem ?? (effectiveContentTypes.length || 0)
         : effectiveContentTypes.length,
     };
-    const creditsPerItem = settingsWithShop.creditsPerItem || (settingsWithShop.contentTypes?.length || 0);
+    const creditsPerItem = settingsWithShop.creditsPerItem ?? (settingsWithShop.contentTypes?.length || 0);
     const chunks = chunkArray(items, 10);
 
     for (let i = 0; i < chunks.length; i++) {

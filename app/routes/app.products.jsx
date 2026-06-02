@@ -43,8 +43,6 @@ import {
 } from "../lib/productPromptTemplateLibrary";
 import {
   buildInsufficientCreditsError,
-  creditsForBatch,
-  creditsForContentTypes,
   deductCredits,
   parseSelectedContentTypes,
 } from "../lib/credits.server";
@@ -976,9 +974,9 @@ export const action = async ({ request }) => {
       const shouldUpdateDescription = selectedContentTypes.includes("description");
       const shouldUpdateMetaTitle = selectedContentTypes.includes("meta_title");
       const shouldUpdateMetaDescription = selectedContentTypes.includes("meta_description");
-      const creditsPerItem = creditsForContentTypes(selectedContentTypes);
+      const creditsPerItem = 0;
       const availableCredits = shopData?.credits ?? 150;
-      const requiredCredits = creditsForBatch(selectedContentTypes, bulkProducts.length);
+      const requiredCredits = 0;
 
       if (availableCredits < requiredCredits) {
         return {
@@ -1389,8 +1387,8 @@ export default function ProductsPage() {
     [filteredProducts, selectedProductIds],
   );
   const exceedsBulkLimit = selectedProducts.length > MAX_BULK_ITEMS;
-  const bulkCreditsPerProduct = clientCreditsForContentTypes(bulkContentTypes);
-  const requiredBulkCredits = clientCreditsForBatch(bulkContentTypes, selectedProducts.length);
+  const bulkCreditsPerProduct = 0;
+  const requiredBulkCredits = 0;
   const insufficientCredits = requiredBulkCredits > 0 && requiredBulkCredits > credits;
   const isFaqTabSelected = bulkContentTypes.includes("faq");
   const faqProductPageUrl = appApiKey
@@ -2354,7 +2352,7 @@ export default function ProductsPage() {
               </Button>
               {insufficientCredits ? (
                 <Button onClick={openAddCreditModal}>
-                  Add Credit
+                  Add Credits
                 </Button>
               ) : null}
             </div>

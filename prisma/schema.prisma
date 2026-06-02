@@ -64,6 +64,7 @@ model shop {
   billingSubscriptionStatus String? @db.VarChar(32)
   billingPlanActivatedAt  DateTime?
   billingCreditsRenewedAt DateTime?
+  freePlanUsedAt          DateTime?
   reviewSubmittedAt       DateTime?
   reviewPromptDismissedAt DateTime?
   reviewRating            Int?

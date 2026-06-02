@@ -96,6 +96,17 @@ const COLLECTIONS_QUERY = `#graphql
         node {
           id title handle description descriptionHtml
           seo { title description }
+          image { url altText }
+          products(first: 20) {
+            edges {
+              node {
+                id title handle
+                description
+                featuredImage { url altText }
+                priceRangeV2 { minVariantPrice { amount currencyCode } }
+              }
+            }
+          }
         }
       }
     }
@@ -197,7 +208,7 @@ export const loader = async ({ request }) => {
     db.aiVisibilitySchema.findMany({ where: { shop, resourceId: { in: allResourceIds } } }),
     db.aiVisibilityFaq.findMany({ where: { shop, resourceId: { in: allResourceIds } } }),
     db.aiVisibilityLlmsTxt.findUnique({ where: { shop } }),
-    db.shop.findUnique({ where: { shop }, select: { themeEmbedEnabled: true } }),
+    db.shop.findUnique({ where: { shop }, select: { themeEmbedEnabled: true, billingPlanKey: true } }),
     getOrCreateShopCredits(shop),
   ]);
 
@@ -239,6 +250,7 @@ export const loader = async ({ request }) => {
     shop,
     appApiKey: process.env.SHOPIFY_API_KEY || "",
     credits: creditSnapshot.credits,
+    isFreePlan: (shopData?.billingPlanKey || "free") === "free",
     themeEmbedEnabled: shopData?.themeEmbedEnabled ?? false,
     llmsTxtCredits: calcLlmsTxtCredits(products.length + collections.length + articles.length + pages.length),
   };
@@ -589,14 +601,14 @@ function ScoreBadge({ score }) {
 // Item Drawer
 // ---------------------------------------------------------------------------
 
-function ItemModal({ item, onClose, onGenerate, generatingKey, credits }) {
+function ItemModal({ item, onClose, onGenerate, generatingKey, credits, hasUnlimitedVisibility }) {
   const [expandedFaqIndex, setExpandedFaqIndex] = useState(null);
   if (!item) return null;
   // FAQ generation via AI Visibility is not yet released; kept false until the feature ships.
   const canFaq = false;
   const schemaKey = `schema_${item.id}`;
-  const minimumRequiredCredits = CREDITS_SCHEMA;
-  const hasAffordableAction = credits >= CREDITS_SCHEMA;
+  const minimumRequiredCredits = hasUnlimitedVisibility ? 0 : CREDITS_SCHEMA;
+  const hasAffordableAction = hasUnlimitedVisibility || credits >= CREDITS_SCHEMA;
   const showCombinedAction = false;
   const showSchemaAction = true;
   const faqKey = "";
@@ -635,28 +647,32 @@ function ItemModal({ item, onClose, onGenerate, generatingKey, credits }) {
               <Button
                 variant="primary"
                 loading={generatingKey === combinedKey}
-                disabled={credits < CREDITS_COMBINED}
+                disabled={!hasUnlimitedVisibility && credits < CREDITS_COMBINED}
                 onClick={() => onGenerate("generate_combined", item)}
               >
-                Generate Schema + FAQ ({CREDITS_COMBINED} credits — saves 2)
+                {hasUnlimitedVisibility ? "Generate Schema + FAQ" : `Generate Schema + FAQ (${CREDITS_COMBINED} credits)`}
               </Button>
             )}
             {showSchemaAction && (
               <Button
                 loading={generatingKey === schemaKey}
-                disabled={credits < CREDITS_SCHEMA}
+                disabled={!hasUnlimitedVisibility && credits < CREDITS_SCHEMA}
                 onClick={() => onGenerate("generate_schema", item)}
               >
-                {item.hasSchema ? `Regenerate Schema (${CREDITS_SCHEMA} credits)` : `Generate Schema (${CREDITS_SCHEMA} credits)`}
+                {item.hasSchema
+                  ? hasUnlimitedVisibility ? "Regenerate Schema" : `Regenerate Schema (${CREDITS_SCHEMA} credits)`
+                  : hasUnlimitedVisibility ? "Generate Schema" : `Generate Schema (${CREDITS_SCHEMA} credits)`}
               </Button>
             )}
             {canFaq && (
               <Button
                 loading={generatingKey === faqKey}
-                disabled={credits < CREDITS_FAQ}
+                disabled={!hasUnlimitedVisibility && credits < CREDITS_FAQ}
                 onClick={() => onGenerate("generate_faq", item)}
               >
-                {item.hasFaq ? `Regenerate FAQ (${CREDITS_FAQ} credits)` : `Generate FAQ (${CREDITS_FAQ} credits)`}
+                {item.hasFaq
+                  ? hasUnlimitedVisibility ? "Regenerate FAQ" : `Regenerate FAQ (${CREDITS_FAQ} credits)`
+                  : hasUnlimitedVisibility ? "Generate FAQ" : `Generate FAQ (${CREDITS_FAQ} credits)`}
               </Button>
             )}
           </InlineStack>
@@ -880,7 +896,9 @@ export default function AiVisibilityPage() {
     themeEmbedEnabled: initialEmbedEnabled,
     llmsTxtCredits,
     credits: initialCredits,
+    isFreePlan,
   } = useLoaderData();
+  const hasUnlimitedVisibility = !isFreePlan;
   const fetcher = useFetcher();
   const embedFetcher = useFetcher();
   const autoEnableFetcher = useFetcher();
@@ -1062,7 +1080,7 @@ export default function AiVisibilityPage() {
   const handleGenerate = useCallback(
     (intent, item) => {
       const requiredCredits = creditsForIntent(intent);
-      if (requiredCredits > credits) {
+      if (!hasUnlimitedVisibility && requiredCredits > credits) {
         setBanner(buildInsufficientCreditsBanner(requiredCredits, credits));
         return;
       }
@@ -1082,11 +1100,11 @@ export default function AiVisibilityPage() {
       }
       fetcher.submit(fd, { method: "post" });
     },
-    [credits, fetcher],
+    [credits, fetcher, hasUnlimitedVisibility],
   );
 
   const handleGenerateLlmsTxt = useCallback(() => {
-    if (llmsTxtCredits > credits) {
+    if (!isFreePlan && llmsTxtCredits > credits) {
       setBanner(buildInsufficientCreditsBanner(llmsTxtCredits, credits));
       return;
     }
@@ -1095,7 +1113,7 @@ export default function AiVisibilityPage() {
     const fd = new FormData();
     fd.append("intent", "generate_llmstxt");
     fetcher.submit(fd, { method: "post" });
-  }, [credits, fetcher, llmsTxtCredits]);
+  }, [credits, fetcher, isFreePlan, llmsTxtCredits]);
 
   const tabs = [
     { id: "products", content: `Products (${products.length})` },
@@ -1109,7 +1127,7 @@ export default function AiVisibilityPage() {
   const activeItems = tabItems[selectedTab];
   const selectedIds = selectedIdsByType[activeResourceType] || [];
   const selectedItems = activeItems.filter((item) => selectedIds.includes(item.id));
-  const bulkSchemaCredits = selectedItems.length * CREDITS_SCHEMA;
+  const bulkSchemaCredits = hasUnlimitedVisibility ? 0 : selectedItems.length * CREDITS_SCHEMA;
 
   const llmsTxtUrl = `https://${shop}/apps/llms-txt`;
   // activateAppId uses the block *filename* (without .liquid), not the extension handle.
@@ -1152,7 +1170,7 @@ export default function AiVisibilityPage() {
       setBanner({ tone: "warning", text: "Select at least one item for bulk schema generation." });
       return;
     }
-    if (bulkSchemaCredits > credits) {
+    if (!hasUnlimitedVisibility && bulkSchemaCredits > credits) {
       setBanner(buildInsufficientCreditsBanner(bulkSchemaCredits, credits));
       return;
     }
@@ -1163,7 +1181,7 @@ export default function AiVisibilityPage() {
     fd.append("resourceType", activeResourceType);
     fd.append("resourcesJson", JSON.stringify(selectedItems));
     fetcher.submit(fd, { method: "post" });
-  }, [activeResourceType, bulkSchemaCredits, credits, fetcher, selectedItems]);
+  }, [activeResourceType, bulkSchemaCredits, credits, fetcher, hasUnlimitedVisibility, selectedItems]);
 
   return (
     <Page title="AI Visibility" subtitle="Optimize your store for AI-powered search engines">
@@ -1226,10 +1244,10 @@ export default function AiVisibilityPage() {
                         size="slim"
                         variant="plain"
                         loading={isSubmitting && generatingKey === "llmstxt"}
-                        disabled={credits < llmsTxtCredits}
+                        disabled={!isFreePlan && credits < llmsTxtCredits}
                         onClick={handleGenerateLlmsTxt}
                       >
-                        Regenerate ({llmsTxtCredits} cr)
+                        {isFreePlan ? "Regenerate" : `Regenerate (${llmsTxtCredits} cr)`}
                       </Button>
                     </>
                   ) : (
@@ -1237,10 +1255,10 @@ export default function AiVisibilityPage() {
                       size="slim"
                       variant="primary"
                       loading={isSubmitting && generatingKey === "llmstxt"}
-                      disabled={credits < llmsTxtCredits}
+                      disabled={!isFreePlan && credits < llmsTxtCredits}
                       onClick={handleGenerateLlmsTxt}
                     >
-                      Generate ({llmsTxtCredits} credits)
+                      {isFreePlan ? "Generate" : `Generate (${llmsTxtCredits} credits)`}
                     </Button>
                   )}
                 </InlineStack>
@@ -1343,18 +1361,18 @@ export default function AiVisibilityPage() {
             <Box padding="400" borderColor="border" borderBlockEndWidth="025">
               <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
                 <BlockStack gap="100">
-                  <Text as="p" variant="bodySm" tone={bulkSchemaCredits > credits ? "critical" : "subdued"}>
-                    Credits used: {bulkSchemaCredits} ({selectedItems.length} items x {CREDITS_SCHEMA} credits)
-                    {bulkSchemaCredits > credits ? ` - not enough credits (${credits} available)` : ""}
+                  <Text as="p" variant="bodySm" tone={!hasUnlimitedVisibility && bulkSchemaCredits > credits ? "critical" : "subdued"}>
+                    Credits used: {bulkSchemaCredits}{hasUnlimitedVisibility ? "" : ` (${selectedItems.length} items x ${CREDITS_SCHEMA} credits)`}
+                    {!hasUnlimitedVisibility && bulkSchemaCredits > credits ? ` - not enough credits (${credits} available)` : ""}
                   </Text>
                 </BlockStack>
                 <Button
                   variant="primary"
-                  disabled={selectedItems.length === 0 || bulkSchemaCredits > credits}
+                  disabled={selectedItems.length === 0 || (!hasUnlimitedVisibility && bulkSchemaCredits > credits)}
                   loading={isSubmitting && generatingKey === "bulk_schema"}
                   onClick={handleGenerateBulkSchema}
                 >
-                  Generate Schema ({bulkSchemaCredits} credits)
+                  {hasUnlimitedVisibility ? "Generate Schema" : `Generate Schema (${bulkSchemaCredits} credits)`}
                 </Button>
               </InlineStack>
             </Box>
@@ -1383,6 +1401,7 @@ export default function AiVisibilityPage() {
           onGenerate={handleGenerate}
           generatingKey={generatingKey}
           credits={credits}
+          hasUnlimitedVisibility={hasUnlimitedVisibility}
         />
       )}
     </Page>

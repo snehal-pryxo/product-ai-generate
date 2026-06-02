@@ -51,8 +51,6 @@ import {
 } from "../lib/collectionPromptTemplateLibrary";
 import {
   buildInsufficientCreditsError,
-  creditsForBatch,
-  creditsForContentTypes,
   deductCredits,
   parseSelectedContentTypes,
 } from "../lib/credits.server";
@@ -1138,7 +1136,7 @@ export const action = async ({ request }) => {
         const shouldUpdateDescription = selectedContentTypes.includes("description");
         const shouldUpdateMetaTitle = selectedContentTypes.includes("meta_title");
         const shouldUpdateMetaDescription = selectedContentTypes.includes("meta_description");
-        const creditsPerItem = creditsForContentTypes(selectedContentTypes);
+        const creditsPerItem = 0;
 
         const collectionsWithProducts = await Promise.all(
           bulkCollections.map(async (collection) => {
@@ -1171,7 +1169,7 @@ export const action = async ({ request }) => {
         }
 
         const availableCredits = shopData?.credits ?? 150;
-        const requiredCredits = creditsForBatch(selectedContentTypes, targetProductsCount);
+        const requiredCredits = 0;
         if (availableCredits < requiredCredits) {
           return {
             ok: false,
@@ -1295,9 +1293,9 @@ export const action = async ({ request }) => {
       const shouldUpdateDescription = selectedContentTypes.includes("description");
       const shouldUpdateMetaTitle = selectedContentTypes.includes("meta_title");
       const shouldUpdateMetaDescription = selectedContentTypes.includes("meta_description");
-      const creditsPerItem = creditsForContentTypes(selectedContentTypes);
+      const creditsPerItem = 0;
       const availableCredits = shopData?.credits ?? 150;
-      const requiredCredits = creditsForBatch(selectedContentTypes, bulkCollections.length);
+      const requiredCredits = 0;
 
       if (availableCredits < requiredCredits) {
         return {
@@ -2143,8 +2141,8 @@ export default function CollectionsPage() {
     targetCollectionsForBulk,
   ]);
 
-  const bulkCreditsPerItem = clientCreditsForContentTypes(bulkContentTypes);
-  const requiredBulkCredits = clientCreditsForBatch(bulkContentTypes, estimatedTargetItems);
+  const bulkCreditsPerItem = 0;
+  const requiredBulkCredits = 0;
   const insufficientCredits = requiredBulkCredits > 0 && requiredBulkCredits > credits;
 
   const allVisibleSelected =
@@ -2935,7 +2933,7 @@ export default function CollectionsPage() {
               </Button>
               {insufficientCredits ? (
                 <Button onClick={openAddCreditModal}>
-                  Add Credit
+                  Add Credits
                 </Button>
               ) : null}
             </div>

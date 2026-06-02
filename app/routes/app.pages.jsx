@@ -16,8 +16,6 @@ import {
 } from "../lib/pagePromptTemplateLibrary";
 import {
   buildInsufficientCreditsError,
-  creditsForBatch,
-  creditsForContentTypes,
   deductCredits,
   parseSelectedContentTypes,
   refundCredits,
@@ -486,7 +484,6 @@ export const action = async ({ request }) => {
     const shouldUpdateBody = selectedContentTypes.includes("body");
     const shouldUpdateMetaTitle = selectedContentTypes.includes("meta_title");
     const shouldUpdateMetaDescription = selectedContentTypes.includes("meta_description");
-    const creditsPerItem = creditsForContentTypes(selectedContentTypes);
 
     const shopData = await db.shop.findUnique({
       where: { shop: session.shop },
@@ -499,10 +496,11 @@ export const action = async ({ request }) => {
         globalSettingsJson: true,
       },
     });
+    const creditsPerItem = 0;
     const globalSettings = parseShopGlobalSettings(shopData);
     length = getExactWordLengthOption(globalSettings, "pageContentWords");
     const availableCredits = shopData?.credits ?? 150;
-    const requiredCredits = creditsForBatch(selectedContentTypes, bulkPages.length);
+    const requiredCredits = 0;
     if (availableCredits < requiredCredits) {
       return {
         success: false,

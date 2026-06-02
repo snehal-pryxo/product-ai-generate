@@ -22,56 +22,37 @@ const DEFAULT_SUBSCRIPTION_PLANS = [
     key: "starter",
     name: "Starter",
     price: 9.99,
-    credits: 2000,
+    credits: 1500,
     description: "For small stores keeping product SEO updated.",
     features: [
-      "2,000 credits every month",
-      "Product, collection, and page content",
-      "SEO title and description generation",
-      "Template library",
+      "1,500 credits every month",
+      "Unlimited product content generation",
+      "Unlimited collection content generation",
+      "Unlimited collection product content generation",
+      "Unlimited page content generation",
+      "Unlimited blog content generation",
+      "Custom template creation",
+      "Unlimited product JSON schema and FAQ generation",
+      "Unlimited collection, page, and blog JSON schema",
     ],
   },
   {
     key: "growth",
     name: "Growth",
-    price: 19.99,
+    price: 14.99,
     credits: 5000,
     description: "For active stores using bulk generation regularly.",
     popular: true,
     features: [
       "5,000 credits every month",
-      "Bulk product generation",
-      "Blog generation",
-      "Multi-language and tone options",
-      "Priority support",
-    ],
-  },
-  {
-    key: "pro",
-    name: "Pro",
-    price: 39.99,
-    credits: 15000,
-    description: "For larger catalogs and frequent content refreshes.",
-    features: [
-      "15,000 credits every month",
-      "Large bulk generation",
-      "Advanced blog and SEO tools",
-      "Analytics and usage history",
-      "Priority processing",
-    ],
-  },
-  {
-    key: "enterprise",
-    name: "Enterprise",
-    price: 99,
-    credits: 60000,
-    description: "For high-volume Shopify stores and large catalogs.",
-    features: [
-      "60,000 credits every month",
-      "Highest-volume generation",
-      "Enterprise workflows",
-      "Dedicated onboarding support",
-      "Priority processing",
+      "Unlimited product content generation",
+      "Unlimited collection content generation",
+      "Unlimited collection product content generation",
+      "Unlimited page content generation",
+      "Unlimited blog content generation",
+      "Custom template creation",
+      "Unlimited product JSON schema and FAQ generation",
+      "Unlimited collection, page, and blog JSON schema",
     ],
   },
 ];
@@ -94,14 +75,6 @@ const PLAN_ENV_KEYS = {
   growth: {
     price: "BILLING_GROWTH_PRICE",
     credits: "BILLING_GROWTH_CREDITS",
-  },
-  pro: {
-    price: "BILLING_PRO_PRICE",
-    credits: "BILLING_PRO_CREDITS",
-  },
-  enterprise: {
-    price: "BILLING_ENTERPRISE_PRICE",
-    credits: "BILLING_ENTERPRISE_CREDITS",
   },
 };
 
@@ -179,6 +152,7 @@ export function getSubscriptionPlans(env = {}) {
     return {
       ...monthly,
       yearlyPrice: computeYearlyPrice(monthly.price),
+      yearlyCredits: monthly.credits * (12 - YEARLY_DISCOUNT_MONTHS),
       yearlyCreditsPerMonth: monthly.credits,
     };
   });

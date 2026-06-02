@@ -4,10 +4,12 @@ import {
   BILLING_INTERVAL,
   BILLING_INTERVAL_ANNUAL,
   BILLING_RENEWAL_DAYS,
+  getSubscriptionPlan,
 } from "./billingPlans";
 
 const ACTIVE_STATUSES = new Set(["ACTIVE"]);
 const THIRTY_DAYS_MS = BILLING_RENEWAL_DAYS * 24 * 60 * 60 * 1000;
+const YEARLY_RENEWAL_MS = 365 * 24 * 60 * 60 * 1000;
 
 export function getBillingTestMode() {
   const raw = String(process.env.SHOPIFY_BILLING_TEST || "").trim().toLowerCase();
@@ -77,6 +79,7 @@ async function readGraphqlPayload(response, fieldName) {
 export async function createRecurringSubscription({ admin, request, shop, plan, interval }) {
   const billingInterval = interval === "yearly" ? BILLING_INTERVAL_ANNUAL : BILLING_INTERVAL;
   const chargePrice = interval === "yearly" ? (plan.yearlyPrice ?? plan.price * 10) : plan.price;
+  const planCredits = interval === "yearly" ? (plan.yearlyCredits ?? plan.credits * 10) : plan.credits;
   const response = await admin.graphql(
     `#graphql
       mutation AppSubscriptionCreate(
@@ -144,8 +147,8 @@ export async function createRecurringSubscription({ admin, request, shop, plan, 
       shop,
       planKey: plan.key,
       planName: plan.name,
-      credits: plan.credits,
-      price: plan.price,
+      credits: planCredits,
+      price: chargePrice,
       subscriptionId,
       status: payload?.appSubscription?.status || "PENDING",
     },
@@ -404,7 +407,10 @@ export async function refreshMonthlyPlanCredits(shop, admin = null) {
   }
 
   const lastRenewedAt = row.billingCreditsRenewedAt ? new Date(row.billingCreditsRenewedAt) : null;
-  if (lastRenewedAt && Date.now() - lastRenewedAt.getTime() < THIRTY_DAYS_MS) {
+  const plan = getSubscriptionPlan(row.billingPlanKey, process.env);
+  const isAnnualCreditGrant = Number(row.billingPlanCredits || 0) > Number(plan?.credits || 0);
+  const renewalMs = isAnnualCreditGrant ? YEARLY_RENEWAL_MS : THIRTY_DAYS_MS;
+  if (lastRenewedAt && Date.now() - lastRenewedAt.getTime() < renewalMs) {
     return null;
   }
 
