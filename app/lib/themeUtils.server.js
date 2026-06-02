@@ -105,7 +105,7 @@ export async function autoAddFaqSectionToProductPage(shop, accessToken) {
         return { ok: false, needsManualAdd: true, error: "Permission denied updating the theme. Please reinstall the app with theme permissions, or add the block manually via the theme editor." };
       }
       const msg = errBody?.errors ? JSON.stringify(errBody.errors) : `HTTP ${writeResp.status}`;
-      return { ok: false, needsManualAdd: true, error: `Could not update product template (${msg}). Please add the block manually via the theme editor.` };
+      return { ok: false, needsManualAdd: true};
     }
 
     return { ok: true, alreadyAdded: false };

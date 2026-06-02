@@ -2025,8 +2025,6 @@ export default function TemplatePage() {
       )}
       <Page
       fullWidth
-      title="Templates"
-      subtitle="Manage prompt templates for AI content generation."
     >
       <AppPageHeader
         title="Templates"

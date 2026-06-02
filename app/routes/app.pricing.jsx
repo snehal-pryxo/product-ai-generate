@@ -29,6 +29,7 @@ import {
   createRecurringSubscription,
   getBillingTestMode,
 } from "../lib/billing.server";
+import { buildCustomCreditPackage } from "../lib/creditPurchaseOptions";
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
@@ -89,6 +90,18 @@ export const action = async ({ request }) => {
       if (!creditPackage) {
         return { success: false, message: "Please select a valid extra credit package." };
       }
+      const confirmationUrl = await createExtraCreditPurchase({
+        admin, request, shop: session.shop, creditPackage,
+      });
+      if (!confirmationUrl) {
+        return { success: false, message: "Shopify did not return a credit approval URL." };
+      }
+      return { success: true, confirmationUrl };
+    }
+
+    if (intent === "buy_custom_credits") {
+      const credits = String(formData.get("credits") || "");
+      const creditPackage = buildCustomCreditPackage(credits);
       const confirmationUrl = await createExtraCreditPurchase({
         admin, request, shop: session.shop, creditPackage,
       });
@@ -162,7 +175,7 @@ export default function PricingPage() {
   }, [actionData?.confirmationUrl]);
 
   return (
-    <Page title="Pricing" fullWidth>
+    <Page fullWidth>
       <BlockStack gap="600">
         <AppPageHeader
           title="Pricing"
@@ -407,12 +420,6 @@ export default function PricingPage() {
                           {formatCredits(creditPackage.credits)} credits
                         </Text>
                         <Text as="p" variant="heading2xl">{formatPrice(creditPackage.price)}</Text>
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          {costPerCredit}¢ per credit · Never expire
-                        </Text>
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          ≈ {formatCredits(Math.floor(creditPackage.credits / 3))} product generations
-                        </Text>
                       </BlockStack>
                       <Form method="post">
                         <input type="hidden" name="intent" value="buy_credits" />

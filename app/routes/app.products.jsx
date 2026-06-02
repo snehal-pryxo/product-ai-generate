@@ -29,6 +29,7 @@ import {
   TextField,
 } from "@shopify/polaris";
 import { ProductIcon, CollectionIcon, SearchIcon, ChevronUpIcon, ChevronDownIcon, XIcon } from "@shopify/polaris-icons";
+import { openAddCreditModal } from "../components/AddCreditModal";
 import db from "../db.server";
 import { inngest } from "../inngest/client";
 import { authenticate } from "../shopify.server";
@@ -1244,6 +1245,8 @@ export const loader = async ({ request }) => {
     credits: shopData?.credits ?? 150,
     creditsUsedTotal: shopData?.creditsUsedTotal ?? 0,
     shopOwnerName,
+    shop: session.shop,
+    appApiKey: process.env.SHOPIFY_API_KEY || "",
   };
 };
 
@@ -1274,7 +1277,7 @@ function readArrayState(value, fallback = []) {
 }
 
 export default function ProductsPage() {
-  const { filters, products, collections, keywordLibrary = [], defaultAiProvider, credits, shopOwnerName } = useLoaderData();
+  const { filters, products, collections, keywordLibrary = [], defaultAiProvider, credits, shopOwnerName, shop, appApiKey } = useLoaderData();
   const navigation = useNavigation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -1389,6 +1392,10 @@ export default function ProductsPage() {
   const bulkCreditsPerProduct = clientCreditsForContentTypes(bulkContentTypes);
   const requiredBulkCredits = clientCreditsForBatch(bulkContentTypes, selectedProducts.length);
   const insufficientCredits = requiredBulkCredits > 0 && requiredBulkCredits > credits;
+  const isFaqTabSelected = bulkContentTypes.includes("faq");
+  const faqProductPageUrl = appApiKey
+    ? `https://${shop}/admin/themes/current/editor?template=product&addAppBlockId=${encodeURIComponent(appApiKey)}/faq-section&target=newAppsSection`
+    : `https://${shop}/admin/themes/current/editor?template=product`;
   const hasRequiredBulkTemplates = useMemo(() => {
     if (bulkContentTypes.includes("description")) {
       if (!useCustomDescInstructions || !String(bulkDescTemplate || "").trim()) return false;
@@ -1786,6 +1793,26 @@ export default function ProductsPage() {
         }}
       >
         {/* ── LEFT: Product List ── */}
+        {isFaqTabSelected ? (
+          <div style={{ flex: "1 1 100%", minWidth: 0 }}>
+            <Card>
+              <InlineStack align="space-between" blockAlign="center" gap="400" wrap>
+                <BlockStack gap="100">
+                  <Text as="h3" variant="headingSm" fontWeight="semibold">
+                    FAQ Section on Product Page
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Add the FAQ block to your theme product page from the Apps section.
+                  </Text>
+                </BlockStack>
+                <Button url={faqProductPageUrl} external variant="primary">
+                  Add to Product Page
+                </Button>
+              </InlineStack>
+            </Card>
+          </div>
+        ) : null}
+
         <div className="app-split-main" style={{ flex: "1 1 0", minWidth: "0" }}>
           {/* Products / Collections tab */}
           <div className="app-toolbar app-segmented-tabs" style={{ marginBottom: "16px", maxWidth: "640px" }}>
@@ -2314,7 +2341,7 @@ export default function ProductsPage() {
             )}
 
             {/* Generate Button */}
-            <div style={{ padding: "12px 16px" }}>
+            <div style={{ padding: "12px 16px", display: "flex", gap: 8, flexWrap: "wrap" }}>
               <Button
                 style={{ width: "fit-content" }}
                 variant="primary"
@@ -2325,6 +2352,11 @@ export default function ProductsPage() {
               >
                 {`Generate ${selectedProducts.length} items (${requiredBulkCredits} credits)`}
               </Button>
+              {insufficientCredits ? (
+                <Button onClick={openAddCreditModal}>
+                  Add Credit
+                </Button>
+              ) : null}
             </div>
           </Card>
         </div>

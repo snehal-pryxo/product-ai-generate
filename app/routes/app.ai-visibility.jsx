@@ -89,6 +89,19 @@ const PRODUCTS_QUERY = `#graphql
   }
 `;
 
+const COLLECTIONS_QUERY = `#graphql
+  query GetCollectionsForVisibility($first: Int!) {
+    collections(first: $first) {
+      edges {
+        node {
+          id title handle description descriptionHtml
+          seo { title description }
+        }
+      }
+    }
+  }
+`;
+
 const ARTICLES_QUERY = `#graphql
   query GetArticlesForVisibility($first: Int!) {
     articles(first: $first) {
@@ -150,21 +163,24 @@ export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const shop = session.shop;
 
-  const [productsRes, articlesRes, pagesRes, shopRes] = await Promise.all([
+  const [productsRes, collectionsRes, articlesRes, pagesRes, shopRes] = await Promise.all([
     admin.graphql(PRODUCTS_QUERY, { variables: { first: 100 } }),
+    admin.graphql(COLLECTIONS_QUERY, { variables: { first: 100 } }),
     admin.graphql(ARTICLES_QUERY, { variables: { first: 100 } }),
     admin.graphql(PAGES_QUERY, { variables: { first: 50 } }),
     admin.graphql(SHOP_QUERY),
   ]);
 
-  const [productsJson, articlesJson, pagesJson, shopJson] = await Promise.all([
+  const [productsJson, collectionsJson, articlesJson, pagesJson, shopJson] = await Promise.all([
     productsRes.json(),
+    collectionsRes.json(),
     articlesRes.json(),
     pagesRes.json(),
     shopRes.json(),
   ]);
 
   const products = (productsJson?.data?.products?.edges || []).map((e) => e.node);
+  const collections = (collectionsJson?.data?.collections?.edges || []).map((e) => e.node);
   const articles = (articlesJson?.data?.articles?.edges || []).map((e) => normalizeSeoFromMetafields(e.node));
   const pages = (pagesJson?.data?.pages?.edges || []).map((e) => normalizeSeoFromMetafields(e.node));
   const shopName = shopJson?.data?.shop?.name || shop;
@@ -172,6 +188,7 @@ export const loader = async ({ request }) => {
 
   const allResourceIds = [
     ...products.map((p) => p.id),
+    ...collections.map((c) => c.id),
     ...articles.map((a) => a.id),
     ...pages.map((p) => p.id),
   ];
@@ -211,6 +228,7 @@ export const loader = async ({ request }) => {
 
   return {
     products: products.map((p) => buildItem(p, "product")),
+    collections: collections.map((c) => buildItem(c, "collection")),
     articles: articles.map((a) => buildItem(a, "article")),
     pages: pages.map((p) => buildItem(p, "page")),
     llmsTxt: llmsTxt
@@ -222,7 +240,7 @@ export const loader = async ({ request }) => {
     appApiKey: process.env.SHOPIFY_API_KEY || "",
     credits: creditSnapshot.credits,
     themeEmbedEnabled: shopData?.themeEmbedEnabled ?? false,
-    llmsTxtCredits: calcLlmsTxtCredits(products.length + articles.length + pages.length),
+    llmsTxtCredits: calcLlmsTxtCredits(products.length + collections.length + articles.length + pages.length),
   };
 };
 
@@ -335,18 +353,21 @@ export const action = async ({ request }) => {
       const shopName = shopDataJson?.data?.shop?.name || shop;
       const shopDomain = shopDataJson?.data?.shop?.primaryDomain?.host || shop;
 
-      const [pRes, aRes, pgRes] = await Promise.all([
+      const [pRes, cRes, aRes, pgRes] = await Promise.all([
         admin.graphql(PRODUCTS_QUERY, { variables: { first: 200 } }),
+        admin.graphql(COLLECTIONS_QUERY, { variables: { first: 100 } }),
         admin.graphql(ARTICLES_QUERY, { variables: { first: 100 } }),
         admin.graphql(PAGES_QUERY, { variables: { first: 50 } }),
       ]);
-      const [pj, aj, pgj] = await Promise.all([pRes.json(), aRes.json(), pgRes.json()]);
+      const [pj, cj, aj, pgj] = await Promise.all([pRes.json(), cRes.json(), aRes.json(), pgRes.json()]);
       const llmsProducts = (pj?.data?.products?.edges || []).map((e) => e.node).slice(0, 150);
+      const llmsCollections = (cj?.data?.collections?.edges || []).map((e) => e.node).slice(0, 50);
       const llmsArticles = (aj?.data?.articles?.edges || []).map((e) => e.node).slice(0, 30);
       const llmsPages = (pgj?.data?.pages?.edges || []).map((e) => e.node).slice(0, 20);
 
       const result = await generateLlmsTxt(shop, {
         products: llmsProducts,
+        collections: llmsCollections,
         articles: llmsArticles,
         pages: llmsPages,
         shopName,
@@ -850,6 +871,7 @@ function ResourceTab({ items, resourceType, onSelectItem, selectedIds, onToggleI
 export default function AiVisibilityPage() {
   const {
     products: initialProducts,
+    collections: initialCollections,
     articles: initialArticles,
     pages: initialPages,
     llmsTxt: initialLlmsTxt,
@@ -863,6 +885,7 @@ export default function AiVisibilityPage() {
   const embedFetcher = useFetcher();
   const autoEnableFetcher = useFetcher();
   const [products, setProducts] = useState(initialProducts);
+  const [collections, setCollections] = useState(initialCollections);
   const [articles, setArticles] = useState(initialArticles);
   const [pages, setPages] = useState(initialPages);
   const [llmsTxt, setLlmsTxt] = useState(initialLlmsTxt);
@@ -873,15 +896,15 @@ export default function AiVisibilityPage() {
   const [embedEnabled, setEmbedEnabled] = useState(initialEmbedEnabled);
   const [verifyResult, setVerifyResult] = useState(null); // { ok, enabled, error } after Verify click
   const [credits, setCredits] = useState(initialCredits);
-  const [selectedIdsByType, setSelectedIdsByType] = useState({ product: [], article: [], page: [] });
+  const [selectedIdsByType, setSelectedIdsByType] = useState({ product: [], collection: [], article: [], page: [] });
 
   // Derive selectedItem from live list state so modal updates instantly after generation
   const selectedItem = useMemo(() => {
     if (!selectedItemKey) return null;
     const { id, resourceType } = selectedItemKey;
-    const list = resourceType === "product" ? products : resourceType === "article" ? articles : pages;
+    const list = resourceType === "product" ? products : resourceType === "collection" ? collections : resourceType === "article" ? articles : pages;
     return list.find((item) => item.id === id) || null;
-  }, [selectedItemKey, products, articles, pages]);
+  }, [selectedItemKey, products, collections, articles, pages]);
 
   const isSubmitting = fetcher.state !== "idle";
 
@@ -908,6 +931,7 @@ export default function AiVisibilityPage() {
       items.map((item) => (item.id === resourceId ? rebuildItemScore({ ...item, ...patch }) : item));
 
     if (resourceType === "product") setProducts(updateItems);
+    if (resourceType === "collection") setCollections(updateItems);
     if (resourceType === "article") setArticles(updateItems);
     if (resourceType === "page") setPages(updateItems);
   }, [rebuildItemScore]);
@@ -915,6 +939,7 @@ export default function AiVisibilityPage() {
   const markAllItemsInLlmsTxt = useCallback(() => {
     const updateItems = (items) => items.map((item) => rebuildItemScore({ ...item, hasLlmsTxt: true }));
     setProducts(updateItems);
+    setCollections(updateItems);
     setArticles(updateItems);
     setPages(updateItems);
   }, [rebuildItemScore]);
@@ -1028,7 +1053,7 @@ export default function AiVisibilityPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const allItems = [...products, ...articles, ...pages];
+  const allItems = [...products, ...collections, ...articles, ...pages];
   const totalScore =
     allItems.length > 0
       ? Math.round(allItems.reduce((sum, i) => sum + i.score, 0) / allItems.length)
@@ -1074,11 +1099,12 @@ export default function AiVisibilityPage() {
 
   const tabs = [
     { id: "products", content: `Products (${products.length})` },
+    { id: "collections", content: `Collections (${collections.length})` },
     { id: "blogs", content: `Blogs (${articles.length})` },
     { id: "pages", content: `Pages (${pages.length})` },
   ];
-  const tabItems = [products, articles, pages];
-  const tabTypes = ["product", "article", "page"];
+  const tabItems = [products, collections, articles, pages];
+  const tabTypes = ["product", "collection", "article", "page"];
   const activeResourceType = tabTypes[selectedTab];
   const activeItems = tabItems[selectedTab];
   const selectedIds = selectedIdsByType[activeResourceType] || [];

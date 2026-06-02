@@ -1,49 +1,23 @@
 {%- liquid
-  assign bid            = block.id
-  assign heading_prefix = block.settings.heading_prefix | default: 'Frequently Asked'
-  assign heading_bold   = block.settings.heading_bold   | default: 'Questions'
-  assign subheading     = block.settings.subheading
-  assign bg_color       = block.settings.background_color
-  assign heading_color  = block.settings.heading_color
-  assign text_color     = block.settings.text_color
-  assign open_first     = block.settings.open_first
-  assign show_divider   = block.settings.show_divider
+  assign bid = block.id
+  assign title = block.settings.title | default: 'Frequently Asked Questions'
+  assign subheading = block.settings.subheading
+  assign bg_color = block.settings.background_color
+  assign heading_color = block.settings.heading_color
+  assign text_color = block.settings.text_color
+  assign open_first = block.settings.open_first
+  assign show_divider = block.settings.show_divider
 
-  # Try AI-generated FAQ from the product metafield first.
-  # Metafield namespace: content_ai_geo, key: faq_json (type: json)
-  # Structure: { "mainEntity": [{ "name": "Q", "acceptedAnswer": { "text": "A" } }] }
-  assign ai_faq_items = nil
+  assign faq_items = nil
   if product
     assign faq_meta = product.metafields.content_ai_geo.faq_json
     if faq_meta != blank
-      assign ai_faq_items = faq_meta.value.mainEntity
+      assign faq_items = faq_meta.value.mainEntity
     endif
-  endif
-
-  # Determine whether we have anything to render
-  assign use_ai   = false
-  assign has_any  = false
-  if ai_faq_items != blank and ai_faq_items.size > 0
-    assign use_ai  = true
-    assign has_any = true
-  elsif block.settings.q1 != blank and block.settings.a1 != blank
-    assign has_any = true
-  elsif block.settings.q2 != blank and block.settings.a2 != blank
-    assign has_any = true
-  elsif block.settings.q3 != blank and block.settings.a3 != blank
-    assign has_any = true
-  elsif block.settings.q4 != blank and block.settings.a4 != blank
-    assign has_any = true
-  elsif block.settings.q5 != blank and block.settings.a5 != blank
-    assign has_any = true
-  elsif block.settings.q6 != blank and block.settings.a6 != blank
-    assign has_any = true
-  elsif block.settings.q7 != blank and block.settings.a7 != blank
-    assign has_any = true
   endif
 -%}
 
-{%- if has_any -%}
+{%- if faq_items != blank and faq_items.size > 0 -%}
 
 <style>
   #cai-faq-{{ bid }} {
@@ -62,10 +36,6 @@
     font-weight: 700;
     line-height: 1.3;
     margin: 0 0 {{ block.settings.heading_spacing }}px;
-    color: {{ heading_color }};
-  }
-  #cai-faq-{{ bid }} .cai-faq__heading strong {
-    font-weight: 700;
     color: {{ heading_color }};
   }
   #cai-faq-{{ bid }} .cai-faq__subheading {
@@ -140,12 +110,12 @@
     line-height: 1.7;
     opacity: 0.85;
   }
-  #cai-faq-{{ bid }} .cai-faq__answer p  { margin: 0 0 10px; }
+  #cai-faq-{{ bid }} .cai-faq__answer p { margin: 0 0 10px; }
   #cai-faq-{{ bid }} .cai-faq__answer p:last-child { margin: 0; }
   #cai-faq-{{ bid }} .cai-faq__answer ul,
   #cai-faq-{{ bid }} .cai-faq__answer ol { margin: 0 0 10px; padding-left: 20px; }
   #cai-faq-{{ bid }} .cai-faq__answer li { margin-bottom: 4px; }
-  #cai-faq-{{ bid }} .cai-faq__answer a  { color: {{ block.settings.accent_color }}; }
+  #cai-faq-{{ bid }} .cai-faq__answer a { color: {{ block.settings.accent_color }}; }
 </style>
 
 {%- capture faq_chevron -%}
@@ -160,100 +130,32 @@
 
 <div id="cai-faq-{{ bid }}" class="cai-faq-block" {{ block.shopify_attributes }}>
   <div class="cai-faq__inner">
-
-    {%- if heading_prefix != blank or heading_bold != blank -%}
-    <h2 class="cai-faq__heading">
-      {%- if heading_prefix != blank -%}{{ heading_prefix }}{%- endif -%}
-      {%- if heading_prefix != blank and heading_bold != blank %} {% endif -%}
-      {%- if heading_bold != blank -%} {{ heading_bold }}{%- endif -%}
-    </h2>
+    {%- if title != blank -%}
+      <h2 class="cai-faq__heading">{{ title | escape }}</h2>
     {%- endif -%}
 
     {%- if subheading != blank -%}
-    <p class="cai-faq__subheading">{{ subheading }}</p>
+      <p class="cai-faq__subheading">{{ subheading }}</p>
     {%- endif -%}
 
     {%- assign item_class = 'cai-faq__item' -%}
-    {%- if show_divider -%}{%- assign item_class = 'cai-faq__item cai-faq__item--divider' -%}{%- endif -%}
+    {%- if show_divider -%}
+      {%- assign item_class = 'cai-faq__item cai-faq__item--divider' -%}
+    {%- endif -%}
 
     <div class="cai-faq__list">
-
-      {%- if use_ai -%}
-        {%- comment -%} ── AI-generated FAQ from product metafield ── {%- endcomment -%}
-        {%- for entity in ai_faq_items -%}
-          {%- assign q = entity.name -%}
-          {%- assign a = entity.acceptedAnswer.text -%}
-          {%- if q != blank and a != blank -%}
-            <details class="{{ item_class }}"{% if open_first and forloop.first %} open{% endif %}>
-              <summary class="cai-faq__summary">
-                <span class="cai-faq__question">{{ q | escape }}</span>{{ faq_chevron }}
-              </summary>
-              <div class="cai-faq__answer">{{ a }}</div>
-            </details>
-          {%- endif -%}
-        {%- endfor -%}
-
-      {%- else -%}
-        {%- comment -%} ── Manual FAQ items from block settings ── {%- endcomment -%}
-        {%- assign faq_index = 0 -%}
-
-        {%- if block.settings.q1 != blank and block.settings.a1 != blank -%}
-          {%- assign faq_index = faq_index | plus: 1 -%}
-          <details class="{{ item_class }}"{% if open_first and faq_index == 1 %} open{% endif %}>
-            <summary class="cai-faq__summary"><span class="cai-faq__question">{{ block.settings.q1 | escape }}</span>{{ faq_chevron }}</summary>
-            <div class="cai-faq__answer">{{ block.settings.a1 }}</div>
+      {%- for entity in faq_items -%}
+        {%- assign question = entity.name -%}
+        {%- assign answer = entity.acceptedAnswer.text -%}
+        {%- if question != blank and answer != blank -%}
+          <details class="{{ item_class }}"{% if open_first and forloop.first %} open{% endif %}>
+            <summary class="cai-faq__summary">
+              <span class="cai-faq__question">{{ question | escape }}</span>{{ faq_chevron }}
+            </summary>
+            <div class="cai-faq__answer">{{ answer }}</div>
           </details>
         {%- endif -%}
-
-        {%- if block.settings.q2 != blank and block.settings.a2 != blank -%}
-          {%- assign faq_index = faq_index | plus: 1 -%}
-          <details class="{{ item_class }}"{% if open_first and faq_index == 1 %} open{% endif %}>
-            <summary class="cai-faq__summary"><span class="cai-faq__question">{{ block.settings.q2 | escape }}</span>{{ faq_chevron }}</summary>
-            <div class="cai-faq__answer">{{ block.settings.a2 }}</div>
-          </details>
-        {%- endif -%}
-
-        {%- if block.settings.q3 != blank and block.settings.a3 != blank -%}
-          {%- assign faq_index = faq_index | plus: 1 -%}
-          <details class="{{ item_class }}"{% if open_first and faq_index == 1 %} open{% endif %}>
-            <summary class="cai-faq__summary"><span class="cai-faq__question">{{ block.settings.q3 | escape }}</span>{{ faq_chevron }}</summary>
-            <div class="cai-faq__answer">{{ block.settings.a3 }}</div>
-          </details>
-        {%- endif -%}
-
-        {%- if block.settings.q4 != blank and block.settings.a4 != blank -%}
-          {%- assign faq_index = faq_index | plus: 1 -%}
-          <details class="{{ item_class }}"{% if open_first and faq_index == 1 %} open{% endif %}>
-            <summary class="cai-faq__summary"><span class="cai-faq__question">{{ block.settings.q4 | escape }}</span>{{ faq_chevron }}</summary>
-            <div class="cai-faq__answer">{{ block.settings.a4 }}</div>
-          </details>
-        {%- endif -%}
-
-        {%- if block.settings.q5 != blank and block.settings.a5 != blank -%}
-          {%- assign faq_index = faq_index | plus: 1 -%}
-          <details class="{{ item_class }}"{% if open_first and faq_index == 1 %} open{% endif %}>
-            <summary class="cai-faq__summary"><span class="cai-faq__question">{{ block.settings.q5 | escape }}</span>{{ faq_chevron }}</summary>
-            <div class="cai-faq__answer">{{ block.settings.a5 }}</div>
-          </details>
-        {%- endif -%}
-
-        {%- if block.settings.q6 != blank and block.settings.a6 != blank -%}
-          {%- assign faq_index = faq_index | plus: 1 -%}
-          <details class="{{ item_class }}"{% if open_first and faq_index == 1 %} open{% endif %}>
-            <summary class="cai-faq__summary"><span class="cai-faq__question">{{ block.settings.q6 | escape }}</span>{{ faq_chevron }}</summary>
-            <div class="cai-faq__answer">{{ block.settings.a6 }}</div>
-          </details>
-        {%- endif -%}
-
-        {%- if block.settings.q7 != blank and block.settings.a7 != blank -%}
-          <details class="{{ item_class }}">
-            <summary class="cai-faq__summary"><span class="cai-faq__question">{{ block.settings.q7 | escape }}</span>{{ faq_chevron }}</summary>
-            <div class="cai-faq__answer">{{ block.settings.a7 }}</div>
-          </details>
-        {%- endif -%}
-
-      {%- endif -%}
-
+      {%- endfor -%}
     </div>
   </div>
 </div>
@@ -272,43 +174,43 @@
     {
       "type": "color",
       "id": "background_color",
-      "label": "Background Color",
+      "label": "Background color",
       "default": "#ffffff"
     },
     {
       "type": "color",
       "id": "heading_color",
-      "label": "Heading Color",
+      "label": "Heading color",
       "default": "#111827"
     },
     {
       "type": "color",
       "id": "text_color",
-      "label": "Text Color",
+      "label": "Text color",
       "default": "#111111"
     },
     {
       "type": "color",
       "id": "subheading_color",
-      "label": "Subheading Color",
+      "label": "Subheading color",
       "default": "#6b7280"
     },
     {
       "type": "color",
       "id": "card_bg",
-      "label": "Card Background",
+      "label": "Card background",
       "default": "#ffffff"
     },
     {
       "type": "color",
       "id": "card_border",
-      "label": "Card Border Color",
+      "label": "Card border color",
       "default": "#e5e7eb"
     },
     {
       "type": "color",
       "id": "accent_color",
-      "label": "Accent Color",
+      "label": "Accent color",
       "default": "#6366f1"
     },
     {
@@ -317,20 +219,14 @@
     },
     {
       "type": "text",
-      "id": "heading_prefix",
-      "label": "Heading – normal text",
-      "default": "Frequently Asked"
-    },
-    {
-      "type": "text",
-      "id": "heading_bold",
-      "label": "Heading – bold text",
-      "default": "Questions"
+      "id": "title",
+      "label": "Title",
+      "default": "Frequently Asked Questions"
     },
     {
       "type": "text",
       "id": "subheading",
-      "label": "Subheading (optional)"
+      "label": "Subheading"
     },
     {
       "type": "range",
@@ -378,7 +274,7 @@
     },
     {
       "type": "header",
-      "content": "FAQ Items"
+      "content": "FAQ items"
     },
     {
       "type": "checkbox",
@@ -467,21 +363,7 @@
       "step": 1,
       "unit": "px",
       "default": 14
-    },
-    { "type": "text",     "id": "q1", "label": "Question 1", "default": "How do you handle security and privacy?" },
-    { "type": "richtext", "id": "a1", "label": "Answer 1",   "default": "<p>We take security and privacy seriously. All data is encrypted in transit and at rest. We never sell your data to third parties.</p>" },
-    { "type": "text",     "id": "q2", "label": "Question 2", "default": "Is there a limit to the number of messages I can send?" },
-    { "type": "richtext", "id": "a2", "label": "Answer 2",   "default": "<p>No — there is no limit. You can send as many messages as you need, on any plan.</p>" },
-    { "type": "text",     "id": "q3", "label": "Question 3", "default": "Can I send attachments?" },
-    { "type": "richtext", "id": "a3", "label": "Answer 3",   "default": "<p>Yes. You can attach images, documents, and files up to 25 MB each.</p>" },
-    { "type": "text",     "id": "q4", "label": "Question 4", "default": "How does your pricing work?" },
-    { "type": "richtext", "id": "a4", "label": "Answer 4",   "default": "<p>We offer monthly and annual plans. Annual plans save you 20%. You can upgrade or downgrade at any time.</p>" },
-    { "type": "text",     "id": "q5", "label": "Question 5", "default": "Can I use my own domain?" },
-    { "type": "richtext", "id": "a5", "label": "Answer 5",   "default": "<p>Yes — all paid plans include custom domain support. You can connect your domain in account settings within minutes.</p>" },
-    { "type": "text",     "id": "q6", "label": "Question 6" },
-    { "type": "richtext", "id": "a6", "label": "Answer 6" },
-    { "type": "text",     "id": "q7", "label": "Question 7" },
-    { "type": "richtext", "id": "a7", "label": "Answer 7" }
+    }
   ]
 }
 {% endschema %}

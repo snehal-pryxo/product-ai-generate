@@ -43,6 +43,19 @@ Return a single JSON object with @context ("https://schema.org"), @type ("WebPag
   };
 }
 
+export function buildCollectionSchemaPrompt({ title, description, url }) {
+  const excerpt = (description || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().substring(0, 500);
+  return {
+    systemPrompt: "You generate valid Schema.org JSON-LD for Shopify collections. Return ONLY raw JSON - no markdown fences, no explanation.",
+    prompt: `Generate a complete Schema.org CollectionPage JSON-LD object for this Shopify collection:
+- Name: ${title}
+- Description: ${excerpt || "N/A"}
+- URL: ${url}
+
+Return a single JSON object with @context ("https://schema.org"), @type ("CollectionPage"), name, description, url, and mainEntity as an ItemList when appropriate.`,
+  };
+}
+
 export function buildProductFaqPrompt({ title, description, language = "English" }) {
   return {
     systemPrompt: "You generate FAQ pairs for Shopify products. Return ONLY a raw JSON array — no markdown fences, no explanation.",
@@ -104,7 +117,7 @@ Return ONLY this exact JSON structure (no other text):
   };
 }
 
-export function buildLlmsTxtPrompt({ shopName, shopDomain, products, articles, pages }) {
+export function buildLlmsTxtPrompt({ shopName, shopDomain, products, articles, pages, collections = [] }) {
   const productLines = products
     .map((p) => `- [${p.title}](https://${shopDomain}/products/${p.handle}): ${(p.description || p.title).substring(0, 100)}`)
     .join("\n");
@@ -113,6 +126,9 @@ export function buildLlmsTxtPrompt({ shopName, shopDomain, products, articles, p
     .join("\n");
   const pageLines = pages
     .map((p) => `- [${p.title}](https://${shopDomain}/pages/${p.handle}): ${(p.bodySummary || p.title).substring(0, 100)}`)
+    .join("\n");
+  const collectionLines = collections
+    .map((c) => `- [${c.title}](https://${shopDomain}/collections/${c.handle}): ${(c.description || c.descriptionHtml || c.title).replace(/<[^>]+>/g, " ").substring(0, 100)}`)
     .join("\n");
 
   return {
@@ -124,6 +140,9 @@ Domain: ${shopDomain}
 
 Products (${products.length}):
 ${productLines || "None"}
+
+Collections (${collections.length}):
+${collectionLines || "None"}
 
 Blog Posts (${articles.length}):
 ${articleLines || "None"}
@@ -137,6 +156,9 @@ Required format — return ONLY this structure with real content:
 
 ## Products
 [list of product links with one-sentence descriptions]
+
+## Collections
+[list of collection links with one-sentence descriptions]
 
 ## Blog Posts
 [list of article links with one-sentence summaries]

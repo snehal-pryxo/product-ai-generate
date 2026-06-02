@@ -1,7 +1,8 @@
 import { useLocation, useNavigate, useRouteLoaderData } from "react-router";
 import { BlockStack, Button, Card, InlineStack, Text } from "@shopify/polaris";
+import { openAddCreditModal } from "./AddCreditModal";
 
-export function AppPageHeader({ title, description, ownerName, ownerLabel = "Owner" }) {
+export function AppPageHeader({ title, description }) {
   const navigate = useNavigate();
   const location = useLocation();
   const appLoaderData = useRouteLoaderData("routes/app");
@@ -13,11 +14,6 @@ export function AppPageHeader({ title, description, ownerName, ownerLabel = "Own
       <Card>
         <InlineStack align="space-between" blockAlign="center" wrap>
           <BlockStack gap="100">
-            {ownerName ? (
-              <Text as="p" variant="bodySm" tone="subdued">
-                {ownerLabel}: {ownerName}
-              </Text>
-            ) : null}
             {title ? (
               <Text as="h2" variant="headingLg">
                 {title}
@@ -31,6 +27,9 @@ export function AppPageHeader({ title, description, ownerName, ownerLabel = "Own
             <Text as="span" variant="headingSm" tone="subdued">
               Available credits: {formattedCredits}
             </Text>
+            <Button onClick={openAddCreditModal}>
+              Add Credit
+            </Button>
             <button
               onClick={() => navigate({ pathname: "/app/pricing", search: location.search })}
               style={{

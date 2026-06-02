@@ -3,6 +3,7 @@ import { getApiKeys, callAIRaw } from "./generateContent.server";
 import { deductCredits, refundCredits } from "./credits.server";
 import {
   buildProductSchemaPrompt,
+  buildCollectionSchemaPrompt,
   buildArticleSchemaPrompt,
   buildPageSchemaPrompt,
   buildProductFaqPrompt,
@@ -264,6 +265,13 @@ export async function generateSchema(shop, adminContext, resourceType, resource)
       blogTitle: resource.blog?.title,
     });
     schemaType = "BlogPosting";
+  } else if (resourceType === "collection") {
+    promptObj = buildCollectionSchemaPrompt({
+      title: resource.title,
+      description: (resource.description || resource.descriptionHtml || "").substring(0, 500),
+      url: `https://${shop}/collections/${resource.handle}`,
+    });
+    schemaType = "CollectionPage";
   } else if (resourceType === "page") {
     promptObj = buildPageSchemaPrompt({
       title: resource.title,
@@ -671,11 +679,11 @@ export async function generateCombined(shop, adminContext, resource) {
   }
 }
 
-export async function generateLlmsTxt(shop, { products, articles, pages, shopName, shopDomain }) {
-  const itemCount = products.length + articles.length + pages.length;
+export async function generateLlmsTxt(shop, { products, articles, pages, collections = [], shopName, shopDomain }) {
+  const itemCount = products.length + articles.length + pages.length + collections.length;
   const credits = calcLlmsTxtCredits(itemCount);
   const aiOptions = await getAiOptions(shop);
-  const promptObj = buildLlmsTxtPrompt({ shopName, shopDomain, products, articles, pages });
+  const promptObj = buildLlmsTxtPrompt({ shopName, shopDomain, products, articles, pages, collections });
 
   await deductCredits({ shopDomain: shop, creditsUsed: credits });
   try {

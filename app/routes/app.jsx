@@ -6,6 +6,7 @@ import { AppProvider as PolarisProvider, Spinner, Text } from "@shopify/polaris"
 import enTranslations from "@shopify/polaris/locales/en.json";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
+import { AddCreditModal, openAddCreditModal } from "../components/AddCreditModal";
 import { refreshMonthlyPlanCredits } from "../lib/billing.server";
 import { normalizeStoredGlobalSettings, writeGlobalSettings } from "../lib/globalSettings";
 import {
@@ -102,6 +103,17 @@ export default function App() {
   const isBusy = navigation.state !== "idle" || fetchers.some((fetcher) => fetcher.state !== "idle");
 
   useEffect(() => {
+    const hasInsufficientCredits = fetchers.some((fetcher) => {
+      const data = fetcher.data;
+      const message = String(data?.error || data?.message || "");
+      return /insufficient credits/i.test(message);
+    });
+    if (hasInsufficientCredits) {
+      openAddCreditModal();
+    }
+  }, [fetchers]);
+
+  useEffect(() => {
     // Keep localStorage mirrored with DB values for client-side pages using local settings utilities.
     writeGlobalSettings(globalSettings);
     writeStoredProductPromptTemplateSelection(templateSelections.product);
@@ -158,6 +170,7 @@ export default function App() {
           </div>
         )}
         <Outlet />
+        <AddCreditModal />
       </ShopifyAppProvider>
     </PolarisProvider>
   );

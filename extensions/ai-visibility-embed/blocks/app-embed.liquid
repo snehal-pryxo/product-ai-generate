@@ -5,6 +5,8 @@
   if product
     assign schema_meta = product.metafields.content_ai_geo.schema_json
     assign faq_meta = product.metafields.content_ai_geo.faq_json
+  elsif collection
+    assign schema_meta = collection.metafields.content_ai_geo.schema_json
   elsif article
     assign schema_meta = article.metafields.content_ai_geo.schema_json
     assign faq_meta = article.metafields.content_ai_geo.faq_json

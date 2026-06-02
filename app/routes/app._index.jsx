@@ -524,6 +524,17 @@ function formatPrice(price) {
   })}/month`;
 }
 
+function getFirstName(name) {
+  return String(name || "Shop Owner").trim().split(/\s+/)[0] || "Shop Owner";
+}
+
+function getTimeGreeting(date = new Date()) {
+  const hour = date.getHours();
+  if (hour < 12) return "Good Morning";
+  if (hour < 17) return "Good Afternoon";
+  return "Good Evening";
+}
+
 function SeoDonut({ score }) {
   const radius = 48;
   const circumference = 2 * Math.PI * radius;
@@ -586,6 +597,8 @@ export default function Index() {
   const formattedCreditsLeft = Number(creditsLeft || 0).toLocaleString("en-US");
   const formattedCreditsUsed = Number(creditsUsedTotal || 0).toLocaleString("en-US");
   const currentPlanWithPrice = `${currentPlan || "FREE"} - ${formatPrice(currentPlanPrice)}`;
+  const firstName = getFirstName(shopOwnerName);
+  const greetingTitle = `${getTimeGreeting()} ${firstName}!`;
   const kpiItems = [
     { id: "generated", label: "Generated", value: `${formattedGeneratedWords} words`, icon: ProductIcon },
     { id: "timeSaved", label: "Time Saved", value: `${formattedTimeSaved} hours`, icon: ChartVerticalIcon },
@@ -742,9 +755,7 @@ export default function Index() {
           </Modal>
 
           <AppPageHeader
-            ownerName={shopOwnerName}
-            ownerLabel="Owner"
-            title={`Hi ${shopOwnerName}!`}
+            title={greetingTitle}
             description="Manage your apps and generate high-converting AI content for your store."
           />
 

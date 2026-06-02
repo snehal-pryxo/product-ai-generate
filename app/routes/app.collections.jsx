@@ -36,6 +36,7 @@ import {
   XIcon,
   ExternalIcon,
 } from "@shopify/polaris-icons";
+import { openAddCreditModal } from "../components/AddCreditModal";
 import db from "../db.server";
 import { inngest } from "../inngest/client";
 import { authenticate } from "../shopify.server";
@@ -2919,7 +2920,7 @@ export default function CollectionsPage() {
             )}
 
             {/* Generate Button */}
-            <div style={{ padding: "12px 16px" }}>
+            <div style={{ padding: "12px 16px", display: "flex", gap: 8, flexWrap: "wrap" }}>
               <Button
                 style={{ width: "fit-content" }}
                 variant="primary"
@@ -2932,6 +2933,11 @@ export default function CollectionsPage() {
                   ? `Generate ${estimatedTargetItems} items (${requiredBulkCredits} credits)`
                   : `Generate ${selectedCollections.length} items (${requiredBulkCredits} credits)`}
               </Button>
+              {insufficientCredits ? (
+                <Button onClick={openAddCreditModal}>
+                  Add Credit
+                </Button>
+              ) : null}
             </div>
           </Card>
         </div>
