@@ -5,7 +5,7 @@ import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import {
   Page, Layout, Card, Text, Badge, Button, DataTable, Tabs, Box, BlockStack,
-  InlineStack, ProgressBar, Banner, Collapsible, Modal, Select, Checkbox, Link,
+  InlineStack, ProgressBar, Banner, Collapsible, Modal, Select, Checkbox,
 } from "@shopify/polaris";
 import {
   generateSchema,
@@ -927,7 +927,6 @@ export default function AiVisibilityPage() {
     pages: initialPages,
     llmsTxt: initialLlmsTxt,
     shop,
-    shopDomain,
     appApiKey,
     themeEmbedEnabled: initialEmbedEnabled,
     llmsTxtCredits,
@@ -1177,8 +1176,6 @@ export default function AiVisibilityPage() {
   const bulkSchemaCredits = hasUnlimitedVisibility ? 0 : selectedItems.length * CREDITS_SCHEMA;
 
   const llmsTxtUrl = `https://${shop}/apps/llms-txt/llms.text`;
-  const llmsTxtFileUrl = `https://${shopDomain}/apps/llms-txt/llms.txt`;
-  const agentMdFileUrl = `https://${shopDomain}/apps/llms-txt/agent.md`;
   // activateAppId uses the block *filename* (without .liquid), not the extension handle.
   // blocks/app-embed.liquid → handle = "app-embed"
   const appEmbedActivation = appApiKey
@@ -1359,31 +1356,6 @@ export default function AiVisibilityPage() {
                     </Button>
                   )}
                 </InlineStack>
-
-                <Box borderColor="border" borderBlockStartWidth="025" paddingBlockStart="200">
-                  <BlockStack gap="150">
-                    {[
-                      { label: "LLMs.txt", url: llmsTxtFileUrl },
-                      { label: "Agent.md", url: agentMdFileUrl },
-                    ].map(({ label, url }) => (
-                      <InlineStack key={label} gap="150" blockAlign="center" wrap={false}>
-                        <Text variant="bodySm" tone="subdued" as="span" fontWeight="semibold">{label}:</Text>
-                        <div style={{ overflow: "hidden", flex: 1, minWidth: 0 }}>
-                          <Link url={url} target="_blank" removeUnderline>
-                            <Text variant="bodySm" as="span" breakWord>{url}</Text>
-                          </Link>
-                        </div>
-                        <Button
-                          size="slim"
-                          variant="plain"
-                          onClick={() => { if (typeof navigator !== "undefined") navigator.clipboard.writeText(url); }}
-                        >
-                          Copy
-                        </Button>
-                      </InlineStack>
-                    ))}
-                  </BlockStack>
-                </Box>
 
                 <Box borderColor="border" borderBlockStartWidth="025" paddingBlockStart="300">
                   <BlockStack gap="200">

@@ -26,7 +26,6 @@ const DEFAULT_SUBSCRIPTION_PLANS = [
   {
     key: "starter",
     name: "Basic",
-    listPrice: 14.99,
     price: 9.99,
     yearlyPrice: 99.90,
     credits: 1500,
@@ -47,7 +46,6 @@ const DEFAULT_SUBSCRIPTION_PLANS = [
   {
     key: "growth",
     name: "Pro",
-    listPrice: 19.99,
     price: 14.99,
     yearlyPrice: 149.90,
     credits: 5000,
@@ -163,14 +161,9 @@ export function getSubscriptionPlans(env = {}) {
     const resolvedYearlyPrice = plan.yearlyPrice != null
       ? plan.yearlyPrice
       : computeYearlyPrice(monthly.price);
-    // yearlyListPrice = what you'd pay at monthly rate for 12 months (no discount)
-    const yearlyListPrice = monthly.price > 0
-      ? Math.round(monthly.price * 12 * 100) / 100
-      : null;
     return {
       ...monthly,
       yearlyPrice: resolvedYearlyPrice,
-      yearlyListPrice,
       yearlyCredits: monthly.credits * 12,
       yearlyCreditsPerMonth: monthly.credits,
     };
