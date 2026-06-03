@@ -2848,7 +2848,7 @@ export default function BlogPage() {
   const tabItems = [
     { id: TAB_KEYS.BUSINESS, content: "Business Blog" },
     { id: TAB_KEYS.PROMOTION, content: "Promotion" },
-    ...(isFreePlan ? [] : [{ id: TAB_KEYS.PILLAR, content: "Pillar Article" }]),
+    { id: TAB_KEYS.PILLAR, content: "Pillar Article", disabled: isFreePlan },
     { id: TAB_KEYS.CUSTOM, content: "Create Your Own" },
   ];
 
