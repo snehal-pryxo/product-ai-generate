@@ -11,18 +11,19 @@ function buildEmbeddedHost(shop) {
   return Buffer.from(`${shop}/admin`).toString("base64");
 }
 
-function buildPricingRedirect(sourceUrl, result) {
-  const pricingUrl = new URL("/app/pricing", sourceUrl.origin);
-  pricingUrl.searchParams.set("success", String(Boolean(result.success)));
-  pricingUrl.searchParams.set("message", result.message || "");
+function buildBillingRedirect(sourceUrl, result, type) {
+  const targetPath = type === "subscription" && result.success ? "/app" : "/app/pricing";
+  const targetUrl = new URL(targetPath, sourceUrl.origin);
+  targetUrl.searchParams.set("success", String(Boolean(result.success)));
+  targetUrl.searchParams.set("message", result.message || "");
 
   const shop = sourceUrl.searchParams.get("shop");
   const host = sourceUrl.searchParams.get("host") || buildEmbeddedHost(shop);
-  if (shop) pricingUrl.searchParams.set("shop", shop);
-  if (host) pricingUrl.searchParams.set("host", host);
-  pricingUrl.searchParams.set("embedded", sourceUrl.searchParams.get("embedded") || "1");
+  if (shop) targetUrl.searchParams.set("shop", shop);
+  if (host) targetUrl.searchParams.set("host", host);
+  targetUrl.searchParams.set("embedded", sourceUrl.searchParams.get("embedded") || "1");
 
-  return pricingUrl.pathname + pricingUrl.search;
+  return targetUrl.pathname + targetUrl.search;
 }
 
 export const loader = async ({ request }) => {
@@ -54,7 +55,7 @@ export const loader = async ({ request }) => {
     });
   }
 
-  throw redirect(buildPricingRedirect(url, result));
+  throw redirect(buildBillingRedirect(url, result, type));
 };
 
 export default function BillingReturnPage() {

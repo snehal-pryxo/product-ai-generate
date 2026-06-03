@@ -220,6 +220,23 @@ export default function PricingPage() {
     return currentPlanKey === plan.key && Math.abs(Number(currentPlanPrice || 0) - Number(intervalPrice || 0)) < 0.01;
   }
 
+  function paidPlanFeaturePoints(plan, interval) {
+    const isYearly = interval === "yearly";
+    const baseFeatures = plan.features.slice(1);
+    if (isYearly) {
+      return [
+        `${formatCredits(plan.credits)} credits per month equivalent`,
+        `${YEARLY_DISCOUNT_MONTHS} months free with yearly billing`,
+        ...baseFeatures,
+      ];
+    }
+    return [
+      "Credits renew every 30 days",
+      "Cancel or change plan anytime",
+      ...baseFeatures,
+    ];
+  }
+
   function PaidPlanCard({ plan, interval }) {
     const isYearly = interval === "yearly";
     const intervalPrice = isYearly ? plan.yearlyPrice : plan.price;
@@ -270,7 +287,7 @@ export default function PricingPage() {
                       <strong>{formatCredits(intervalCredits)} credits</strong> {isYearly ? "included yearly" : "every month"}
                     </Text>
                   </InlineStack>
-                  {plan.features.slice(1).map((f) => (
+                  {paidPlanFeaturePoints(plan, interval).map((f) => (
                     <InlineStack key={f} gap="150" blockAlign="start" wrap={false}>
                       <CheckIcon />
                       <Text as="p" variant="bodySm">{f}</Text>
