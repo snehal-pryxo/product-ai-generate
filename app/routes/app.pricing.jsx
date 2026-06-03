@@ -243,12 +243,10 @@ export default function PricingPage() {
   function PaidPlanCard({ plan, interval }) {
     const isYearly = interval === "yearly";
     const intervalPrice = isYearly ? plan.yearlyPrice : plan.price;
-    const intervalListPrice = isYearly ? plan.yearlyListPrice : plan.listPrice;
     const intervalCredits = isYearly ? plan.yearlyCredits : plan.credits;
     const current = isCurrentPaidPlan(plan, interval);
     const yearlySavings = plan.price * 12 - intervalPrice;
     const yearlyPerMonth = intervalPrice / 12;
-    const hasDiscount = intervalListPrice && intervalListPrice > intervalPrice;
 
     return (
       <Grid.Cell>
@@ -265,16 +263,9 @@ export default function PricingPage() {
                 </InlineStack>
 
                 <BlockStack gap="100">
-                  <InlineStack gap="200" blockAlign="end" wrap={false}>
-                    {hasDiscount ? (
-                      <span className="pricing-list-price">{formatPrice(intervalListPrice)}<span className="pricing-list-price__unit">/{isYearly ? "year" : "month"}</span></span>
-                    ) : null}
-                    <InlineStack gap="050" blockAlign="end">
-                      <span className={hasDiscount ? "pricing-actual-price pricing-actual-price--discounted" : "pricing-actual-price"}>
-                        {formatPrice(intervalPrice)}
-                      </span>
-                      {!hasDiscount && <Text as="span" variant="bodySm" tone="subdued">/{isYearly ? "year" : "month"}</Text>}
-                    </InlineStack>
+                  <InlineStack gap="100" blockAlign="end">
+                    <Text as="p" variant="heading2xl">{formatPrice(intervalPrice)}</Text>
+                    <Text as="span" variant="bodySm" tone="subdued">/{isYearly ? "year" : "month"}</Text>
                   </InlineStack>
                   {isYearly ? (
                     <>
@@ -552,35 +543,6 @@ export default function PricingPage() {
           padding: 3px 10px;
           border-radius: 20px;
           width: fit-content;
-        }
-        .pricing-list-price {
-          font-size: 28px;
-          font-weight: 700;
-          color: #202223;
-          text-decoration: line-through;
-          white-space: nowrap;
-          border: 2px solid #d72c0d;
-          border-radius: 4px;
-          padding: 2px 6px;
-          line-height: 1.2;
-          display: inline-flex;
-          align-items: baseline;
-          gap: 1px;
-        }
-        .pricing-list-price__unit {
-          font-size: 13px;
-          font-weight: 400;
-          color: #6d7175;
-          text-decoration: none;
-        }
-        .pricing-actual-price {
-          font-size: 28px;
-          font-weight: 700;
-          color: #202223;
-          white-space: nowrap;
-        }
-        .pricing-actual-price--discounted {
-          color: #d72c0d;
         }
       `}</style>
     </Page>
