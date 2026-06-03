@@ -21,6 +21,7 @@ const DEFAULT_SUBSCRIPTION_PLANS = [
       "Generate up to 2 blog articles",
       "Generate LLMs.txt file for AI visibility",
       "Basic prompt templates",
+      "Email support",
     ],
   },
   {
@@ -41,6 +42,7 @@ const DEFAULT_SUBSCRIPTION_PLANS = [
       "JSON schema generation",
       "FAQ generation where supported",
       "LLMs.txt file generation",
+      "Email support",
     ],
   },
   {
@@ -62,6 +64,7 @@ const DEFAULT_SUBSCRIPTION_PLANS = [
       "JSON schema generation",
       "FAQ generation where supported",
       "LLMs.txt file generation",
+      "Priority email support",
     ],
   },
 ];
