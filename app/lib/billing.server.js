@@ -289,7 +289,8 @@ export async function activateSubscription({ admin, shop, planKey }) {
     db.shop.upsert({
       where: { shop },
       update: {
-        credits: { increment: pending.credits },
+        credits: pending.credits,
+        creditsUsedTotal: 0,
         billingPlanKey: pending.planKey,
         billingPlanName: pending.planName,
         billingPlanCredits: pending.credits,

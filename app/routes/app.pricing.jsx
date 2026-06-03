@@ -91,6 +91,7 @@ export const action = async ({ request }) => {
 
     if (intent === "select_free") {
       const freePlan = getSubscriptionPlans(process.env).find((p) => p.price <= 0);
+      const freeCredits = freePlan?.credits || 150;
       const shopData = await db.shop.findUnique({
         where: { shop: session.shop },
         select: { billingPlanKey: true, freePlanUsedAt: true },
@@ -103,9 +104,11 @@ export const action = async ({ request }) => {
       await db.shop.upsert({
         where: { shop: session.shop },
         update: {
+          credits: freeCredits,
+          creditsUsedTotal: 0,
           billingPlanKey: "free",
           billingPlanName: "Free",
-          billingPlanCredits: freePlan?.credits || 150,
+          billingPlanCredits: freeCredits,
           billingPlanPrice: 0,
           billingSubscriptionId: null,
           billingSubscriptionStatus: null,
@@ -115,10 +118,10 @@ export const action = async ({ request }) => {
         create: {
           shop: session.shop,
           installed: true,
-          credits: freePlan?.credits || 150,
+          credits: freeCredits,
           billingPlanKey: "free",
           billingPlanName: "Free",
-          billingPlanCredits: freePlan?.credits || 150,
+          billingPlanCredits: freeCredits,
           billingPlanPrice: 0,
           billingPlanActivatedAt: new Date(),
           freePlanUsedAt: new Date(),
