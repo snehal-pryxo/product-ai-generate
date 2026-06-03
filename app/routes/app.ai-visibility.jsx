@@ -1250,7 +1250,7 @@ export default function AiVisibilityPage() {
   }, [activeResourceType, bulkSchemaCredits, credits, fetcher, hasUnlimitedVisibility, isFreePlan, selectedItems]);
 
   return (
-    <Page fullWidth>
+    <Page>
       <BlockStack gap="400">
       <AppPageHeader title="AI Visibility" description="Optimize your store for AI-powered search engines" />
       {banner && (
@@ -1279,9 +1279,17 @@ export default function AiVisibilityPage() {
           grid-column: 1 / -1;
           order: -1;
         }
+        .ai-visibility-llms-settings-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 16px 24px;
+        }
         @media (max-width: 760px) {
           .ai-visibility-summary-grid {
             grid-template-columns: 1fr;
+          }
+          .ai-visibility-llms-settings-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
           }
         }
       `}</style>
@@ -1354,7 +1362,7 @@ export default function AiVisibilityPage() {
                       <Text variant="headingSm" as="h3">LLMs.txt Settings</Text>
                       {llmsSettingsFetcher.state !== "idle" ? <Badge tone="info">Saving</Badge> : null}
                     </InlineStack>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px 14px" }}>
+                    <div className="ai-visibility-llms-settings-grid">
                       {llmsSettingOptions.map(([key, label]) => (
                         <Checkbox
                           key={key}
