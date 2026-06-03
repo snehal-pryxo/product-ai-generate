@@ -1175,7 +1175,7 @@ export default function AiVisibilityPage() {
   const selectedItems = activeItems.filter((item) => selectedIds.includes(item.id));
   const bulkSchemaCredits = hasUnlimitedVisibility ? 0 : selectedItems.length * CREDITS_SCHEMA;
 
-  const llmsTxtUrl = `https://${shop}/apps/llms-txt`;
+  const llmsTxtUrl = `https://${shop}/apps/llms-txt/llms.text`;
   // activateAppId uses the block *filename* (without .liquid), not the extension handle.
   // blocks/app-embed.liquid → handle = "app-embed"
   const appEmbedActivation = appApiKey

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useFetcher } from "react-router";
-import { BlockStack, Box, Button, InlineStack, Modal, Text, TextField } from "@shopify/polaris";
+import { BlockStack, Box, Button, InlineStack, Link, Modal, Text, TextField } from "@shopify/polaris";
 import {
   getCreditPurchasePrice,
   normalizeCreditPurchaseAmount,
@@ -141,6 +141,12 @@ export function AddCreditModal() {
               </InlineStack>
             </Box>
           </BlockStack>
+
+          <InlineStack align="end">
+            <Text as="p" variant="bodySm" tone="subdued">
+              Need a monthly plan? <Link url="/app/pricing">View pricing plans</Link>
+            </Text>
+          </InlineStack>
 
           {fetcher.data?.message && !fetcher.data?.success ? (
             <Text as="p" variant="bodySm" tone="critical">

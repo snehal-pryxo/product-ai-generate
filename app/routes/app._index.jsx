@@ -48,6 +48,7 @@ import {
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
+  const url = new URL(request.url);
   const shopData = await db.shop.findUnique({
     where: { shop: session.shop },
     select: {
@@ -351,6 +352,8 @@ export const loader = async ({ request }) => {
     shop: session.shop,
     appApiKey: process.env.SHOPIFY_API_KEY || "",
     faqProductPageBlockAdded,
+    billingMessage: url.searchParams.get("message") || "",
+    billingSuccess: url.searchParams.get("success") || "",
   };
 };
 
@@ -555,6 +558,8 @@ export default function Index() {
     shop,
     appApiKey,
     faqProductPageBlockAdded,
+    billingMessage,
+    billingSuccess,
   } = useLoaderData();
   const actionData = useActionData();
   const reviewFetcher = useFetcher();
@@ -569,6 +574,8 @@ export default function Index() {
   const formattedCreditsLeft = Number(creditsLeft || 0).toLocaleString("en-US");
   const formattedCreditsUsed = Number(creditsUsedTotal || 0).toLocaleString("en-US");
   const currentPlanWithPrice = `${currentPlan || "FREE"} - ${formatPrice(currentPlanPrice)}`;
+  const billingBannerTone =
+    billingSuccess === "true" ? "success" : billingSuccess === "false" ? "critical" : null;
   const firstName = getFirstName(shopOwnerName);
   const greetingTitle = `${getTimeGreeting()} ${firstName}!`;
   const faqProductPageUrl = appApiKey
@@ -733,6 +740,12 @@ export default function Index() {
             title={greetingTitle}
             description="Manage your apps and generate high-converting AI content for your store."
           />
+
+          {billingMessage && billingBannerTone ? (
+            <Banner tone={billingBannerTone}>
+              <p>{billingMessage}</p>
+            </Banner>
+          ) : null}
 
 
 
