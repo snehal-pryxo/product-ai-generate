@@ -1309,7 +1309,7 @@ export default function AiVisibilityPage() {
             <Card>
               <BlockStack gap="300">
                 <InlineStack align="space-between" blockAlign="center">
-                  <Text variant="headingSm" tone="subdued">AI Content Index</Text>
+                  <Text variant="headingSm" tone="subdued">AI Content Index(LLMs.txt)</Text>
                   {llmsTxt ? <Badge tone="success">Generated</Badge> : <Badge tone="attention">Not generated</Badge>}
                 </InlineStack>
                 <Text tone="subdued" variant="bodySm">
