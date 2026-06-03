@@ -30,10 +30,6 @@ const LLMS_QUERY = `#graphql
       description
       currencyCode
       primaryDomain { host url }
-      privacyPolicy { title url }
-      refundPolicy { title url }
-      shippingPolicy { title url }
-      termsOfService { title url }
     }
     products(first: $productsFirst) {
       nodes {
@@ -53,7 +49,6 @@ const LLMS_QUERY = `#graphql
         title
         handle
         description
-        onlineStoreUrl
       }
     }
     pages(first: $pagesFirst) {
@@ -62,7 +57,6 @@ const LLMS_QUERY = `#graphql
         title
         handle
         bodySummary
-        onlineStoreUrl
       }
     }
     articles(first: $articlesFirst) {
@@ -70,7 +64,6 @@ const LLMS_QUERY = `#graphql
         id
         title
         handle
-        onlineStoreUrl
         blog { title handle }
       }
     }
@@ -188,6 +181,22 @@ function isContactPage(page) {
   return /contact|contact us/i.test(`${page?.title || ""} ${page?.handle || ""}`);
 }
 
+function isPrivacyPage(page) {
+  return /privacy|privacy policy/i.test(`${page?.title || ""} ${page?.handle || ""}`);
+}
+
+function isRefundPage(page) {
+  return /refund|return policy|returns/i.test(`${page?.title || ""} ${page?.handle || ""}`);
+}
+
+function isShippingPage(page) {
+  return /shipping|shipping policy|delivery/i.test(`${page?.title || ""} ${page?.handle || ""}`);
+}
+
+function isTermsPage(page) {
+  return /terms|terms of service|terms and conditions/i.test(`${page?.title || ""} ${page?.handle || ""}`);
+}
+
 function isPrivatePage(page) {
   return /password|private/i.test(`${page?.title || ""} ${page?.handle || ""}`);
 }
@@ -239,10 +248,10 @@ function renderLlmsTxt({ shop, data, settings }) {
   const shopUrl = normalizeUrl(shopData.primaryDomain?.url) || `https://${shop}`;
   const primaryDomain = shopData.primaryDomain?.host || new URL(shopUrl).host;
   const pages = uniqueByUrl((data.pages?.nodes || [])
-    .filter((page) => page.onlineStoreUrl && !isPrivatePage(page))
+    .filter((page) => page.handle && !isPrivatePage(page))
     .map((page) => ({
       title: page.title,
-      url: page.onlineStoreUrl,
+      url: canonicalUrl(shopUrl, `/pages/${page.handle}`),
       summary: page.bodySummary,
       handle: page.handle,
     })));
@@ -258,29 +267,33 @@ function renderLlmsTxt({ shop, data, settings }) {
     })));
 
   const collections = uniqueByUrl((data.collections?.nodes || [])
-    .filter((collection) => collection.onlineStoreUrl)
+    .filter((collection) => collection.handle)
     .map((collection) => ({
       title: collection.title,
-      url: collection.onlineStoreUrl,
+      url: canonicalUrl(shopUrl, `/collections/${collection.handle}`),
       description: collection.description,
     })));
 
   const articles = uniqueByUrl((data.articles?.nodes || [])
-    .filter((article) => article.onlineStoreUrl)
+    .filter((article) => article.handle && article.blog?.handle)
     .map((article) => ({
       title: article.title,
-      url: article.onlineStoreUrl,
+      url: canonicalUrl(shopUrl, `/blogs/${article.blog.handle}/${article.handle}`),
       blogTitle: article.blog?.title,
     })));
 
   const faqPages = pages.filter(isFaqPage);
   const policyItems = [];
-  for (const key of ["privacyPolicy", "refundPolicy", "shippingPolicy", "termsOfService"]) {
-    const policy = shopData[key];
-    if (policy?.url) policyItems.push({ title: policyLabel(key), url: policy.url });
-  }
+  const privacyPage = pages.find(isPrivacyPage);
+  const refundPage = pages.find(isRefundPage);
+  const shippingPage = pages.find(isShippingPage);
+  const termsPage = pages.find(isTermsPage);
   const contactPage = pages.find(isContactPage);
   const aboutPage = pages.find(isAboutPage);
+  if (privacyPage) policyItems.push({ title: policyLabel("privacyPolicy"), url: privacyPage.url });
+  if (refundPage) policyItems.push({ title: policyLabel("refundPolicy"), url: refundPage.url });
+  if (shippingPage) policyItems.push({ title: policyLabel("shippingPolicy"), url: shippingPage.url });
+  if (termsPage) policyItems.push({ title: policyLabel("termsOfService"), url: termsPage.url });
   if (contactPage) policyItems.push({ title: "Contact Page", url: contactPage.url });
   if (aboutPage) policyItems.push({ title: "About Us Page", url: aboutPage.url });
 

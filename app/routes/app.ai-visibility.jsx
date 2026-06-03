@@ -948,7 +948,6 @@ export default function AiVisibilityPage() {
   const [generatingKey, setGeneratingKey] = useState(null);
   const [banner, setBanner] = useState(null);
   const [embedEnabled, setEmbedEnabled] = useState(initialEmbedEnabled);
-  const [verifyResult, setVerifyResult] = useState(null); // { ok, enabled, error } after Verify click
   const [credits, setCredits] = useState(initialCredits);
   const [selectedIdsByType, setSelectedIdsByType] = useState({ product: [], collection: [], article: [], page: [] });
   const [llmsTxtSettings, setLlmsTxtSettings] = useState(initialLlmsTxtSettings);
@@ -1061,11 +1060,6 @@ export default function AiVisibilityPage() {
       if (d.intent === "toggle_theme_embed" || d.intent === "verify_theme_embed") {
         if (d.ok) {
           setEmbedEnabled(d.themeEmbedEnabled);
-          if (d.intent === "verify_theme_embed") {
-            setVerifyResult({ ok: true, enabled: d.themeEmbedEnabled });
-          }
-        } else if (d.intent === "verify_theme_embed") {
-          setVerifyResult({ ok: false, error: d.error || "Verification failed." });
         }
       }
     }
@@ -1083,16 +1077,12 @@ export default function AiVisibilityPage() {
       if (d.intent === "auto_enable_embed") {
         if (d.ok) {
           setEmbedEnabled(d.themeEmbedEnabled);
-          setVerifyResult({ ok: true, enabled: true, auto: true });
-        } else {
-          setVerifyResult({ ok: false, error: d.error || "Auto-enable failed." });
         }
       }
     }
   }, [autoEnableFetcher.state, autoEnableFetcher.data]);
 
   const handleAutoEnable = useCallback(() => {
-    setVerifyResult(null);
     const fd = new FormData();
     fd.append("intent", "auto_enable_embed");
     autoEnableFetcher.submit(fd, { method: "post" });
@@ -1388,31 +1378,6 @@ export default function AiVisibilityPage() {
                   </Box>
                 )}
 
-                {/* Only show error results — suppress "not active" warnings since auto-enable handles it */}
-                {verifyResult && !verifyResult.ok && (
-                  <Box background="bg-surface-caution" borderRadius="200" padding="300">
-                    <BlockStack gap="200">
-                      <InlineStack gap="150" blockAlign="start">
-                        <span style={{ color: "#b98900", flexShrink: 0, marginTop: 1 }}>
-                          <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
-                          </svg>
-                        </span>
-                        <Text variant="bodySm" as="span">{verifyResult.error}</Text>
-                      </InlineStack>
-                      <Button
-                        url={themeEditorUrl}
-                        external
-                        size="slim"
-                        variant="primary"
-                        onClick={() => setVerifyResult(null)}
-                      >
-                        Enable manually in Theme Editor
-                      </Button>
-                    </BlockStack>
-                  </Box>
-                )}
-
                 {/* Action buttons */}
                 <InlineStack gap="200" blockAlign="center" wrap>
                   {!embedEnabled && (
@@ -1429,7 +1394,7 @@ export default function AiVisibilityPage() {
                   <Button
                     size="slim"
                     loading={embedFetcher.state !== "idle"}
-                    onClick={() => { setVerifyResult(null); handleVerifyEmbed(); }}
+                    onClick={handleVerifyEmbed}
                   >
                     Verify
                   </Button>
@@ -1439,7 +1404,6 @@ export default function AiVisibilityPage() {
                       external
                       size="slim"
                       variant="plain"
-                      onClick={() => setVerifyResult(null)}
                     >
                       Open Theme Editor
                     </Button>

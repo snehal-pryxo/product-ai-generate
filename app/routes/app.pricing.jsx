@@ -434,12 +434,14 @@ export default function PricingPage() {
                   <p>Annual plans include 10 months paid and 2 months free.</p>
                 </Banner>
               ) : null}
-              <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
-                <FreePlanCard interval={selectedInterval} />
-                {paidPlans.map((plan) => (
-                  <PaidPlanCard key={`${plan.key}-${selectedInterval}`} plan={plan} interval={selectedInterval} />
-                ))}
-              </Grid>
+              <div className="pricing-plans-grid">
+                <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
+                  <FreePlanCard interval={selectedInterval} />
+                  {paidPlans.map((plan) => (
+                    <PaidPlanCard key={`${plan.key}-${selectedInterval}`} plan={plan} interval={selectedInterval} />
+                  ))}
+                </Grid>
+              </div>
             </BlockStack>
         </BlockStack>
 
@@ -492,7 +494,25 @@ export default function PricingPage() {
         .pricing-plan-card > .Polaris-ShadowBevel {
           height: 100%;
         }
+        .pricing-plans-grid .Polaris-Grid {
+          align-items: stretch;
+        }
+        .pricing-plans-grid .Polaris-Grid > * {
+          display: flex;
+          height: 100%;
+        }
+        .pricing-plans-grid .pricing-plan-card {
+          display: flex;
+          width: 100%;
+        }
+        .pricing-plan-card > .Polaris-ShadowBevel,
+        .pricing-plan-card > div {
+          flex: 1;
+        }
         .pricing-plan-card .Polaris-Card {
+          height: 100%;
+        }
+        .pricing-plan-card .Polaris-Card > .Polaris-Box {
           height: 100%;
         }
         .pricing-plan-card--popular > .Polaris-ShadowBevel,
