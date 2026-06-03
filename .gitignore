@@ -34,3 +34,4 @@ database.sqlite
 .react-router/
 .vercel
 .env*.local
+.env*
