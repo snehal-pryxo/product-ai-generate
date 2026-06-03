@@ -786,7 +786,11 @@ export async function generateAndStoreDynamicLlmsTxt(shop, options = {}) {
   await deductCredits({ shopDomain: shop, creditsUsed: credits });
 
   try {
-    const content = await generateDynamicLlmsTxt(shop, { ...options, force: true });
+    // Regenerate both files in parallel, force-bypassing cache for both
+    const [content] = await Promise.all([
+      generateDynamicLlmsTxt(shop, { ...options, force: true }),
+      generateDynamicAgentsMd(shop, { force: true }),
+    ]);
     const itemCount = (content.match(/^- /gm) || []).length;
     await db.aiVisibilityLlmsTxt.upsert({
       where: { shop },

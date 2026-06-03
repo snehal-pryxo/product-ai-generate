@@ -5,7 +5,7 @@ import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import {
   Page, Layout, Card, Text, Badge, Button, DataTable, Tabs, Box, BlockStack,
-  InlineStack, ProgressBar, Banner, Collapsible, Modal, Select, Checkbox, Link,
+  InlineStack, ProgressBar, Banner, Collapsible, Modal, Select, Checkbox,
 } from "@shopify/polaris";
 import {
   generateSchema,
@@ -927,7 +927,6 @@ export default function AiVisibilityPage() {
     pages: initialPages,
     llmsTxt: initialLlmsTxt,
     shop,
-    shopDomain,
     appApiKey,
     themeEmbedEnabled: initialEmbedEnabled,
     llmsTxtCredits,
@@ -1177,8 +1176,6 @@ export default function AiVisibilityPage() {
   const bulkSchemaCredits = hasUnlimitedVisibility ? 0 : selectedItems.length * CREDITS_SCHEMA;
 
   const llmsTxtUrl = `https://${shop}/apps/llms-txt/llms.text`;
-  const llmsTxtFileUrl = `https://${shopDomain}/llms.txt`;
-  const agentMdFileUrl = `https://${shopDomain}/agent.md`;
   // activateAppId uses the block *filename* (without .liquid), not the extension handle.
   // blocks/app-embed.liquid → handle = "app-embed"
   const appEmbedActivation = appApiKey
@@ -1359,41 +1356,6 @@ export default function AiVisibilityPage() {
                     </Button>
                   )}
                 </InlineStack>
-
-                <Box borderColor="border" borderBlockStartWidth="025" paddingBlockStart="200">
-                  <BlockStack gap="150">
-                    <InlineStack gap="150" blockAlign="center" wrap={false}>
-                      <Text variant="bodySm" tone="subdued" as="span">LLMs.txt:</Text>
-                      <div style={{ overflow: "hidden", flex: 1 }}>
-                        <Link url={llmsTxtFileUrl} external removeUnderline>
-                          <Text variant="bodySm" as="span" breakWord>{llmsTxtFileUrl}</Text>
-                        </Link>
-                      </div>
-                      <Button
-                        size="slim"
-                        variant="plain"
-                        onClick={() => { if (typeof navigator !== "undefined") navigator.clipboard.writeText(llmsTxtFileUrl); }}
-                      >
-                        Copy
-                      </Button>
-                    </InlineStack>
-                    <InlineStack gap="150" blockAlign="center" wrap={false}>
-                      <Text variant="bodySm" tone="subdued" as="span">Agent.md:</Text>
-                      <div style={{ overflow: "hidden", flex: 1 }}>
-                        <Link url={agentMdFileUrl} external removeUnderline>
-                          <Text variant="bodySm" as="span" breakWord>{agentMdFileUrl}</Text>
-                        </Link>
-                      </div>
-                      <Button
-                        size="slim"
-                        variant="plain"
-                        onClick={() => { if (typeof navigator !== "undefined") navigator.clipboard.writeText(agentMdFileUrl); }}
-                      >
-                        Copy
-                      </Button>
-                    </InlineStack>
-                  </BlockStack>
-                </Box>
 
                 <Box borderColor="border" borderBlockStartWidth="025" paddingBlockStart="300">
                   <BlockStack gap="200">
