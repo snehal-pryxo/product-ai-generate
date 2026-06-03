@@ -10,6 +10,7 @@ import {
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
+import { getSubscriptionPlan } from "../lib/billingPlans";
 import {
   Page,
   Banner,
@@ -59,8 +60,10 @@ export const loader = async ({ request }) => {
       name: true,
       credits: true,
       creditsUsedTotal: true,
+      billingPlanKey: true,
       billingPlanName: true,
       billingPlanPrice: true,
+      billingPlanCredits: true,
     },
   });
 
@@ -333,6 +336,10 @@ export const loader = async ({ request }) => {
   const totalCredits = creditsLeft + creditsUsedTotal;
   const currentPlan = String(shopData?.billingPlanName || "Free").toUpperCase();
   const currentPlanPrice = Number(shopData?.billingPlanPrice ?? 0);
+  const billingPlanKey = shopData?.billingPlanKey || "free";
+  const billingPlanCredits = Number(shopData?.billingPlanCredits ?? 0);
+  const planDef = getSubscriptionPlan(billingPlanKey, process.env);
+  const billingInterval = planDef && billingPlanCredits > (planDef.credits || 0) ? "yearly" : "monthly";
   const faqProductPageBlockAdded = await isFaqSectionAddedToProductPage(session.shop, session.accessToken);
 
   return {
@@ -349,6 +356,7 @@ export const loader = async ({ request }) => {
     creditsUsedTotal,
     currentPlan,
     currentPlanPrice,
+    billingInterval,
     shop: session.shop,
     appApiKey: process.env.SHOPIFY_API_KEY || "",
     faqProductPageBlockAdded,
@@ -495,13 +503,14 @@ const DASHBOARD_SHORTCUTS = [
   },
 ];
 
-function formatPrice(price) {
+function formatPrice(price, interval = "monthly") {
   const amount = Number(price || 0);
   if (amount <= 0) return "Free";
+  const period = interval === "yearly" ? "year" : "month";
   return `$${amount.toLocaleString("en-US", {
     minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
     maximumFractionDigits: 2,
-  })}/month`;
+  })}/${period}`;
 }
 
 function getFirstName(name) {
@@ -555,6 +564,7 @@ export default function Index() {
     creditsUsedTotal,
     currentPlan,
     currentPlanPrice,
+    billingInterval,
     shop,
     appApiKey,
     faqProductPageBlockAdded,
@@ -573,7 +583,7 @@ export default function Index() {
   const formattedTotalCredits = Number(totalCredits || 0).toLocaleString("en-US");
   const formattedCreditsLeft = Number(creditsLeft || 0).toLocaleString("en-US");
   const formattedCreditsUsed = Number(creditsUsedTotal || 0).toLocaleString("en-US");
-  const currentPlanWithPrice = `${currentPlan || "FREE"} - ${formatPrice(currentPlanPrice)}`;
+  const currentPlanWithPrice = `${currentPlan || "FREE"} - ${formatPrice(currentPlanPrice, billingInterval)}`;
   const billingBannerTone =
     billingSuccess === "true" ? "success" : billingSuccess === "false" ? "critical" : null;
   const firstName = getFirstName(shopOwnerName);

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useFetcher } from "react-router";
+import { useFetcher, useNavigate } from "react-router";
 import { BlockStack, Box, Button, InlineStack, Link, Modal, Text, TextField } from "@shopify/polaris";
 import {
   getCreditPurchasePrice,
@@ -29,6 +29,7 @@ function formatCurrencyFixed(value) {
 
 export function AddCreditModal() {
   const fetcher = useFetcher();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [credits, setCredits] = useState("100");
   const normalizedCredits = useMemo(() => normalizeCreditPurchaseAmount(credits), [credits]);
@@ -72,7 +73,10 @@ export function AddCreditModal() {
       secondaryActions={[
         {
           content: "Upgrade Plan",
-          url: "/app/pricing",
+          onAction: () => {
+            setOpen(false);
+            navigate("/app/pricing");
+          },
         },
       ]}
     >

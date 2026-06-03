@@ -12,7 +12,7 @@ function buildEmbeddedHost(shop) {
 }
 
 function buildBillingRedirect(sourceUrl, result, type) {
-  const targetPath = type === "subscription" && result.success ? "/app" : "/app/pricing";
+  const targetPath = result.success ? "/app" : "/app/pricing";
   const targetUrl = new URL(targetPath, sourceUrl.origin);
   targetUrl.searchParams.set("success", String(Boolean(result.success)));
   targetUrl.searchParams.set("message", result.message || "");
