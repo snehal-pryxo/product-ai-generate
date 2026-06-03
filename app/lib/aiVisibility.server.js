@@ -15,6 +15,7 @@ import {
 export const CREDITS_SCHEMA = 2;
 export const CREDITS_FAQ = 5;
 export const CREDITS_COMBINED = 5;
+export const CREDITS_LLMS_TXT = 6;
 const SHOPIFY_ADMIN_API_VERSION = "2026-04";
 const METAFIELD_NAMESPACE = "content_ai_geo";
 const METAFIELD_TYPE = "json";
@@ -27,8 +28,8 @@ const PRODUCT_UPDATE_DESCRIPTION_MUTATION = `#graphql
   }
 `;
 
-export function calcLlmsTxtCredits(itemCount) {
-  return Math.min(20, Math.max(5, Math.ceil(itemCount / 10)));
+export function calcLlmsTxtCredits() {
+  return CREDITS_LLMS_TXT;
 }
 
 export function calculateScore({ hasSeoTitle, hasSeoDescription, hasContent, hasSchema, hasFaq, hasLlmsTxt }) {
@@ -857,12 +858,7 @@ export async function generateCombined(shop, adminContext, resource) {
 
 export async function generateLlmsTxt(shop, { products, articles, pages, collections = [], shopName, shopDomain }) {
   const itemCount = products.length + articles.length + pages.length + collections.length;
-  const shopData = await db.shop.findUnique({
-    where: { shop },
-    select: { billingPlanKey: true },
-  });
-  const isFreePlan = (shopData?.billingPlanKey || "free") === "free";
-  const credits = isFreePlan ? 0 : calcLlmsTxtCredits(itemCount);
+  const credits = calcLlmsTxtCredits();
   const aiOptions = await getAiOptions(shop);
   const promptObj = buildLlmsTxtPrompt({ shopName, shopDomain, products, articles, pages, collections });
 

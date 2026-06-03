@@ -260,7 +260,7 @@ export const loader = async ({ request }) => {
     isFreePlan: (shopData?.billingPlanKey || "free") === "free",
     themeEmbedEnabled: shopData?.themeEmbedEnabled ?? false,
     llmsTxtSettings: readLlmsTxtSettings(shopData?.globalSettingsJson),
-    llmsTxtCredits: calcLlmsTxtCredits(products.length + collections.length + articles.length + pages.length),
+    llmsTxtCredits: calcLlmsTxtCredits(),
   };
 };
 
@@ -1141,7 +1141,7 @@ export default function AiVisibilityPage() {
   );
 
   const handleGenerateLlmsTxt = useCallback(() => {
-    if (!isFreePlan && llmsTxtCredits > credits) {
+    if (llmsTxtCredits > credits) {
       setBanner(buildInsufficientCreditsBanner(llmsTxtCredits, credits));
       return;
     }
@@ -1150,7 +1150,7 @@ export default function AiVisibilityPage() {
     const fd = new FormData();
     fd.append("intent", "generate_llmstxt");
     fetcher.submit(fd, { method: "post" });
-  }, [credits, fetcher, isFreePlan, llmsTxtCredits]);
+  }, [credits, fetcher, llmsTxtCredits]);
 
   const handleLlmsSettingChange = useCallback((key, value) => {
     const nextSettings = { ...llmsTxtSettings, [key]: value };
@@ -1338,10 +1338,10 @@ export default function AiVisibilityPage() {
                         size="slim"
                         variant="plain"
                         loading={isSubmitting && generatingKey === "llmstxt"}
-                        disabled={!isFreePlan && credits < llmsTxtCredits}
+                        disabled={credits < llmsTxtCredits}
                         onClick={handleGenerateLlmsTxt}
                       >
-                        {isFreePlan ? "Regenerate" : `Regenerate (${llmsTxtCredits} cr)`}
+                        {`Regenerate (${llmsTxtCredits} cr)`}
                       </Button>
                     </>
                   ) : (
@@ -1349,10 +1349,10 @@ export default function AiVisibilityPage() {
                       size="slim"
                       variant="primary"
                       loading={isSubmitting && generatingKey === "llmstxt"}
-                      disabled={!isFreePlan && credits < llmsTxtCredits}
+                      disabled={credits < llmsTxtCredits}
                       onClick={handleGenerateLlmsTxt}
                     >
-                      {isFreePlan ? "Generate" : `Generate (${llmsTxtCredits} credits)`}
+                      {`Generate (${llmsTxtCredits} credits)`}
                     </Button>
                   )}
                 </InlineStack>
