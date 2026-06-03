@@ -26,6 +26,7 @@ const DEFAULT_SUBSCRIPTION_PLANS = [
   {
     key: "starter",
     name: "Basic",
+    listPrice: 14.99,
     price: 9.99,
     credits: 1500,
     description: "For small stores keeping product SEO updated.",
@@ -45,6 +46,7 @@ const DEFAULT_SUBSCRIPTION_PLANS = [
   {
     key: "growth",
     name: "Pro",
+    listPrice: 19.99,
     price: 14.99,
     credits: 5000,
     description: "For active stores using bulk generation regularly.",
@@ -159,6 +161,7 @@ export function getSubscriptionPlans(env = {}) {
     return {
       ...monthly,
       yearlyPrice: computeYearlyPrice(monthly.price),
+      yearlyListPrice: plan.listPrice ? computeYearlyPrice(plan.listPrice) : null,
       yearlyCredits: monthly.credits * 12,
       yearlyCreditsPerMonth: monthly.credits,
     };
