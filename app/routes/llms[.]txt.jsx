@@ -8,19 +8,13 @@ const PLAIN_TEXT = {
 export async function loader({ request }) {
   const shop = await resolveShopFromRequest(request);
   if (!shop) {
-    return new Response("Missing shop parameter", {
-      status: 400,
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
-    });
+    return new Response("# LLMs.txt\n\nShop not found.", { status: 200, headers: PLAIN_TEXT });
   }
 
   try {
     const content = await generateDynamicLlmsTxt(shop);
     return new Response(content, { status: 200, headers: PLAIN_TEXT });
   } catch {
-    return new Response("Not found", {
-      status: 404,
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
-    });
+    return new Response("# LLMs.txt\n\nContent not yet generated. Please open the app and click Generate.", { status: 200, headers: PLAIN_TEXT });
   }
 }
