@@ -2108,6 +2108,12 @@ export const action = async ({ request }) => {
     if (isFreePlan && tabType === TAB_KEYS.PILLAR) {
       return { ok: false, intent, error: "Pillar articles are not available on the free plan." };
     }
+    if (isFreePlan) {
+      const generatedBlogCount = await db.blogGeneratedContent.count({ where: { shop: session.shop } });
+      if (generatedBlogCount >= FREE_PLAN_BLOG_LIMIT) {
+        return { ok: false, intent, error: `Free plan allows ${FREE_PLAN_BLOG_LIMIT} blog articles. Upgrade to generate more blogs.` };
+      }
+    }
 
     let outlines = [];
     try {
@@ -2845,15 +2851,15 @@ export default function BlogPage() {
   const [editExcerpt, setEditExcerpt] = useState("");
   const [editTags, setEditTags] = useState("");
 
+  const freePlanBlogLimitReached = isFreePlan && Number(generatedBlogCount || 0) >= Number(freePlanBlogLimit || FREE_PLAN_BLOG_LIMIT);
   const tabItems = [
-    { id: TAB_KEYS.BUSINESS, content: "Business Blog" },
-    { id: TAB_KEYS.PROMOTION, content: "Promotion" },
-    { id: TAB_KEYS.PILLAR, content: "Pillar Article", disabled: isFreePlan },
-    { id: TAB_KEYS.CUSTOM, content: "Create Your Own" },
+    { id: TAB_KEYS.BUSINESS, content: "Business Blog", disabled: freePlanBlogLimitReached },
+    { id: TAB_KEYS.PROMOTION, content: "Promotion", disabled: freePlanBlogLimitReached },
+    { id: TAB_KEYS.PILLAR, content: "Pillar Article", disabled: isFreePlan || freePlanBlogLimitReached },
+    { id: TAB_KEYS.CUSTOM, content: "Create Your Own", disabled: freePlanBlogLimitReached },
   ];
 
   const activeTabKey = tabItems[activeTab]?.id || TAB_KEYS.BUSINESS;
-  const freePlanBlogLimitReached = isFreePlan && Number(generatedBlogCount || 0) >= Number(freePlanBlogLimit || FREE_PLAN_BLOG_LIMIT);
   const toneOptions = useMemo(() => POST_TONE_OPTIONS.map((value) => ({ label: value, value })), []);
   const audienceOptions = useMemo(
     () => TARGET_AUDIENCE_OPTIONS.map((value) => ({ label: value, value })),
@@ -3165,6 +3171,11 @@ const showOfferTextField = isDiscountPromotion(promotion);
                   <div className="blog-generator-tabs-wrap">
                     <Tabs tabs={tabItems} selected={activeTab} onSelect={setActiveTab} />
                   </div>
+                  {freePlanBlogLimitReached ? (
+                    <Banner tone="info">
+                      <p>Free plan allows 2 blog articles. Upgrade to generate more blogs.</p>
+                    </Banner>
+                  ) : null}
                 </BlockStack>
               </Box>
 
@@ -3236,7 +3247,7 @@ const showOfferTextField = isDiscountPromotion(promotion);
                       variant="primary"
                       onClick={submitGenerateOutlines}
                       loading={fetcher.state !== "idle" && String(fetcher.formData?.get("intent")) === "generate_outlines"}
-                      disabled={blogs.length === 0 || (activeTabKey === TAB_KEYS.PROMOTION && promotionType === "festival" && !festivalText.trim())}
+                      disabled={freePlanBlogLimitReached || blogs.length === 0 || (activeTabKey === TAB_KEYS.PROMOTION && promotionType === "festival" && !festivalText.trim())}
                     >
                       Get Ideas
                     </Button>
@@ -3351,7 +3362,7 @@ const showOfferTextField = isDiscountPromotion(promotion);
                 <Text as="p" variant="bodySm" tone="subdued">
                   Total articles: {rows.length}
                 </Text>
-                <Button variant="primary" onClick={() => setShowGenerator(true)}>
+                <Button variant="primary" onClick={() => setShowGenerator(true)} disabled={freePlanBlogLimitReached}>
                   Create Blog
                 </Button>
               </InlineStack>
