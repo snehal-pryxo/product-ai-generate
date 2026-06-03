@@ -62,12 +62,11 @@ export function AddCreditModal() {
             type="number"
             value={credits}
             min={1000}
-            max={10000}
             step={1000}
             onChange={setCredits}
             onBlur={() => setCredits(String(normalizedCredits))}
             autoComplete="off"
-            helpText="Enter 1,000 to 10,000 credits. Values are rounded to the nearest 1,000."
+            helpText="Enter 1,000 credits or more. Values are rounded to the nearest 1,000."
           />
           <InlineStack align="space-between" blockAlign="center">
             <Text as="span" variant="bodyMd" tone="subdued">
@@ -79,7 +78,7 @@ export function AddCreditModal() {
           </InlineStack>
           {normalizedCredits === 10000 ? (
             <Text as="p" variant="bodySm" tone="success">
-              Best value: 10,000 credits for $80.
+              Best value starts at 10,000 credits for $80.
             </Text>
           ) : null}
           {fetcher.data?.message && !fetcher.data?.success ? (

@@ -11,15 +11,23 @@ export const CREDIT_PURCHASE_TIERS = {
   10000: 80,
 };
 
+const MIN_CREDIT_PURCHASE = 1000;
+const CREDIT_PURCHASE_STEP = 1000;
+const BULK_CREDIT_THRESHOLD = 10000;
+const BULK_CREDIT_PRICE_PER_STEP = CREDIT_PURCHASE_TIERS[BULK_CREDIT_THRESHOLD] / (BULK_CREDIT_THRESHOLD / CREDIT_PURCHASE_STEP);
+
 export function normalizeCreditPurchaseAmount(value) {
   const numeric = Number(String(value || "").replace(/[^\d]/g, ""));
-  if (!Number.isFinite(numeric)) return 1000;
-  return Math.min(10000, Math.max(1000, Math.round(numeric / 1000) * 1000));
+  if (!Number.isFinite(numeric)) return MIN_CREDIT_PURCHASE;
+  return Math.max(MIN_CREDIT_PURCHASE, Math.round(numeric / CREDIT_PURCHASE_STEP) * CREDIT_PURCHASE_STEP);
 }
 
 export function getCreditPurchasePrice(credits) {
   const normalized = normalizeCreditPurchaseAmount(credits);
-  return CREDIT_PURCHASE_TIERS[normalized] || Math.ceil(normalized / 1000) * 10;
+  if (normalized > BULK_CREDIT_THRESHOLD) {
+    return Math.round((normalized / CREDIT_PURCHASE_STEP) * BULK_CREDIT_PRICE_PER_STEP * 100) / 100;
+  }
+  return CREDIT_PURCHASE_TIERS[normalized] || Math.ceil(normalized / CREDIT_PURCHASE_STEP) * 10;
 }
 
 export function buildCustomCreditPackage(credits) {
