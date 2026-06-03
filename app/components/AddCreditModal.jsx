@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useFetcher } from "react-router";
-import { BlockStack, Button, InlineStack, Modal, Text, TextField } from "@shopify/polaris";
+import { BlockStack, Box, Button, InlineStack, Modal, Text, TextField } from "@shopify/polaris";
 import {
   getCreditPurchasePrice,
   normalizeCreditPurchaseAmount,
@@ -20,13 +20,22 @@ function formatCurrency(value) {
   })}`;
 }
 
+function formatCurrencyFixed(value) {
+  return `$${Number(value || 0).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
 export function AddCreditModal() {
   const fetcher = useFetcher();
   const [open, setOpen] = useState(false);
-  const [credits, setCredits] = useState("1000");
+  const [credits, setCredits] = useState("100");
   const normalizedCredits = useMemo(() => normalizeCreditPurchaseAmount(credits), [credits]);
   const price = getCreditPurchasePrice(normalizedCredits);
   const isSubmitting = fetcher.state !== "idle";
+  const primaryButtonLabel = `Get ${normalizedCredits.toLocaleString("en-US")} Credits at ${formatCurrency(price)}`;
+  const quickSelectOptions = [1000, 10000, 100000];
 
   useEffect(() => {
     function handleOpen() {
@@ -53,42 +62,91 @@ export function AddCreditModal() {
     <Modal
       open={open}
       onClose={() => setOpen(false)}
-      title="Add credits"
+      title="One time purchase"
+      primaryAction={{
+        content: primaryButtonLabel,
+        onAction: handleSubmit,
+        loading: isSubmitting,
+        disabled: isSubmitting,
+      }}
+      secondaryActions={[
+        {
+          content: "Upgrade Plan",
+          url: "/app/pricing",
+        },
+      ]}
     >
       <Modal.Section>
-        <BlockStack gap="400">
+        <BlockStack gap="500">
+          <Text as="p" variant="bodyMd" tone="subdued">
+            Get credits as per your usage. Purchase credits one time and use them whenever you need to generate AI-powered product content.
+          </Text>
+
+          <Text as="h3" variant="headingMd">
+            Choose Your Credit Package
+          </Text>
+
           <TextField
-            label="Credits"
+            label="Number of credits to purchase"
             type="number"
             value={credits}
-            min={1000}
-            step={1000}
+            min={100}
+            step={100}
             onChange={setCredits}
             onBlur={() => setCredits(String(normalizedCredits))}
             autoComplete="off"
-            helpText="Enter 1,000 credits or more. Values are rounded to the nearest 1,000."
+            requiredIndicator
+            helpText="Each credit generates one product description"
           />
-          <InlineStack align="space-between" blockAlign="center">
-            <Text as="span" variant="bodyMd" tone="subdued">
-              Price
-            </Text>
-            <Text as="span" variant="headingLg">
-              {formatCurrency(price)}
-            </Text>
+
+          <InlineStack align="start">
+            <Button variant="primary" onClick={handleSubmit} loading={isSubmitting} disabled={isSubmitting}>
+              {primaryButtonLabel}
+            </Button>
           </InlineStack>
-          {normalizedCredits === 10000 ? (
-            <Text as="p" variant="bodySm" tone="success">
-              Best value starts at 10,000 credits for $80.
+
+          <InlineStack align="start" blockAlign="center" gap="300" wrap>
+            <Text as="span" variant="bodyMd" tone="subdued">
+              Quick Select:
             </Text>
-          ) : null}
+            {quickSelectOptions.map((option) => (
+              <Button key={option} onClick={() => setCredits(String(option))}>
+                {option.toLocaleString("en-US")}
+              </Button>
+            ))}
+          </InlineStack>
+
+          <BlockStack gap="300">
+            <Text as="h3" variant="headingMd">
+              Order Summary
+            </Text>
+            <Box background="bg-surface-secondary" padding="300">
+              <InlineStack align="space-between" blockAlign="center">
+                <Text as="span" variant="bodyMd" fontWeight="semibold" tone="subdued">
+                  Credits
+                </Text>
+                <Text as="span" variant="bodyMd" fontWeight="semibold" tone="subdued">
+                  Price
+                </Text>
+              </InlineStack>
+            </Box>
+            <Box paddingInline="300">
+              <InlineStack align="space-between" blockAlign="center">
+                <Text as="span" variant="bodyMd">
+                  {normalizedCredits.toLocaleString("en-US")}
+                </Text>
+                <Text as="span" variant="bodyMd" fontWeight="semibold">
+                  {formatCurrencyFixed(price)}
+                </Text>
+              </InlineStack>
+            </Box>
+          </BlockStack>
+
           {fetcher.data?.message && !fetcher.data?.success ? (
             <Text as="p" variant="bodySm" tone="critical">
               {fetcher.data.message}
             </Text>
           ) : null}
-          <Button fullWidth variant="primary" onClick={handleSubmit} loading={isSubmitting} disabled={isSubmitting}>
-            Buy {normalizedCredits.toLocaleString("en-US")} credits
-          </Button>
         </BlockStack>
       </Modal.Section>
     </Modal>

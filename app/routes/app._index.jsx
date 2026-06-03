@@ -28,6 +28,7 @@ import {
   Box,
 } from "@shopify/polaris";
 import { AppPageHeader } from "../components/AppPageHeader";
+import { isFaqSectionAddedToProductPage } from "../lib/themeUtils.server";
 import {
   ProductIcon,
   CollectionIcon,
@@ -331,6 +332,7 @@ export const loader = async ({ request }) => {
   const totalCredits = creditsLeft + creditsUsedTotal;
   const currentPlan = String(shopData?.billingPlanName || "Free").toUpperCase();
   const currentPlanPrice = Number(shopData?.billingPlanPrice ?? 0);
+  const faqProductPageBlockAdded = await isFaqSectionAddedToProductPage(session.shop, session.accessToken);
 
   return {
     shouldShowReviewPopup,
@@ -347,6 +349,8 @@ export const loader = async ({ request }) => {
     currentPlan,
     currentPlanPrice,
     shop: session.shop,
+    appApiKey: process.env.SHOPIFY_API_KEY || "",
+    faqProductPageBlockAdded,
   };
 };
 
@@ -549,6 +553,8 @@ export default function Index() {
     currentPlan,
     currentPlanPrice,
     shop,
+    appApiKey,
+    faqProductPageBlockAdded,
   } = useLoaderData();
   const actionData = useActionData();
   const reviewFetcher = useFetcher();
@@ -565,6 +571,9 @@ export default function Index() {
   const currentPlanWithPrice = `${currentPlan || "FREE"} - ${formatPrice(currentPlanPrice)}`;
   const firstName = getFirstName(shopOwnerName);
   const greetingTitle = `${getTimeGreeting()} ${firstName}!`;
+  const faqProductPageUrl = appApiKey
+    ? `https://${shop}/admin/themes/current/editor?template=product&addAppBlockId=${encodeURIComponent(appApiKey)}/faq-section&target=newAppsSection`
+    : `https://${shop}/admin/themes/current/editor?template=product`;
   const kpiItems = [
     { id: "generated", label: "Generated", value: `${formattedGeneratedWords} words`, icon: ProductIcon },
     { id: "timeSaved", label: "Time Saved", value: `${formattedTimeSaved} hours`, icon: ChartVerticalIcon },
@@ -742,6 +751,27 @@ export default function Index() {
               ))}
             </div>
           </Card>
+
+          {!faqProductPageBlockAdded ? (
+            <Card>
+              <InlineStack align="space-between" blockAlign="center" gap="400" wrap>
+                <BlockStack gap="100">
+                  <Text as="h2" variant="headingMd">
+                    FAQ Section on Product Page
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Add the FAQ block to your theme product page from the Apps section.
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Guideline: click Add to Product Page, open the Apps section in Theme Editor, select FAQ Section, then save the theme.
+                  </Text>
+                </BlockStack>
+                <Button url={faqProductPageUrl} external variant="primary">
+                  Add to Product Page
+                </Button>
+              </InlineStack>
+            </Card>
+          ) : null}
 
           <Card padding="0">
             <div className="dashboard-shortcuts">

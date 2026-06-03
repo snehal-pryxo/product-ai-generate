@@ -114,3 +114,44 @@ export async function autoAddFaqSectionToProductPage(shop, accessToken) {
     return { ok: false, needsManualAdd: true, error: err?.message || "Failed to add FAQ section." };
   }
 }
+
+export async function isFaqSectionAddedToProductPage(shop, accessToken) {
+  try {
+    const apiBase = `https://${shop}/admin/api/2025-10`;
+    const themesResp = await fetch(`${apiBase}/themes.json?role=main`, {
+      headers: { "X-Shopify-Access-Token": accessToken },
+    });
+    if (!themesResp.ok) return false;
+    const themeId = (await themesResp.json())?.themes?.[0]?.id;
+    if (!themeId) return false;
+
+    for (const key of ["templates/product.json", "templates/product.default.json"]) {
+      const assetResp = await fetch(
+        `${apiBase}/themes/${themeId}/assets.json?asset[key]=${key}`,
+        { headers: { "X-Shopify-Access-Token": accessToken } },
+      );
+      if (!assetResp.ok) continue;
+      const rawContent = (await assetResp.json())?.asset?.value;
+      if (!rawContent) continue;
+
+      let template;
+      try {
+        template = JSON.parse(rawContent);
+      } catch {
+        continue;
+      }
+
+      const sections = template?.sections || {};
+      const alreadyAdded = Object.values(sections).some((section) => {
+        if (String(section?.type || "").includes("faq-section")) return true;
+        return Object.values(section?.blocks || {}).some((block) =>
+          String(block?.type || "").includes("/blocks/faq-section/"),
+        );
+      });
+      if (alreadyAdded) return true;
+    }
+  } catch (err) {
+    console.error("[isFaqSectionAddedToProductPage]", err);
+  }
+  return false;
+}

@@ -1,4 +1,13 @@
 export const CREDIT_PURCHASE_TIERS = {
+  100: 1,
+  200: 2,
+  300: 3,
+  400: 4,
+  500: 5,
+  600: 6,
+  700: 7,
+  800: 8,
+  900: 9,
   1000: 10,
   2000: 20,
   3000: 30,
@@ -11,10 +20,11 @@ export const CREDIT_PURCHASE_TIERS = {
   10000: 80,
 };
 
-const MIN_CREDIT_PURCHASE = 1000;
-const CREDIT_PURCHASE_STEP = 1000;
+const MIN_CREDIT_PURCHASE = 100;
+const CREDIT_PURCHASE_STEP = 100;
 const BULK_CREDIT_THRESHOLD = 10000;
-const BULK_CREDIT_PRICE_PER_STEP = CREDIT_PURCHASE_TIERS[BULK_CREDIT_THRESHOLD] / (BULK_CREDIT_THRESHOLD / CREDIT_PURCHASE_STEP);
+const BASE_CREDIT_PRICE_PER_STEP = 1;
+const BULK_CREDIT_PRICE_PER_CREDIT = CREDIT_PURCHASE_TIERS[BULK_CREDIT_THRESHOLD] / BULK_CREDIT_THRESHOLD;
 
 export function normalizeCreditPurchaseAmount(value) {
   const numeric = Number(String(value || "").replace(/[^\d]/g, ""));
@@ -25,9 +35,9 @@ export function normalizeCreditPurchaseAmount(value) {
 export function getCreditPurchasePrice(credits) {
   const normalized = normalizeCreditPurchaseAmount(credits);
   if (normalized > BULK_CREDIT_THRESHOLD) {
-    return Math.round((normalized / CREDIT_PURCHASE_STEP) * BULK_CREDIT_PRICE_PER_STEP * 100) / 100;
+    return Math.round(normalized * BULK_CREDIT_PRICE_PER_CREDIT * 100) / 100;
   }
-  return CREDIT_PURCHASE_TIERS[normalized] || Math.ceil(normalized / CREDIT_PURCHASE_STEP) * 10;
+  return CREDIT_PURCHASE_TIERS[normalized] || Math.ceil(normalized / CREDIT_PURCHASE_STEP) * BASE_CREDIT_PRICE_PER_STEP;
 }
 
 export function buildCustomCreditPackage(credits) {

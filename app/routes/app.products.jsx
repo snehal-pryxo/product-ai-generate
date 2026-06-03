@@ -36,6 +36,7 @@ import { authenticate } from "../shopify.server";
 import { buildProductContentPrompt, getProductSystemPrompt } from "../lib/contentPromptTemplates";
 import { TemplateLibraryModal } from "../components/TemplateLibraryModal";
 import { getExactWordLengthOption, normalizeStoredGlobalSettings, readGlobalSettings } from "../lib/globalSettings";
+import { isFaqSectionAddedToProductPage } from "../lib/themeUtils.server";
 import {
   PRODUCT_DESCRIPTION_TEMPLATES,
   PRODUCT_META_DESCRIPTION_TEMPLATES,
@@ -1230,6 +1231,7 @@ export const loader = async ({ request }) => {
   });
 
   const keywordLibrary = splitKeywordString(parsedGlobalSettings.productDescKeywords);
+  const faqProductPageBlockAdded = await isFaqSectionAddedToProductPage(session.shop, session.accessToken);
 
   return {
     filters: { search, status, collectionId },
@@ -1245,6 +1247,7 @@ export const loader = async ({ request }) => {
     shopOwnerName,
     shop: session.shop,
     appApiKey: process.env.SHOPIFY_API_KEY || "",
+    faqProductPageBlockAdded,
   };
 };
 
@@ -1275,7 +1278,7 @@ function readArrayState(value, fallback = []) {
 }
 
 export default function ProductsPage() {
-  const { filters, products, collections, keywordLibrary = [], defaultAiProvider, credits, shopOwnerName, shop, appApiKey } = useLoaderData();
+  const { filters, products, collections, keywordLibrary = [], defaultAiProvider, credits, shopOwnerName, shop, appApiKey, faqProductPageBlockAdded } = useLoaderData();
   const navigation = useNavigation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -1792,7 +1795,7 @@ export default function ProductsPage() {
         }}
       >
         {/* ── LEFT: Product List ── */}
-        {isFaqTabSelected ? (
+        {isFaqTabSelected && !faqProductPageBlockAdded ? (
           <div style={{ flex: "1 1 100%", minWidth: 0 }}>
             <Card>
               <InlineStack align="space-between" blockAlign="center" gap="400" wrap>
@@ -1802,6 +1805,9 @@ export default function ProductsPage() {
                   </Text>
                   <Text as="p" variant="bodySm" tone="subdued">
                     Add the FAQ block to your theme product page from the Apps section.
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Guideline: click Add to Product Page, open the Apps section in Theme Editor, select FAQ Section, then save the theme.
                   </Text>
                 </BlockStack>
                 <Button url={faqProductPageUrl} external variant="primary">
