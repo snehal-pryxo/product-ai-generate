@@ -408,7 +408,8 @@ export const action = async ({ request }) => {
     }
 
     if (intent === "generate_llmstxt") {
-      const result = await generateAndStoreDynamicLlmsTxt(shop);
+      // Pass admin.graphql so redirect mutations use the live session (has all granted scopes).
+      const result = await generateAndStoreDynamicLlmsTxt(shop, {}, admin.graphql);
       return { ok: true, intent, ...result };
     }
 
@@ -1332,27 +1333,27 @@ export default function AiVisibilityPage() {
                 <Text tone="subdued" variant="bodySm">
                   A single file that tells ChatGPT, Perplexity, and Google AI exactly what your store sells — so your products get recommended when shoppers ask AI assistants for suggestions.
                 </Text>
-                {llmsTxt && (
-                  <Button
-                    size="slim"
-                    onClick={() => {
-                      if (typeof navigator !== "undefined") navigator.clipboard.writeText(llmsTxtUrl);
-                    }}
-                  >
-                    Copy URL
-                  </Button>
-                )}
                 <InlineStack gap="200" wrap>
                   {llmsTxt ? (
-                    <Button
-                      size="slim"
-                      variant="plain"
-                      loading={isSubmitting && generatingKey === "llmstxt"}
-                      disabled={credits < llmsTxtCredits}
-                      onClick={handleGenerateLlmsTxt}
-                    >
-                      {`Regenerate (${llmsTxtCredits} cr)`}
-                    </Button>
+                    <>
+                      <Button
+                        size="slim"
+                        onClick={() => {
+                          if (typeof navigator !== "undefined") navigator.clipboard.writeText(llmsTxtUrl);
+                        }}
+                      >
+                        Copy URL
+                      </Button>
+                      <Button
+                        size="slim"
+                        variant="plain"
+                        loading={isSubmitting && generatingKey === "llmstxt"}
+                        disabled={credits < llmsTxtCredits}
+                        onClick={handleGenerateLlmsTxt}
+                      >
+                        {`Regenerate (${llmsTxtCredits} cr)`}
+                      </Button>
+                    </>
                   ) : (
                     <Button
                       size="slim"

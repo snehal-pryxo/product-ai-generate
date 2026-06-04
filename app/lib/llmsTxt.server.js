@@ -513,7 +513,17 @@ export function reAssertRedirectsInBackground(shop) {
   });
 }
 
-async function publishRootDiscoveryRedirects(shop) {
+// Build a thin GraphQL wrapper from Remix's admin.graphql client so it can be
+// used inside publishRootDiscoveryRedirects in place of the raw fetch approach.
+function buildAdminGraphqlClient(adminGraphQL) {
+  if (!adminGraphQL) return null;
+  return async (query, variables = {}) => {
+    const res = await adminGraphQL(query, { variables });
+    return res.json();
+  };
+}
+
+async function publishRootDiscoveryRedirects(shop, adminGraphQL) {
   const shopRow = await db.shop.findUnique({
     where: { shop },
     select: {
@@ -525,11 +535,36 @@ async function publishRootDiscoveryRedirects(shop) {
     throw new Error("Shop is not installed or is missing an access token.");
   }
 
+  // Prefer the session-based admin.graphql client (has all session scopes) when
+  // available. Fall back to the stored access token for the raw fetch approach.
+  const sessionGraphQL = buildAdminGraphqlClient(adminGraphQL);
+
+  async function overrideOne(path, target) {
+    // Try REST first (delete-all + create) for the most reliable override.
+    try {
+      return await forceOverrideRedirectWithRest(shop, shopRow.accessToken, path, target);
+    } catch (restErr) {
+      console.warn(`[llms-txt] REST override failed for ${path}, trying GraphQL:`, restErr?.message);
+    }
+
+    // Fall back to GraphQL upsert — use session client if available.
+    const graphqlFn = sessionGraphQL
+      ? async (query, vars) => sessionGraphQL(query, vars?.variables || {})
+      : async (query, vars) => shopifyGraphql(shop, shopRow.accessToken, query, vars?.variables || {});
+    try {
+      return await upsertStorefrontRedirectWithGraphql(shop, shopRow.accessToken, path, target);
+    } catch (graphqlErr) {
+      throw new Error(
+        `Unable to override ${path}: REST failed; GraphQL failed (${graphqlErr?.message || "unknown"}).`,
+      );
+    }
+  }
+
   // Force-override each path independently so one failure does not block the rest.
   const results = await Promise.allSettled([
-    forceOverrideRedirect(shop, shopRow.accessToken, "/llms.txt", "/apps/llms-txt/llms.txt"),
-    forceOverrideRedirect(shop, shopRow.accessToken, "/agent.md", "/apps/llms-txt/agent.md"),
-    forceOverrideRedirect(shop, shopRow.accessToken, "/agents.md", "/apps/llms-txt/agents.md"),
+    overrideOne("/llms.txt", "/apps/llms-txt/llms.txt"),
+    overrideOne("/agent.md", "/apps/llms-txt/agent.md"),
+    overrideOne("/agents.md", "/apps/llms-txt/agents.md"),
   ]);
 
   return results.map((result) =>
@@ -1107,7 +1142,7 @@ export function invalidateLlmsTxtCache(shop) {
   responseCache.delete(`agents:${shop}`);
 }
 
-export async function generateAndStoreDynamicLlmsTxt(shop, options = {}) {
+export async function generateAndStoreDynamicLlmsTxt(shop, options = {}, adminGraphQL) {
   const credits = LLMS_GENERATION_CREDITS;
   await deductCredits({ shopDomain: shop, creditsUsed: credits });
 
@@ -1123,7 +1158,8 @@ export async function generateAndStoreDynamicLlmsTxt(shop, options = {}) {
       create: { shop, content, agentContent, itemCount, creditsUsed: credits },
       update: { content, agentContent, itemCount, creditsUsed: credits, updatedAt: new Date() },
     });
-    const redirects = await publishRootDiscoveryRedirects(shop);
+    // Pass the session-based admin client so redirect mutations use the live session.
+    const redirects = await publishRootDiscoveryRedirects(shop, adminGraphQL);
     return { content, creditsUsed: credits, redirects };
   } catch (error) {
     await refundCredits({ shopDomain: shop, creditsRefunded: credits });
