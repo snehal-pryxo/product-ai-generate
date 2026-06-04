@@ -638,8 +638,7 @@ function ScoreBadge({ score }) {
 function ItemModal({ item, onClose, onGenerate, generatingKey, credits, hasUnlimitedVisibility, isFreePlan }) {
   const [expandedFaqIndex, setExpandedFaqIndex] = useState(null);
   if (!item) return null;
-  // FAQ is supported for products and articles — not for pages.
-  const canFaq = item.resourceType !== "page";
+  const canFaq = false;
   const schemaKey = `schema_${item.id}`;
   const faqKey = `faq_${item.id}`;
   const combinedKey = `combined_${item.id}`;
