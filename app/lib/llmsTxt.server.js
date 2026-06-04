@@ -1142,7 +1142,7 @@ export function invalidateLlmsTxtCache(shop) {
   responseCache.delete(`agents:${shop}`);
 }
 
-export async function generateAndStoreDynamicLlmsTxt(shop, options = {}, adminGraphQL) {
+export async function generateAndStoreDynamicLlmsTxt(shop, options = {}) {
   const credits = LLMS_GENERATION_CREDITS;
   await deductCredits({ shopDomain: shop, creditsUsed: credits });
 
@@ -1158,9 +1158,7 @@ export async function generateAndStoreDynamicLlmsTxt(shop, options = {}, adminGr
       create: { shop, content, agentContent, itemCount, creditsUsed: credits },
       update: { content, agentContent, itemCount, creditsUsed: credits, updatedAt: new Date() },
     });
-    // Pass the session-based admin client so redirect mutations use the live session.
-    const redirects = await publishRootDiscoveryRedirects(shop, adminGraphQL);
-    return { content, creditsUsed: credits, redirects };
+    return { content, creditsUsed: credits };
   } catch (error) {
     await refundCredits({ shopDomain: shop, creditsRefunded: credits });
     throw error;

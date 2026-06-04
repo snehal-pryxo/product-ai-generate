@@ -408,8 +408,7 @@ export const action = async ({ request }) => {
     }
 
     if (intent === "generate_llmstxt") {
-      // Pass admin.graphql so redirect mutations use the live session (has all granted scopes).
-      const result = await generateAndStoreDynamicLlmsTxt(shop, {}, admin.graphql);
+      const result = await generateAndStoreDynamicLlmsTxt(shop);
       return { ok: true, intent, ...result };
     }
 
@@ -1185,7 +1184,7 @@ export default function AiVisibilityPage() {
   const bulkSchemaCredits = hasUnlimitedVisibility ? 0 : selectedItems.length * CREDITS_SCHEMA;
 
   const storeDomain = shopDomain || shop;
-  const llmsTxtUrl = `https://${storeDomain}/llms.txt`;
+  const llmsTxtUrl = `https://${storeDomain}/apps/llms-txt/llms.txt`;
   // activateAppId uses the block *filename* (without .liquid), not the extension handle.
   // blocks/app-embed.liquid → handle = "app-embed"
   const appEmbedActivation = appApiKey
