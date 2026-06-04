@@ -96,16 +96,11 @@ export const action = async ({ request }) => {
         where: { shop: session.shop },
         select: { billingPlanKey: true, freePlanUsedAt: true },
       });
-      const currentPlanKey = shopData?.billingPlanKey || "free";
-      if (shopData?.freePlanUsedAt && currentPlanKey !== "free") {
-        return { success: false, message: "The free plan can only be used once per store." };
-      }
 
       await db.shop.upsert({
         where: { shop: session.shop },
         update: {
-          credits: freeCredits,
-          creditsUsedTotal: 0,
+          credits: { increment: freeCredits },
           billingPlanKey: "free",
           billingPlanName: "Free",
           billingPlanCredits: freeCredits,
@@ -128,7 +123,10 @@ export const action = async ({ request }) => {
         },
       });
 
-      return { success: true, message: "Free plan selected." };
+      return {
+        success: true,
+        message: `Free plan selected. ${freeCredits} credits have been added to your account.`,
+      };
     }
 
     if (intent === "buy_credits") {
@@ -214,7 +212,8 @@ export default function PricingPage() {
       ? actionData.success
       : billingSuccess === "true" ? true : billingSuccess === "false" ? false : null;
 
-  const freePlanDisabled = currentPlanKey === "free" || freePlanUsed;
+  // Disabled only when already on the free plan — paid-plan merchants can always switch to free
+  const freePlanDisabled = currentPlanKey === "free";
   const [selectedPlanTab, setSelectedPlanTab] = useState(0);
   const selectedInterval = selectedPlanTab === 1 ? "yearly" : "monthly";
 
@@ -368,7 +367,7 @@ export default function PricingPage() {
                 <Form method="post">
                   <input type="hidden" name="intent" value="select_free" />
                   <Button fullWidth submit disabled={isSubmitting || freePlanDisabled}>
-                    {currentPlanKey === "free" ? "Current plan" : freePlanUsed ? "Free used" : "Get started free"}
+                    {currentPlanKey === "free" ? "Current plan" : "Get 150 credits free"}
                   </Button>
                 </Form>
               </div>
