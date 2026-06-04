@@ -94,8 +94,8 @@ Use every provided product as one ListItem. Omit image only when no image is pro
 export function buildProductFaqPrompt({ title, description, language = "English" }) {
   return {
     systemPrompt: "You generate FAQ pairs for Shopify products. Return ONLY a raw JSON array — no markdown fences, no explanation.",
-    prompt: `Generate exactly 2 FAQ question-and-answer pairs for this product.
-Focus on: purchase intent, sizing or compatibility, usage instructions, materials or ingredients, shipping, and common concerns.
+    prompt: `Generate exactly 5 FAQ question-and-answer pairs for this product.
+Focus on: purchase intent, sizing or compatibility, usage instructions, materials or ingredients, shipping, returns, and common concerns.
 Write every question and answer in ${language}.
 
 Product: ${title}
@@ -126,7 +126,7 @@ export function buildCombinedProductPrompt({ title, description, vendor, product
     systemPrompt: "You generate Schema.org JSON-LD and FAQ pairs for Shopify products. Return ONLY raw JSON in the exact structure specified — no markdown fences, no explanation.",
     prompt: `For this Shopify product, generate both:
 1. A Schema.org Product JSON-LD object
-2. Exactly 2 FAQ question-answer pairs
+2. Exactly 5 FAQ question-answer pairs
 
 Product:
 - Title: ${title}

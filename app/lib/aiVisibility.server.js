@@ -418,7 +418,7 @@ function normalizeProductSchema(schema, { title, description, url, image, vendor
 function normalizeFaqItems(items) {
   return (Array.isArray(items) ? items : [])
     .filter((qa) => qa?.question && qa?.answer)
-    .slice(0, 2)
+    .slice(0, 5)
     .map((qa) => ({
       question: String(qa.question || "").trim(),
       answer: String(qa.answer || "").trim(),
