@@ -547,18 +547,23 @@ async function upsertRedirectWithSessionClient(adminGraphQL, path, target) {
 }
 
 // ---------------------------------------------------------------------------
-// Re-assertion tracker (background self-healing)
+// Re-assertion tracker (self-healing)
+// Two intervals:
+//   - Session client available (admin.graphql from page loader): 10 minutes
+//   - Public routes (no session): 3 hours (avoid Shopify rate-limit)
 // ---------------------------------------------------------------------------
 const redirectAssertedAt = new Map();
-const REASSERT_INTERVAL_MS = 3 * 60 * 60 * 1000; // 3 hours
+const SESSION_REASSERT_MS  = 10 * 60 * 1000;        // 10 min  — with admin client
+const PUBLIC_REASSERT_MS   =  3 * 60 * 60 * 1000;   //  3 hrs  — public proxy routes
 
-export function reAssertRedirectsInBackground(shop) {
+export function reAssertRedirectsInBackground(shop, adminGraphQL) {
+  const interval = adminGraphQL ? SESSION_REASSERT_MS : PUBLIC_REASSERT_MS;
   const last = redirectAssertedAt.get(shop);
-  if (last && Date.now() - last < REASSERT_INTERVAL_MS) return;
+  if (last && Date.now() - last < interval) return;
   redirectAssertedAt.set(shop, Date.now());
-  publishRootDiscoveryRedirects(shop).catch((err) => {
-    console.warn(`[llms-txt] Background redirect re-assertion failed for ${shop}:`, err?.message);
-    redirectAssertedAt.delete(shop);
+  publishRootDiscoveryRedirects(shop, adminGraphQL).catch((err) => {
+    console.warn(`[llms-txt] Redirect re-assertion failed for ${shop}:`, err?.message);
+    redirectAssertedAt.delete(shop); // allow sooner retry
   });
 }
 

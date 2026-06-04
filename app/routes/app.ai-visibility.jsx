@@ -20,6 +20,7 @@ import { autoAddFaqSectionToProductPage } from "../lib/themeUtils.server";
 import {
   generateAndStoreDynamicLlmsTxt,
   invalidateLlmsTxtCache,
+  reAssertRedirectsInBackground,
   readLlmsTxtSettings,
   writeLlmsTxtSettings,
 } from "../lib/llmsTxt.server";
@@ -242,6 +243,13 @@ export const loader = async ({ request }) => {
       faqJson: supportsFaq ? faqMap[resource.id]?.faqJson || null : null,
       breakdown: supportsFaq ? breakdown : removeFaqBreakdown(breakdown),
     };
+  }
+
+  // Re-assert /llms.txt and /agents.md redirects every time the page loads (non-blocking).
+  // Uses the live session admin.graphql so it can override any app's redirect.
+  // Throttled to at most once every 10 minutes per shop to avoid rate-limit.
+  if (llmsTxt) {
+    reAssertRedirectsInBackground(shop, admin.graphql);
   }
 
   return {
