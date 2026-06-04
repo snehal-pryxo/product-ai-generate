@@ -503,17 +503,18 @@ async function publishRootDiscoveryRedirects(shop) {
     throw new Error("Shop is not installed or is missing an access token.");
   }
 
-  const redirects = await Promise.all([
+  // Use allSettled so one failing redirect does not block the others.
+  const results = await Promise.allSettled([
     upsertStorefrontRedirect(shop, shopRow.accessToken, "/llms.txt", "/apps/llms-txt/llms.txt"),
     upsertStorefrontRedirect(shop, shopRow.accessToken, "/agent.md", "/apps/llms-txt/agent.md"),
     upsertStorefrontRedirect(shop, shopRow.accessToken, "/agents.md", "/apps/llms-txt/agents.md"),
   ]);
 
-  return redirects.map((redirect) => ({
-    id: redirect?.id,
-    path: redirect?.path,
-    target: redirect?.target,
-  }));
+  return results.map((result) =>
+    result.status === "fulfilled"
+      ? { id: result.value?.id, path: result.value?.path, target: result.value?.target }
+      : { error: result.reason?.message || "redirect failed" },
+  );
 }
 
 function buildDiscoveryContext({ shop, data, shopRow }) {

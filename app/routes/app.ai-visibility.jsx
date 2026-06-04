@@ -927,6 +927,7 @@ export default function AiVisibilityPage() {
     pages: initialPages,
     llmsTxt: initialLlmsTxt,
     shop,
+    shopDomain,
     appApiKey,
     themeEmbedEnabled: initialEmbedEnabled,
     llmsTxtCredits,
@@ -1044,7 +1045,10 @@ export default function AiVisibilityPage() {
 
         if (data.creditsUsed) setCredits((c) => Math.max(0, c - data.creditsUsed));
         if (typeof window !== "undefined" && window.shopify?.toast) {
-          window.shopify.toast.show(`Generated successfully (${data.creditsUsed ?? 0} credits used).`);
+          const msg = data.intent === "generate_llmstxt"
+            ? `llms.txt and agents.md generated (${data.creditsUsed ?? 0} credits used).`
+            : `Generated successfully (${data.creditsUsed ?? 0} credits used).`;
+          window.shopify.toast.show(msg);
         }
       } else {
         setBanner(
@@ -1177,7 +1181,9 @@ export default function AiVisibilityPage() {
   const selectedItems = activeItems.filter((item) => selectedIds.includes(item.id));
   const bulkSchemaCredits = hasUnlimitedVisibility ? 0 : selectedItems.length * CREDITS_SCHEMA;
 
-  const llmsTxtUrl = `https://${shop}/llms.txt`;
+  const storeDomain = shopDomain || shop;
+  const llmsTxtUrl = `https://${storeDomain}/llms.txt`;
+  const agentsMdUrl = `https://${storeDomain}/agents.md`;
   // activateAppId uses the block *filename* (without .liquid), not the extension handle.
   // blocks/app-embed.liquid → handle = "app-embed"
   const appEmbedActivation = appApiKey
@@ -1325,27 +1331,59 @@ export default function AiVisibilityPage() {
                 <Text tone="subdued" variant="bodySm">
                   A single file that tells ChatGPT, Perplexity, and Google AI exactly what your store sells — so your products get recommended when shoppers ask AI assistants for suggestions.
                 </Text>
-                <InlineStack gap="200" wrap>
-                  {llmsTxt ? (
-                    <>
+                {llmsTxt && (
+                  <BlockStack gap="100">
+                    <InlineStack gap="100" blockAlign="center" wrap={false}>
+                      <Text variant="bodySm" tone="subdued" as="span">llms.txt:</Text>
+                      <Button
+                        variant="plain"
+                        size="slim"
+                        url={llmsTxtUrl}
+                        external
+                      >
+                        {llmsTxtUrl}
+                      </Button>
                       <Button
                         size="slim"
                         onClick={() => {
                           if (typeof navigator !== "undefined") navigator.clipboard.writeText(llmsTxtUrl);
                         }}
                       >
-                        Copy URL
+                        Copy
+                      </Button>
+                    </InlineStack>
+                    <InlineStack gap="100" blockAlign="center" wrap={false}>
+                      <Text variant="bodySm" tone="subdued" as="span">agents.md:</Text>
+                      <Button
+                        variant="plain"
+                        size="slim"
+                        url={agentsMdUrl}
+                        external
+                      >
+                        {agentsMdUrl}
                       </Button>
                       <Button
                         size="slim"
-                        variant="plain"
-                        loading={isSubmitting && generatingKey === "llmstxt"}
-                        disabled={credits < llmsTxtCredits}
-                        onClick={handleGenerateLlmsTxt}
+                        onClick={() => {
+                          if (typeof navigator !== "undefined") navigator.clipboard.writeText(agentsMdUrl);
+                        }}
                       >
-                        {`Regenerate (${llmsTxtCredits} cr)`}
+                        Copy
                       </Button>
-                    </>
+                    </InlineStack>
+                  </BlockStack>
+                )}
+                <InlineStack gap="200" wrap>
+                  {llmsTxt ? (
+                    <Button
+                      size="slim"
+                      variant="plain"
+                      loading={isSubmitting && generatingKey === "llmstxt"}
+                      disabled={credits < llmsTxtCredits}
+                      onClick={handleGenerateLlmsTxt}
+                    >
+                      {`Regenerate (${llmsTxtCredits} cr)`}
+                    </Button>
                   ) : (
                     <Button
                       size="slim"
