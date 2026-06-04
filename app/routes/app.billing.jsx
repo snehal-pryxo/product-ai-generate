@@ -6,7 +6,13 @@ import {
   activateSubscription,
 } from "../lib/billing.server";
 
-const APP_HANDLE = process.env.SHOPIFY_APP_HANDLE || "gen-ai-seo-product-description";
+// Normalise the app handle: the env var may still hold the old handle from a
+// previous deployment. Map any stale value to the correct production handle.
+const CORRECT_APP_HANDLE = "gen-ai-seo-product-description";
+const _envHandle = (process.env.SHOPIFY_APP_HANDLE || "").trim();
+const APP_HANDLE = _envHandle && _envHandle !== "content-ai-seo-generator"
+  ? _envHandle
+  : CORRECT_APP_HANDLE;
 
 function buildBillingRedirect(sourceUrl, result) {
   const shop = sourceUrl.searchParams.get("shop") || "";
