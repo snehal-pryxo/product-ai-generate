@@ -14,6 +14,7 @@ const CONTENT_TYPE_CREDIT_COSTS = {
   meta_title: CREDITS_PER_CONTENT_FIELD,
   meta_description: CREDITS_PER_CONTENT_FIELD,
   faq: 5,
+  body: 2,
 };
 
 function unique(values) {

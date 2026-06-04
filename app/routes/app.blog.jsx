@@ -2182,7 +2182,7 @@ export const action = async ({ request }) => {
       }
     }
 
-    const creditCost = 0;
+    const creditCost = 5;
 
     const creditBalance = creditCost > 0 ? await getOrCreateShopCredits(session.shop) : null;
     if (creditCost > 0 && (creditBalance?.credits ?? 0) < creditCost) {
@@ -3332,7 +3332,7 @@ const showOfferTextField = isDiscountPromotion(promotion);
                           {selectedOutlineId
                             ? isFreePlan
                               ? `${Math.max(0, Number(freePlanBlogLimit || FREE_PLAN_BLOG_LIMIT) - Number(generatedBlogCount || 0))} free blog article${Math.max(0, Number(freePlanBlogLimit || FREE_PLAN_BLOG_LIMIT) - Number(generatedBlogCount || 0)) === 1 ? "" : "s"} remaining.`
-                              : "No credits will be used to generate the full article."
+                              : "5 credits will be used to generate this article."
                             : "Click an idea card or its Select button to continue."}
                         </Text>
                       </BlockStack>
@@ -3346,8 +3346,8 @@ const showOfferTextField = isDiscountPromotion(promotion);
                         }
                       >
                         {activeTabKey === TAB_KEYS.PILLAR
-                          ? "Generate Pillar Article (10 credits)"
-                          : "Generate Full Blog"}
+                          ? "Generate Pillar Article (5 credits)"
+                          : "Generate Full Blog (5 credits)"}
                       </Button>
                     </InlineStack>
                   </Box>

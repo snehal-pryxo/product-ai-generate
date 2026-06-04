@@ -1136,7 +1136,10 @@ export const action = async ({ request }) => {
         const shouldUpdateDescription = selectedContentTypes.includes("description");
         const shouldUpdateMetaTitle = selectedContentTypes.includes("meta_title");
         const shouldUpdateMetaDescription = selectedContentTypes.includes("meta_description");
-        const creditsPerItem = 0;
+        const creditsPerItem = selectedContentTypes.reduce(
+          (sum, type) => sum + (COLLECTION_CONTENT_TYPE_CREDIT_COSTS[type] ?? 1),
+          0,
+        );
 
         const collectionsWithProducts = await Promise.all(
           bulkCollections.map(async (collection) => {
@@ -1169,7 +1172,7 @@ export const action = async ({ request }) => {
         }
 
         const availableCredits = shopData?.credits ?? 150;
-        const requiredCredits = 0;
+        const requiredCredits = creditsPerItem * targetProductsCount;
         if (availableCredits < requiredCredits) {
           return {
             ok: false,
@@ -1293,9 +1296,12 @@ export const action = async ({ request }) => {
       const shouldUpdateDescription = selectedContentTypes.includes("description");
       const shouldUpdateMetaTitle = selectedContentTypes.includes("meta_title");
       const shouldUpdateMetaDescription = selectedContentTypes.includes("meta_description");
-      const creditsPerItem = 0;
+      const creditsPerItem = selectedContentTypes.reduce(
+        (sum, type) => sum + (COLLECTION_CONTENT_TYPE_CREDIT_COSTS[type] ?? 1),
+        0,
+      );
       const availableCredits = shopData?.credits ?? 150;
-      const requiredCredits = 0;
+      const requiredCredits = creditsPerItem * bulkCollections.length;
 
       if (availableCredits < requiredCredits) {
         return {
