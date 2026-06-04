@@ -445,8 +445,8 @@ function removeContext(value) {
   return rest;
 }
 
-function composeProductSchemaWithFaq(productSchema, faqItems) {
-  const faqPageSchema = buildFaqPageSchema(faqItems);
+function composeProductSchemaWithFaq(productSchema, faqItems, maxItems = 2) {
+  const faqPageSchema = buildFaqPageSchema(faqItems, maxItems);
   if (!faqPageSchema) return productSchema;
 
   const productGraphItems =
@@ -849,7 +849,7 @@ export async function generateCombined(shop, adminContext, resource) {
   try {
     const raw = await callAIRaw(promptObj.prompt, promptObj.systemPrompt, aiOptions);
     const parsed = parseJsonResponse(raw);
-    const faqArr = normalizeFaqItems(parsed.faqs);
+    const faqArr = normalizeFaqItems(parsed.faqs, 2); // AI Visibility schema: 2 FAQs
     const productSchema = normalizeProductSchema(parsed.schema, {
       title: resource.title,
       description: resource.description || resource.descriptionHtml || "",
