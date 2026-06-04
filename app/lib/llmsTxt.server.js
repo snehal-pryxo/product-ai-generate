@@ -590,21 +590,30 @@ function isOurRedirect(target) {
   return String(target || "").startsWith(OUR_PROXY_PREFIX);
 }
 
-// ─── Session-client (admin.graphql) path ─────────────────────────────────────
-// Detect current state, log conflicts, then create/update as needed.
+// ─── Session-client redirect manager ─────────────────────────────────────────
+// Strategy: UPDATE (atomic, works even if another app owns the redirect).
+// Falls back to DELETE+CREATE only when UPDATE itself reports userErrors.
+// Always verifies the redirect after the operation.
 
 async function resolveOneRedirectWithSession(adminGraphQL, path, target) {
-  // Step 1: detect what is currently at this path (from ANY app).
+  const LOG = `[llms-redirect]`;
+
+  // Step 1 — query current state of this path.
   const findRes = await adminGraphQL(URL_REDIRECTS_BY_PATH_QUERY, {
     variables: { query: redirectSearchQuery(path) },
   });
   const findJson = await findRes.json();
   const existing = (findJson?.data?.urlRedirects?.nodes || []).filter((r) => r.path === path);
-
-  // Step 2: delete any duplicate redirects for this path (shouldn't happen, but defensive).
   const [primary, ...duplicates] = existing;
+
+  console.log(
+    `${LOG} ${path}: ${existing.length} redirect(s) found` +
+    (primary ? ` — current target: "${primary.target}"` : " — none"),
+  );
+
+  // Step 2 — remove any duplicates silently.
   if (duplicates.length > 0) {
-    console.warn(`[llms-redirect] ${path}: found ${duplicates.length} duplicate(s) — deleting`);
+    console.warn(`${LOG} ${path}: removing ${duplicates.length} duplicate(s)`);
     await Promise.allSettled(
       duplicates.map((d) =>
         adminGraphQL(URL_REDIRECT_DELETE_MUTATION, { variables: { id: d.id } }).catch(() => {}),
@@ -612,51 +621,94 @@ async function resolveOneRedirectWithSession(adminGraphQL, path, target) {
     );
   }
 
-  // Step 3: no redirect at all → create ours.
+  // Step 3 — no redirect exists → CREATE.
   if (!primary) {
-    console.log(`[llms-redirect] CREATE ${path} → ${target}`);
+    console.log(`${LOG} CREATE ${path} → ${target}`);
     const createRes = await adminGraphQL(URL_REDIRECT_CREATE_MUTATION, {
       variables: { urlRedirect: { path, target } },
     });
     const createJson = await createRes.json();
     const errs = createJson?.data?.urlRedirectCreate?.userErrors || [];
-    if (errs.length) throw new Error(errs.map((e) => e.message).join(", "));
-    return { action: "created", path, target };
+    if (errs.length) throw new Error(`CREATE ${path}: ${errs.map((e) => e.message).join(", ")}`);
+    const created = createJson?.data?.urlRedirectCreate?.urlRedirect;
+    console.log(`${LOG} ✓ CREATED ${path} → "${created?.target || target}"`);
+    return { action: "created", path, target: created?.target || target };
   }
 
-  // Step 4: our redirect already correct → nothing to do.
+  // Step 4 — redirect already points to correct target → done.
   if (primary.target === target) {
-    console.log(`[llms-redirect] OK ${path} → ${primary.target}`);
+    console.log(`${LOG} ✓ OK (unchanged) ${path} → "${primary.target}"`);
     return { action: "unchanged", path, target };
   }
 
-  // Step 5: wrong target — DELETE old redirect then CREATE ours fresh.
-  // (DELETE + CREATE instead of UPDATE so the state is always clean.)
-  const conflicting = !isOurRedirect(primary.target);
+  // Step 5 — wrong target: use UPDATE (atomic — works even if another app owns it).
+  const wasConflict = !isOurRedirect(primary.target);
   console.warn(
-    `[llms-redirect] ${conflicting ? "CONFLICT" : "STALE"}: ` +
-    `${path} → "${primary.target}" — deleting old redirect and creating ours.`,
+    `${LOG} ${wasConflict ? "CONFLICT" : "STALE"}: ${path} → "${primary.target}" ` +
+    `→ updating to "${target}"`,
   );
 
-  // DELETE the old redirect
+  const updateRes = await adminGraphQL(URL_REDIRECT_UPDATE_MUTATION, {
+    variables: { id: primary.id, urlRedirect: { path, target } },
+  });
+  const updateJson = await updateRes.json();
+  const updateErrs = updateJson?.data?.urlRedirectUpdate?.userErrors || [];
+
+  if (!updateErrs.length) {
+    const updated = updateJson?.data?.urlRedirectUpdate?.urlRedirect;
+    console.log(`${LOG} ✓ UPDATED ${path} → "${updated?.target || target}"`);
+    return { action: wasConflict ? "conflict_resolved" : "updated", path, target: updated?.target || target };
+  }
+
+  // Step 6 — UPDATE failed: fall back to DELETE + CREATE.
+  console.warn(`${LOG} UPDATE failed (${updateErrs.map((e) => e.message).join(", ")}) — trying DELETE+CREATE`);
+
   const delRes = await adminGraphQL(URL_REDIRECT_DELETE_MUTATION, { variables: { id: primary.id } });
   const delJson = await delRes.json();
   const delErrs = delJson?.data?.urlRedirectDelete?.userErrors || [];
   if (delErrs.length) {
-    console.warn(`[llms-redirect] DELETE failed for ${primary.id}:`, delErrs.map((e) => e.message).join(", "));
+    console.warn(`${LOG} DELETE also failed: ${delErrs.map((e) => e.message).join(", ")}`);
   } else {
-    console.log(`[llms-redirect] DELETED ${path} (was → "${primary.target}")`);
+    console.log(`${LOG} DELETED ${primary.id} (was "${primary.target}")`);
   }
 
-  // CREATE ours fresh
   const createRes2 = await adminGraphQL(URL_REDIRECT_CREATE_MUTATION, {
     variables: { urlRedirect: { path, target } },
   });
   const createJson2 = await createRes2.json();
   const createErrs2 = createJson2?.data?.urlRedirectCreate?.userErrors || [];
-  if (createErrs2.length) throw new Error(createErrs2.map((e) => e.message).join(", "));
-  console.log(`[llms-redirect] CREATED ${path} → "${target}"`);
-  return { action: conflicting ? "conflict_resolved" : "recreated", path, target };
+  if (createErrs2.length) throw new Error(`CREATE (fallback) ${path}: ${createErrs2.map((e) => e.message).join(", ")}`);
+  const created2 = createJson2?.data?.urlRedirectCreate?.urlRedirect;
+  console.log(`${LOG} ✓ CREATED (fallback) ${path} → "${created2?.target || target}"`);
+  return { action: wasConflict ? "conflict_resolved" : "recreated", path, target: created2?.target || target };
+}
+
+// ─── Post-operation redirect verification ────────────────────────────────────
+async function verifyRedirects(adminGraphQL, redirectMap) {
+  const results = [];
+  for (const { path, expectedTarget } of redirectMap) {
+    try {
+      const res = await adminGraphQL(URL_REDIRECTS_BY_PATH_QUERY, {
+        variables: { query: redirectSearchQuery(path) },
+      });
+      const json = await res.json();
+      const found = (json?.data?.urlRedirects?.nodes || []).find((r) => r.path === path);
+      const ok = found?.target === expectedTarget;
+      if (ok) {
+        console.log(`[llms-verify] ✓ ${path} → "${found.target}"`);
+      } else {
+        console.warn(
+          `[llms-verify] ✗ ${path}: expected "${expectedTarget}" ` +
+          `but Shopify has "${found?.target || "NOT FOUND"}"`,
+        );
+      }
+      results.push({ path, expectedTarget, actualTarget: found?.target, verified: ok });
+    } catch (err) {
+      console.warn(`[llms-verify] Error verifying ${path}: ${err?.message}`);
+      results.push({ path, expectedTarget, verified: false, error: err?.message });
+    }
+  }
+  return results;
 }
 
 // ─── REST fallback (stored access token) ─────────────────────────────────────
@@ -1475,32 +1527,40 @@ export async function generateAndStoreDynamicLlmsTxt(shop, options = {}, adminGr
     // Falls back to app proxy redirect if CDN upload fails.
     let cdnTargets = {};
 
+    // ── Upload to Shopify Files (CDN) ─────────────────────────────────────
     if (adminGraphQL) {
       try {
-        console.log(`[llms-cdn] [${shop}] Uploading llms.txt and agents.md to Shopify Files...`);
+        console.log(`[llms-cdn] [${shop}] Uploading llms.txt → Shopify Files...`);
         const [llmsCdnUrl, agentsCdnUrl] = await Promise.all([
           uploadToShopifyFiles(adminGraphQL, "llms.txt", content),
           uploadToShopifyFiles(adminGraphQL, "agents.md", agentContent, "text/markdown"),
         ]);
         if (llmsCdnUrl)   cdnTargets.llmsTxt  = llmsCdnUrl;
         if (agentsCdnUrl) cdnTargets.agentsMd = agentsCdnUrl;
-        console.log(`[llms-cdn] [${shop}] CDN upload complete:`, JSON.stringify(cdnTargets));
+        console.log(`[llms-cdn] [${shop}] ✓ CDN upload complete — llms.txt: ${llmsCdnUrl}`);
+        console.log(`[llms-cdn] [${shop}]                        agents.md: ${agentsCdnUrl}`);
       } catch (cdnErr) {
-        console.warn(`[llms-cdn] [${shop}] CDN upload failed (will use app proxy fallback): ${cdnErr?.message}`);
+        console.warn(`[llms-cdn] [${shop}] CDN upload failed — falling back to app proxy: ${cdnErr?.message}`);
       }
     }
 
-    // ── Create/update redirects pointing to CDN URL (or app proxy fallback) ─
+    // ── Set redirects: CDN URL (preferred) or app proxy (fallback) ────────
     const redirectTargets = {
       llmsTxt:  cdnTargets.llmsTxt  || "/apps/llms-txt/llms.txt",
       agentsMd: cdnTargets.agentsMd || "/apps/llms-txt/agents.md",
     };
+    const usedCdn = Boolean(cdnTargets.llmsTxt);
 
     const REDIRECT_MAP = [
       { path: "/llms.txt",  target: redirectTargets.llmsTxt  },
       { path: "/agents.md", target: redirectTargets.agentsMd },
       { path: "/agent.md",  target: redirectTargets.agentsMd },
     ];
+
+    console.log(
+      `[llms-redirect] [${shop}] Setting redirects (${usedCdn ? "CDN" : "app proxy"} targets):\n` +
+      REDIRECT_MAP.map((m) => `  ${m.path} → ${m.target}`).join("\n"),
+    );
 
     // Fetch access token once (only needed for the REST fallback path).
     const fallbackAccessToken = adminGraphQL
@@ -1510,31 +1570,38 @@ export async function generateAndStoreDynamicLlmsTxt(shop, options = {}, adminGr
     const redirectResults = await Promise.allSettled(
       REDIRECT_MAP.map(({ path, target }) =>
         adminGraphQL
-          ? resolveOneRedirectWithSession(adminGraphQL, path, target).then((r) => ({ ...r, target }))
-          : resolveOneRedirectWithRest(shop, fallbackAccessToken, path, target).then((r) => ({ ...r, target })),
+          ? resolveOneRedirectWithSession(adminGraphQL, path, target)
+          : resolveOneRedirectWithRest(shop, fallbackAccessToken, path, target),
       ),
     );
 
     const redirects = redirectResults.map((r, i) =>
       r.status === "fulfilled"
         ? r.value
-        : { path: REDIRECT_MAP[i].path, error: r.reason?.message || "redirect failed" },
+        : { path: REDIRECT_MAP[i].path, target: REDIRECT_MAP[i].target, error: r.reason?.message || "redirect failed" },
     );
 
-    // Log final state
+    // ── Verify redirects after creation ───────────────────────────────────
+    const verification = adminGraphQL
+      ? await verifyRedirects(adminGraphQL, REDIRECT_MAP.map(({ path, target }) => ({ path, expectedTarget: target })))
+      : [];
+
+    // ── Final log ─────────────────────────────────────────────────────────
     const llmsTxtResult = redirects.find((r) => r.path === "/llms.txt");
-    const usedCdn = Boolean(cdnTargets.llmsTxt);
+    const llmsTxtVerified = verification.find((v) => v.path === "/llms.txt");
     if (llmsTxtResult?.error) {
-      console.error(`[llms-redirect] [${shop}] /llms.txt redirect FAILED — ${llmsTxtResult.error}`);
+      console.error(`[llms-redirect] [${shop}] ✗ /llms.txt redirect FAILED: ${llmsTxtResult.error}`);
     } else {
       console.log(
-        `[llms-redirect] [${shop}] /llms.txt → ${redirectTargets.llmsTxt}` +
-        ` (${usedCdn ? "CDN" : "app proxy"}, action=${llmsTxtResult?.action || "unknown"})`,
+        `[llms-redirect] [${shop}] /llms.txt redirect: action=${llmsTxtResult?.action || "?"}` +
+        ` | target=${llmsTxtResult?.target || redirectTargets.llmsTxt}` +
+        ` | verified=${llmsTxtVerified?.verified ?? "n/a"}`,
       );
     }
+    console.log(`[llms-redirect] [${shop}] Redirect summary:`, JSON.stringify(redirects));
 
     const redirectFixed = redirects.some((r) =>
-      ["conflict_resolved", "recreated", "created", "rest_created", "rest_race_updated"].includes(r.action),
+      ["conflict_resolved", "recreated", "created", "updated", "rest_created", "rest_race_updated"].includes(r.action),
     );
 
     return {
@@ -1544,6 +1611,7 @@ export async function generateAndStoreDynamicLlmsTxt(shop, options = {}, adminGr
       redirectFixed,
       usedCdn,
       cdnTargets,
+      verification,
     };
   } catch (error) {
     await refundCredits({ shopDomain: shop, creditsRefunded: credits });
