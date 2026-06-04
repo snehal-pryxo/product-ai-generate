@@ -3572,7 +3572,7 @@ const showOfferTextField = isDiscountPromotion(promotion);
             })()}
 
             <Text as="p" variant="bodySm" tone="subdued">
-              Cost: <strong>10 credits</strong>.
+              Cost: <strong>5 credits</strong>.
             </Text>
           </BlockStack>
         </Modal.Section>

@@ -41,6 +41,10 @@ import { openAddCreditModal } from "../components/AddCreditModal";
 
 const PAGE_CONTENT_TYPES = ["body", "meta_title", "meta_description"];
 const DEFAULT_PAGE_CONTENT_TYPES = ["body", "meta_title", "meta_description"];
+const PAGE_CONTENT_TYPE_CREDIT_COSTS = { body: 2, meta_title: 1, meta_description: 1 };
+function clientPageCreditsForContentTypes(contentTypes) {
+  return (contentTypes || []).reduce((sum, type) => sum + (PAGE_CONTENT_TYPE_CREDIT_COSTS[type] ?? 1), 0);
+}
 
 function parseShopGlobalSettings(shopData) {
   try {
@@ -1645,19 +1649,37 @@ export default function PagesPage() {
               </div>
             )}
 
-            {/* Generate Button */}
-            <div style={{ padding: "12px 16px" }}>
-              <Button
-                style={{ width: "fit-content" }}
-                variant="primary"
-                onClick={handleBulkGenerate}
-                disabled={isBulkGenerating || selectedResources.length === 0 || !hasRequiredBulkTemplates}
-                loading={isBulkGenerating}
-                tone="success"
-              >
-                {`Generate ${selectedResources.length} page${selectedResources.length !== 1 ? "s" : ""}`}
-              </Button>
-            </div>
+            {/* Credit estimate */}
+            {(() => {
+              const creditsPerPage = clientPageCreditsForContentTypes(bulkContentTypes);
+              const totalCredits = creditsPerPage * selectedResources.length;
+              const hasEnoughCredits = totalCredits === 0 || localCredits >= totalCredits;
+              return (
+                <>
+                  <div style={{ padding: "8px 16px", borderTop: "1px solid var(--p-color-border)" }}>
+                    <Text as="p" variant="bodySm" tone={!hasEnoughCredits ? "critical" : "subdued"}>
+                      {`Estimated credits used: ${totalCredits} (${selectedResources.length} page${selectedResources.length !== 1 ? "s" : ""} x ${creditsPerPage} credits each)${!hasEnoughCredits ? ` — not enough credits (${localCredits} available)` : ""}`}
+                    </Text>
+                  </div>
+                  {/* Generate Button */}
+                  <div style={{ padding: "12px 16px", display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <Button
+                      style={{ width: "fit-content" }}
+                      variant="primary"
+                      onClick={handleBulkGenerate}
+                      disabled={isBulkGenerating || selectedResources.length === 0 || !hasRequiredBulkTemplates || !hasEnoughCredits}
+                      loading={isBulkGenerating}
+                      tone="success"
+                    >
+                      {`Generate ${selectedResources.length} page${selectedResources.length !== 1 ? "s" : ""} (${totalCredits} credits)`}
+                    </Button>
+                    {!hasEnoughCredits && (
+                      <Button onClick={openAddCreditModal}>Add Credits</Button>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </Card>
         </div>
       </div>

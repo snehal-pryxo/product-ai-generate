@@ -1393,8 +1393,8 @@ export default function ProductsPage() {
     [filteredProducts, selectedProductIds],
   );
   const exceedsBulkLimit = selectedProducts.length > MAX_BULK_ITEMS;
-  const bulkCreditsPerProduct = 0;
-  const requiredBulkCredits = 0;
+  const bulkCreditsPerProduct = clientCreditsForContentTypes(bulkContentTypes);
+  const requiredBulkCredits = clientCreditsForBatch(bulkContentTypes, selectedProducts.length);
   const insufficientCredits = requiredBulkCredits > 0 && requiredBulkCredits > credits;
   const isFaqTabSelected = bulkContentTypes.includes("faq");
   const faqProductPageUrl = appApiKey

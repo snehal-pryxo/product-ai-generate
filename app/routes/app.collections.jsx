@@ -2147,8 +2147,10 @@ export default function CollectionsPage() {
     targetCollectionsForBulk,
   ]);
 
-  const bulkCreditsPerItem = 0;
-  const requiredBulkCredits = 0;
+  const bulkCreditsPerItem = clientCreditsForContentTypes(bulkContentTypes);
+  const requiredBulkCredits = isCollectionProductsMode
+    ? bulkCreditsPerItem * estimatedTargetItems
+    : bulkCreditsPerItem * selectedCollections.length;
   const insufficientCredits = requiredBulkCredits > 0 && requiredBulkCredits > credits;
 
   const allVisibleSelected =
