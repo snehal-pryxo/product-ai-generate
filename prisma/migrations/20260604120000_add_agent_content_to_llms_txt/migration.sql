@@ -1,0 +1,2 @@
+ALTER TABLE `ai_visibility_llms_txt`
+  ADD COLUMN IF NOT EXISTS `agentContent` LONGTEXT NULL;

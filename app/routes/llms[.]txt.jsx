@@ -1,4 +1,4 @@
-import { generateDynamicLlmsTxt, resolveShopFromRequest } from "../lib/llmsTxt.server";
+import { generateDynamicLlmsTxt, readStoredLlmsTxtContent, resolveShopFromRequest } from "../lib/llmsTxt.server";
 
 const PLAIN_TEXT = {
   "Content-Type": "text/plain; charset=utf-8",
@@ -9,6 +9,15 @@ export async function loader({ request }) {
   const shop = await resolveShopFromRequest(request);
   if (!shop) {
     return new Response("# LLMs.txt\n\nShop not found.", { status: 200, headers: PLAIN_TEXT });
+  }
+
+  try {
+    const storedContent = await readStoredLlmsTxtContent(shop);
+    if (storedContent) {
+      return new Response(storedContent, { status: 200, headers: PLAIN_TEXT });
+    }
+  } catch {
+    // DB unavailable - fall through to dynamic generation.
   }
 
   try {

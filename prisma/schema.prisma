@@ -366,6 +366,7 @@ model AiVisibilityLlmsTxt {
   id           BigInt   @id @default(autoincrement())
   shop         String   @unique(map: "AiVisibilityLlmsTxt_shop_key")
   content      String   @db.LongText
+  agentContent String?  @db.LongText
   itemCount    Int?
   aiModel      String?  @db.VarChar(100)
   aiProvider   String?  @db.VarChar(32)

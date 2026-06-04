@@ -1,4 +1,4 @@
-import { generateDynamicAgentsMd, resolveShopFromRequest } from "../lib/llmsTxt.server";
+import { generateDynamicAgentsMd, readStoredAgentMdContent, resolveShopFromRequest } from "../lib/llmsTxt.server";
 
 const PLAIN_TEXT = { "Content-Type": "text/markdown; charset=utf-8" };
 const CACHEABLE_PLAIN_TEXT = { ...PLAIN_TEXT, "Cache-Control": "public, max-age=300, stale-while-revalidate=3600" };
@@ -8,6 +8,15 @@ export async function loader({ request }) {
 
   if (!shop) {
     return new Response("# Agent Instructions\n\nShop not found.", { status: 200, headers: PLAIN_TEXT });
+  }
+
+  try {
+    const storedContent = await readStoredAgentMdContent(shop);
+    if (storedContent) {
+      return new Response(storedContent, { status: 200, headers: CACHEABLE_PLAIN_TEXT });
+    }
+  } catch {
+    // DB unavailable - fall through to dynamic generation.
   }
 
   try {

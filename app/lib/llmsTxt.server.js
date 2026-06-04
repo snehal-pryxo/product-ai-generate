@@ -280,13 +280,118 @@ async function shopifyGraphql(shop, accessToken, query, variables = {}) {
   return json.data;
 }
 
+async function shopifyRest(shop, accessToken, path, options = {}) {
+  const response = await fetch(`https://${shop}/admin/api/${API_VERSION}/${path}`, {
+    method: options.method || "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Shopify-Access-Token": accessToken,
+    },
+    ...(options.body ? { body: JSON.stringify(options.body) } : {}),
+  });
+  const text = await response.text();
+  let json = {};
+  if (text) {
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = { errors: text };
+    }
+  }
+  if (!response.ok) {
+    const message = json?.errors || json?.error || response.statusText;
+    throw new Error(typeof message === "string" ? message : JSON.stringify(message));
+  }
+  return json;
+}
+
+async function upsertStorefrontRedirect(shop, accessToken, path, target) {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const normalizedTarget = target.startsWith("/") ? target : `/${target}`;
+  const query = new URLSearchParams({ path: normalizedPath, limit: "250" }).toString();
+  const existingJson = await shopifyRest(shop, accessToken, `redirects.json?${query}`);
+  const existing = (existingJson?.redirects || []).find((redirect) => redirect?.path === normalizedPath);
+
+  if (existing?.id) {
+    const updated = await shopifyRest(shop, accessToken, `redirects/${existing.id}.json`, {
+      method: "PUT",
+      body: {
+        redirect: {
+          id: existing.id,
+          path: normalizedPath,
+          target: normalizedTarget,
+        },
+      },
+    });
+    return updated?.redirect || { id: existing.id, path: normalizedPath, target: normalizedTarget };
+  }
+
+  try {
+    const created = await shopifyRest(shop, accessToken, "redirects.json", {
+      method: "POST",
+      body: {
+        redirect: {
+          path: normalizedPath,
+          target: normalizedTarget,
+        },
+      },
+    });
+    return created?.redirect || { path: normalizedPath, target: normalizedTarget };
+  } catch (error) {
+    if (!/already exists|has already been taken/i.test(String(error?.message || ""))) {
+      throw error;
+    }
+    const fallbackJson = await shopifyRest(shop, accessToken, "redirects.json?limit=250");
+    const fallback = (fallbackJson?.redirects || []).find((redirect) => redirect?.path === normalizedPath);
+    if (!fallback?.id) throw error;
+    const updated = await shopifyRest(shop, accessToken, `redirects/${fallback.id}.json`, {
+      method: "PUT",
+      body: {
+        redirect: {
+          id: fallback.id,
+          path: normalizedPath,
+          target: normalizedTarget,
+        },
+      },
+    });
+    return updated?.redirect || { id: fallback.id, path: normalizedPath, target: normalizedTarget };
+  }
+}
+
+async function publishRootDiscoveryRedirects(shop) {
+  const shopRow = await db.shop.findUnique({
+    where: { shop },
+    select: {
+      installed: true,
+      accessToken: true,
+    },
+  });
+  if (!shopRow?.installed || !shopRow.accessToken) {
+    throw new Error("Shop is not installed or is missing an access token.");
+  }
+
+  const redirects = await Promise.all([
+    upsertStorefrontRedirect(shop, shopRow.accessToken, "/llms.txt", "/apps/llms-txt/llms.txt"),
+    upsertStorefrontRedirect(shop, shopRow.accessToken, "/agent.md", "/apps/llms-txt/agent.md"),
+    upsertStorefrontRedirect(shop, shopRow.accessToken, "/agents.md", "/apps/llms-txt/agents.md"),
+  ]);
+
+  return redirects.map((redirect) => ({
+    id: redirect?.id,
+    path: redirect?.path,
+    target: redirect?.target,
+  }));
+}
+
 function buildDiscoveryContext({ shop, data, shopRow }) {
   const shopData = data.shop || {};
   const shopUrl = normalizeUrl(shopData.primaryDomain?.url) || `https://${shop}`;
   const primaryDomain = shopData.primaryDomain?.host || new URL(shopUrl).host;
   const appProxyBaseUrl = canonicalUrl(shopUrl, "/apps/llms-txt");
-  const llmsTxtUrl = canonicalUrl(shopUrl, "/apps/llms-txt/llms.text");
-  const llmsTxtAltUrl = canonicalUrl(shopUrl, "/apps/llms-txt/llms.txt");
+  const llmsTxtUrl = canonicalUrl(shopUrl, "/llms.txt");
+  const llmsTxtProxyUrl = canonicalUrl(shopUrl, "/apps/llms-txt/llms.txt");
+  const llmsTxtAltUrl = canonicalUrl(shopUrl, "/apps/llms-txt/llms.text");
+  const agentMdUrl = canonicalUrl(shopUrl, "/apps/llms-txt/agent.md");
   const agentsMdUrl = canonicalUrl(shopUrl, "/apps/llms-txt/agents.md");
   const pages = uniqueByUrl((data.pages?.nodes || [])
     .filter((page) => page.handle && !isPrivatePage(page))
@@ -346,7 +451,9 @@ function buildDiscoveryContext({ shop, data, shopRow }) {
     shopUrl,
     appProxyBaseUrl,
     llmsTxtUrl,
+    llmsTxtProxyUrl,
     llmsTxtAltUrl,
+    agentMdUrl,
     agentsMdUrl,
     primaryDomain,
     llmsTxtCanonicalUrl: `https://${primaryDomain}/llms.txt`,
@@ -383,10 +490,11 @@ function renderLlmsTxt({ shop, data, settings, shopRow }) {
     longDescription,
     shopUrl,
     llmsTxtUrl,
+    llmsTxtProxyUrl,
     llmsTxtAltUrl,
     llmsTxtCanonicalUrl,
     agentMdCanonicalUrl,
-    agentsMdUrl,
+    agentMdUrl,
     currency,
     primaryCategory,
     targetCustomers,
@@ -418,7 +526,7 @@ function renderLlmsTxt({ shop, data, settings, shopRow }) {
     `LLMs.txt: ${llmsTxtCanonicalUrl}`,
     `Agent.md: ${agentMdCanonicalUrl}`,
     "",
-    `For full agent behavior, cart actions, checkout rules, and purchase safety instructions, see: ${agentsMdUrl}`,
+    `For full agent behavior, cart actions, checkout rules, and purchase safety instructions, see: ${agentMdUrl}`,
     "",
     section("Store Overview", [
       `- Store name: ${storeName}`,
@@ -445,9 +553,11 @@ function renderLlmsTxt({ shop, data, settings, shopRow }) {
       "- Collection products JSON: GET /collections/{handle}/products.json",
       "- Product search: GET /search?q={query}&type=product",
       "- Store sitemap: GET /sitemap.xml",
-      "- Agent instructions: GET /apps/llms-txt/agents.md",
-      "- LLM discovery file: GET /apps/llms-txt/llms.text",
-      "- Alternate LLM discovery file: GET /apps/llms-txt/llms.txt",
+      "- Agent instructions: GET /apps/llms-txt/agent.md",
+      "- Alternate agent instructions: GET /apps/llms-txt/agents.md",
+      "- LLM discovery file: GET /llms.txt",
+      "- App proxy LLM discovery file: GET /apps/llms-txt/llms.txt",
+      "- Alternate LLM discovery file: GET /apps/llms-txt/llms.text",
       "",
       "When recommending products, prefer live product pages or product JSON for accurate price, variants, availability, and product options.",
     ]),
@@ -523,7 +633,7 @@ function renderLlmsTxt({ shop, data, settings, shopRow }) {
   ]));
 
   parts.push("", section("Agent and Commerce Safety", [
-    `For full agent behavior, cart, checkout, and purchase instructions, see: ${agentsMdUrl}`,
+    `For full agent behavior, cart, checkout, and purchase instructions, see: ${agentMdUrl}`,
     "Important rules for shopping agents:",
     "- Checkout requires human approval. Agents must not complete payment without explicit buyer consent at the moment of purchase.",
     "- Verify live data. Prices, inventory, variants, discounts, taxes, shipping rates, and checkout availability must be verified using live Shopify product, cart, or checkout data.",
@@ -536,8 +646,9 @@ function renderLlmsTxt({ shop, data, settings, shopRow }) {
     "Useful agent commerce resources:",
     "- UCP specification: https://ucp.dev",
     "- Shop skill: https://shop.app/SKILL.md",
-    `- Store agent instructions: ${agentsMdUrl}`,
+    `- Store agent instructions: ${agentMdUrl}`,
     `- Store LLM discovery file: ${llmsTxtUrl}`,
+    `- App proxy Store LLM discovery file: ${llmsTxtProxyUrl}`,
     `- Alternate Store LLM discovery file: ${llmsTxtAltUrl}`,
     `- Store sitemap: ${shopUrl}/sitemap.xml`,
   ]));
@@ -620,8 +731,10 @@ function renderAgentsMd({ shop, data, shopRow }) {
     ``,
     `### 1. Discover`,
     ``,
-    `- \`GET /apps/llms-txt/llms.text\``,
+    `- \`GET /llms.txt\``,
     `- \`GET /apps/llms-txt/llms.txt\``,
+    `- \`GET /apps/llms-txt/llms.text\``,
+    `- \`GET /apps/llms-txt/agent.md\``,
     `- \`GET /apps/llms-txt/agents.md\``,
     `- \`GET /sitemap.xml\``,
     `- If supported: \`GET /.well-known/ucp\`, \`POST /api/mcp\`, \`POST /api/ucp/mcp\``,
@@ -819,6 +932,22 @@ export async function generateDynamicAgentsMd(shop, options = {}) {
   return content;
 }
 
+export async function readStoredLlmsTxtContent(shop) {
+  const stored = await db.aiVisibilityLlmsTxt.findUnique({
+    where: { shop },
+    select: { content: true },
+  });
+  return stored?.content || "";
+}
+
+export async function readStoredAgentMdContent(shop) {
+  const stored = await db.aiVisibilityLlmsTxt.findUnique({
+    where: { shop },
+    select: { agentContent: true },
+  });
+  return stored?.agentContent || "";
+}
+
 export function invalidateLlmsTxtCache(shop) {
   responseCache.delete(`llms:${shop}`);
   responseCache.delete(`agents:${shop}`);
@@ -830,17 +959,18 @@ export async function generateAndStoreDynamicLlmsTxt(shop, options = {}) {
 
   try {
     // Regenerate both files in parallel, force-bypassing cache for both
-    const [content] = await Promise.all([
+    const [content, agentContent] = await Promise.all([
       generateDynamicLlmsTxt(shop, { ...options, force: true }),
       generateDynamicAgentsMd(shop, { force: true }),
     ]);
     const itemCount = (content.match(/^- /gm) || []).length;
     await db.aiVisibilityLlmsTxt.upsert({
       where: { shop },
-      create: { shop, content, itemCount, creditsUsed: credits },
-      update: { content, itemCount, creditsUsed: credits, updatedAt: new Date() },
+      create: { shop, content, agentContent, itemCount, creditsUsed: credits },
+      update: { content, agentContent, itemCount, creditsUsed: credits, updatedAt: new Date() },
     });
-    return { content, creditsUsed: credits };
+    const redirects = await publishRootDiscoveryRedirects(shop);
+    return { content, creditsUsed: credits, redirects };
   } catch (error) {
     await refundCredits({ shopDomain: shop, creditsRefunded: credits });
     throw error;
