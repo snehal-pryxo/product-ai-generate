@@ -1185,7 +1185,6 @@ export default function AiVisibilityPage() {
 
   const storeDomain = shopDomain || shop;
   const llmsTxtUrl = `https://${storeDomain}/llms.txt`;
-  const agentsMdUrl = `https://${storeDomain}/agents.md`;
   // activateAppId uses the block *filename* (without .liquid), not the extension handle.
   // blocks/app-embed.liquid → handle = "app-embed"
   const appEmbedActivation = appApiKey
@@ -1334,24 +1333,14 @@ export default function AiVisibilityPage() {
                   A single file that tells ChatGPT, Perplexity, and Google AI exactly what your store sells — so your products get recommended when shoppers ask AI assistants for suggestions.
                 </Text>
                 {llmsTxt && (
-                  <InlineStack gap="200" wrap>
-                    <Button
-                      size="slim"
-                      onClick={() => {
-                        if (typeof navigator !== "undefined") navigator.clipboard.writeText(llmsTxtUrl);
-                      }}
-                    >
-                      Copy URL
-                    </Button>
-                    <Button
-                      size="slim"
-                      onClick={() => {
-                        if (typeof navigator !== "undefined") navigator.clipboard.writeText(agentsMdUrl);
-                      }}
-                    >
-                      Copy agents.md URL
-                    </Button>
-                  </InlineStack>
+                  <Button
+                    size="slim"
+                    onClick={() => {
+                      if (typeof navigator !== "undefined") navigator.clipboard.writeText(llmsTxtUrl);
+                    }}
+                  >
+                    Copy URL
+                  </Button>
                 )}
                 <InlineStack gap="200" wrap>
                   {llmsTxt ? (
