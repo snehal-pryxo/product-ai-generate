@@ -40,7 +40,7 @@ function buildEmbeddedHost(shop) {
 export function buildAppReturnUrl(request, params = {}) {
   const requestUrl = new URL(request.url);
   const shop = params.shop || requestUrl.searchParams.get("shop");
-  const returnUrl = new URL("/app/billing", getAppBaseUrl(request));
+  const returnUrl = new URL("/billing", getAppBaseUrl(request));
 
   if (shop) {
     returnUrl.searchParams.set("shop", String(shop));
@@ -49,7 +49,9 @@ export function buildAppReturnUrl(request, params = {}) {
   if (host) {
     returnUrl.searchParams.set("host", host);
   }
-  returnUrl.searchParams.set("embedded", requestUrl.searchParams.get("embedded") || "1");
+  // Do NOT set embedded=1 — the billing return URL is accessed in a full-page
+  // context after billing confirmation, so the App Bridge should not initiate
+  // session-token auth which would create a redirect loop.
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
       returnUrl.searchParams.set(key, String(value));
@@ -270,6 +272,24 @@ export async function activateSubscription({ admin, shop, planKey }) {
   });
 
   if (!pending?.subscriptionId) {
+    // Idempotency: if this plan was already activated recently (within the last 10 minutes),
+    // treat it as success so the post-billing redirect always lands on the dashboard.
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    const recentlyActivated = await db.billingSubscription.findFirst({
+      where: {
+        shop,
+        planKey,
+        creditedAt: { gte: tenMinutesAgo },
+        status: "ACTIVE",
+      },
+      orderBy: { creditedAt: "desc" },
+    });
+    if (recentlyActivated) {
+      return {
+        success: true,
+        message: `${recentlyActivated.planName} is active.`,
+      };
+    }
     return { success: false, message: "No pending subscription found." };
   }
 
@@ -290,8 +310,7 @@ export async function activateSubscription({ admin, shop, planKey }) {
     db.shop.upsert({
       where: { shop },
       update: {
-        credits: pending.credits,
-        creditsUsedTotal: 0,
+        credits: { increment: pending.credits },
         billingPlanKey: pending.planKey,
         billingPlanName: pending.planName,
         billingPlanCredits: pending.credits,

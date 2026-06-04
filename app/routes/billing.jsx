@@ -1,6 +1,5 @@
-import { Link, redirect, useLoaderData, useLocation } from "react-router";
-import { Banner, BlockStack, Box, Button, Card, InlineStack, Page, Text } from "@shopify/polaris";
-import { authenticate, unauthenticated } from "../shopify.server";
+import { redirect } from "react-router";
+import { unauthenticated } from "../shopify.server";
 import {
   activateExtraCreditPurchase,
   activateSubscription,
@@ -12,8 +11,6 @@ function buildBillingRedirect(sourceUrl, result) {
   const shop = sourceUrl.searchParams.get("shop") || "";
   const host = sourceUrl.searchParams.get("host") || "";
 
-  // Decode the base64 `host` param to get the Shopify admin base URL
-  // host = base64("admin.shopify.com/store/{subdomain}")
   let adminBase = "";
   if (host) {
     try {
@@ -27,7 +24,7 @@ function buildBillingRedirect(sourceUrl, result) {
     adminBase = `https://admin.shopify.com/store/${subdomain}`;
   }
 
-  // On success → app home; on failure → app pricing page
+  // On success → app home (dashboard); on failure → app pricing page
   const appPath = result.success ? "/" : "/pricing";
   const redirectUrl = new URL(`${adminBase}/apps/${APP_HANDLE}${appPath}`);
   redirectUrl.searchParams.set("success", String(Boolean(result.success)));
@@ -40,11 +37,13 @@ export const loader = async ({ request }) => {
   const url = new URL(request.url);
   const shopParam = String(url.searchParams.get("shop") || "").trim();
   const isValidShopDomain = /^[a-z0-9-]+\.myshopify\.com$/.test(shopParam);
-  const authContext =
-    shopParam && isValidShopDomain
-      ? await unauthenticated.admin(shopParam)
-      : await authenticate.admin(request);
-  const { admin, session } = authContext;
+
+  if (!shopParam || !isValidShopDomain) {
+    throw redirect("/app/pricing");
+  }
+
+  const { admin, session } = await unauthenticated.admin(shopParam);
+
   const type =
     String(url.searchParams.get("type") || "") ||
     (url.searchParams.get("plan") ? "subscription" : "") ||
@@ -66,7 +65,7 @@ export const loader = async ({ request }) => {
       });
     }
   } catch (err) {
-    console.error("[app.billing] Billing activation error:", err);
+    console.error("[billing] Billing activation error:", err);
     result = {
       success: false,
       message: err?.message || "Billing activation failed. Please contact support.",
@@ -77,32 +76,6 @@ export const loader = async ({ request }) => {
 };
 
 export default function BillingReturnPage() {
-  const data = useLoaderData();
-  const location = useLocation();
-
-  return (
-    <Page title="Billing">
-      <BlockStack gap="400">
-        <Banner tone={data?.success ? "success" : "critical"}>
-          <p>{data?.message || "Billing return processed."}</p>
-        </Banner>
-        <Card>
-          <InlineStack align="space-between" blockAlign="center">
-            <BlockStack gap="100">
-              <Text as="h2" variant="headingMd">
-                Billing status
-              </Text>
-              <Text as="p" tone="subdued">
-                Return to pricing to review your plan and credit balance.
-              </Text>
-            </BlockStack>
-            <Link to={{ pathname: "/app/pricing", search: location.search }}>
-              <Button variant="primary">Back to pricing</Button>
-            </Link>
-          </InlineStack>
-        </Card>
-        <Box paddingBlockEnd="800" />
-      </BlockStack>
-    </Page>
-  );
+  // The loader always redirects; this component is only shown in edge-case errors.
+  return null;
 }

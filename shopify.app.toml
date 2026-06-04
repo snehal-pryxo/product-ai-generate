@@ -1,10 +1,10 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "3c547ccca21c77a2e4894a02c124a7b4"
-name = "Content AI – SEO Generator"
+name = "Gen AI SEO Product Description"
 application_url = "https://ai-content-generation-nine.vercel.app"
 embedded = true
-handle = "content-ai-seo-generator"
+handle = "gen-ai-seo-product-description"
 [build]
 automatically_update_urls_on_dev = true
 

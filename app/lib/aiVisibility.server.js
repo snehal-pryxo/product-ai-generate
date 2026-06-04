@@ -237,11 +237,7 @@ async function getAiOptions(shop) {
 }
 
 async function getAiVisibilityCreditCost(shop, defaultCost) {
-  const shopData = await db.shop.findUnique({
-    where: { shop },
-    select: { billingPlanKey: true },
-  });
-  return (shopData?.billingPlanKey || "free") === "free" ? defaultCost : 0;
+  return defaultCost;
 }
 
 export async function generateSchema(shop, adminContext, resourceType, resource) {
@@ -332,6 +328,25 @@ export async function generateSchema(shop, adminContext, resourceType, resource)
         image: collectionImage,
         products: collectionProducts,
       });
+    }
+    // For products, merge any existing stored FAQ (up to 2 items) into the schema
+    if (resourceType === "product") {
+      const storedFaq = await db.aiVisibilityFaq.findUnique({
+        where: { shop_resourceType_resourceId: { shop, resourceType: "product", resourceId: resource.id } },
+        select: { faqJson: true },
+      });
+      if (storedFaq?.faqJson) {
+        try {
+          const faqPage = JSON.parse(storedFaq.faqJson);
+          const faqItems = (faqPage.mainEntity || []).map((qa) => ({
+            question: qa.name,
+            answer: qa.acceptedAnswer?.text,
+          }));
+          if (faqItems.length > 0) {
+            obj = composeProductSchemaWithFaq(obj, faqItems);
+          }
+        } catch {}
+      }
     }
     const schemaJson = JSON.stringify(obj);
 
