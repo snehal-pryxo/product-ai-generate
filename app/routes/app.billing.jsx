@@ -28,7 +28,7 @@ function buildBillingRedirect(sourceUrl, result) {
   }
 
   // On success → app home; on failure → app pricing page
-  const appPath = result.success ? "" : "/pricing";
+  const appPath = result.success ? "/" : "/pricing";
   const redirectUrl = new URL(`${adminBase}/apps/${APP_HANDLE}${appPath}`);
   redirectUrl.searchParams.set("success", String(Boolean(result.success)));
   redirectUrl.searchParams.set("message", result.message || "");

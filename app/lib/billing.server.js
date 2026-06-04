@@ -33,7 +33,8 @@ export function getAppBaseUrl(request) {
 
 function buildEmbeddedHost(shop) {
   if (!shop) return "";
-  return Buffer.from(`${shop}/admin`).toString("base64");
+  const storeHandle = String(shop).replace(/\.myshopify\.com$/i, "");
+  return Buffer.from(`admin.shopify.com/store/${storeHandle}`).toString("base64");
 }
 
 export function buildAppReturnUrl(request, params = {}) {

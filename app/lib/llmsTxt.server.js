@@ -305,7 +305,123 @@ async function shopifyRest(shop, accessToken, path, options = {}) {
   return json;
 }
 
-async function upsertStorefrontRedirect(shop, accessToken, path, target) {
+const URL_REDIRECTS_BY_PATH_QUERY = `#graphql
+  query UrlRedirectsByPath($query: String!) {
+    urlRedirects(first: 50, query: $query) {
+      nodes {
+        id
+        path
+        target
+      }
+    }
+  }
+`;
+
+const URL_REDIRECT_CREATE_MUTATION = `#graphql
+  mutation UrlRedirectCreate($urlRedirect: UrlRedirectInput!) {
+    urlRedirectCreate(urlRedirect: $urlRedirect) {
+      urlRedirect {
+        id
+        path
+        target
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const URL_REDIRECT_UPDATE_MUTATION = `#graphql
+  mutation UrlRedirectUpdate($id: ID!, $urlRedirect: UrlRedirectInput!) {
+    urlRedirectUpdate(id: $id, urlRedirect: $urlRedirect) {
+      urlRedirect {
+        id
+        path
+        target
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const URL_REDIRECT_DELETE_MUTATION = `#graphql
+  mutation UrlRedirectDelete($id: ID!) {
+    urlRedirectDelete(id: $id) {
+      deletedUrlRedirectId
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+function assertNoUserErrors(payload, fallbackMessage) {
+  const userErrors = payload?.userErrors || [];
+  if (userErrors.length > 0) {
+    throw new Error(userErrors.map((error) => error.message).join(", "));
+  }
+  return payload || (() => {
+    throw new Error(fallbackMessage);
+  })();
+}
+
+function redirectSearchQuery(path) {
+  return `path:"${String(path).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+async function findStorefrontRedirectsByPath(shop, accessToken, path) {
+  const data = await shopifyGraphql(shop, accessToken, URL_REDIRECTS_BY_PATH_QUERY, {
+    query: redirectSearchQuery(path),
+  });
+  return (data?.urlRedirects?.nodes || []).filter((redirect) => redirect?.path === path);
+}
+
+async function createStorefrontRedirectWithGraphql(shop, accessToken, path, target) {
+  const data = await shopifyGraphql(shop, accessToken, URL_REDIRECT_CREATE_MUTATION, {
+    urlRedirect: { path, target },
+  });
+  const payload = assertNoUserErrors(data?.urlRedirectCreate, "Shopify did not return a URL redirect create response.");
+  return payload.urlRedirect;
+}
+
+async function updateStorefrontRedirectWithGraphql(shop, accessToken, redirectId, path, target) {
+  const data = await shopifyGraphql(shop, accessToken, URL_REDIRECT_UPDATE_MUTATION, {
+    id: redirectId,
+    urlRedirect: { path, target },
+  });
+  const payload = assertNoUserErrors(data?.urlRedirectUpdate, "Shopify did not return a URL redirect update response.");
+  return payload.urlRedirect;
+}
+
+async function deleteStorefrontRedirectWithGraphql(shop, accessToken, redirectId) {
+  const data = await shopifyGraphql(shop, accessToken, URL_REDIRECT_DELETE_MUTATION, {
+    id: redirectId,
+  });
+  assertNoUserErrors(data?.urlRedirectDelete, "Shopify did not return a URL redirect delete response.");
+}
+
+async function upsertStorefrontRedirectWithGraphql(shop, accessToken, path, target) {
+  const existingRedirects = await findStorefrontRedirectsByPath(shop, accessToken, path);
+  const [primaryRedirect, ...duplicateRedirects] = existingRedirects;
+
+  const redirect = primaryRedirect
+    ? await updateStorefrontRedirectWithGraphql(shop, accessToken, primaryRedirect.id, path, target)
+    : await createStorefrontRedirectWithGraphql(shop, accessToken, path, target);
+
+  await Promise.all(
+    duplicateRedirects.map((duplicateRedirect) => deleteStorefrontRedirectWithGraphql(shop, accessToken, duplicateRedirect.id)),
+  );
+
+  return redirect;
+}
+
+async function upsertStorefrontRedirectWithRest(shop, accessToken, path, target) {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const normalizedTarget = target.startsWith("/") ? target : `/${target}`;
   const query = new URLSearchParams({ path: normalizedPath, limit: "250" }).toString();
@@ -355,6 +471,23 @@ async function upsertStorefrontRedirect(shop, accessToken, path, target) {
       },
     });
     return updated?.redirect || { id: fallback.id, path: normalizedPath, target: normalizedTarget };
+  }
+}
+
+async function upsertStorefrontRedirect(shop, accessToken, path, target) {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const normalizedTarget = target.startsWith("/") ? target : `/${target}`;
+
+  try {
+    return await upsertStorefrontRedirectWithGraphql(shop, accessToken, normalizedPath, normalizedTarget);
+  } catch (graphqlError) {
+    try {
+      return await upsertStorefrontRedirectWithRest(shop, accessToken, normalizedPath, normalizedTarget);
+    } catch (restError) {
+      throw new Error(
+        `Unable to override ${normalizedPath}: GraphQL failed (${graphqlError?.message || "unknown error"}); REST failed (${restError?.message || "unknown error"}).`,
+      );
+    }
   }
 }
 
