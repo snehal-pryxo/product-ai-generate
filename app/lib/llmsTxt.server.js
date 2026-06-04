@@ -1208,10 +1208,15 @@ export function invalidateLlmsTxtCache(shop) {
 
 export async function generateAndStoreDynamicLlmsTxt(shop, options = {}, adminGraphQL) {
   const credits = LLMS_GENERATION_CREDITS;
+
+  // ── Pre-generation: check current redirect state ──────────────────────────
+  console.log(`[llms-redirect] [${shop}] PRE-GENERATE: checking /llms.txt redirect status`);
+
+  // Deduct credits ONLY for content generation — redirect repair never costs credits.
   await deductCredits({ shopDomain: shop, creditsUsed: credits });
 
   try {
-    // Regenerate both files in parallel, force-bypassing cache for both
+    // ── Generate content ───────────────────────────────────────────────────
     const [content, agentContent] = await Promise.all([
       generateDynamicLlmsTxt(shop, { ...options, force: true }),
       generateDynamicAgentsMd(shop, { force: true }),
@@ -1222,8 +1227,28 @@ export async function generateAndStoreDynamicLlmsTxt(shop, options = {}, adminGr
       create: { shop, content, agentContent, itemCount, creditsUsed: credits },
       update: { content, agentContent, itemCount, creditsUsed: credits, updatedAt: new Date() },
     });
+
+    // ── Post-generation: automatically repair/verify redirect ─────────────
+    // Redirect repair never deducts credits — it runs free after every generation.
     const redirects = await publishRootDiscoveryRedirects(shop, adminGraphQL);
-    return { content, creditsUsed: credits, redirects };
+
+    // ── Post-generation log ───────────────────────────────────────────────
+    const llmsTxtResult = redirects.find((r) => r.path === "/llms.txt");
+    if (llmsTxtResult?.error) {
+      console.error(`[llms-redirect] [${shop}] POST-GENERATE: /llms.txt redirect FAILED — ${llmsTxtResult.error}`);
+    } else {
+      console.log(
+        `[llms-redirect] [${shop}] POST-GENERATE: /llms.txt → /apps/llms-txt/llms.txt` +
+        ` (action=${llmsTxtResult?.action || "unknown"})`,
+      );
+    }
+
+    // Determine if any conflict was found and resolved (for toast message in UI).
+    const redirectFixed = redirects.some((r) =>
+      ["conflict_resolved", "recreated", "created", "rest_created", "rest_race_updated"].includes(r.action),
+    );
+
+    return { content, creditsUsed: credits, redirects, redirectFixed };
   } catch (error) {
     await refundCredits({ shopDomain: shop, creditsRefunded: credits });
     throw error;

@@ -18,7 +18,6 @@ import {
 import { getOrCreateShopCredits } from "../lib/credits.server";
 import { autoAddFaqSectionToProductPage } from "../lib/themeUtils.server";
 import {
-  ensureLlmsTxtRedirects,
   generateAndStoreDynamicLlmsTxt,
   invalidateLlmsTxtCache,
   reAssertRedirectsInBackground,
@@ -419,19 +418,6 @@ export const action = async ({ request }) => {
     if (intent === "generate_llmstxt") {
       const result = await generateAndStoreDynamicLlmsTxt(shop, {}, admin.graphql);
       return { ok: true, intent, ...result };
-    }
-
-    if (intent === "fix_llms_redirects") {
-      const redirects = await ensureLlmsTxtRedirects(shop, admin.graphql);
-      const hasConflict = redirects.some((r) => r.action === "conflict_resolved");
-      return {
-        ok: true,
-        intent,
-        redirects,
-        message: hasConflict
-          ? "Redirect conflict resolved. /llms.txt now points to your generated file."
-          : "Redirects verified. /llms.txt is correctly configured.",
-      };
     }
 
     if (intent === "toggle_theme_embed") {
@@ -1067,18 +1053,16 @@ export default function AiVisibilityPage() {
           markAllItemsInLlmsTxt();
         }
 
-        if (data.intent === "fix_llms_redirects") {
-          if (typeof window !== "undefined" && window.shopify?.toast) {
-            window.shopify.toast.show(data.message || "Redirects verified.");
-          }
-          return;
-        }
-
         if (data.creditsUsed) setCredits((c) => Math.max(0, c - data.creditsUsed));
         if (typeof window !== "undefined" && window.shopify?.toast) {
-          const msg = data.intent === "generate_llmstxt"
-            ? `llms.txt and agents.md generated (${data.creditsUsed ?? 0} credits used).`
-            : `Generated successfully (${data.creditsUsed ?? 0} credits used).`;
+          let msg;
+          if (data.intent === "generate_llmstxt") {
+            msg = data.redirectFixed
+              ? "LLMS generated and redirect updated."
+              : "LLMS generated and redirect verified.";
+          } else {
+            msg = `Generated successfully (${data.creditsUsed ?? 0} credits used).`;
+          }
           window.shopify.toast.show(msg);
         }
       } else {
@@ -1188,13 +1172,6 @@ export default function AiVisibilityPage() {
     fd.append("intent", "generate_llmstxt");
     fetcher.submit(fd, { method: "post" });
   }, [credits, fetcher, llmsTxtCredits]);
-
-  const handleFixLlmsRedirects = useCallback(() => {
-    setGeneratingKey("fix_redirects");
-    const fd = new FormData();
-    fd.append("intent", "fix_llms_redirects");
-    fetcher.submit(fd, { method: "post" });
-  }, [fetcher]);
 
   const handleLlmsSettingChange = useCallback((key, value) => {
     const nextSettings = { ...llmsTxtSettings, [key]: value };
@@ -1387,14 +1364,6 @@ export default function AiVisibilityPage() {
                         onClick={handleGenerateLlmsTxt}
                       >
                         {`Regenerate (${llmsTxtCredits} cr)`}
-                      </Button>
-                      <Button
-                        size="slim"
-                        variant="plain"
-                        loading={isSubmitting && generatingKey === "fix_redirects"}
-                        onClick={handleFixLlmsRedirects}
-                      >
-                        Fix /llms.txt
                       </Button>
                     </>
                   ) : (
