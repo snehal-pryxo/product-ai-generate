@@ -464,13 +464,13 @@ export const action = async ({ request }) => {
         // The extension handles to look for:
         //   - "ai-visibility-embed"  (extension handle from shopify.extension.toml)
         //   - "app-embed"            (block filename: blocks/app-embed.liquid)
-        //   - "content-ai-seo-generator" (app handle from shopify.app.toml)
+        //   - "gen-ai-seo-product-description" (app handle from shopify.app.toml)
         //
         // Fallback: scan the raw JSON string – catches any format variation.
         const EMBED_HANDLES = [
           "ai-visibility-embed",
           "app-embed",
-          process.env.SHOPIFY_APP_HANDLE || "content-ai-seo-generator",
+          process.env.SHOPIFY_APP_HANDLE || "gen-ai-seo-product-description",
         ];
 
         function blockMatchesEmbed(key, val) {
@@ -520,7 +520,7 @@ export const action = async ({ request }) => {
         const accessToken = session.accessToken;
         const apiBase = `https://${shop}/admin/api/2025-10`;
         // settings_data.json uses the APP HANDLE (from shopify.app.toml), not the API key.
-        const appHandle = process.env.SHOPIFY_APP_HANDLE || "content-ai-seo-generator";
+        const appHandle = process.env.SHOPIFY_APP_HANDLE || "gen-ai-seo-product-description";
 
         // 1. Get the active theme id
         const themesResp = await fetch(`${apiBase}/themes.json?role=main`, {

@@ -7,7 +7,7 @@
  */
 export async function autoAddFaqSectionToProductPage(shop, accessToken) {
   try {
-    const appHandle = process.env.SHOPIFY_APP_HANDLE || "content-ai-seo-generator";
+    const appHandle = process.env.SHOPIFY_APP_HANDLE || "gen-ai-seo-product-description";
     const extensionUid =
       process.env.SHOPIFY_AI_VISIBILITY_EMBED_ID ||
       process.env.SHOPIFY_THEME_EXTENSION_ID ||
