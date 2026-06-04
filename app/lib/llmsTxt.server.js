@@ -1502,13 +1502,16 @@ export async function generateAndStoreDynamicLlmsTxt(shop, options = {}, adminGr
       { path: "/agent.md",  target: redirectTargets.agentsMd },
     ];
 
+    // Fetch access token once (only needed for the REST fallback path).
+    const fallbackAccessToken = adminGraphQL
+      ? ""
+      : ((await db.shop.findUnique({ where: { shop }, select: { accessToken: true } }))?.accessToken || "");
+
     const redirectResults = await Promise.allSettled(
       REDIRECT_MAP.map(({ path, target }) =>
         adminGraphQL
-          ? resolveOneRedirectWithSession(adminGraphQL, path, target)
-              .then((r) => ({ ...r, target }))
-          : resolveOneRedirectWithRest(shop, (await db.shop.findUnique({ where: { shop }, select: { accessToken: true } }))?.accessToken || "", path, target)
-              .then((r) => ({ ...r, target })),
+          ? resolveOneRedirectWithSession(adminGraphQL, path, target).then((r) => ({ ...r, target }))
+          : resolveOneRedirectWithRest(shop, fallbackAccessToken, path, target).then((r) => ({ ...r, target })),
       ),
     );
 
