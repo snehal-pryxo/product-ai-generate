@@ -975,9 +975,12 @@ export const action = async ({ request }) => {
       const shouldUpdateDescription = selectedContentTypes.includes("description");
       const shouldUpdateMetaTitle = selectedContentTypes.includes("meta_title");
       const shouldUpdateMetaDescription = selectedContentTypes.includes("meta_description");
-      const creditsPerItem = 0;
+      const creditsPerItem = selectedContentTypes.reduce(
+        (sum, type) => sum + (PRODUCT_CONTENT_TYPE_CREDIT_COSTS[type] ?? 1),
+        0,
+      );
       const availableCredits = shopData?.credits ?? 150;
-      const requiredCredits = 0;
+      const requiredCredits = creditsPerItem * bulkProducts.length;
 
       if (availableCredits < requiredCredits) {
         return {

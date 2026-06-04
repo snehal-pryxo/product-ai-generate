@@ -16,6 +16,7 @@ import {
 } from "../lib/pagePromptTemplateLibrary";
 import {
   buildInsufficientCreditsError,
+  creditsForContentTypes,
   deductCredits,
   parseSelectedContentTypes,
   refundCredits,
@@ -497,11 +498,11 @@ export const action = async ({ request }) => {
         globalSettingsJson: true,
       },
     });
-    const creditsPerItem = 0;
+    const creditsPerItem = creditsForContentTypes(selectedContentTypes);
     const globalSettings = parseShopGlobalSettings(shopData);
     length = getExactWordLengthOption(globalSettings, "pageContentWords");
     const availableCredits = shopData?.credits ?? 150;
-    const requiredCredits = 0;
+    const requiredCredits = creditsPerItem * bulkPages.length;
     if (availableCredits < requiredCredits) {
       return {
         success: false,
