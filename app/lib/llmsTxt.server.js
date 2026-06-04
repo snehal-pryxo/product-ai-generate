@@ -406,136 +406,40 @@ async function deleteStorefrontRedirectWithGraphql(shop, accessToken, redirectId
   assertNoUserErrors(data?.urlRedirectDelete, "Shopify did not return a URL redirect delete response.");
 }
 
-// Force-override a storefront redirect using REST:
-// 1. List ALL existing redirects for the path (finds redirects from any app).
-// 2. Delete every one of them.
-// 3. Create a fresh redirect pointing to our proxy.
-// This guarantees our redirect wins over any other app's redirect.
-async function forceOverrideRedirectWithRest(shop, accessToken, path, target) {
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  const normalizedTarget = target.startsWith("/") ? target : `/${target}`;
+// ============================================================================
+// LLMS.TXT REDIRECT MANAGER
+// Ensures /llms.txt, /agents.md, /agent.md always point to our app proxy,
+// regardless of what other apps have configured.
+// ============================================================================
 
-  // Step 1: find all existing redirects for this path (from any app).
-  let existingIds = [];
-  try {
-    const query = new URLSearchParams({ path: normalizedPath, limit: "250" }).toString();
-    const json = await shopifyRest(shop, accessToken, `redirects.json?${query}`);
-    existingIds = (json?.redirects || [])
-      .filter((r) => r.path === normalizedPath)
-      .map((r) => r.id);
-  } catch (listErr) {
-    console.warn(`[llms-txt] Could not list redirects for ${normalizedPath}:`, listErr?.message);
-  }
+const OUR_PROXY_PREFIX = "/apps/llms-txt/";
 
-  // Step 2: delete every existing redirect for this path.
-  if (existingIds.length > 0) {
-    await Promise.allSettled(
-      existingIds.map((id) =>
-        shopifyRest(shop, accessToken, `redirects/${id}.json`, { method: "DELETE" }).catch((e) =>
-          console.warn(`[llms-txt] Failed to delete redirect ${id}:`, e?.message),
-        ),
-      ),
-    );
-  }
+// The redirect map — path on storefront → our app proxy target.
+const LLMS_REDIRECTS = [
+  { path: "/llms.txt",  target: "/apps/llms-txt/llms.txt"  },
+  { path: "/agents.md", target: "/apps/llms-txt/agents.md" },
+  { path: "/agent.md",  target: "/apps/llms-txt/agent.md"  },
+];
 
-  // Step 3: create a fresh redirect to our proxy.
-  try {
-    const created = await shopifyRest(shop, accessToken, "redirects.json", {
-      method: "POST",
-      body: { redirect: { path: normalizedPath, target: normalizedTarget } },
-    });
-    return created?.redirect || { path: normalizedPath, target: normalizedTarget };
-  } catch (createErr) {
-    // Last resort: another redirect appeared between delete and create.
-    // Find it and update in-place.
-    const query2 = new URLSearchParams({ path: normalizedPath, limit: "250" }).toString();
-    const json2 = await shopifyRest(shop, accessToken, `redirects.json?${query2}`);
-    const fallback = (json2?.redirects || []).find((r) => r.path === normalizedPath);
-    if (!fallback?.id) throw createErr;
-    const updated = await shopifyRest(shop, accessToken, `redirects/${fallback.id}.json`, {
-      method: "PUT",
-      body: { redirect: { id: fallback.id, path: normalizedPath, target: normalizedTarget } },
-    });
-    return updated?.redirect || { id: fallback.id, path: normalizedPath, target: normalizedTarget };
-  }
+function isOurRedirect(target) {
+  return String(target || "").startsWith(OUR_PROXY_PREFIX);
 }
 
-// Force-override via GraphQL as a secondary attempt (used after REST succeeds to keep
-// GraphQL state consistent, or as a fallback when REST is unavailable).
-async function upsertStorefrontRedirectWithGraphql(shop, accessToken, path, target) {
-  const existingRedirects = await findStorefrontRedirectsByPath(shop, accessToken, path);
-  const [primaryRedirect, ...duplicateRedirects] = existingRedirects;
+// ─── Session-client (admin.graphql) path ─────────────────────────────────────
+// Detect current state, log conflicts, then create/update as needed.
 
-  const redirect = primaryRedirect
-    ? await updateStorefrontRedirectWithGraphql(shop, accessToken, primaryRedirect.id, path, target)
-    : await createStorefrontRedirectWithGraphql(shop, accessToken, path, target);
-
-  await Promise.allSettled(
-    duplicateRedirects.map((d) => deleteStorefrontRedirectWithGraphql(shop, accessToken, d.id)),
-  );
-
-  return redirect;
-}
-
-// Primary override strategy: REST delete-then-create (finds redirects from ANY app).
-// Falls back to GraphQL upsert if REST fails entirely.
-async function forceOverrideRedirect(shop, accessToken, path, target) {
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  const normalizedTarget = target.startsWith("/") ? target : `/${target}`;
-
-  try {
-    return await forceOverrideRedirectWithRest(shop, accessToken, normalizedPath, normalizedTarget);
-  } catch (restErr) {
-    console.warn(`[llms-txt] REST force-override failed for ${normalizedPath}, trying GraphQL:`, restErr?.message);
-    try {
-      return await upsertStorefrontRedirectWithGraphql(shop, accessToken, normalizedPath, normalizedTarget);
-    } catch (graphqlErr) {
-      throw new Error(
-        `Unable to force-override ${normalizedPath}: REST failed (${restErr?.message || "unknown"}); GraphQL failed (${graphqlErr?.message || "unknown"}).`,
-      );
-    }
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Session-client redirect upsert
-// Uses Remix's admin.graphql (live session token — has all granted scopes).
-// This is the PRIMARY method; REST + stored-token is the fallback.
-// ---------------------------------------------------------------------------
-async function upsertRedirectWithSessionClient(adminGraphQL, path, target) {
-  // Step 1 — find any existing redirects for this path (from ANY app).
+async function resolveOneRedirectWithSession(adminGraphQL, path, target) {
+  // Step 1: detect what is currently at this path (from ANY app).
   const findRes = await adminGraphQL(URL_REDIRECTS_BY_PATH_QUERY, {
-    variables: { query: `path:"${String(path).replace(/"/g, '\\"')}"` },
+    variables: { query: redirectSearchQuery(path) },
   });
   const findJson = await findRes.json();
-  const existing = (findJson?.data?.urlRedirects?.nodes || []).filter(
-    (r) => r.path === path,
-  );
+  const existing = (findJson?.data?.urlRedirects?.nodes || []).filter((r) => r.path === path);
+
+  // Step 2: delete any duplicate redirects for this path (shouldn't happen, but defensive).
   const [primary, ...duplicates] = existing;
-
-  let redirect;
-  if (primary) {
-    // Update the existing redirect so it always points to our proxy.
-    const updateRes = await adminGraphQL(URL_REDIRECT_UPDATE_MUTATION, {
-      variables: { id: primary.id, urlRedirect: { path, target } },
-    });
-    const updateJson = await updateRes.json();
-    const errs = updateJson?.data?.urlRedirectUpdate?.userErrors || [];
-    if (errs.length) throw new Error(errs.map((e) => e.message).join(", "));
-    redirect = updateJson?.data?.urlRedirectUpdate?.urlRedirect;
-  } else {
-    // Create a new redirect.
-    const createRes = await adminGraphQL(URL_REDIRECT_CREATE_MUTATION, {
-      variables: { urlRedirect: { path, target } },
-    });
-    const createJson = await createRes.json();
-    const errs = createJson?.data?.urlRedirectCreate?.userErrors || [];
-    if (errs.length) throw new Error(errs.map((e) => e.message).join(", "));
-    redirect = createJson?.data?.urlRedirectCreate?.urlRedirect;
-  }
-
-  // Delete any duplicates silently.
   if (duplicates.length > 0) {
+    console.warn(`[llms-redirect] ${path}: found ${duplicates.length} duplicate(s) — deleting`);
     await Promise.allSettled(
       duplicates.map((d) =>
         adminGraphQL(URL_REDIRECT_DELETE_MUTATION, { variables: { id: d.id } }).catch(() => {}),
@@ -543,83 +447,156 @@ async function upsertRedirectWithSessionClient(adminGraphQL, path, target) {
     );
   }
 
-  return redirect;
-}
+  // Step 3: no redirect at all → create ours.
+  if (!primary) {
+    console.log(`[llms-redirect] CREATE ${path} → ${target}`);
+    const createRes = await adminGraphQL(URL_REDIRECT_CREATE_MUTATION, {
+      variables: { urlRedirect: { path, target } },
+    });
+    const createJson = await createRes.json();
+    const errs = createJson?.data?.urlRedirectCreate?.userErrors || [];
+    if (errs.length) throw new Error(errs.map((e) => e.message).join(", "));
+    return { action: "created", path, target };
+  }
 
-// ---------------------------------------------------------------------------
-// Re-assertion tracker (self-healing)
-// Two intervals:
-//   - Session client available (admin.graphql from page loader): 10 minutes
-//   - Public routes (no session): 3 hours (avoid Shopify rate-limit)
-// ---------------------------------------------------------------------------
-const redirectAssertedAt = new Map();
-const SESSION_REASSERT_MS  = 10 * 60 * 1000;        // 10 min  — with admin client
-const PUBLIC_REASSERT_MS   =  3 * 60 * 60 * 1000;   //  3 hrs  — public proxy routes
+  // Step 4: our redirect already correct → nothing to do.
+  if (primary.target === target) {
+    console.log(`[llms-redirect] OK ${path} → ${primary.target}`);
+    return { action: "unchanged", path, target };
+  }
 
-export function reAssertRedirectsInBackground(shop, adminGraphQL) {
-  const interval = adminGraphQL ? SESSION_REASSERT_MS : PUBLIC_REASSERT_MS;
-  const last = redirectAssertedAt.get(shop);
-  if (last && Date.now() - last < interval) return;
-  redirectAssertedAt.set(shop, Date.now());
-  publishRootDiscoveryRedirects(shop, adminGraphQL).catch((err) => {
-    console.warn(`[llms-txt] Redirect re-assertion failed for ${shop}:`, err?.message);
-    redirectAssertedAt.delete(shop); // allow sooner retry
+  // Step 5: conflict detected — another app owns this redirect.
+  const conflicting = !isOurRedirect(primary.target);
+  if (conflicting) {
+    console.warn(
+      `[llms-redirect] CONFLICT DETECTED: ${path} currently points to "${primary.target}" (another app). ` +
+      `Overriding with "${target}".`
+    );
+  } else {
+    console.log(`[llms-redirect] UPDATE ${path} → ${target} (was: ${primary.target})`);
+  }
+
+  const updateRes = await adminGraphQL(URL_REDIRECT_UPDATE_MUTATION, {
+    variables: { id: primary.id, urlRedirect: { path, target } },
   });
+  const updateJson = await updateRes.json();
+  const errs = updateJson?.data?.urlRedirectUpdate?.userErrors || [];
+  if (errs.length) throw new Error(errs.map((e) => e.message).join(", "));
+  return { action: conflicting ? "conflict_resolved" : "updated", path, target };
 }
 
-// ---------------------------------------------------------------------------
-// publishRootDiscoveryRedirects
-// Creates 301 permanent redirects so /llms.txt and /agents.md on the
-// merchant's storefront serve the content from our app proxy.
-//
-// Priority:
-//   1. Session-based admin.graphql (live token — most reliable)
-//   2. REST delete-then-create with stored access token (finds ANY app's redirect)
-//   3. GraphQL with stored access token (last resort)
-// ---------------------------------------------------------------------------
+// ─── REST fallback (stored access token) ─────────────────────────────────────
+// DELETE-then-CREATE guarantees we win even if another app owns the redirect.
+
+async function resolveOneRedirectWithRest(shop, accessToken, path, target) {
+  const normPath   = path.startsWith("/")   ? path   : `/${path}`;
+  const normTarget = target.startsWith("/") ? target : `/${target}`;
+
+  // Find all existing redirects for this path.
+  let existingList = [];
+  try {
+    const q = new URLSearchParams({ path: normPath, limit: "250" }).toString();
+    const json = await shopifyRest(shop, accessToken, `redirects.json?${q}`);
+    existingList = (json?.redirects || []).filter((r) => r.path === normPath);
+  } catch (listErr) {
+    console.warn(`[llms-redirect] REST list failed for ${normPath}:`, listErr?.message);
+  }
+
+  // Log conflicts.
+  const conflicting = existingList.filter((r) => !isOurRedirect(r.target));
+  if (conflicting.length > 0) {
+    console.warn(
+      `[llms-redirect] REST CONFLICT: ${normPath} owned by another app: ` +
+      conflicting.map((r) => r.target).join(", ") + " — overriding.",
+    );
+  }
+
+  // Delete all existing (including other apps').
+  await Promise.allSettled(
+    existingList.map((r) =>
+      shopifyRest(shop, accessToken, `redirects/${r.id}.json`, { method: "DELETE" }).catch((e) =>
+        console.warn(`[llms-redirect] REST delete ${r.id} failed:`, e?.message),
+      ),
+    ),
+  );
+
+  // Create ours fresh.
+  try {
+    const created = await shopifyRest(shop, accessToken, "redirects.json", {
+      method: "POST",
+      body: { redirect: { path: normPath, target: normTarget } },
+    });
+    console.log(`[llms-redirect] REST created ${normPath} → ${normTarget}`);
+    return { action: "rest_created", path: normPath, target: normTarget, id: created?.redirect?.id };
+  } catch (createErr) {
+    // Race condition: re-find and update.
+    const q2 = new URLSearchParams({ path: normPath, limit: "250" }).toString();
+    const json2 = await shopifyRest(shop, accessToken, `redirects.json?${q2}`);
+    const race = (json2?.redirects || []).find((r) => r.path === normPath);
+    if (!race?.id) throw createErr;
+    await shopifyRest(shop, accessToken, `redirects/${race.id}.json`, {
+      method: "PUT",
+      body: { redirect: { id: race.id, path: normPath, target: normTarget } },
+    });
+    console.log(`[llms-redirect] REST race-updated ${normPath} → ${normTarget}`);
+    return { action: "rest_race_updated", path: normPath, target: normTarget };
+  }
+}
+
+// ─── Public entry point ───────────────────────────────────────────────────────
+// Resolves all three paths. Uses session client (primary) then REST (fallback).
+
 async function publishRootDiscoveryRedirects(shop, adminGraphQL) {
   const shopRow = await db.shop.findUnique({
     where: { shop },
     select: { installed: true, accessToken: true },
   });
   if (!shopRow?.installed || !shopRow.accessToken) {
-    throw new Error("Shop is not installed or is missing an access token.");
+    throw new Error(`[llms-redirect] Shop ${shop} not installed or missing access token.`);
   }
 
-  const REDIRECTS = [
-    { path: "/llms.txt",   target: "/apps/llms-txt/llms.txt" },
-    { path: "/agent.md",   target: "/apps/llms-txt/agent.md" },
-    { path: "/agents.md",  target: "/apps/llms-txt/agents.md" },
-  ];
-
-  async function overrideOne({ path, target }) {
-    // ① Session-based GraphQL — uses live token with all granted scopes.
-    if (adminGraphQL) {
-      try {
-        return await upsertRedirectWithSessionClient(adminGraphQL, path, target);
-      } catch (sessionErr) {
-        console.warn(`[llms-txt] Session GraphQL failed for ${path}:`, sessionErr?.message);
+  const results = await Promise.allSettled(
+    LLMS_REDIRECTS.map(async ({ path, target }) => {
+      // Primary: session-based admin.graphql (has all session scopes).
+      if (adminGraphQL) {
+        try {
+          return await resolveOneRedirectWithSession(adminGraphQL, path, target);
+        } catch (sessionErr) {
+          console.warn(`[llms-redirect] Session client failed for ${path}:`, sessionErr?.message);
+        }
       }
-    }
-
-    // ② REST delete-then-create — finds redirects from ANY app.
-    try {
-      return await forceOverrideRedirectWithRest(shop, shopRow.accessToken, path, target);
-    } catch (restErr) {
-      console.warn(`[llms-txt] REST override failed for ${path}:`, restErr?.message);
-    }
-
-    // ③ Raw-token GraphQL upsert — last resort.
-    return upsertStorefrontRedirectWithGraphql(shop, shopRow.accessToken, path, target);
-  }
-
-  const results = await Promise.allSettled(REDIRECTS.map(overrideOne));
-
-  return results.map((r) =>
-    r.status === "fulfilled"
-      ? { path: r.value?.path, target: r.value?.target }
-      : { error: r.reason?.message || "redirect failed" },
+      // Fallback: REST with stored access token.
+      return resolveOneRedirectWithRest(shop, shopRow.accessToken, path, target);
+    }),
   );
+
+  const output = results.map((r, i) =>
+    r.status === "fulfilled"
+      ? r.value
+      : { path: LLMS_REDIRECTS[i].path, error: r.reason?.message || "failed" },
+  );
+  console.log("[llms-redirect] Results:", JSON.stringify(output));
+  return output;
+}
+
+// ─── Exported helper: call from loader to keep redirect current ───────────────
+// Throttle: 10 min with session client, 3 hrs for public proxy routes.
+const redirectAssertedAt = new Map();
+
+export function reAssertRedirectsInBackground(shop, adminGraphQL) {
+  const INTERVAL = adminGraphQL ? 10 * 60 * 1000 : 3 * 60 * 60 * 1000;
+  const last = redirectAssertedAt.get(shop);
+  if (last && Date.now() - last < INTERVAL) return;
+  redirectAssertedAt.set(shop, Date.now());
+  publishRootDiscoveryRedirects(shop, adminGraphQL).catch((err) => {
+    console.warn(`[llms-redirect] Background re-assertion failed for ${shop}:`, err?.message);
+    redirectAssertedAt.delete(shop); // allow sooner retry on error
+  });
+}
+
+// Exported for direct call (no throttle) — used on generate/regenerate.
+export async function ensureLlmsTxtRedirects(shop, adminGraphQL) {
+  return publishRootDiscoveryRedirects(shop, adminGraphQL);
 }
 
 function buildDiscoveryContext({ shop, data, shopRow }) {
