@@ -406,6 +406,62 @@ async function deleteStorefrontRedirectWithGraphql(shop, accessToken, redirectId
   assertNoUserErrors(data?.urlRedirectDelete, "Shopify did not return a URL redirect delete response.");
 }
 
+// Force-override a storefront redirect using REST:
+// 1. List ALL existing redirects for the path (finds redirects from any app).
+// 2. Delete every one of them.
+// 3. Create a fresh redirect pointing to our proxy.
+// This guarantees our redirect wins over any other app's redirect.
+async function forceOverrideRedirectWithRest(shop, accessToken, path, target) {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const normalizedTarget = target.startsWith("/") ? target : `/${target}`;
+
+  // Step 1: find all existing redirects for this path (from any app).
+  let existingIds = [];
+  try {
+    const query = new URLSearchParams({ path: normalizedPath, limit: "250" }).toString();
+    const json = await shopifyRest(shop, accessToken, `redirects.json?${query}`);
+    existingIds = (json?.redirects || [])
+      .filter((r) => r.path === normalizedPath)
+      .map((r) => r.id);
+  } catch (listErr) {
+    console.warn(`[llms-txt] Could not list redirects for ${normalizedPath}:`, listErr?.message);
+  }
+
+  // Step 2: delete every existing redirect for this path.
+  if (existingIds.length > 0) {
+    await Promise.allSettled(
+      existingIds.map((id) =>
+        shopifyRest(shop, accessToken, `redirects/${id}.json`, { method: "DELETE" }).catch((e) =>
+          console.warn(`[llms-txt] Failed to delete redirect ${id}:`, e?.message),
+        ),
+      ),
+    );
+  }
+
+  // Step 3: create a fresh redirect to our proxy.
+  try {
+    const created = await shopifyRest(shop, accessToken, "redirects.json", {
+      method: "POST",
+      body: { redirect: { path: normalizedPath, target: normalizedTarget } },
+    });
+    return created?.redirect || { path: normalizedPath, target: normalizedTarget };
+  } catch (createErr) {
+    // Last resort: another redirect appeared between delete and create.
+    // Find it and update in-place.
+    const query2 = new URLSearchParams({ path: normalizedPath, limit: "250" }).toString();
+    const json2 = await shopifyRest(shop, accessToken, `redirects.json?${query2}`);
+    const fallback = (json2?.redirects || []).find((r) => r.path === normalizedPath);
+    if (!fallback?.id) throw createErr;
+    const updated = await shopifyRest(shop, accessToken, `redirects/${fallback.id}.json`, {
+      method: "PUT",
+      body: { redirect: { id: fallback.id, path: normalizedPath, target: normalizedTarget } },
+    });
+    return updated?.redirect || { id: fallback.id, path: normalizedPath, target: normalizedTarget };
+  }
+}
+
+// Force-override via GraphQL as a secondary attempt (used after REST succeeds to keep
+// GraphQL state consistent, or as a fallback when REST is unavailable).
 async function upsertStorefrontRedirectWithGraphql(shop, accessToken, path, target) {
   const existingRedirects = await findStorefrontRedirectsByPath(shop, accessToken, path);
   const [primaryRedirect, ...duplicateRedirects] = existingRedirects;
@@ -414,81 +470,47 @@ async function upsertStorefrontRedirectWithGraphql(shop, accessToken, path, targ
     ? await updateStorefrontRedirectWithGraphql(shop, accessToken, primaryRedirect.id, path, target)
     : await createStorefrontRedirectWithGraphql(shop, accessToken, path, target);
 
-  await Promise.all(
-    duplicateRedirects.map((duplicateRedirect) => deleteStorefrontRedirectWithGraphql(shop, accessToken, duplicateRedirect.id)),
+  await Promise.allSettled(
+    duplicateRedirects.map((d) => deleteStorefrontRedirectWithGraphql(shop, accessToken, d.id)),
   );
 
   return redirect;
 }
 
-async function upsertStorefrontRedirectWithRest(shop, accessToken, path, target) {
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  const normalizedTarget = target.startsWith("/") ? target : `/${target}`;
-  const query = new URLSearchParams({ path: normalizedPath, limit: "250" }).toString();
-  const existingJson = await shopifyRest(shop, accessToken, `redirects.json?${query}`);
-  const existing = (existingJson?.redirects || []).find((redirect) => redirect?.path === normalizedPath);
-
-  if (existing?.id) {
-    const updated = await shopifyRest(shop, accessToken, `redirects/${existing.id}.json`, {
-      method: "PUT",
-      body: {
-        redirect: {
-          id: existing.id,
-          path: normalizedPath,
-          target: normalizedTarget,
-        },
-      },
-    });
-    return updated?.redirect || { id: existing.id, path: normalizedPath, target: normalizedTarget };
-  }
-
-  try {
-    const created = await shopifyRest(shop, accessToken, "redirects.json", {
-      method: "POST",
-      body: {
-        redirect: {
-          path: normalizedPath,
-          target: normalizedTarget,
-        },
-      },
-    });
-    return created?.redirect || { path: normalizedPath, target: normalizedTarget };
-  } catch (error) {
-    if (!/already exists|has already been taken/i.test(String(error?.message || ""))) {
-      throw error;
-    }
-    const fallbackJson = await shopifyRest(shop, accessToken, "redirects.json?limit=250");
-    const fallback = (fallbackJson?.redirects || []).find((redirect) => redirect?.path === normalizedPath);
-    if (!fallback?.id) throw error;
-    const updated = await shopifyRest(shop, accessToken, `redirects/${fallback.id}.json`, {
-      method: "PUT",
-      body: {
-        redirect: {
-          id: fallback.id,
-          path: normalizedPath,
-          target: normalizedTarget,
-        },
-      },
-    });
-    return updated?.redirect || { id: fallback.id, path: normalizedPath, target: normalizedTarget };
-  }
-}
-
-async function upsertStorefrontRedirect(shop, accessToken, path, target) {
+// Primary override strategy: REST delete-then-create (finds redirects from ANY app).
+// Falls back to GraphQL upsert if REST fails entirely.
+async function forceOverrideRedirect(shop, accessToken, path, target) {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const normalizedTarget = target.startsWith("/") ? target : `/${target}`;
 
   try {
-    return await upsertStorefrontRedirectWithGraphql(shop, accessToken, normalizedPath, normalizedTarget);
-  } catch (graphqlError) {
+    return await forceOverrideRedirectWithRest(shop, accessToken, normalizedPath, normalizedTarget);
+  } catch (restErr) {
+    console.warn(`[llms-txt] REST force-override failed for ${normalizedPath}, trying GraphQL:`, restErr?.message);
     try {
-      return await upsertStorefrontRedirectWithRest(shop, accessToken, normalizedPath, normalizedTarget);
-    } catch (restError) {
+      return await upsertStorefrontRedirectWithGraphql(shop, accessToken, normalizedPath, normalizedTarget);
+    } catch (graphqlErr) {
       throw new Error(
-        `Unable to override ${normalizedPath}: GraphQL failed (${graphqlError?.message || "unknown error"}); REST failed (${restError?.message || "unknown error"}).`,
+        `Unable to force-override ${normalizedPath}: REST failed (${restErr?.message || "unknown"}); GraphQL failed (${graphqlErr?.message || "unknown"}).`,
       );
     }
   }
+}
+
+// Re-assertion tracker: prevent hammering the Shopify API on every request.
+const redirectAssertedAt = new Map();
+const REASSERT_INTERVAL_MS = 3 * 60 * 60 * 1000; // 3 hours
+
+// Call this from serving routes to non-blockingly re-assert our redirect in the
+// background so it survives other apps overwriting it over time.
+export function reAssertRedirectsInBackground(shop) {
+  const last = redirectAssertedAt.get(shop);
+  if (last && Date.now() - last < REASSERT_INTERVAL_MS) return;
+  redirectAssertedAt.set(shop, Date.now());
+  publishRootDiscoveryRedirects(shop).catch((err) => {
+    console.warn(`[llms-txt] Background redirect re-assertion failed for ${shop}:`, err?.message);
+    redirectAssertedAt.delete(shop); // allow sooner retry
+  });
 }
 
 async function publishRootDiscoveryRedirects(shop) {
@@ -503,11 +525,11 @@ async function publishRootDiscoveryRedirects(shop) {
     throw new Error("Shop is not installed or is missing an access token.");
   }
 
-  // Use allSettled so one failing redirect does not block the others.
+  // Force-override each path independently so one failure does not block the rest.
   const results = await Promise.allSettled([
-    upsertStorefrontRedirect(shop, shopRow.accessToken, "/llms.txt", "/apps/llms-txt/llms.txt"),
-    upsertStorefrontRedirect(shop, shopRow.accessToken, "/agent.md", "/apps/llms-txt/agent.md"),
-    upsertStorefrontRedirect(shop, shopRow.accessToken, "/agents.md", "/apps/llms-txt/agents.md"),
+    forceOverrideRedirect(shop, shopRow.accessToken, "/llms.txt", "/apps/llms-txt/llms.txt"),
+    forceOverrideRedirect(shop, shopRow.accessToken, "/agent.md", "/apps/llms-txt/agent.md"),
+    forceOverrideRedirect(shop, shopRow.accessToken, "/agents.md", "/apps/llms-txt/agents.md"),
   ]);
 
   return results.map((result) =>
