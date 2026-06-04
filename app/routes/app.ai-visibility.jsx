@@ -1332,30 +1332,24 @@ export default function AiVisibilityPage() {
                   A single file that tells ChatGPT, Perplexity, and Google AI exactly what your store sells — so your products get recommended when shoppers ask AI assistants for suggestions.
                 </Text>
                 {llmsTxt && (
-                  <BlockStack gap="100">
-                    <InlineStack gap="200" blockAlign="center">
-                      <Text variant="bodySm" tone="subdued" as="span">llms.txt:</Text>
-                      <Button
-                        size="slim"
-                        onClick={() => {
-                          if (typeof navigator !== "undefined") navigator.clipboard.writeText(llmsTxtUrl);
-                        }}
-                      >
-                        Copy URL
-                      </Button>
-                    </InlineStack>
-                    <InlineStack gap="200" blockAlign="center">
-                      <Text variant="bodySm" tone="subdued" as="span">agents.md:</Text>
-                      <Button
-                        size="slim"
-                        onClick={() => {
-                          if (typeof navigator !== "undefined") navigator.clipboard.writeText(agentsMdUrl);
-                        }}
-                      >
-                        Copy URL
-                      </Button>
-                    </InlineStack>
-                  </BlockStack>
+                  <InlineStack gap="200" wrap>
+                    <Button
+                      size="slim"
+                      onClick={() => {
+                        if (typeof navigator !== "undefined") navigator.clipboard.writeText(llmsTxtUrl);
+                      }}
+                    >
+                      Copy URL
+                    </Button>
+                    <Button
+                      size="slim"
+                      onClick={() => {
+                        if (typeof navigator !== "undefined") navigator.clipboard.writeText(agentsMdUrl);
+                      }}
+                    >
+                      Copy agents.md URL
+                    </Button>
+                  </InlineStack>
                 )}
                 <InlineStack gap="200" wrap>
                   {llmsTxt ? (
