@@ -18,6 +18,8 @@ const NO_CACHE_HEADERS = {
   "Pragma": "no-cache",
   "Expires": "-1",
   "X-Content-Source": "gen-ai-seo-product-description",
+  "X-Powered-By": "Gen AI SEO Product Description",
+  "X-Override": "true",
 };
 
 export async function loader({ request }) {
@@ -52,10 +54,12 @@ export async function loader({ request }) {
     console.log(`[llms-proxy] ${shop} — serving dynamic content (${content.length} bytes, source=dynamic)`);
     return new Response(content, { status: 200, headers: NO_CACHE_HEADERS });
   } catch (genErr) {
-    console.error(`[llms-proxy] ${shop} — dynamic generation failed: ${genErr?.message}`);
+    // No stored content and dynamic generation failed (shop not installed or no access token).
+    // Return 404 so other apps/themes can serve /llms.txt until the merchant generates.
+    console.warn(`[llms-proxy] ${shop} — no content available, returning 404: ${genErr?.message}`);
     return new Response(
-      "# LLMs.txt\n\nContent not yet generated. Please open the app and click Generate.",
-      { status: 200, headers: PLAIN_TEXT },
+      "Not Found — open the app and click Generate to activate /llms.txt.",
+      { status: 404, headers: PLAIN_TEXT },
     );
   }
 }
