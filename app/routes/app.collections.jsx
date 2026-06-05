@@ -2078,7 +2078,7 @@ export default function CollectionsPage() {
       setQueueStatusById({});
       if (queueIntervalRef.current) { clearInterval(queueIntervalRef.current); queueIntervalRef.current = null; }
       if (response.queued) {
-        shopify.toast.show(`Generating SEO content for ${response.total} collections in the background.`);
+        shopify.toast.show(`Generating SEO content for ${response.total} collections.`);
         window.setTimeout(() => navigateInApp("/app/jobs", ""), 600);
       } else {
         const creditsMessage =
