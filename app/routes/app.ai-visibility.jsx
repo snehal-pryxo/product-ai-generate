@@ -1049,11 +1049,7 @@ export default function AiVisibilityPage() {
         if (typeof window !== "undefined" && window.shopify?.toast) {
           let msg;
           if (data.intent === "generate_llmstxt") {
-            if (data.usedCdn) {
-              msg = "llms.txt generated and live via Shopify CDN.";
-            } else {
-              msg = "llms.txt generated and live via app proxy (CDN upload failed — content still served from database).";
-            }
+            msg = "llms.txt generated successfully.";
           } else {
             msg = `Generated successfully (${data.creditsUsed ?? 0} credits used).`;
           }
