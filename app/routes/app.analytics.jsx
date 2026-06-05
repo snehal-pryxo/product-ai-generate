@@ -249,6 +249,28 @@ export const loader = async ({ request }) => {
   const creditsUsedAllTime = Number(shopCredits?.creditsUsedTotal ?? allLogsAggregate?._sum?.creditsUsed ?? 0);
   const creditsBalance = Number(shopCredits?.credits ?? 150);
 
+  const [
+    productDescCount, productAppliedCount,
+    collectionDescCount, collectionAppliedCount,
+    pageDescCount, pageAppliedCount,
+    blogDescCount,
+  ] = await Promise.all([
+    db.productGeneratedContent.count({ where: { shop: session.shop, descriptionHtml: { not: null } } }).catch(() => 0),
+    db.productGeneratedContent.count({ where: { shop: session.shop, appliedToProduct: true } }).catch(() => 0),
+    db.collectionGeneratedContent.count({ where: { shop: session.shop, descriptionHtml: { not: null } } }).catch(() => 0),
+    db.collectionGeneratedContent.count({ where: { shop: session.shop, appliedToCollection: true } }).catch(() => 0),
+    db.pageGeneratedContent.count({ where: { shop: session.shop, bodyHtml: { not: null } } }).catch(() => 0),
+    db.pageGeneratedContent.count({ where: { shop: session.shop, appliedToPage: true } }).catch(() => 0),
+    db.blogGeneratedContent.count({ where: { shop: session.shop, bodyHtml: { not: null } } }).catch(() => 0),
+  ]);
+
+  const descContent = {
+    product:    { generated: productDescCount,    applied: productAppliedCount    },
+    collection: { generated: collectionDescCount, applied: collectionAppliedCount },
+    page:       { generated: pageDescCount,       applied: pageAppliedCount       },
+    blog:       { generated: blogDescCount,       applied: 0                      },
+  };
+
   const schemaCountByType = Object.fromEntries((schemasByType || []).map(r => [r.resourceType, r._count.id]));
   const faqCountByType    = Object.fromEntries((faqsByType    || []).map(r => [r.resourceType, r._count.id]));
   const aiVisibility = {
@@ -282,6 +304,7 @@ export const loader = async ({ request }) => {
     creditsUsedInRange,
     generationByResource,
     aiVisibility,
+    descContent,
     recentLogs: recentLogs.map(l => ({ ...l, id: l.id.toString(), createdAt: l.createdAt.toISOString() })),
     rangeLogs: rangeLogs.map(l => ({ ...l, id: l.id.toString(), createdAt: l.createdAt.toISOString() })),
     dailyActivity,
@@ -1016,7 +1039,7 @@ export default function AnalyticsPage() {
     products, collections, pages, articles,
     seoScore, totalGenerations, rangeGenerations,
     creditsBalance, creditsUsedAllTime, creditsUsedInRange, generationByResource,
-    aiVisibility,
+    aiVisibility, descContent,
     recentLogs, rangeLogs, dailyActivity,
     rangeParam, startDate, endDate, rangeLabel,
   } = useLoaderData();
@@ -1271,6 +1294,52 @@ export default function AnalyticsPage() {
             </Grid.Cell>
           ))}
         </Grid>
+
+        {/* AI Content Description Coverage */}
+        <Card>
+          <BlockStack gap="400">
+            <InlineStack align="space-between" blockAlign="center">
+              <BlockStack gap="100">
+                <Text variant="headingMd" as="h2">AI Content Coverage</Text>
+                <Text variant="bodySm" tone="subdued">Generated descriptions and content applied to your store across all content types.</Text>
+              </BlockStack>
+            </InlineStack>
+            <Divider />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "24px" }}>
+              <BlockStack gap="300">
+                <InlineStack gap="150" blockAlign="center">
+                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#008060", flexShrink: 0 }} />
+                  <Text variant="headingSm" as="h3">Products</Text>
+                </InlineStack>
+                <HBar label="Description Generated" value={descContent.product.generated} total={products.total}    color="#008060" />
+                <HBar label="Applied to Store"      value={descContent.product.applied}   total={products.total}    color="#00A47C" />
+              </BlockStack>
+              <BlockStack gap="300">
+                <InlineStack gap="150" blockAlign="center">
+                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#2C6ECB", flexShrink: 0 }} />
+                  <Text variant="headingSm" as="h3">Collections</Text>
+                </InlineStack>
+                <HBar label="Description Generated" value={descContent.collection.generated} total={collections.total} color="#2C6ECB" />
+                <HBar label="Applied to Store"      value={descContent.collection.applied}   total={collections.total} color="#1A4FA0" />
+              </BlockStack>
+              <BlockStack gap="300">
+                <InlineStack gap="150" blockAlign="center">
+                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#8456CD", flexShrink: 0 }} />
+                  <Text variant="headingSm" as="h3">Pages</Text>
+                </InlineStack>
+                <HBar label="Content Generated" value={descContent.page.generated} total={pages.total} color="#8456CD" />
+                <HBar label="Applied to Store"  value={descContent.page.applied}   total={pages.total} color="#6E42B8" />
+              </BlockStack>
+              <BlockStack gap="300">
+                <InlineStack gap="150" blockAlign="center">
+                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#E07D10", flexShrink: 0 }} />
+                  <Text variant="headingSm" as="h3">Blog Articles</Text>
+                </InlineStack>
+                <HBar label="Content Generated" value={descContent.blog.generated} total={articles.total} color="#E07D10" />
+              </BlockStack>
+            </div>
+          </BlockStack>
+        </Card>
 
         {/* AI Visibility Coverage */}
         <Card>
