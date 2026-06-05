@@ -1090,6 +1090,7 @@ export const loader = async ({ request }) => {
       globalSettingsJson: true,
       ownerName: true,
       name: true,
+      customPromptTemplatesJson: true,
     },
   });
   const shopDomain = String(session.shop || "").trim();
@@ -1173,6 +1174,14 @@ export const loader = async ({ request }) => {
   const collectionsJson = await collectionsPromise;
   const collections = (collectionsJson?.data?.collections?.edges || []).map((e) => e.node);
 
+  let customProductTemplates = [];
+  try {
+    const allCustom = JSON.parse(shopData?.customPromptTemplatesJson || "[]");
+    customProductTemplates = Array.isArray(allCustom)
+      ? allCustom.filter((t) => t && t.resource === "product")
+      : [];
+  } catch { /* ignore */ }
+
   if (productNodes.length === 0) {
     return {
       filters: { search, status, collectionId },
@@ -1186,6 +1195,7 @@ export const loader = async ({ request }) => {
       creditsUsedTotal: shopData?.creditsUsedTotal ?? 0,
       shopOwnerName,
       keywordLibrary: splitKeywordString(parsedGlobalSettings.productDescKeywords),
+      customProductTemplates,
     };
   }
   const generatedContentByProductId = new Map();
@@ -1251,6 +1261,7 @@ export const loader = async ({ request }) => {
     shop: session.shop,
     appApiKey: process.env.SHOPIFY_API_KEY || "",
     faqProductPageBlockAdded,
+    customProductTemplates,
   };
 };
 
@@ -1281,7 +1292,7 @@ function readArrayState(value, fallback = []) {
 }
 
 export default function ProductsPage() {
-  const { filters, products, collections, keywordLibrary = [], defaultAiProvider, credits, shopOwnerName, shop, appApiKey, faqProductPageBlockAdded } = useLoaderData();
+  const { filters, products, collections, keywordLibrary = [], defaultAiProvider, credits, shopOwnerName, shop, appApiKey, faqProductPageBlockAdded, customProductTemplates = [] } = useLoaderData();
   const navigation = useNavigation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -2498,9 +2509,18 @@ export default function ProductsPage() {
         ]}
         initialTab={templateLibraryContentType}
         templatesByTab={{
-          description: PRODUCT_DESCRIPTION_TEMPLATES,
-          meta_description: PRODUCT_META_DESCRIPTION_TEMPLATES,
-          meta_title: PRODUCT_META_TITLE_TEMPLATES,
+          description: [
+            ...PRODUCT_DESCRIPTION_TEMPLATES,
+            ...customProductTemplates.filter((t) => t.type === "description").map((t) => ({ ...t, category: "My Templates" })),
+          ],
+          meta_title: [
+            ...PRODUCT_META_TITLE_TEMPLATES,
+            ...customProductTemplates.filter((t) => t.type === "seo-title").map((t) => ({ ...t, category: "My Templates" })),
+          ],
+          meta_description: [
+            ...PRODUCT_META_DESCRIPTION_TEMPLATES,
+            ...customProductTemplates.filter((t) => t.type === "seo-description").map((t) => ({ ...t, category: "My Templates" })),
+          ],
         }}
         onUseTemplate={(templateText) => {
           if (templateLibraryContentType === "description") {
