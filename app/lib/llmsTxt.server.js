@@ -379,14 +379,16 @@ const FILE_STATUS_QUERY = `#graphql
 
 // Upload a text file to Shopify Content → Files and return the CDN URL.
 // Flow: stagedUploadsCreate → PUT to presigned URL → fileCreate → poll for URL.
-// Collect IDs of existing CDN files matching a filename — used for post-redirect cleanup.
-// Does NOT delete them (safe to call before the new upload).
-async function collectOldShopifyFileIds(adminGraphQL, filename, excludeUrl) {
+// Collect IDs of ALL existing CDN files matching a search term — used for pre-upload cleanup.
+// Uses a broad search term (e.g. "llms", "agents") so it catches UUID-slugged files
+// (llms_b79f238f-....txt) AND other apps' timestamped files (llms_20260605_072440.txt).
+// Call this BEFORE uploading the new file; delete the returned IDs AFTER redirect is confirmed.
+async function collectOldShopifyFileIds(adminGraphQL, searchTerm) {
   try {
-    const listRes = await adminGraphQL(FILES_QUERY, { variables: { query: `filename:${filename}` } });
+    const listRes = await adminGraphQL(FILES_QUERY, { variables: { query: searchTerm } });
     const listJson = await listRes.json();
     return (listJson?.data?.files?.nodes || [])
-      .filter((f) => String(f.url || "").includes(`/${filename}`) && f.url !== excludeUrl)
+      .filter((f) => f.id)
       .map((f) => f.id);
   } catch {
     return [];
@@ -859,16 +861,17 @@ async function getCdnUrlsFromShopifyFiles(adminGraphQL) {
   const llmsJson   = await llmsRes.json();
   const agentsJson = await agentsRes.json();
 
-  // Pick the LAST matching READY file — sortKey: CREATED_AT returns oldest-first,
-  // so the last item in the list is the most recently uploaded file.
-  const pickLatestUrl = (nodes, keyword) => {
-    const matches = (nodes || [])
-      .filter((f) => f.fileStatus === "READY" && String(f.url || "").includes(keyword));
-    return matches.length > 0 ? matches[matches.length - 1].url : null;
+  // Pick the LAST READY file — sortKey: CREATED_AT returns oldest-first,
+  // so the last item is the most recently uploaded file.
+  // No URL-pattern filter: Shopify stores files with UUID-slug URLs (llms_UUID.txt),
+  // not the original filename, so keyword matching would miss all of them.
+  const pickLatestUrl = (nodes) => {
+    const ready = (nodes || []).filter((f) => f.fileStatus === "READY" && f.url);
+    return ready.length > 0 ? ready[ready.length - 1].url : null;
   };
 
-  const llmsTxtCdnUrl  = pickLatestUrl(llmsJson?.data?.files?.nodes,   "llms.txt");
-  const agentsMdCdnUrl = pickLatestUrl(agentsJson?.data?.files?.nodes, "agents.md");
+  const llmsTxtCdnUrl  = pickLatestUrl(llmsJson?.data?.files?.nodes);
+  const agentsMdCdnUrl = pickLatestUrl(agentsJson?.data?.files?.nodes);
 
   console.log(`[llms-cdn] Files query — llms.txt:  ${llmsTxtCdnUrl  || "NOT FOUND (not yet uploaded)"}`);
   console.log(`[llms-cdn] Files query — agents.md: ${agentsMdCdnUrl || "NOT FOUND (not yet uploaded)"}`);
@@ -1856,10 +1859,11 @@ export async function generateAndStoreDynamicLlmsTxt(shop, options = {}, adminGr
     let agentsOldIds = [];
     if (adminGraphQL) {
       try {
-        // Collect existing file IDs BEFORE uploading so we have them ready for cleanup.
+        // Collect ALL existing llms/agents file IDs BEFORE uploading — broad search catches
+        // our own UUID-slugged files AND other apps' timestamped files (e.g. llms_20260605_072440.txt).
         [llmsOldIds, agentsOldIds] = await Promise.all([
-          collectOldShopifyFileIds(adminGraphQL, "llms.txt",  null),
-          collectOldShopifyFileIds(adminGraphQL, "agents.md", null),
+          collectOldShopifyFileIds(adminGraphQL, "llms"),
+          collectOldShopifyFileIds(adminGraphQL, "agents"),
         ]);
 
         console.log(`[llms-cdn] [${shop}] Uploading llms.txt → Shopify Files...`);
