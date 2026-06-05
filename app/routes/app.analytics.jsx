@@ -250,13 +250,14 @@ export const loader = async ({ request }) => {
   const creditsBalance = Number(shopCredits?.credits ?? 150);
 
   const [
-    productDescCount, productAppliedCount,
+    productDescCount, productAppliedCount, productFaqCount,
     collectionDescCount, collectionAppliedCount,
     pageDescCount, pageAppliedCount,
     blogDescCount,
   ] = await Promise.all([
     db.productGeneratedContent.count({ where: { shop: session.shop, descriptionHtml: { not: null } } }).catch(() => 0),
     db.productGeneratedContent.count({ where: { shop: session.shop, appliedToProduct: true } }).catch(() => 0),
+    db.productGeneratedContent.count({ where: { shop: session.shop, faqHtml: { not: null } } }).catch(() => 0),
     db.collectionGeneratedContent.count({ where: { shop: session.shop, descriptionHtml: { not: null } } }).catch(() => 0),
     db.collectionGeneratedContent.count({ where: { shop: session.shop, appliedToCollection: true } }).catch(() => 0),
     db.pageGeneratedContent.count({ where: { shop: session.shop, bodyHtml: { not: null } } }).catch(() => 0),
@@ -265,10 +266,10 @@ export const loader = async ({ request }) => {
   ]);
 
   const descContent = {
-    product:    { generated: productDescCount,    applied: productAppliedCount    },
-    collection: { generated: collectionDescCount, applied: collectionAppliedCount },
-    page:       { generated: pageDescCount,       applied: pageAppliedCount       },
-    blog:       { generated: blogDescCount,       applied: 0                      },
+    product:    { generated: productDescCount,    applied: productAppliedCount,    faq: productFaqCount },
+    collection: { generated: collectionDescCount, applied: collectionAppliedCount, faq: 0               },
+    page:       { generated: pageDescCount,       applied: pageAppliedCount,       faq: 0               },
+    blog:       { generated: blogDescCount,       applied: 0,                      faq: 0               },
   };
 
   const schemaCountByType = Object.fromEntries((schemasByType || []).map(r => [r.resourceType, r._count.id]));
@@ -1311,8 +1312,9 @@ export default function AnalyticsPage() {
                   <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#008060", flexShrink: 0 }} />
                   <Text variant="headingSm" as="h3">Products</Text>
                 </InlineStack>
-                <HBar label="Description Generated" value={descContent.product.generated} total={products.total}    color="#008060" />
-                <HBar label="Applied to Store"      value={descContent.product.applied}   total={products.total}    color="#00A47C" />
+                <HBar label="Description Generated" value={descContent.product.generated} total={products.total} color="#008060" />
+                <HBar label="Applied to Store"      value={descContent.product.applied}   total={products.total} color="#00A47C" />
+                <HBar label="FAQ Generated"         value={descContent.product.faq}       total={products.total} color="#5C37A8" />
               </BlockStack>
               <BlockStack gap="300">
                 <InlineStack gap="150" blockAlign="center">
