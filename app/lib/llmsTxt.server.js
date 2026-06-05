@@ -1055,8 +1055,8 @@ function buildDiscoveryContext({ shop, data, shopRow }) {
     agentMdUrl,
     agentsMdUrl,
     primaryDomain,
-    llmsTxtCanonicalUrl: `https://${primaryDomain}/llms.txt`,
-    agentMdCanonicalUrl: `https://${primaryDomain}/agents.md`,
+    llmsTxtCanonicalUrl: `https://${primaryDomain}/apps/llms.txt`,
+    agentMdCanonicalUrl: `https://${primaryDomain}/apps/agents.txt`,
     storeName: shopData.name || shopRow?.name || shop,
     shortDescription: shortText(shopData.description, 180) || "products and services from this Shopify store",
     longDescription: shortText(shopData.description, 500) || "Not provided",
@@ -1899,9 +1899,11 @@ export async function generateAndStoreDynamicLlmsTxt(shop, options = {}, adminGr
     const usedCdn = Boolean(cdnTargets.llmsTxt);
 
     const REDIRECT_MAP = [
-      { path: "/llms.txt",  target: redirectTargets.llmsTxt  },
-      { path: "/agents.md", target: redirectTargets.agentsMd },
-      { path: "/agent.md",  target: redirectTargets.agentsMd },
+      { path: "/llms.txt",        target: redirectTargets.llmsTxt  },
+      { path: "/agents.md",       target: redirectTargets.agentsMd },
+      { path: "/agent.md",        target: redirectTargets.agentsMd },
+      { path: "/apps/llms.txt",   target: redirectTargets.llmsTxt  },
+      { path: "/apps/agents.txt", target: redirectTargets.agentsMd },
     ];
 
     console.log(
@@ -2023,9 +2025,11 @@ export async function repairLlmsTxtRedirect(shop, adminGraphQL) {
     agentsMd: stored.agentCdnUrl || "/apps/llms-txt/agents.md",
   };
   const MAP = [
-    { path: "/llms.txt",  target: targets.llmsTxt  },
-    { path: "/agents.md", target: targets.agentsMd },
-    { path: "/agent.md",  target: targets.agentsMd },
+    { path: "/llms.txt",        target: targets.llmsTxt  },
+    { path: "/agents.md",       target: targets.agentsMd },
+    { path: "/agent.md",        target: targets.agentsMd },
+    { path: "/apps/llms.txt",   target: targets.llmsTxt  },
+    { path: "/apps/agents.txt", target: targets.agentsMd },
   ];
   // Try CDN target; if it fails, fall back to proxy
   const results = [];
