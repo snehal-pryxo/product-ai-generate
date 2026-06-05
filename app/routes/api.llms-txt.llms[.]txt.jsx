@@ -4,6 +4,7 @@ import {
   reAssertRedirectsInBackground,
   resolveShopFromRequest,
 } from "../lib/llmsTxt.server";
+import { verifyShopifyProxySignature } from "../lib/proxySignature.server";
 
 const PLAIN_TEXT = { "Content-Type": "text/plain; charset=utf-8" };
 
@@ -20,9 +21,15 @@ const NO_CACHE_HEADERS = {
 };
 
 export async function loader({ request }) {
+  const sigResult = verifyShopifyProxySignature(request);
+  if (sigResult === "invalid") {
+    console.warn("[llms-proxy] Rejected: invalid Shopify proxy signature");
+    return new Response("Forbidden", { status: 403, headers: PLAIN_TEXT });
+  }
+
   const shop = await resolveShopFromRequest(request);
 
-  console.log(`[llms-proxy] /apps/llms-txt/llms.txt — shop=${shop || "unknown"}`);
+  console.log(`[llms-proxy] /apps/llms-txt/llms.txt — shop=${shop || "unknown"} sig=${sigResult}`);
 
   if (!shop) {
     console.warn("[llms-proxy] shop not resolved for /apps/llms-txt/llms.txt");

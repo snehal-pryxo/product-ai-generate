@@ -20,7 +20,6 @@ export async function loader({ request }) {
     const storedContent = await readStoredLlmsTxtContent(shop);
     if (storedContent) {
       reAssertRedirectsInBackground(shop);
-      reAssertRedirectsInBackground(shop);
       return new Response(storedContent, { status: 200, headers: NO_CACHE_HEADERS });
     }
   } catch {

@@ -74,11 +74,11 @@ const OPENAI_OLLAMA_FALLBACK_ERROR_PATTERN =
 const ENABLED_ENV_VALUE_PATTERN = /^(1|true|yes)$/i;
 const LANGUAGE_OPTIONS = [
   "English", "Arabic", "Bengali", "Bulgarian",
-  "Chinese", "Chinese (Simplified)", "Chinese (Traditional)", "Croatian", "Czech",
+  "Chinese", "Chinese (Traditional)", "Croatian", "Czech",
   "Danish", "Dutch", "Finnish", "French", "German", "Greek", "Hebrew", "Hindi",
   "Hungarian", "Indonesian", "Italian", "Japanese", "Korean", "Malay", "Norwegian",
   "Polish", "Portuguese", "Romanian", "Russian", "Spanish", "Swedish", "Tamil",
-  "Telugu", "Thai", "Turkish", "Ukrainian", "Urdu", "Vietnamese",
+  "Telugu", "Thai", "Turkish", "Ukrainian", "Urdu", "Vietnamese", "Gujrati","Marathi","Punjabi","Persian","Burmese","Swahili","Amharic","Hausa","Odia","Azerbaijani","Farsi","Pashto","Sindhi","Nepali","Sinhala","Khmer","Lao","Mongolian","Bosnian","Albanian","Serbian","Serbian (Latin)","Macedonian","Slovak","Slovenian","Bulgarian",
 ].map((l) => ({ label: l, value: l }));
 
 function parseShopGlobalSettings(shopData) {
