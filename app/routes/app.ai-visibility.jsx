@@ -959,6 +959,7 @@ export default function AiVisibilityPage() {
     credits: initialCredits,
     isFreePlan,
     llmsTxtSettings: initialLlmsTxtSettings,
+    llmsTxtCdnUrl: initialLlmsTxtCdnUrl,
   } = useLoaderData();
   const hasUnlimitedVisibility = false;
   const fetcher = useFetcher();
@@ -978,6 +979,7 @@ export default function AiVisibilityPage() {
   const [credits, setCredits] = useState(initialCredits);
   const [selectedIdsByType, setSelectedIdsByType] = useState({ product: [], collection: [], article: [], page: [] });
   const [llmsTxtSettings, setLlmsTxtSettings] = useState(initialLlmsTxtSettings);
+  const [llmsTxtCdnUrl, setLlmsTxtCdnUrl] = useState(initialLlmsTxtCdnUrl);
 
   // Derive selectedItem from live list state so modal updates instantly after generation
   const selectedItem = useMemo(() => {
@@ -1066,6 +1068,7 @@ export default function AiVisibilityPage() {
         if (data.intent === "generate_llmstxt") {
           setLlmsTxt({ updatedAt: new Date().toISOString() });
           markAllItemsInLlmsTxt();
+          if (data.cdnTargets?.llmsTxt) setLlmsTxtCdnUrl(data.cdnTargets.llmsTxt);
         }
 
         if (data.creditsUsed) setCredits((c) => Math.max(0, c - data.creditsUsed));
@@ -1368,7 +1371,7 @@ export default function AiVisibilityPage() {
                       <Button
                         size="slim"
                         onClick={() => {
-                          if (typeof navigator !== "undefined") navigator.clipboard.writeText(llmsTxtUrl);
+                          if (typeof navigator !== "undefined") navigator.clipboard.writeText(llmsTxtCdnUrl || llmsTxtUrl);
                         }}
                       >
                         Copy URL
