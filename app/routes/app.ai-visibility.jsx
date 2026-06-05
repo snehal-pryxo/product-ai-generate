@@ -959,11 +959,9 @@ export default function AiVisibilityPage() {
     credits: initialCredits,
     isFreePlan,
     llmsTxtSettings: initialLlmsTxtSettings,
-    llmsTxtCdnUrl: initialLlmsTxtCdnUrl,
   } = useLoaderData();
   const hasUnlimitedVisibility = false;
   const fetcher = useFetcher();
-  const repairFetcher = useFetcher();
   const embedFetcher = useFetcher();
   const autoEnableFetcher = useFetcher();
   const llmsSettingsFetcher = useFetcher();
@@ -980,7 +978,6 @@ export default function AiVisibilityPage() {
   const [credits, setCredits] = useState(initialCredits);
   const [selectedIdsByType, setSelectedIdsByType] = useState({ product: [], collection: [], article: [], page: [] });
   const [llmsTxtSettings, setLlmsTxtSettings] = useState(initialLlmsTxtSettings);
-  const [llmsTxtCdnUrl, setLlmsTxtCdnUrl] = useState(initialLlmsTxtCdnUrl);
 
   // Derive selectedItem from live list state so modal updates instantly after generation
   const selectedItem = useMemo(() => {
@@ -1069,7 +1066,6 @@ export default function AiVisibilityPage() {
         if (data.intent === "generate_llmstxt") {
           setLlmsTxt({ updatedAt: new Date().toISOString() });
           markAllItemsInLlmsTxt();
-          if (data.cdnTargets?.llmsTxt) setLlmsTxtCdnUrl(data.cdnTargets.llmsTxt);
         }
 
         if (data.creditsUsed) setCredits((c) => Math.max(0, c - data.creditsUsed));
@@ -1193,12 +1189,6 @@ export default function AiVisibilityPage() {
     fd.append("intent", "generate_llmstxt");
     fetcher.submit(fd, { method: "post" });
   }, [credits, fetcher, llmsTxtCredits]);
-
-  const handleRepairRedirect = useCallback(() => {
-    const fd = new FormData();
-    fd.append("intent", "repair_llms_redirect");
-    repairFetcher.submit(fd, { method: "post" });
-  }, [repairFetcher]);
 
   const handleLlmsSettingChange = useCallback((key, value) => {
     const nextSettings = { ...llmsTxtSettings, [key]: value };
@@ -1378,7 +1368,7 @@ export default function AiVisibilityPage() {
                       <Button
                         size="slim"
                         onClick={() => {
-                          if (typeof navigator !== "undefined") navigator.clipboard.writeText(llmsTxtCdnUrl || llmsTxtUrl);
+                          if (typeof navigator !== "undefined") navigator.clipboard.writeText(llmsTxtUrl);
                         }}
                       >
                         Copy URL
@@ -1391,15 +1381,6 @@ export default function AiVisibilityPage() {
                         onClick={handleGenerateLlmsTxt}
                       >
                         {`Regenerate (${llmsTxtCredits} cr)`}
-                      </Button>
-                      <Button
-                        size="slim"
-                        variant="plain"
-                        tone="critical"
-                        loading={repairFetcher.state !== "idle"}
-                        onClick={handleRepairRedirect}
-                      >
-                        Repair Redirect
                       </Button>
                     </>
                   ) : (
@@ -1414,33 +1395,6 @@ export default function AiVisibilityPage() {
                     </Button>
                   )}
                 </InlineStack>
-                {llmsTxt && (
-                  <Box background="bg-surface-secondary" borderRadius="200" padding="200">
-                    <InlineStack gap="200" blockAlign="center" wrap={false}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <Text variant="bodySm" tone="subdued" truncate>
-                          <a
-                            href={llmsTxtCdnUrl || llmsTxtUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ wordBreak: "break-all", color: "inherit" }}
-                          >
-                            {llmsTxtCdnUrl || llmsTxtUrl}
-                          </a>
-                        </Text>
-                      </div>
-                    </InlineStack>
-                  </Box>
-                )}
-                {repairFetcher.data && (
-                  <Banner
-                    tone={repairFetcher.data.ok && repairFetcher.data.live ? "success" : "warning"}
-                  >
-                    {repairFetcher.data.ok && repairFetcher.data.live
-                      ? `Redirect repaired — pointing to ${repairFetcher.data.target?.startsWith("https://") ? "CDN" : "App Proxy"}.`
-                      : `Repair attempted but redirect may not be live.`}
-                  </Banner>
-                )}
 
                 <Box borderColor="border" borderBlockStartWidth="025" paddingBlockStart="300">
                   <BlockStack gap="200">
