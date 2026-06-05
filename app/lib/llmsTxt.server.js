@@ -1053,8 +1053,8 @@ function buildDiscoveryContext({ shop, data, shopRow }) {
     agentMdUrl,
     agentsMdUrl,
     primaryDomain,
-    llmsTxtCanonicalUrl: `https://${primaryDomain}/apps/llms.txt`,
-    agentMdCanonicalUrl: `https://${primaryDomain}/apps/agents.txt`,
+    llmsTxtCanonicalUrl: `https://${primaryDomain}/llms.txt`,
+    agentMdCanonicalUrl: `https://${primaryDomain}/agents.md`,
     storeName: shopData.name || shopRow?.name || shop,
     shortDescription: shortText(shopData.description, 180) || "products and services from this Shopify store",
     longDescription: shortText(shopData.description, 500) || "Not provided",
@@ -1889,48 +1889,8 @@ export async function generateAndStoreDynamicLlmsTxt(shop, options = {}, adminGr
       }
     }
 
-    // ── Set redirects: CDN URL (preferred) or app proxy (fallback) ────────
-    const redirectTargets = {
-      llmsTxt:  cdnTargets.llmsTxt  || "/apps/llms-txt/llms.txt",
-      agentsMd: cdnTargets.agentsMd || "/apps/llms-txt/agents.md",
-    };
-    const usedCdn = Boolean(cdnTargets.llmsTxt);
-
-    const REDIRECT_MAP = [
-      { path: "/llms.txt",        target: redirectTargets.llmsTxt  },
-      { path: "/agents.md",       target: redirectTargets.agentsMd },
-      { path: "/apps/llms.txt",   target: redirectTargets.llmsTxt  },
-      { path: "/apps/agents.txt", target: redirectTargets.agentsMd },
-    ];
-
-    console.log(
-      `[llms-redirect] [${shop}] Setting redirects (${usedCdn ? "CDN" : "app proxy"} targets):\n` +
-      REDIRECT_MAP.map((m) => `  ${m.path} → ${m.target}`).join("\n"),
-    );
-
-    // Fetch access token once (only needed for the REST fallback path).
-    const fallbackAccessToken = adminGraphQL
-      ? ""
-      : ((await db.shop.findUnique({ where: { shop }, select: { accessToken: true } }))?.accessToken || "");
-
-    const redirectResults = await Promise.allSettled(
-      REDIRECT_MAP.map(({ path, target }) =>
-        adminGraphQL
-          // forceUpdate: always overwrite regardless of existing target type.
-          // Prevents stale CDN redirect from being preserved when CDN upload fails.
-          ? resolveOneRedirectWithSession(adminGraphQL, path, target, { forceUpdate: true })
-          : resolveOneRedirectWithRest(shop, fallbackAccessToken, path, target),
-      ),
-    );
-
-    const redirects = redirectResults.map((r, i) =>
-      r.status === "fulfilled"
-        ? r.value
-        : { path: REDIRECT_MAP[i].path, target: REDIRECT_MAP[i].target, error: r.reason?.message || "redirect failed" },
-    );
-
-    // ── Delete old CDN files now that the redirect points to the new file ───
-    if (adminGraphQL && llmsOldIds && (llmsOldIds.length > 0 || agentsOldIds.length > 0)) {
+    // ── Delete old CDN files now that new file is uploaded ────────────────
+    if (adminGraphQL && (llmsOldIds.length > 0 || agentsOldIds.length > 0)) {
       const toDelete = [...llmsOldIds, ...agentsOldIds];
       try {
         console.log(`[llms-cdn] [${shop}] Deleting ${toDelete.length} old CDN file(s)...`);
@@ -1941,71 +1901,10 @@ export async function generateAndStoreDynamicLlmsTxt(shop, options = {}, adminGr
       }
     }
 
-    // ── Verify redirects after creation ───────────────────────────────────
-    const verification = adminGraphQL
-      ? await verifyRedirects(adminGraphQL, REDIRECT_MAP.map(({ path, target }) => ({ path, expectedTarget: target })))
-      : [];
-
-    // ── Final log ─────────────────────────────────────────────────────────
-    const llmsTxtResult = redirects.find((r) => r.path === "/llms.txt");
-    const llmsTxtVerified = verification.find((v) => v.path === "/llms.txt");
-    if (llmsTxtResult?.error) {
-      console.error(`[llms-redirect] [${shop}] ✗ /llms.txt redirect FAILED: ${llmsTxtResult.error}`);
-    } else {
-      console.log(
-        `[llms-redirect] [${shop}] /llms.txt redirect: action=${llmsTxtResult?.action || "?"}` +
-        ` | target=${llmsTxtResult?.target || redirectTargets.llmsTxt}` +
-        ` | verified=${llmsTxtVerified?.verified ?? "n/a"}`,
-      );
-    }
-    console.log(`[llms-redirect] [${shop}] Redirect summary:`, JSON.stringify(redirects));
-
-    // ── Auto-fallback: if CDN URL redirect was rejected, retry with proxy URL ─
-    // Shopify URL Redirect API may reject full https:// URLs as targets.
-    // In that case, transparently retry with the app proxy path so /llms.txt
-    // is always live immediately after generation.
-    const failedRedirects = redirects.filter((r) => r.error);
-    if (failedRedirects.length > 0 && adminGraphQL) {
-      console.warn(`[llms-redirect] [${shop}] ${failedRedirects.length} redirect(s) failed — retrying with proxy URLs`);
-      const proxyFallbackMap = [
-        { path: "/llms.txt",        target: "/apps/llms-txt/llms.txt"  },
-        { path: "/agents.md",       target: "/apps/llms-txt/agents.md" },
-        { path: "/apps/llms.txt",   target: "/apps/llms-txt/llms.txt"  },
-        { path: "/apps/agents.txt", target: "/apps/llms-txt/agents.md" },
-      ];
-      await Promise.allSettled(
-        failedRedirects.map(async (failed) => {
-          const fallback = proxyFallbackMap.find((m) => m.path === failed.path);
-          if (!fallback) return;
-          try {
-            const result = await resolveOneRedirectWithSession(adminGraphQL, fallback.path, fallback.target, { forceUpdate: true });
-            const idx = redirects.findIndex((r) => r.path === failed.path);
-            if (idx !== -1) redirects[idx] = { ...result, fallbackToProxy: true };
-            console.log(`[llms-redirect] [${shop}] Fallback ✓ ${fallback.path} → ${fallback.target}`);
-          } catch (retryErr) {
-            console.error(`[llms-redirect] [${shop}] Fallback also failed for ${failed.path}: ${retryErr?.message}`);
-          }
-        }),
-      );
-    }
-
-    const llmsTxtRedirect = redirects.find((r) => r.path === "/llms.txt");
-    const redirectLive = Boolean(llmsTxtRedirect && !llmsTxtRedirect.error);
-    const redirectFixed = redirects.some((r) =>
-      ["conflict_resolved", "recreated", "created", "updated", "rest_created", "rest_race_updated"].includes(r.action),
-    );
-
     return {
       content,
       creditsUsed: credits,
-      redirects,
-      redirectFixed,
-      redirectLive,
-      llmsTxtRedirectTarget: llmsTxtRedirect?.target || null,
-      llmsTxtRedirectError:  llmsTxtRedirect?.error  || null,
-      usedCdn,
       cdnTargets,
-      verification,
     };
   } catch (error) {
     await refundCredits({ shopDomain: shop, creditsRefunded: credits });

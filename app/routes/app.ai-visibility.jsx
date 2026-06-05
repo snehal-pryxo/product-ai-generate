@@ -20,11 +20,8 @@ import { autoAddFaqSectionToProductPage } from "../lib/themeUtils.server";
 import {
   generateAndStoreDynamicLlmsTxt,
   invalidateLlmsTxtCache,
-  reAssertRedirectsInBackground,
-  syncCdnRedirects,
   readLlmsTxtSettings,
   writeLlmsTxtSettings,
-  repairLlmsTxtRedirect,
 } from "../lib/llmsTxt.server";
 
 // Credit costs — defined here (not imported from server module) so they are available client-side
@@ -247,21 +244,6 @@ export const loader = async ({ request }) => {
     };
   }
 
-  // Sync /llms.txt → Shopify Files CDN URL on every page load.
-  // Run synchronously (await) so it actually completes in serverless environments
-  // before the function returns. Throttled to once per 5 min per shop.
-  if (llmsTxt) {
-    try {
-      const cdnResult = await syncCdnRedirects(shop, admin.graphql);
-      if (cdnResult?.skipped) {
-        // No CDN file found — fall back to app proxy redirect assertion.
-        reAssertRedirectsInBackground(shop, admin.graphql);
-      }
-    } catch {
-      reAssertRedirectsInBackground(shop, admin.graphql);
-    }
-  }
-
   return {
     products: products.map((p) => buildItem(p, "product")),
     collections: collections.map((c) => buildItem(c, "collection")),
@@ -428,11 +410,6 @@ export const action = async ({ request }) => {
 
     if (intent === "generate_llmstxt") {
       const result = await generateAndStoreDynamicLlmsTxt(shop, {}, admin.graphql);
-      return { ok: true, intent, ...result };
-    }
-
-    if (intent === "repair_llms_redirect") {
-      const result = await repairLlmsTxtRedirect(shop, admin.graphql);
       return { ok: true, intent, ...result };
     }
 
@@ -959,7 +936,6 @@ export default function AiVisibilityPage() {
     credits: initialCredits,
     isFreePlan,
     llmsTxtSettings: initialLlmsTxtSettings,
-    llmsTxtCdnUrl: initialLlmsTxtCdnUrl,
   } = useLoaderData();
   const hasUnlimitedVisibility = false;
   const fetcher = useFetcher();
@@ -979,7 +955,6 @@ export default function AiVisibilityPage() {
   const [credits, setCredits] = useState(initialCredits);
   const [selectedIdsByType, setSelectedIdsByType] = useState({ product: [], collection: [], article: [], page: [] });
   const [llmsTxtSettings, setLlmsTxtSettings] = useState(initialLlmsTxtSettings);
-  const [llmsTxtCdnUrl, setLlmsTxtCdnUrl] = useState(initialLlmsTxtCdnUrl);
 
   // Derive selectedItem from live list state so modal updates instantly after generation
   const selectedItem = useMemo(() => {
@@ -1068,7 +1043,6 @@ export default function AiVisibilityPage() {
         if (data.intent === "generate_llmstxt") {
           setLlmsTxt({ updatedAt: new Date().toISOString() });
           markAllItemsInLlmsTxt();
-          if (data.cdnTargets?.llmsTxt) setLlmsTxtCdnUrl(data.cdnTargets.llmsTxt);
         }
 
         if (data.creditsUsed) setCredits((c) => Math.max(0, c - data.creditsUsed));
@@ -1371,7 +1345,7 @@ export default function AiVisibilityPage() {
                       <Button
                         size="slim"
                         onClick={() => {
-                          if (typeof navigator !== "undefined") navigator.clipboard.writeText(llmsTxtCdnUrl || llmsTxtUrl);
+                          if (typeof navigator !== "undefined") navigator.clipboard.writeText(llmsTxtUrl);
                         }}
                       >
                         Copy URL
