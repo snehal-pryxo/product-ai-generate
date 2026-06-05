@@ -1852,52 +1852,43 @@ export async function generateAndStoreDynamicLlmsTxt(shop, options = {}, adminGr
     // Falls back to app proxy redirect if CDN upload fails.
     let cdnTargets = {};
 
-    // ── Upload to Shopify Files (CDN) ─────────────────────────────────────
-    let llmsOldIds = [];
-    let agentsOldIds = [];
+    // ── Upload llms.txt only to Shopify Files (CDN) ───────────────────────
+    let oldFileIds = [];
     if (adminGraphQL) {
       try {
-        // Collect ALL existing llms/agents file IDs BEFORE uploading — broad search catches
-        // our own UUID-slugged files AND other apps' timestamped files (e.g. llms_20260605_072440.txt).
-        [llmsOldIds, agentsOldIds] = await Promise.all([
+        // Collect ALL existing llms/agents/.txt file IDs BEFORE uploading.
+        // Searches "llms" and "agents" to catch UUID-slugged and timestamped files from any app.
+        const [llmsOldIds, agentsOldIds] = await Promise.all([
           collectOldShopifyFileIds(adminGraphQL, "llms"),
           collectOldShopifyFileIds(adminGraphQL, "agents"),
         ]);
+        oldFileIds = [...llmsOldIds, ...agentsOldIds];
 
         console.log(`[llms-cdn] [${shop}] Uploading llms.txt → Shopify Files...`);
-        const [llmsCdnUrl, agentsCdnUrl] = await Promise.all([
-          uploadToShopifyFiles(adminGraphQL, "llms.txt", content),
-          uploadToShopifyFiles(adminGraphQL, "agents.md", agentContent, "text/markdown"),
-        ]);
-        if (llmsCdnUrl)   cdnTargets.llmsTxt  = llmsCdnUrl;
-        if (agentsCdnUrl) cdnTargets.agentsMd = agentsCdnUrl;
+        const llmsCdnUrl = await uploadToShopifyFiles(adminGraphQL, "llms.txt", content);
+        if (llmsCdnUrl) cdnTargets.llmsTxt = llmsCdnUrl;
         console.log(`[llms-cdn] [${shop}] ✓ CDN upload complete — llms.txt: ${llmsCdnUrl}`);
-        console.log(`[llms-cdn] [${shop}]                        agents.md: ${agentsCdnUrl}`);
 
-        // Persist CDN URLs to DB so redirect sync can skip Shopify Files API call.
-        if (llmsCdnUrl || agentsCdnUrl) {
+        // Persist CDN URL to DB.
+        if (llmsCdnUrl) {
           await db.aiVisibilityLlmsTxt.update({
             where: { shop },
-            data: {
-              cdnUrl: llmsCdnUrl || null,
-              agentCdnUrl: agentsCdnUrl || null,
-            },
-          }).catch((e) => console.warn(`[llms-cdn] [${shop}] Failed to persist CDN URLs to DB: ${e?.message}`));
+            data: { cdnUrl: llmsCdnUrl, agentCdnUrl: null },
+          }).catch((e) => console.warn(`[llms-cdn] [${shop}] Failed to persist CDN URL to DB: ${e?.message}`));
         }
       } catch (cdnErr) {
-        console.warn(`[llms-cdn] [${shop}] CDN upload failed — falling back to app proxy: ${cdnErr?.message}`);
+        console.warn(`[llms-cdn] [${shop}] CDN upload failed: ${cdnErr?.message}`);
       }
     }
 
-    // ── Delete old CDN files now that new file is uploaded ────────────────
-    if (adminGraphQL && (llmsOldIds.length > 0 || agentsOldIds.length > 0)) {
-      const toDelete = [...llmsOldIds, ...agentsOldIds];
+    // ── Delete all old CDN files (llms + agents) now that new llms.txt is live ─
+    if (adminGraphQL && oldFileIds.length > 0) {
       try {
-        console.log(`[llms-cdn] [${shop}] Deleting ${toDelete.length} old CDN file(s)...`);
-        await adminGraphQL(FILE_DELETE, { variables: { fileIds: toDelete } });
-        console.log(`[llms-cdn] [${shop}] ✓ Old CDN files deleted.`);
+        console.log(`[llms-cdn] [${shop}] Deleting ${oldFileIds.length} old file(s)...`);
+        await adminGraphQL(FILE_DELETE, { variables: { fileIds: oldFileIds } });
+        console.log(`[llms-cdn] [${shop}] ✓ Old files deleted.`);
       } catch (e) {
-        console.warn(`[llms-cdn] [${shop}] Old CDN file deletion failed: ${e?.message}`);
+        console.warn(`[llms-cdn] [${shop}] Old file deletion failed: ${e?.message}`);
       }
     }
 
