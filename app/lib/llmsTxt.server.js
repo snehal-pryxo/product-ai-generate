@@ -1953,6 +1953,36 @@ export async function generateAndStoreDynamicLlmsTxt(shop, options = {}, adminGr
     }
     console.log(`[llms-redirect] [${shop}] Redirect summary:`, JSON.stringify(redirects));
 
+    // ── Auto-fallback: if CDN URL redirect was rejected, retry with proxy URL ─
+    // Shopify URL Redirect API may reject full https:// URLs as targets.
+    // In that case, transparently retry with the app proxy path so /llms.txt
+    // is always live immediately after generation.
+    const failedRedirects = redirects.filter((r) => r.error);
+    if (failedRedirects.length > 0 && adminGraphQL) {
+      console.warn(`[llms-redirect] [${shop}] ${failedRedirects.length} redirect(s) failed — retrying with proxy URLs`);
+      const proxyFallbackMap = [
+        { path: "/llms.txt",  target: "/apps/llms-txt/llms.txt"  },
+        { path: "/agents.md", target: "/apps/llms-txt/agents.md" },
+        { path: "/agent.md",  target: "/apps/llms-txt/agent.md"  },
+      ];
+      await Promise.allSettled(
+        failedRedirects.map(async (failed) => {
+          const fallback = proxyFallbackMap.find((m) => m.path === failed.path);
+          if (!fallback) return;
+          try {
+            const result = await resolveOneRedirectWithSession(adminGraphQL, fallback.path, fallback.target, { forceUpdate: true });
+            const idx = redirects.findIndex((r) => r.path === failed.path);
+            if (idx !== -1) redirects[idx] = { ...result, fallbackToProxy: true };
+            console.log(`[llms-redirect] [${shop}] Fallback ✓ ${fallback.path} → ${fallback.target}`);
+          } catch (retryErr) {
+            console.error(`[llms-redirect] [${shop}] Fallback also failed for ${failed.path}: ${retryErr?.message}`);
+          }
+        }),
+      );
+    }
+
+    const llmsTxtRedirect = redirects.find((r) => r.path === "/llms.txt");
+    const redirectLive = Boolean(llmsTxtRedirect && !llmsTxtRedirect.error);
     const redirectFixed = redirects.some((r) =>
       ["conflict_resolved", "recreated", "created", "updated", "rest_created", "rest_race_updated"].includes(r.action),
     );
@@ -1962,6 +1992,9 @@ export async function generateAndStoreDynamicLlmsTxt(shop, options = {}, adminGr
       creditsUsed: credits,
       redirects,
       redirectFixed,
+      redirectLive,
+      llmsTxtRedirectTarget: llmsTxtRedirect?.target || null,
+      llmsTxtRedirectError:  llmsTxtRedirect?.error  || null,
       usedCdn,
       cdnTargets,
       verification,
@@ -1970,6 +2003,49 @@ export async function generateAndStoreDynamicLlmsTxt(shop, options = {}, adminGr
     await refundCredits({ shopDomain: shop, creditsRefunded: credits });
     throw error;
   }
+}
+
+// Repair: force-recreate all llms.txt redirects using stored CDN URL (if available)
+// or app proxy fallback. Called from the "Repair Redirect" UI action.
+export async function repairLlmsTxtRedirect(shop, adminGraphQL) {
+  if (!adminGraphQL) throw new Error("adminGraphQL is required for redirect repair.");
+  const stored = await readStoredCdnUrls(shop);
+  const targets = {
+    llmsTxt:  stored.cdnUrl      || "/apps/llms-txt/llms.txt",
+    agentsMd: stored.agentCdnUrl || "/apps/llms-txt/agents.md",
+  };
+  const MAP = [
+    { path: "/llms.txt",  target: targets.llmsTxt  },
+    { path: "/agents.md", target: targets.agentsMd },
+    { path: "/agent.md",  target: targets.agentsMd },
+  ];
+  // Try CDN target; if it fails, fall back to proxy
+  const results = [];
+  for (const { path, target } of MAP) {
+    let result;
+    try {
+      result = await resolveOneRedirectWithSession(adminGraphQL, path, target, { forceUpdate: true });
+    } catch (e) {
+      if (target.startsWith("https://")) {
+        const proxyTarget = path === "/llms.txt" ? "/apps/llms-txt/llms.txt" : "/apps/llms-txt/agents.md";
+        try {
+          result = await resolveOneRedirectWithSession(adminGraphQL, path, proxyTarget, { forceUpdate: true });
+          result = { ...result, fallbackToProxy: true };
+        } catch (e2) {
+          result = { path, error: e2?.message || "failed" };
+        }
+      } else {
+        result = { path, error: e?.message || "failed" };
+      }
+    }
+    results.push(result);
+  }
+  const llmsTxtResult = results.find((r) => r.path === "/llms.txt");
+  return {
+    results,
+    live: Boolean(llmsTxtResult && !llmsTxtResult.error),
+    target: llmsTxtResult?.target || null,
+  };
 }
 
 export function generateAiRobotsTxt() {

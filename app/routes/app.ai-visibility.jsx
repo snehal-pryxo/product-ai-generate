@@ -24,6 +24,7 @@ import {
   syncCdnRedirects,
   readLlmsTxtSettings,
   writeLlmsTxtSettings,
+  repairLlmsTxtRedirect,
 } from "../lib/llmsTxt.server";
 
 // Credit costs — defined here (not imported from server module) so they are available client-side
@@ -426,6 +427,11 @@ export const action = async ({ request }) => {
 
     if (intent === "generate_llmstxt") {
       const result = await generateAndStoreDynamicLlmsTxt(shop, {}, admin.graphql);
+      return { ok: true, intent, ...result };
+    }
+
+    if (intent === "repair_llms_redirect") {
+      const result = await repairLlmsTxtRedirect(shop, admin.graphql);
       return { ok: true, intent, ...result };
     }
 
@@ -955,6 +961,7 @@ export default function AiVisibilityPage() {
   } = useLoaderData();
   const hasUnlimitedVisibility = false;
   const fetcher = useFetcher();
+  const repairFetcher = useFetcher();
   const embedFetcher = useFetcher();
   const autoEnableFetcher = useFetcher();
   const llmsSettingsFetcher = useFetcher();
@@ -1183,6 +1190,12 @@ export default function AiVisibilityPage() {
     fetcher.submit(fd, { method: "post" });
   }, [credits, fetcher, llmsTxtCredits]);
 
+  const handleRepairRedirect = useCallback(() => {
+    const fd = new FormData();
+    fd.append("intent", "repair_llms_redirect");
+    repairFetcher.submit(fd, { method: "post" });
+  }, [repairFetcher]);
+
   const handleLlmsSettingChange = useCallback((key, value) => {
     const nextSettings = { ...llmsTxtSettings, [key]: value };
     setLlmsTxtSettings(nextSettings);
@@ -1375,6 +1388,15 @@ export default function AiVisibilityPage() {
                       >
                         {`Regenerate (${llmsTxtCredits} cr)`}
                       </Button>
+                      <Button
+                        size="slim"
+                        variant="plain"
+                        tone="critical"
+                        loading={repairFetcher.state !== "idle"}
+                        onClick={handleRepairRedirect}
+                      >
+                        Repair Redirect
+                      </Button>
                     </>
                   ) : (
                     <Button
@@ -1388,6 +1410,15 @@ export default function AiVisibilityPage() {
                     </Button>
                   )}
                 </InlineStack>
+                {repairFetcher.data && (
+                  <Banner
+                    tone={repairFetcher.data.ok && repairFetcher.data.live ? "success" : "warning"}
+                  >
+                    {repairFetcher.data.ok && repairFetcher.data.live
+                      ? `Redirect repaired — pointing to ${repairFetcher.data.target?.startsWith("https://") ? "CDN" : "App Proxy"}.`
+                      : `Repair attempted but redirect may not be live.`}
+                  </Banner>
+                )}
 
                 <Box borderColor="border" borderBlockStartWidth="025" paddingBlockStart="300">
                   <BlockStack gap="200">
