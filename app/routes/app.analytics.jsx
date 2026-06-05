@@ -156,7 +156,7 @@ export const loader = async ({ request }) => {
   const totalWithSeo = pw + pwd + cw + cwd + pgw + pgwd + aw + awd;
   const seoScore = totalItems > 0 ? Math.round((totalWithSeo / (totalItems * 2)) * 100) : 0;
 
-  const [shopCredits, totalLogs, allLogsAggregate, rangeLogsRaw, recentLogsRaw] = await Promise.all([
+  const [shopCredits, totalLogs, allLogsAggregate, rangeLogsRaw, recentLogsRaw, schemasByType, faqsByType, llmsTxtRecord] = await Promise.all([
     db.shop.findUnique({
       where: { shop: session.shop },
       select: { credits: true, creditsUsedTotal: true },
@@ -196,6 +196,20 @@ export const loader = async ({ request }) => {
         creditsUsed: true,
       },
     }).catch(() => []),
+    db.aiVisibilitySchema.groupBy({
+      by: ["resourceType"],
+      where: { shop: session.shop },
+      _count: { id: true },
+    }).catch(() => []),
+    db.aiVisibilityFaq.groupBy({
+      by: ["resourceType"],
+      where: { shop: session.shop },
+      _count: { id: true },
+    }).catch(() => []),
+    db.aiVisibilityLlmsTxt.findUnique({
+      where: { shop: session.shop },
+      select: { updatedAt: true, itemCount: true, cdnUrl: true },
+    }).catch(() => null),
   ]);
 
   const rangeLogs = rangeLogsRaw.map((log) => ({
@@ -235,6 +249,26 @@ export const loader = async ({ request }) => {
   const creditsUsedAllTime = Number(shopCredits?.creditsUsedTotal ?? allLogsAggregate?._sum?.creditsUsed ?? 0);
   const creditsBalance = Number(shopCredits?.credits ?? 150);
 
+  const schemaCountByType = Object.fromEntries((schemasByType || []).map(r => [r.resourceType, r._count.id]));
+  const faqCountByType    = Object.fromEntries((faqsByType    || []).map(r => [r.resourceType, r._count.id]));
+  const aiVisibility = {
+    schemas: {
+      product:    schemaCountByType.product    || 0,
+      collection: schemaCountByType.collection || 0,
+      page:       schemaCountByType.page       || 0,
+      article:    schemaCountByType.article    || 0,
+    },
+    faqs: {
+      product: faqCountByType.product || 0,
+      article: faqCountByType.article || 0,
+    },
+    llmsTxt: llmsTxtRecord ? {
+      updatedAt:  llmsTxtRecord.updatedAt.toISOString(),
+      itemCount:  llmsTxtRecord.itemCount || 0,
+      hasCdnUrl:  !!llmsTxtRecord.cdnUrl,
+    } : null,
+  };
+
   return {
     products:    { total: products.length,    withSeoTitle: pw,  withSeoDesc: pwd },
     collections: { total: collections.length, withSeoTitle: cw,  withSeoDesc: cwd },
@@ -247,6 +281,7 @@ export const loader = async ({ request }) => {
     creditsUsedAllTime,
     creditsUsedInRange,
     generationByResource,
+    aiVisibility,
     recentLogs: recentLogs.map(l => ({ ...l, id: l.id.toString(), createdAt: l.createdAt.toISOString() })),
     rangeLogs: rangeLogs.map(l => ({ ...l, id: l.id.toString(), createdAt: l.createdAt.toISOString() })),
     dailyActivity,
@@ -981,6 +1016,7 @@ export default function AnalyticsPage() {
     products, collections, pages, articles,
     seoScore, totalGenerations, rangeGenerations,
     creditsBalance, creditsUsedAllTime, creditsUsedInRange, generationByResource,
+    aiVisibility,
     recentLogs, rangeLogs, dailyActivity,
     rangeParam, startDate, endDate, rangeLabel,
   } = useLoaderData();
@@ -1235,6 +1271,55 @@ export default function AnalyticsPage() {
             </Grid.Cell>
           ))}
         </Grid>
+
+        {/* AI Visibility Coverage */}
+        <Card>
+          <BlockStack gap="400">
+            <InlineStack align="space-between" blockAlign="center">
+              <BlockStack gap="100">
+                <Text variant="headingMd" as="h2">AI Visibility Coverage</Text>
+                <Text variant="bodySm" tone="subdued">JSON Schema, FAQ markup, and LLMs.txt status across your store content.</Text>
+              </BlockStack>
+              <Button onClick={() => navigateInApp("/app/ai-visibility")} size="slim" variant="secondary">Manage AI Visibility</Button>
+            </InlineStack>
+            <Divider />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "24px" }}>
+              <BlockStack gap="300">
+                <Text variant="headingSm" as="h3">JSON Schema</Text>
+                <HBar label="Products"      value={aiVisibility.schemas.product}    total={products.total}    color="#008060" />
+                <HBar label="Collections"   value={aiVisibility.schemas.collection} total={collections.total} color="#2C6ECB" />
+                <HBar label="Pages"         value={aiVisibility.schemas.page}       total={pages.total}       color="#8456CD" />
+                <HBar label="Blog Articles" value={aiVisibility.schemas.article}    total={articles.total}    color="#E07D10" />
+              </BlockStack>
+              <BlockStack gap="300">
+                <Text variant="headingSm" as="h3">FAQ Markup</Text>
+                <HBar label="Products"      value={aiVisibility.faqs.product} total={products.total} color="#008060" />
+                <HBar label="Blog Articles" value={aiVisibility.faqs.article} total={articles.total} color="#E07D10" />
+              </BlockStack>
+              <BlockStack gap="300">
+                <Text variant="headingSm" as="h3">LLMs.txt</Text>
+                {aiVisibility.llmsTxt ? (
+                  <BlockStack gap="200">
+                    <InlineStack gap="200" blockAlign="center">
+                      <Badge tone="success">Active</Badge>
+                      {aiVisibility.llmsTxt.hasCdnUrl && <Badge tone="info">CDN</Badge>}
+                    </InlineStack>
+                    <Text variant="bodySm" tone="subdued">{aiVisibility.llmsTxt.itemCount} items indexed</Text>
+                    <Text variant="bodySm" tone="subdued">
+                      Last updated {new Date(aiVisibility.llmsTxt.updatedAt).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" })}
+                    </Text>
+                  </BlockStack>
+                ) : (
+                  <BlockStack gap="200">
+                    <Badge>Not generated</Badge>
+                    <Text variant="bodySm" tone="subdued">Generate your LLMs.txt to make your store discoverable by AI assistants.</Text>
+                    <Button onClick={() => navigateInApp("/app/ai-visibility")} size="slim">Generate LLMs.txt</Button>
+                  </BlockStack>
+                )}
+              </BlockStack>
+            </div>
+          </BlockStack>
+        </Card>
 
         {/* AI Generation Stats + Recent */}
         <Layout>
