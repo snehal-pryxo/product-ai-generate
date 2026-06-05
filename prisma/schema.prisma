@@ -367,6 +367,8 @@ model AiVisibilityLlmsTxt {
   shop         String   @unique(map: "AiVisibilityLlmsTxt_shop_key")
   content      String   @db.LongText
   agentContent String?  @db.LongText
+  cdnUrl       String?  @db.VarChar(1024)
+  agentCdnUrl  String?  @db.VarChar(1024)
   itemCount    Int?
   aiModel      String?  @db.VarChar(100)
   aiProvider   String?  @db.VarChar(32)

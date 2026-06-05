@@ -887,8 +887,26 @@ export async function syncCdnRedirects(shop, adminGraphQL) {
   }
   cdnSyncThrottle.set(shop, Date.now());
 
-  console.log(`[llms-cdn] [${shop}] Querying Shopify Files for CDN URLs...`);
-  const { llmsTxtCdnUrl, agentsMdCdnUrl } = await getCdnUrlsFromShopifyFiles(adminGraphQL);
+  // Try stored CDN URLs first (fast DB lookup) — fall back to Shopify Files API query.
+  let llmsTxtCdnUrl = null;
+  let agentsMdCdnUrl = null;
+  try {
+    const stored = await readStoredCdnUrls(shop);
+    llmsTxtCdnUrl  = stored.cdnUrl      || null;
+    agentsMdCdnUrl = stored.agentCdnUrl || null;
+    if (llmsTxtCdnUrl || agentsMdCdnUrl) {
+      console.log(`[llms-cdn] [${shop}] Using stored CDN URLs — llms.txt: ${llmsTxtCdnUrl} | agents.md: ${agentsMdCdnUrl}`);
+    }
+  } catch (dbErr) {
+    console.warn(`[llms-cdn] [${shop}] DB CDN URL lookup failed: ${dbErr?.message}`);
+  }
+
+  if (!llmsTxtCdnUrl && !agentsMdCdnUrl) {
+    console.log(`[llms-cdn] [${shop}] No stored CDN URLs — querying Shopify Files API...`);
+    const found = await getCdnUrlsFromShopifyFiles(adminGraphQL);
+    llmsTxtCdnUrl  = found.llmsTxtCdnUrl  || null;
+    agentsMdCdnUrl = found.agentsMdCdnUrl || null;
+  }
 
   if (!llmsTxtCdnUrl && !agentsMdCdnUrl) {
     console.warn(`[llms-cdn] [${shop}] No READY CDN files found — redirects unchanged`);
@@ -1704,6 +1722,14 @@ export async function readStoredLlmsTxtContent(shop) {
   return stored?.content || "";
 }
 
+export async function readStoredCdnUrls(shop) {
+  const stored = await db.aiVisibilityLlmsTxt.findUnique({
+    where: { shop },
+    select: { cdnUrl: true, agentCdnUrl: true },
+  });
+  return { cdnUrl: stored?.cdnUrl || null, agentCdnUrl: stored?.agentCdnUrl || null };
+}
+
 export async function readStoredAgentMdContent(shop) {
   const stored = await db.aiVisibilityLlmsTxt.findUnique({
     where: { shop },
@@ -1833,6 +1859,17 @@ export async function generateAndStoreDynamicLlmsTxt(shop, options = {}, adminGr
         if (agentsCdnUrl) cdnTargets.agentsMd = agentsCdnUrl;
         console.log(`[llms-cdn] [${shop}] ✓ CDN upload complete — llms.txt: ${llmsCdnUrl}`);
         console.log(`[llms-cdn] [${shop}]                        agents.md: ${agentsCdnUrl}`);
+
+        // Persist CDN URLs to DB so redirect sync can skip Shopify Files API call.
+        if (llmsCdnUrl || agentsCdnUrl) {
+          await db.aiVisibilityLlmsTxt.update({
+            where: { shop },
+            data: {
+              cdnUrl: llmsCdnUrl || null,
+              agentCdnUrl: agentsCdnUrl || null,
+            },
+          }).catch((e) => console.warn(`[llms-cdn] [${shop}] Failed to persist CDN URLs to DB: ${e?.message}`));
+        }
       } catch (cdnErr) {
         console.warn(`[llms-cdn] [${shop}] CDN upload failed — falling back to app proxy: ${cdnErr?.message}`);
       }
