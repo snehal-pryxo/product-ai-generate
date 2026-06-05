@@ -357,6 +357,17 @@ export const action = async ({ request }) => {
       if (resourceType === "product") {
         autoAddFaqSectionToProductPage(shop, session.accessToken);
       }
+      db.generatedContentLog.create({
+        data: {
+          shop,
+          productId:    resource.id,
+          productTitle: resource.title || "",
+          intent:       "generate_faq",
+          resourceType,
+          creditsUsed:  result.creditsUsed ?? 0,
+          appliedToProduct: true,
+        },
+      }).catch(() => {});
       return { ok: true, intent, resourceType, resourceId: resource.id, ...result };
     }
 
@@ -377,6 +388,17 @@ export const action = async ({ request }) => {
       );
       // Auto-add the faq-section block to the product page template (non-blocking)
       autoAddFaqSectionToProductPage(shop, session.accessToken);
+      db.generatedContentLog.create({
+        data: {
+          shop,
+          productId:    resource.id,
+          productTitle: resource.title || "",
+          intent:       "generate_combined",
+          resourceType: "product",
+          creditsUsed:  result.creditsUsed ?? 0,
+          appliedToProduct: true,
+        },
+      }).catch(() => {});
       return { ok: true, intent, resourceType: "product", resourceId: resource.id, ...result };
     }
 

@@ -954,6 +954,11 @@ const INTENT_LABEL = {
   content_management_collections: "Collection Content",
   content_management_collection_products: "Collection Product Content",
   content_management_pages: "Page Content",
+  generate_faq: "FAQ Schema",
+  generate_schema: "JSON Schema",
+  generate_combined: "Schema + FAQ",
+  generate_llmstxt: "LLMs.txt",
+  generate_bulk_schema: "Bulk Schema",
 };
 
 const RESOURCE_TABS = [
