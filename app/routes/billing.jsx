@@ -7,9 +7,9 @@ import {
 
 // Normalise the app handle: the env var may still hold the old handle from a
 // previous deployment. Map any stale value to the correct production handle.
-const CORRECT_APP_HANDLE = "gen-ai-seo-product-description";
+const CORRECT_APP_HANDLE = "nex-ai-seo-product-description";
 const _envHandle = (process.env.SHOPIFY_APP_HANDLE || "").trim();
-const APP_HANDLE = _envHandle && _envHandle !== "gen-ai-seo-product-description"
+const APP_HANDLE = _envHandle && _envHandle !== "nex-ai-seo-product-description"
   ? _envHandle
   : CORRECT_APP_HANDLE;
 

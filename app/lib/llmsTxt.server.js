@@ -1795,7 +1795,7 @@ async function verifyLlmsTxtContent(shop, expectedContent) {
     );
 
     // Compare source identity (most reliable check — doesn't depend on content trimming)
-    if (result.redirectSource === "gen-ai-seo-product-description") {
+    if (result.redirectSource === "nex-ai-seo-product-description") {
       result.match = true;
       console.log(`[llms-verify] ✓ X-Content-Source header confirms our app is serving /llms.txt`);
     } else if (result.redirectSource) {
