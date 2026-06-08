@@ -494,7 +494,7 @@ export const action = async ({ request }) => {
         const EMBED_HANDLES = [
           "ai-visibility-embed",
           "app-embed",
-          (_envH1 && _envH1 !== "content-ai-seo-generator") ? _envH1 : "nex-ai-seo-product-description",
+          (_envH1 && _envH1 !== "nex-ai-seo-product-description") ? _envH1 : "nex-ai-seo-product-description",
         ];
 
         function blockMatchesEmbed(key, val) {
@@ -545,7 +545,7 @@ export const action = async ({ request }) => {
         const apiBase = `https://${shop}/admin/api/2025-10`;
         // settings_data.json uses the APP HANDLE (from shopify.app.toml), not the API key.
         const _envH2 = (process.env.SHOPIFY_APP_HANDLE || "").trim();
-        const appHandle = (_envH2 && _envH2 !== "content-ai-seo-generator") ? _envH2 : "nex-ai-seo-product-description";
+        const appHandle = (_envH2 && _envH2 !== "nex-ai-seo-product-description") ? _envH2 : "nex-ai-seo-product-description";
 
         // 1. Get the active theme id
         const themesResp = await fetch(`${apiBase}/themes.json?role=main`, {
