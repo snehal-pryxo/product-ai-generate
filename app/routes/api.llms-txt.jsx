@@ -6,7 +6,7 @@ const NO_CACHE_HEADERS = {
   "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
   "Pragma": "no-cache",
   "Expires": "-1",
-  "X-Content-Source": "gen-ai-seo-product-description",
+  "X-Content-Source": "nex-ai-seo-product-description",
 };
 
 export async function loader({ request }) {

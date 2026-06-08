@@ -1,7 +1,7 @@
 import { generateDynamicLlmsTxt, readStoredLlmsTxtContent, resolveShopFromRequest } from "../lib/llmsTxt.server";
 
 const PLAIN_TEXT = { "Content-Type": "text/plain; charset=utf-8" };
-const NO_CACHE_HEADERS = { ...PLAIN_TEXT, "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0", "Pragma": "no-cache", "Expires": "-1", "X-Content-Source": "gen-ai-seo-product-description" };
+const NO_CACHE_HEADERS = { ...PLAIN_TEXT, "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0", "Pragma": "no-cache", "Expires": "-1", "X-Content-Source": "nex-ai-seo-product-description" };
 
 export async function loader({ request }) {
   const shop = await resolveShopFromRequest(request);
