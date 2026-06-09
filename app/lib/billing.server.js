@@ -11,13 +11,6 @@ const ACTIVE_STATUSES = new Set(["ACTIVE"]);
 const THIRTY_DAYS_MS = BILLING_RENEWAL_DAYS * 24 * 60 * 60 * 1000;
 const YEARLY_RENEWAL_MS = 365 * 24 * 60 * 60 * 1000;
 
-export function getBillingTestMode() {
-  const raw = String(process.env.SHOPIFY_BILLING_TEST || "").trim().toLowerCase();
-  if (raw === "true" || raw === "1" || raw === "yes") return true;
-  if (raw === "false" || raw === "0" || raw === "no") return false;
-  return process.env.NODE_ENV !== "production";
-}
-
 export function getAppBaseUrl(request) {
   const requestUrl = new URL(request.url);
   const requestOrigin = requestUrl.origin.replace(/\/+$/, "");
@@ -89,14 +82,12 @@ export async function createRecurringSubscription({ admin, request, shop, plan, 
         $name: String!
         $returnUrl: URL!
         $lineItems: [AppSubscriptionLineItemInput!]!
-        $test: Boolean
         $replacementBehavior: AppSubscriptionReplacementBehavior
       ) {
         appSubscriptionCreate(
           name: $name
           returnUrl: $returnUrl
           lineItems: $lineItems
-          test: $test
           replacementBehavior: $replacementBehavior
         ) {
           userErrors {
@@ -115,7 +106,6 @@ export async function createRecurringSubscription({ admin, request, shop, plan, 
       variables: {
         name: `Content AI - ${plan.name}`,
         returnUrl: buildAppReturnUrl(request, { type: "subscription", plan: plan.key, shop }),
-        test: getBillingTestMode(),
         replacementBehavior: "APPLY_IMMEDIATELY",
         lineItems: [
           {
@@ -167,13 +157,11 @@ export async function createExtraCreditPurchase({ admin, request, shop, creditPa
         $name: String!
         $returnUrl: URL!
         $price: MoneyInput!
-        $test: Boolean
       ) {
         appPurchaseOneTimeCreate(
           name: $name
           returnUrl: $returnUrl
           price: $price
-          test: $test
         ) {
           userErrors {
             field
@@ -191,7 +179,6 @@ export async function createExtraCreditPurchase({ admin, request, shop, creditPa
       variables: {
         name: `Content AI - ${creditPackage.name}`,
         returnUrl: buildAppReturnUrl(request, { type: "credits", package: creditPackage.key, shop }),
-        test: getBillingTestMode(),
         price: {
           amount: creditPackage.price,
           currencyCode: BILLING_CURRENCY,
