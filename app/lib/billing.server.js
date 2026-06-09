@@ -104,7 +104,7 @@ export async function createRecurringSubscription({ admin, request, shop, plan, 
     `,
     {
       variables: {
-        name: `Content AI - ${plan.name}`,
+        name: `Nex AI SEO Product Description - ${plan.name}`,
         returnUrl: buildAppReturnUrl(request, { type: "subscription", plan: plan.key, shop }),
         replacementBehavior: "APPLY_IMMEDIATELY",
         lineItems: [
@@ -177,7 +177,7 @@ export async function createExtraCreditPurchase({ admin, request, shop, creditPa
     `,
     {
       variables: {
-        name: `Content AI - ${creditPackage.name}`,
+        name: `Nex AI SEO Product Description - ${creditPackage.name}`,
         returnUrl: buildAppReturnUrl(request, { type: "credits", package: creditPackage.key, shop }),
         price: {
           amount: creditPackage.price,
