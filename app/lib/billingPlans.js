@@ -31,7 +31,7 @@ const DEFAULT_SUBSCRIPTION_PLANS = [
     credits: 1500,
     description: "For small stores keeping product SEO updated.",
     features: [
-      "1,500 Credits Every Month",
+      "1500 Credits Every Month",
       "Generate Product SEO, Descriptions & FAQ",
       "Generate Collection SEO & Descriptions",
       "Generate Page Articles & SEO Metadata",
@@ -50,7 +50,7 @@ const DEFAULT_SUBSCRIPTION_PLANS = [
     description: "For active stores using bulk generation regularly.",
     popular: true,
     features: [
-      "1,500 Credits Every Month",
+      "5000 Credits Every Month",
       "Generate Product SEO, Descriptions & FAQ",
       "Generate Collection SEO & Descriptions",
       "Generate Page Articles & SEO Metadata",
