@@ -126,7 +126,7 @@ export async function sendInstallEmails({ shopDomain, shopName, ownerName, owner
 
 // ─── Uninstall emails ──────────────────────────────────────────────────────
 
-export async function sendUninstallEmails({ shopDomain, shopName, ownerName, ownerEmail }) {
+export async function sendUninstallEmails({ shopDomain, shopName, ownerName, ownerEmail, contactEmail, feedbackUrl }) {
   const now = new Date().toLocaleString("en-US", {
     dateStyle: "full",
     timeStyle: "short",
@@ -145,11 +145,11 @@ export async function sendUninstallEmails({ shopDomain, shopName, ownerName, own
       }),
 
     // 2. Farewell to store owner
-    ownerEmail &&
+    (ownerEmail || contactEmail) &&
       sendMail({
-        to: ownerEmail,
+        to: ownerEmail || contactEmail,
         subject: `Sorry to see you go — ${APP_NAME}`,
-        html: uninstallFarewellTemplate({ shopName, ownerName }),
+        html: uninstallFarewellTemplate({ shopName, ownerName, feedbackUrl }),
       }),
   ]);
 }

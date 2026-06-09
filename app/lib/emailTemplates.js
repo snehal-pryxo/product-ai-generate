@@ -223,7 +223,20 @@ export function uninstallOwnerTemplate({ shopDomain, shopName, ownerEmail, unins
 
 // ─── Uninstall: to store owner (farewell) ─────────────────────────────────
 
-export function uninstallFarewellTemplate({ shopName, ownerName }) {
+export function uninstallFarewellTemplate({ shopName, ownerName, feedbackUrl }) {
+  const feedbackButton = feedbackUrl
+    ? `
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+            <tr>
+              <td align="center">
+                <a href="${feedbackUrl}" style="display:inline-block;background:#111827;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;padding:12px 28px;border-radius:8px;">
+                  Share Feedback
+                </a>
+              </td>
+            </tr>
+          </table>`
+    : "";
+
   const body = `
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
@@ -246,6 +259,8 @@ export function uninstallFarewellTemplate({ shopName, ownerName }) {
               </td>
             </tr>
           </table>
+
+          ${feedbackButton}
 
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
             <tr>

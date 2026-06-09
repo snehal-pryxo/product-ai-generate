@@ -1,6 +1,10 @@
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { sendUninstallEmails } from "../lib/email.server.js";
+import {
+  buildUninstallFeedbackUrl,
+  createOrReuseUninstallFeedback,
+} from "../lib/uninstallFeedback.server";
 
 export const action = async ({ request }) => {
   const { shop, session, topic } = await authenticate.webhook(request);
@@ -12,6 +16,21 @@ export const action = async ({ request }) => {
   try {
     // Read shop info before deleting sessions (for email)
     const shopRecord = await db.shop.findUnique({ where: { shop } });
+    const uninstalledAt = new Date();
+
+    let feedbackUrl = "";
+    try {
+      const feedbackRecord = await createOrReuseUninstallFeedback({
+        shop,
+        ownerName: shopRecord?.ownerName,
+        email: shopRecord?.email,
+        contactEmail: shopRecord?.contactEmail,
+        uninstalledAt,
+      });
+      feedbackUrl = buildUninstallFeedbackUrl(feedbackRecord?.feedbackToken);
+    } catch (error) {
+      console.error(`Failed to create uninstall feedback row for shop ${shop}`, error);
+    }
 
     await db.session.deleteMany({ where: { shop } });
     await db.shop.upsert({
@@ -19,12 +38,12 @@ export const action = async ({ request }) => {
       update: {
         installed: false,
         accessToken: null,
-        uninstalledAt: new Date(),
+        uninstalledAt,
       },
       create: {
         shop,
         installed: false,
-        uninstalledAt: new Date(),
+        uninstalledAt,
       },
     });
 
@@ -34,6 +53,8 @@ export const action = async ({ request }) => {
       shopName: shopRecord?.name,
       ownerName: shopRecord?.ownerName,
       ownerEmail: shopRecord?.email,
+      contactEmail: shopRecord?.contactEmail,
+      feedbackUrl,
     }).catch((err) =>
       console.error(`[email] Uninstall email failed for ${shop}:`, err)
     );

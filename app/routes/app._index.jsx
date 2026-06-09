@@ -1,9 +1,5 @@
-import { useEffect, useState } from "react";
 import {
   useLoaderData,
-  useActionData,
-  Form,
-  useFetcher,
   useNavigate,
   useLocation,
 } from "react-router";
@@ -21,11 +17,8 @@ import {
   InlineStack,
   Text,
   Button,
-  Select,
   Badge,
   Icon,
-  Modal,
-  TextField,
   Box,
 } from "@shopify/polaris";
 import { AppPageHeader } from "../components/AppPageHeader";
@@ -53,9 +46,6 @@ export const loader = async ({ request }) => {
   const shopData = await db.shop.findUnique({
     where: { shop: session.shop },
     select: {
-      createdAt: true,
-      reviewSubmittedAt: true,
-      reviewPromptDismissedAt: true,
       ownerName: true,
       name: true,
       credits: true,
@@ -66,17 +56,6 @@ export const loader = async ({ request }) => {
       billingPlanCredits: true,
     },
   });
-
-  const installDate = shopData?.createdAt;
-  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
-  const installAgeMs = installDate ? Date.now() - new Date(installDate).getTime() : 0;
-  const shouldShowReviewPopup = Boolean(
-    shopData &&
-    installDate &&
-    installAgeMs >= sevenDaysMs &&
-    !shopData.reviewSubmittedAt &&
-    !shopData.reviewPromptDismissedAt,
-  );
 
   const shopDomain = String(session.shop || "").trim();
   const shopHandle = shopDomain.split(".")[0] || "Shop Owner";
@@ -343,8 +322,6 @@ export const loader = async ({ request }) => {
   const faqProductPageBlockAdded = await isFaqSectionAddedToProductPage(session.shop, session.accessToken);
 
   return {
-    shouldShowReviewPopup,
-    hasSubmittedReview: Boolean(shopData?.reviewSubmittedAt),
     shopOwnerName,
     generationStats,
     seoStats,
@@ -363,56 +340,6 @@ export const loader = async ({ request }) => {
     billingMessage: url.searchParams.get("message") || "",
     billingSuccess: url.searchParams.get("success") || "",
   };
-};
-
-export const action = async ({ request }) => {
-  const { session } = await authenticate.admin(request);
-  const shop = session.shop;
-  const formData = await request.formData();
-  const intent = formData.get("intent");
-
-  if (intent === "submit_review") {
-    const reviewRating = Number(formData.get("reviewRating"));
-    const reviewFeedbackRaw = String(formData.get("reviewFeedback") || "");
-    const reviewFeedback = reviewFeedbackRaw.trim();
-
-    if (!Number.isInteger(reviewRating) || reviewRating < 1 || reviewRating > 5) {
-      return { success: false, message: "Please select a rating between 1 and 5." };
-    }
-
-    const submittedAt = new Date();
-    await db.shop.upsert({
-      where: { shop },
-      update: {
-        reviewSubmittedAt: submittedAt,
-        reviewRating,
-        reviewFeedback: reviewFeedback || null,
-        reviewPromptDismissedAt: null,
-      },
-      create: {
-        shop,
-        installed: true,
-        reviewSubmittedAt: submittedAt,
-        reviewRating,
-        reviewFeedback: reviewFeedback || null,
-      },
-    });
-
-    return { success: true, message: "Thank you for your review." };
-  }
-
-  if (intent === "dismiss_review") {
-    const dismissedAt = new Date();
-    await db.shop.upsert({
-      where: { shop },
-      update: { reviewPromptDismissedAt: dismissedAt },
-      create: { shop, installed: true, reviewPromptDismissedAt: dismissedAt },
-    });
-
-    return { success: true, message: "Review popup dismissed." };
-  }
-
-  return { success: false, message: "Unknown action." };
 };
 
 
@@ -551,8 +478,6 @@ function SeoDonut({ score }) {
 
 export default function Index() {
   const {
-    shouldShowReviewPopup,
-    hasSubmittedReview,
     shopOwnerName,
     generationStats,
     seoStats,
@@ -571,8 +496,6 @@ export default function Index() {
     billingMessage,
     billingSuccess,
   } = useLoaderData();
-  const actionData = useActionData();
-  const reviewFetcher = useFetcher();
   const navigate = useNavigate();
   const location = useLocation();
   const formattedGeneratedWords = Number(generatedWords || 0).toLocaleString("en-US");
@@ -641,38 +564,6 @@ export default function Index() {
     },
   ];
 
-  const [isReviewModalOpen, setIsReviewModalOpen] = useState(
-    () => Boolean(shouldShowReviewPopup) && !Boolean(hasSubmittedReview),
-  );
-  const [reviewAlreadySubmitted, setReviewAlreadySubmitted] = useState(() => Boolean(hasSubmittedReview));
-  const [reviewRating, setReviewRating] = useState("5");
-  const [reviewFeedback, setReviewFeedback] = useState("");
-
-  const reviewIntent = String(reviewFetcher.formData?.get("intent") || "");
-  const isSubmittingReview = reviewFetcher.state !== "idle" && reviewIntent === "submit_review";
-  const isDismissingReview = reviewFetcher.state !== "idle" && reviewIntent === "dismiss_review";
-
-  useEffect(() => {
-    setReviewAlreadySubmitted(Boolean(hasSubmittedReview));
-    setIsReviewModalOpen(Boolean(shouldShowReviewPopup) && !Boolean(hasSubmittedReview));
-  }, [shouldShowReviewPopup, hasSubmittedReview]);
-
-  useEffect(() => {
-    if (!reviewFetcher.data?.success) return;
-    if (reviewIntent !== "submit_review" && reviewIntent !== "dismiss_review") return;
-    if (reviewIntent === "submit_review") {
-      setReviewAlreadySubmitted(true);
-    }
-    setIsReviewModalOpen(false);
-  }, [reviewFetcher.data, reviewIntent]);
-
-  function handleDismissReviewPopup() {
-    if (isSubmittingReview || isDismissingReview) return;
-    const payload = new FormData();
-    payload.append("intent", "dismiss_review");
-    reviewFetcher.submit(payload, { method: "post" });
-  }
-
   function getAppContextSearch() {
     const current = new URLSearchParams(location.search);
     const next = new URLSearchParams();
@@ -692,60 +583,6 @@ export default function Index() {
     <Page title="Dashboard" fullWidth>
       <div className="dashboard-uniform-buttons">
         <BlockStack gap="500">
-          <Modal
-            open={isReviewModalOpen}
-            onClose={handleDismissReviewPopup}
-            title="How is your experience with Product AI?"
-            large
-          >
-            <Modal.Section>
-              <reviewFetcher.Form method="post">
-                <input type="hidden" name="intent" value="submit_review" />
-                <input type="hidden" name="reviewRating" value={reviewRating} />
-                <input type="hidden" name="reviewFeedback" value={reviewFeedback} />
-                <BlockStack gap="300">
-                  <Text as="p" variant="bodyMd" tone="subdued">
-                    You have used the app for 7 days. Please share a quick review to help us improve.
-                  </Text>
-                  <Select
-                    label="Rating"
-                    options={[
-                      { label: "5 - Excellent", value: "5" },
-                      { label: "4 - Good", value: "4" },
-                      { label: "3 - Average", value: "3" },
-                      { label: "2 - Poor", value: "2" },
-                      { label: "1 - Very poor", value: "1" },
-                    ]}
-                    value={reviewRating}
-                    onChange={setReviewRating}
-                  />
-                  <TextField
-                    label="Feedback (optional)"
-                    value={reviewFeedback}
-                    onChange={setReviewFeedback}
-                    multiline={4}
-                    autoComplete="off"
-                    placeholder="Tell us what worked well and what we can improve."
-                  />
-                  <InlineStack align="start" gap="200">
-                    <Button size="slim" onClick={handleDismissReviewPopup} disabled={isSubmittingReview || isDismissingReview}>
-                      Not now
-                    </Button>
-                    <Button
-                      size="slim"
-                      submit
-                      variant="primary"
-                      loading={isSubmittingReview}
-                      disabled={isSubmittingReview || isDismissingReview}
-                    >
-                      Submit review
-                    </Button>
-                  </InlineStack>
-                </BlockStack>
-              </reviewFetcher.Form>
-            </Modal.Section>
-          </Modal>
-
           <AppPageHeader
             title={greetingTitle}
             description="Manage your apps and generate high-converting AI content for your store."
@@ -1076,13 +913,11 @@ export default function Index() {
                         <Button size="slim">View docs</Button>
                         <Button
                           size="slim"
-                          onClick={() => {
-                            if (!reviewAlreadySubmitted) setIsReviewModalOpen(true);
-                          }}
-                          disabled={reviewAlreadySubmitted}
+                          url="https://apps.shopify.com/gen-ai-seo-product-description#modal-show=WriteReviewModal"
+                          external
                           icon={StarFilledIcon}
                         >
-                          {reviewAlreadySubmitted ? "Review submitted" : "Write a review"}
+                          Write a review
                         </Button>
                       </InlineStack>
                     </BlockStack>
