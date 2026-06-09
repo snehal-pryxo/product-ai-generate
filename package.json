@@ -1,5 +1,5 @@
 {
-  "name": "product-ai-generate",
+  "name": "nex-ai-seo-product-description",
   "private": true,
   "scripts": {
     "build": "react-router build",

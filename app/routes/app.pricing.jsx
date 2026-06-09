@@ -28,7 +28,6 @@ import {
 import {
   createExtraCreditPurchase,
   createRecurringSubscription,
-  getBillingTestMode,
 } from "../lib/billing.server";
 import { buildCustomCreditPackage } from "../lib/creditPurchaseOptions";
 
@@ -63,7 +62,6 @@ export const loader = async ({ request }) => {
     freePlan,
     paidPlans,
     extraCreditPackages: getExtraCreditPackages(process.env),
-    billingTestMode: getBillingTestMode(),
   };
 };
 
@@ -195,7 +193,6 @@ export default function PricingPage() {
     freePlanUsed,
     paidPlans,
     extraCreditPackages,
-    billingTestMode,
   } = useLoaderData();
   const actionData = useActionData();
   const navigation = useNavigation();
@@ -420,7 +417,6 @@ export default function PricingPage() {
         <BlockStack gap="300">
           <InlineStack align="space-between" blockAlign="center">
             <Text as="h2" variant="headingMd">Plans</Text>
-            {billingTestMode ? <Badge tone="attention">Test mode</Badge> : null}
           </InlineStack>
 
           <InlineStack align="center">
@@ -456,7 +452,6 @@ export default function PricingPage() {
                 One-time top-up. Credits never expire and stack on top of your plan.
               </Text>
             </BlockStack>
-            {billingTestMode ? <Badge tone="attention">Test mode</Badge> : null}
           </InlineStack>
 
           <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3, xl: 3 }}>
