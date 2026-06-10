@@ -249,7 +249,7 @@ export default function PricingPage() {
         <div className={`pricing-plan-card ${plan.popular || isYearly ? "pricing-plan-card--popular" : ""}`}>
           <Card>
             <div className="pricing-plan-card__inner">
-              <BlockStack gap="300">
+              <div className="pricing-plan-card__content">
                 <InlineStack align="space-between" blockAlign="start">
                   <BlockStack gap="050">
                     <Text as="h3" variant="headingLg">{plan.name}</Text>
@@ -258,24 +258,26 @@ export default function PricingPage() {
                   {current ? <Badge tone="success">Current</Badge> : <Badge tone={isYearly ? "success" : "info"}>{isYearly ? "Best value" : "Monthly"}</Badge>}
                 </InlineStack>
 
-                <BlockStack gap="100">
-                  <InlineStack gap="100" blockAlign="end">
-                    <Text as="p" variant="heading2xl">{formatPrice(intervalPrice)}</Text>
-                    <Text as="span" variant="bodySm" tone="subdued">/{isYearly ? "year" : "month"}</Text>
-                  </InlineStack>
-                  {isYearly ? (
-                    <>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        Billed yearly - Equivalent to ${yearlyPerMonth.toFixed(2)}/month
-                      </Text>
-                      <div className="pricing-save-badge">
-                        Save {formatPrice(Math.round(yearlySavings * 100) / 100)} - {YEARLY_DISCOUNT_MONTHS} months free
-                      </div>
-                    </>
-                  ) : (
-                    <Text as="p" variant="bodySm" tone="subdued">Billed monthly - Cancel any time</Text>
-                  )}
-                </BlockStack>
+                <div className="pricing-plan-card__price">
+                  <BlockStack gap="100">
+                    <InlineStack gap="100" blockAlign="end">
+                      <Text as="p" variant="heading2xl">{formatPrice(intervalPrice)}</Text>
+                      <Text as="span" variant="bodySm" tone="subdued">/{isYearly ? "year" : "month"}</Text>
+                    </InlineStack>
+                    {isYearly ? (
+                      <>
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          Billed yearly - Equivalent to ${yearlyPerMonth.toFixed(2)}/month
+                        </Text>
+                        <div className="pricing-save-badge">
+                          Save {formatPrice(Math.round(yearlySavings * 100) / 100)} - {YEARLY_DISCOUNT_MONTHS} months free
+                        </div>
+                      </>
+                    ) : (
+                      <Text as="p" variant="bodySm" tone="subdued">Billed monthly - Cancel any time</Text>
+                    )}
+                  </BlockStack>
+                </div>
 
                 <Divider />
 
@@ -293,7 +295,7 @@ export default function PricingPage() {
                     </InlineStack>
                   ))}
                 </BlockStack>
-              </BlockStack>
+              </div>
 
               <div className="pricing-plan-card__action">
                 <Form method="post">
@@ -325,7 +327,7 @@ export default function PricingPage() {
         <div className="pricing-plan-card">
           <Card>
             <div className="pricing-plan-card__inner">
-              <BlockStack gap="300">
+              <div className="pricing-plan-card__content">
                 <InlineStack align="space-between" blockAlign="start">
                   <BlockStack gap="050">
                     <Text as="h3" variant="headingLg">{freePlan?.name || "Free"}</Text>
@@ -334,13 +336,15 @@ export default function PricingPage() {
                   {currentPlanKey === "free" && <Badge tone="success">Current</Badge>}
                 </InlineStack>
 
-                <BlockStack gap="050">
-                  <InlineStack gap="100" blockAlign="end">
-                    <Text as="p" variant="heading2xl">$0</Text>
-                    <Text as="span" variant="bodySm" tone="subdued">/{isYearly ? "year" : "month"}</Text>
-                  </InlineStack>
-                  <Text as="p" variant="bodySm" tone="subdued">Included after install - Always free</Text>
-                </BlockStack>
+                <div className="pricing-plan-card__price">
+                  <BlockStack gap="050">
+                    <InlineStack gap="100" blockAlign="end">
+                      <Text as="p" variant="heading2xl">$0</Text>
+                      <Text as="span" variant="bodySm" tone="subdued">/{isYearly ? "year" : "month"}</Text>
+                    </InlineStack>
+                    <Text as="p" variant="bodySm" tone="subdued">Included after install - Always free</Text>
+                  </BlockStack>
+                </div>
 
                 <Divider />
 
@@ -358,7 +362,7 @@ export default function PricingPage() {
                     </InlineStack>
                   ))}
                 </BlockStack>
-              </BlockStack>
+              </div>
 
               <div className="pricing-plan-card__action">
                 <Form method="post">
@@ -522,6 +526,19 @@ export default function PricingPage() {
           flex: 1;
           display: flex;
           flex-direction: column;
+          min-height: 100%;
+        }
+        .pricing-plan-card__content {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .pricing-plan-card__price {
+          min-height: 68px;
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-start;
         }
         .pricing-plan-card__action {
           margin-top: auto;

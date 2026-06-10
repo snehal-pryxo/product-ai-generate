@@ -25,6 +25,7 @@ export const action = async ({ request }) => {
       db.aiVisibilityLlmsTxt.deleteMany({ where: { shop } }),
       db.billingSubscription.deleteMany({ where: { shop } }),
       db.billingCreditPurchase.deleteMany({ where: { shop } }),
+      db.uninstallfeedback.deleteMany({ where: { shop } }),
       db.session.deleteMany({ where: { shop } }),
       db.shop.deleteMany({ where: { shop } }),
     ]);

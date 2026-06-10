@@ -40,7 +40,7 @@ model shop {
   onboardedAt   DateTime?
   uninstalledAt DateTime?
   status                  String?   @default("installed") @db.VarChar(32)
-   ownerName               String?   @db.VarChar(255)
+  ownerName               String?   @db.VarChar(255)
   email                   String?   @db.VarChar(320)
   contactEmail            String?   @db.VarChar(320)
   name                    String?   @db.VarChar(255)
@@ -379,4 +379,18 @@ model AiVisibilityLlmsTxt {
   updatedAt    DateTime @updatedAt
 
   @@map("ai_visibility_llms_txt")
+}
+
+model uninstallfeedback {
+  id                  Int       @id @default(autoincrement())
+  shop                String    @db.VarChar(255)
+  ownerName           String?   @db.VarChar(255)
+  email               String?   @db.VarChar(320)
+  contactEmail        String?   @db.VarChar(320)
+  feedbackText        String?   @db.Text
+  feedbackToken       String?   @unique @db.VarChar(128)
+  feedbackSubmittedAt DateTime?
+  uninstalledAt       DateTime  @default(now())
+
+  @@index([shop], map: "UninstallFeedback_shop_idx")
 }
