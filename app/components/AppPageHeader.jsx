@@ -1,10 +1,10 @@
-import { useLocation, useNavigate, useRouteLoaderData } from "react-router";
 import { BlockStack, Button, Card, InlineStack, Text } from "@shopify/polaris";
 import { openAddCreditModal } from "./AddCreditModal";
+import { useInAppNavigation } from "./useInAppNavigation";
+import { useRouteLoaderData } from "react-router";
 
 export function AppPageHeader({ title, description }) {
-  const navigate = useNavigate();
-  const location = useLocation();
+  const { navigateInApp } = useInAppNavigation();
   const appLoaderData = useRouteLoaderData("routes/app");
   const credits = Number(appLoaderData?.credits ?? 150);
   const formattedCredits = credits.toLocaleString("en-US");
@@ -31,7 +31,7 @@ export function AppPageHeader({ title, description }) {
               Add Credits
             </Button>
             <button
-              onClick={() => navigate({ pathname: "/app/pricing", search: location.search })}
+              onClick={() => navigateInApp("/app/pricing")}
               style={{
                 background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
                 color: "#ffffff",
