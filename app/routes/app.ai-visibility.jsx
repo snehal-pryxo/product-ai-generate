@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useLoaderData, useFetcher } from "react-router";
 import { AppPageHeader } from "../components/AppPageHeader";
+import { useInAppNavigation } from "../components/useInAppNavigation";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import {
@@ -648,7 +649,7 @@ function ScoreBadge({ score }) {
 // Item Drawer
 // ---------------------------------------------------------------------------
 
-function ItemModal({ item, onClose, onGenerate, generatingKey, credits, hasUnlimitedVisibility, isFreePlan }) {
+function ItemModal({ item, onClose, onGenerate, onUpgrade, generatingKey, credits, hasUnlimitedVisibility, isFreePlan }) {
   const [expandedFaqIndex, setExpandedFaqIndex] = useState(null);
   if (!item) return null;
   const canFaq = false;
@@ -727,7 +728,7 @@ function ItemModal({ item, onClose, onGenerate, generatingKey, credits, hasUnlim
             <Banner tone="info">
               <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
                 <Text as="p">JSON schema and FAQ generation are not available on the free plan.</Text>
-                <Button size="slim" url={PRICING_PATH}>
+                <Button size="slim" onClick={onUpgrade}>
                   Upgrade plan
                 </Button>
               </InlineStack>
@@ -740,7 +741,7 @@ function ItemModal({ item, onClose, onGenerate, generatingKey, credits, hasUnlim
                 <Text as="p">
                   You have {credits} credits. This action needs at least {minimumRequiredCredits} credits.
                 </Text>
-                <Button size="slim" url={PRICING_PATH}>
+                <Button size="slim" onClick={onUpgrade}>
                   Buy credits
                 </Button>
               </InlineStack>
@@ -958,6 +959,7 @@ export default function AiVisibilityPage() {
     llmsTxtSettings: initialLlmsTxtSettings,
   } = useLoaderData();
   const hasUnlimitedVisibility = false;
+  const { navigateInApp } = useInAppNavigation();
   const fetcher = useFetcher();
   const embedFetcher = useFetcher();
   const autoEnableFetcher = useFetcher();
@@ -1289,6 +1291,13 @@ export default function AiVisibilityPage() {
     fetcher.submit(fd, { method: "post" });
   }, [activeResourceType, bulkSchemaCredits, credits, fetcher, hasUnlimitedVisibility, isFreePlan, selectedItems]);
 
+  const handlePricingAction = useCallback(
+    (path) => {
+      navigateInApp(path || PRICING_PATH);
+    },
+    [navigateInApp],
+  );
+
   return (
     <Page>
       <BlockStack gap="400">
@@ -1299,7 +1308,7 @@ export default function AiVisibilityPage() {
             <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
               <Text as="p">{banner.text}</Text>
               {banner.actionLabel && banner.actionUrl && (
-                <Button size="slim" url={banner.actionUrl}>
+                <Button size="slim" onClick={() => handlePricingAction(banner.actionUrl)}>
                   {banner.actionLabel}
                 </Button>
               )}
@@ -1527,6 +1536,7 @@ export default function AiVisibilityPage() {
           item={selectedItem}
           onClose={() => setSelectedItemKey(null)}
           onGenerate={handleGenerate}
+          onUpgrade={() => handlePricingAction(PRICING_PATH)}
           generatingKey={generatingKey}
           credits={credits}
           hasUnlimitedVisibility={hasUnlimitedVisibility}

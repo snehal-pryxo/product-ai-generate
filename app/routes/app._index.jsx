@@ -910,10 +910,17 @@ export default function Index() {
                         Browse setup guides and troubleshooting docs.
                       </Text>
                       <InlineStack gap="200">
-                        <Button size="slim">View docs</Button>
                         <Button
                           size="slim"
-                          url="https://apps.shopify.com/gen-ai-seo-product-description#modal-show=WriteReviewModal"
+                          url="https://nexaiseo.tawk.help/category/features"
+                          external
+                          icon={ExternalIcon}
+                        >
+                          View docs
+                        </Button>
+                        <Button
+                          size="slim"
+                          url="https://apps.shopify.com/ai-seo-product-description#modal-show=WriteReviewModal"
                           external
                           icon={StarFilledIcon}
                         >

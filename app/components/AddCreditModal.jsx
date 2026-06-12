@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { useFetcher, useNavigate } from "react-router";
+import { useFetcher } from "react-router";
 import { BlockStack, Box, Button, InlineStack, Link, Modal, Text, TextField } from "@shopify/polaris";
 import {
   getCreditPurchasePrice,
   normalizeCreditPurchaseAmount,
 } from "../lib/creditPurchaseOptions";
+import { useInAppNavigation } from "./useInAppNavigation";
 
 export const ADD_CREDIT_MODAL_EVENT = "content-ai:add-credit-modal";
 
@@ -29,7 +30,7 @@ function formatCurrencyFixed(value) {
 
 export function AddCreditModal() {
   const fetcher = useFetcher();
-  const navigate = useNavigate();
+  const { appHref, navigateInApp } = useInAppNavigation();
   const [open, setOpen] = useState(false);
   const [credits, setCredits] = useState("100");
   const normalizedCredits = useMemo(() => normalizeCreditPurchaseAmount(credits), [credits]);
@@ -56,7 +57,7 @@ export function AddCreditModal() {
     const payload = new FormData();
     payload.append("intent", "buy_custom_credits");
     payload.append("credits", String(normalizedCredits));
-    fetcher.submit(payload, { method: "post", action: "/app/pricing" });
+    fetcher.submit(payload, { method: "post", action: appHref("/app/pricing") });
   }
 
   return (
@@ -75,7 +76,7 @@ export function AddCreditModal() {
           content: "Upgrade Plan",
           onAction: () => {
             setOpen(false);
-            navigate("/app/pricing");
+            navigateInApp("/app/pricing");
           },
         },
       ]}
@@ -148,7 +149,7 @@ export function AddCreditModal() {
 
           <InlineStack align="end">
             <Text as="p" variant="bodySm" tone="subdued">
-              Need a monthly plan? <Link url="/app/pricing">View pricing plans</Link>
+              Need a monthly plan? <Link url={appHref("/app/pricing")}>View pricing plans</Link>
             </Text>
           </InlineStack>
 
