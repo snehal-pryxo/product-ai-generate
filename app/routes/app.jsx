@@ -143,6 +143,7 @@ export const loader = async ({ request }) => {
   // eslint-disable-next-line no-undef
   return {
     apiKey: process.env.SHOPIFY_API_KEY || "",
+    shop: session.shop,
     globalSettings: normalizeGlobalSettings(parsedGlobalSettings),
     templateSelections: normalizeTemplateSelections(parsedTemplateSelections),
     customTemplates: normalizeCustomTemplates(parsedCustomTemplates),
@@ -156,7 +157,7 @@ export const loader = async ({ request }) => {
 };
 
 export default function App() {
-  const { apiKey, globalSettings, templateSelections, customTemplates } = useLoaderData();
+  const { apiKey, shop, globalSettings, templateSelections, customTemplates } = useLoaderData();
   const location = useLocation();
   const navigation = useNavigation();
   const fetchers = useFetchers();
@@ -173,6 +174,27 @@ export default function App() {
       openAddCreditModal();
     }
   }, [fetchers]);
+
+  useEffect(() => {
+    // Load the Tawk.to support widget once, for authenticated merchants only.
+    if (typeof window === "undefined") return;
+    if (document.getElementById("tawk-script")) return;
+
+    window.Tawk_API = window.Tawk_API || {};
+    window.Tawk_LoadStart = new Date();
+    window.Tawk_API.onLoad = function onLoad() {
+      if (shop && typeof window.Tawk_API.setAttributes === "function") {
+        window.Tawk_API.setAttributes({ name: shop, store: shop }, () => {});
+      }
+    };
+
+    const script = document.createElement("script");
+    script.id = "tawk-script";
+    script.async = true;
+    script.src = "https://embed.tawk.to/6a279952ad90f21c2d9c8bce/1jqlatrgm";
+    script.setAttribute("crossorigin", "anonymous");
+    document.head.appendChild(script);
+  }, [shop]);
 
   useEffect(() => {
     // Keep localStorage mirrored with DB values for client-side pages using local settings utilities.

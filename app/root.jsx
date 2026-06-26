@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 
@@ -14,19 +13,6 @@ export const headers = () => ({
 });
 
 export default function App() {
-  useEffect(() => {
-    window.Tawk_API = window.Tawk_API || {};
-    window.Tawk_LoadStart = new Date();
-    (function(){
-      var s1 = document.createElement("script"), s0 = document.getElementsByTagName("script")[0];
-      s1.async = true;
-      s1.src = 'https://embed.tawk.to/6a279952ad90f21c2d9c8bce/1jqlatrgm';
-      s1.charset = 'UTF-8';
-      s1.setAttribute('crossorigin', '*');
-      s0.parentNode.insertBefore(s1, s0);
-    })();
-  }, []);
-
   return (
     <html lang="en">
       <head>
