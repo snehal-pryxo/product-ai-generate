@@ -109,6 +109,10 @@ export const loader = async ({ request }) => {
   const shopData = await db.shop.findUnique({
     where: { shop: session.shop },
     select: {
+      name: true,
+      ownerName: true,
+      email: true,
+      contactEmail: true,
       globalSettingsJson: true,
       templateSelectionsJson: true,
       customPromptTemplatesJson: true,
@@ -143,6 +147,10 @@ export const loader = async ({ request }) => {
   // eslint-disable-next-line no-undef
   return {
     apiKey: process.env.SHOPIFY_API_KEY || "",
+    shop: session.shop,
+    storeName: shopData?.name || null,
+    storeOwnerName: shopData?.ownerName || null,
+    storeOwnerEmail: shopData?.email || shopData?.contactEmail || null,
     globalSettings: normalizeGlobalSettings(parsedGlobalSettings),
     templateSelections: normalizeTemplateSelections(parsedTemplateSelections),
     customTemplates: normalizeCustomTemplates(parsedCustomTemplates),
@@ -156,7 +164,7 @@ export const loader = async ({ request }) => {
 };
 
 export default function App() {
-  const { apiKey, globalSettings, templateSelections, customTemplates } = useLoaderData();
+  const { apiKey, shop, storeName, storeOwnerName, storeOwnerEmail, globalSettings, templateSelections, customTemplates } = useLoaderData();
   const location = useLocation();
   const navigation = useNavigation();
   const fetchers = useFetchers();
@@ -173,6 +181,35 @@ export default function App() {
       openAddCreditModal();
     }
   }, [fetchers]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (document.getElementById("tawk-script")) return;
+
+    window.Tawk_API = window.Tawk_API || {};
+    window.Tawk_LoadStart = new Date();
+    window.Tawk_API.onLoad = function onLoad() {
+      if (shop && typeof window.Tawk_API.setAttributes === "function") {
+        window.Tawk_API.setAttributes(
+          {
+            name: storeOwnerName || storeName || shop,
+            email: storeOwnerEmail || "",
+            store: storeName || shop,
+            "store-url": `https://${shop}`,
+            "store-domain": shop,
+          },
+          () => {},
+        );
+      }
+    };
+
+    const script = document.createElement("script");
+    script.id = "tawk-script";
+    script.async = true;
+    script.src = "https://embed.tawk.to/6a279952ad90f21c2d9c8bce/1jqlatrgm";
+    script.setAttribute("crossorigin", "anonymous");
+    document.head.appendChild(script);
+  }, [shop, storeName, storeOwnerName, storeOwnerEmail]);
 
   useEffect(() => {
     // Keep localStorage mirrored with DB values for client-side pages using local settings utilities.
