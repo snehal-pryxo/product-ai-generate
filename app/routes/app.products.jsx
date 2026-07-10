@@ -31,7 +31,7 @@ import {
 import { ProductIcon, CollectionIcon, SearchIcon, ChevronUpIcon, ChevronDownIcon, XIcon } from "@shopify/polaris-icons";
 import { openAddCreditModal } from "../components/AddCreditModal";
 import db from "../db.server";
-import { inngest } from "../inngest/client";
+import { enqueueBulkJob } from "../inngest/enqueueBulkJob";
 import { authenticate } from "../shopify.server";
 import { buildProductContentPrompt, getProductSystemPrompt } from "../lib/contentPromptTemplates";
 import { TemplateLibraryModal } from "../components/TemplateLibraryModal";
@@ -1043,16 +1043,7 @@ export const action = async ({ request }) => {
         },
       });
 
-      await inngest.send({
-        name: "content/bulk.generate",
-        data: {
-          jobId: job.id,
-          shop: session.shop,
-          jobType: "product",
-          items: jobItems,
-          settings: jobSettings,
-        },
-      });
+      await enqueueBulkJob({ jobId: job.id, shop: session.shop, requiredCredits });
 
       return {
         ok: true,

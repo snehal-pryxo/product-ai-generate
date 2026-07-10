@@ -145,7 +145,21 @@ export const bulkGenerateFunction = inngest.createFunction(
     },
   },
   async ({ event, step }) => {
-    const { jobId, shop, jobType, items, settings } = event.data;
+    const { jobId, shop } = event.data;
+
+    // Items and settings are loaded from the persisted job row rather than the
+    // event payload, so the event stays tiny regardless of item count and can
+    // never exceed Inngest's 256KB event-size limit.
+    const job = await step.run("load-job", () =>
+      db.bulkJob.findUnique({
+        where: { id: jobId },
+        select: { jobType: true, itemsData: true, settings: true },
+      }),
+    );
+    if (!job) return;
+    const jobType = job.jobType;
+    const items = JSON.parse(job.itemsData || "[]");
+    const settings = JSON.parse(job.settings || "{}");
 
     await step.run("mark-processing", () =>
       db.bulkJob.update({ where: { id: jobId }, data: { status: "processing" } }),
