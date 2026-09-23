@@ -1,4 +1,5 @@
 import db from "../db.server";
+import { recordCreditRefund, recordGeneration } from "./activity.server";
 import { refreshMonthlyPlanCredits } from "./billing.server";
 import { getSubscriptionPlan } from "./billingPlans";
 
@@ -113,6 +114,8 @@ export async function deductCredits({ shopDomain, creditsUsed }) {
     throw new Error(buildInsufficientCreditsError(creditsUsed, snapshot.credits));
   }
 
+  await recordGeneration(shopDomain, creditsUsed);
+
   const snapshot = await db.shop.findUnique({
     where: { shop: shopDomain },
     select: { credits: true, creditsUsedTotal: true },
@@ -148,6 +151,8 @@ export async function refundCredits({ shopDomain, creditsRefunded }) {
       creditsUsedTotal: true,
     },
   });
+
+  await recordCreditRefund(shopDomain, creditsRefunded);
 
   return {
     credits: snapshot?.credits ?? 0,

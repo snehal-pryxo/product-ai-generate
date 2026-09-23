@@ -73,6 +73,24 @@ model shop {
   templateSelectionsJson  String?   @db.LongText
   customPromptTemplatesJson String? @db.LongText
   themeEmbedEnabled       Boolean   @default(false)
+  lastActiveAt            DateTime?
+}
+
+// One row per shop per UTC day on which the merchant used the app.
+// "Days since last use" is derived at read time from shop.lastActiveAt / activityDate.
+model ShopDailyActivity {
+  id           BigInt   @id @default(autoincrement())
+  shop         String   @db.VarChar(255)
+  activityDate DateTime @db.Date
+  appOpens     Int      @default(0) // admin loads, throttled to one per 10 min
+  generations  Int      @default(0) // generation requests (a bulk run counts once)
+  creditsUsed  Int      @default(0)
+  firstSeenAt  DateTime @default(now())
+  lastSeenAt   DateTime @default(now())
+
+  @@unique([shop, activityDate], map: "shop_daily_activity_shop_date_key")
+  @@index([activityDate], map: "shop_daily_activity_date_idx")
+  @@map("shop_daily_activity")
 }
 
 model BillingSubscription {

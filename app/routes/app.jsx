@@ -6,6 +6,7 @@ import { AppProvider as PolarisProvider, Spinner, Text } from "@shopify/polaris"
 import enTranslations from "@shopify/polaris/locales/en.json";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
+import { recordAppOpen, shouldRecordAppOpen } from "../lib/activity.server";
 import { AddCreditModal, openAddCreditModal } from "../components/AddCreditModal";
 import { refreshMonthlyPlanCredits } from "../lib/billing.server";
 import { normalizeStoredGlobalSettings, writeGlobalSettings } from "../lib/globalSettings";
@@ -122,8 +123,14 @@ export const loader = async ({ request }) => {
       billingPlanName: true,
       billingPlanCredits: true,
       billingSubscriptionStatus: true,
+      lastActiveAt: true,
     },
   });
+
+  if (shopData && shouldRecordAppOpen(shopData.lastActiveAt)) {
+    // Awaited: Vercel drops un-awaited promises once the response is sent.
+    await recordAppOpen(session.shop);
+  }
 
   let parsedGlobalSettings = {};
   let parsedTemplateSelections = {};
