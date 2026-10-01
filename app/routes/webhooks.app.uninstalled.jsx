@@ -1,6 +1,7 @@
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { sendUninstallEmails } from "../lib/email.server.js";
+import { syncVboutContact } from "../lib/vbout.server.js";
 import {
   buildUninstallFeedbackUrl,
   createOrReuseUninstallFeedback,
@@ -58,6 +59,13 @@ export const action = async ({ request }) => {
     }).catch((err) =>
       console.error(`[email] Uninstall email failed for ${shop}:`, err)
     );
+
+    // Retag the VBOUT contact (non-blocking; never throws). The email comes
+    // from the shop row read above since the access token is no longer valid.
+    syncVboutContact({
+      email: shopRecord?.email,
+      fields: { shopDomain: shop, appStatus: "uninstalled" },
+    });
   } catch (error) {
     console.error(`Failed to sync uninstall state for shop ${shop}`, error);
   }
