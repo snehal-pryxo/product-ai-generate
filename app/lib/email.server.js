@@ -72,7 +72,7 @@ async function sendMail({ to, subject, html }) {
 }
 
 /**
- * Fetch shop info (name, owner name, email) from Shopify REST API.
+ * Fetch shop info (name, owner name, email, phone, country) from Shopify REST API.
  * Returns null on failure — callers should handle gracefully.
  */
 export async function fetchShopInfo(shopDomain, accessToken) {
@@ -88,6 +88,8 @@ export async function fetchShopInfo(shopDomain, accessToken) {
       ownerName: shop.shop_owner,
       email: shop.email,          // store owner email
       contactEmail: shop.customer_email,
+      phone: shop.phone,
+      countryCode: shop.country_code,
     };
   } catch {
     return null;

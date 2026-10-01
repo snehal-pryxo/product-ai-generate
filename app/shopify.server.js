@@ -8,6 +8,7 @@ import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prism
 import prisma from "./db.server";
 import { fetchShopInfo, sendInstallEmails } from "./lib/email.server.js";
 import { ensureRedirectsOnInstall } from "./lib/llmsTxt.server";
+import { syncVboutContact } from "./lib/vbout.server.js";
 
 if (!process.env.SHOPIFY_API_SECRET) {
   throw new Error("SHOPIFY_API_SECRET environment variable is required but not set.");
@@ -31,7 +32,7 @@ const shopify = shopifyApp({
         // Fetch shop info from Shopify to get owner name & email
         const shopInfo = await fetchShopInfo(session.shop, session.accessToken);
 
-        await prisma.shop.upsert({
+        const shopRecord = await prisma.shop.upsert({
           where: { shop: session.shop },
           update: {
             accessToken: session.accessToken ?? null,
@@ -75,6 +76,24 @@ const shopify = shopifyApp({
         ensureRedirectsOnInstall(session.shop, session.accessToken).catch((err) =>
           console.error(`[llms-redirect] afterAuth setup failed for ${session.shop}:`, err)
         );
+
+        // Sync the merchant into VBOUT on every auth, not only new installs:
+        // a reinstall after a missed uninstall webhook looks like a re-login.
+        // synccontact upserts and never throws. Falls back to the stored
+        // email/name if the shop info fetch failed.
+        const [firstName, ...lastNameParts] = (shopRecord.ownerName || "").trim().split(/\s+/);
+        await syncVboutContact({
+          email: shopRecord.email,
+          fields: {
+            firstName,
+            lastName: lastNameParts.join(" "),
+            shopName: shopRecord.name,
+            shopDomain: session.shop,
+            phone: shopInfo?.phone,
+            country: shopInfo?.countryCode,
+            appStatus: "installed",
+          },
+        });
       } catch (error) {
         console.error(
           `Failed to sync install state for shop ${session.shop}`,
