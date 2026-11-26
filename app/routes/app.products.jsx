@@ -32,6 +32,8 @@ import { ProductIcon, CollectionIcon, SearchIcon, ChevronUpIcon, ChevronDownIcon
 import { openAddCreditModal } from "../components/AddCreditModal";
 import db from "../db.server";
 import { enqueueBulkJob } from "../inngest/enqueueBulkJob";
+import { getBulkJobRunner } from "../lib/bulkJobs/config.server";
+import { createWorkerBulkJob, InsufficientCreditsError } from "../lib/bulkJobs/queue.server";
 import { authenticate } from "../shopify.server";
 import { buildProductContentPrompt, getProductSystemPrompt } from "../lib/contentPromptTemplates";
 import { TemplateLibraryModal } from "../components/TemplateLibraryModal";
@@ -990,9 +992,10 @@ export const action = async ({ request }) => {
         };
       }
 
+      const useWorker = getBulkJobRunner() === "worker";
       let reservedCredits = availableCredits;
       let reservedCreditsUsedTotal = shopData?.creditsUsedTotal ?? 0;
-      if (requiredCredits > 0) {
+      if (requiredCredits > 0 && !useWorker) {
         const creditSnapshot = await deductCredits({ shopDomain: session.shop, creditsUsed: requiredCredits });
         reservedCredits = creditSnapshot.credits;
         reservedCreditsUsedTotal = creditSnapshot.creditsUsedTotal;
@@ -1015,6 +1018,33 @@ export const action = async ({ request }) => {
         removeImages: removeImagesFlag,
         collectionId: collectionId || "",
       };
+
+      if (useWorker) {
+        // Credits are reserved in the same transaction that creates the job.
+        // Only product IDs are stored; the worker fetches product data per batch.
+        try {
+          const created = await createWorkerBulkJob({
+            shop: session.shop,
+            jobType: "product",
+            items: bulkProducts.map((p) => ({ resourceId: p.id })),
+            contentTypes: selectedContentTypes,
+            settings: jobSettings,
+            requiredCredits,
+          });
+          return {
+            ok: true,
+            intent,
+            queued: true,
+            jobId: created.jobId,
+            total: bulkProducts.length,
+            newCredits: created.credits,
+            creditsUsedTotal: created.creditsUsedTotal,
+          };
+        } catch (error) {
+          if (error instanceof InsufficientCreditsError) return { ok: false, intent, error: error.message };
+          throw error;
+        }
+      }
 
       const jobItems = bulkProducts.map((p) => ({
         id: p.id,

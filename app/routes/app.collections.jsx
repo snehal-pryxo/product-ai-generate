@@ -39,6 +39,29 @@ import {
 import { openAddCreditModal } from "../components/AddCreditModal";
 import db from "../db.server";
 import { enqueueBulkJob } from "../inngest/enqueueBulkJob";
+import { getBulkJobRunner } from "../lib/bulkJobs/config.server";
+import { createWorkerBulkJob, InsufficientCreditsError } from "../lib/bulkJobs/queue.server";
+
+// Worker-run jobs: credits are reserved in the same transaction that creates the
+// job, and only resource IDs are stored (the worker fetches data per batch).
+async function queueWorkerJob({ intent, shop, jobType, items, contentTypes, settings, requiredCredits, extra = {} }) {
+  try {
+    const created = await createWorkerBulkJob({ shop, jobType, items, contentTypes, settings, requiredCredits });
+    return {
+      ok: true,
+      intent,
+      queued: true,
+      jobId: created.jobId,
+      ...extra,
+      total: items.length,
+      newCredits: created.credits,
+      creditsUsedTotal: created.creditsUsedTotal,
+    };
+  } catch (error) {
+    if (error instanceof InsufficientCreditsError) return { ok: false, intent, error: error.message };
+    throw error;
+  }
+}
 import { authenticate } from "../shopify.server";
 import { buildCollectionContentPrompt, getCollectionSystemPrompt } from "../lib/contentPromptTemplates";
 import { TemplateLibraryModal } from "../components/TemplateLibraryModal";
@@ -1181,9 +1204,10 @@ export const action = async ({ request }) => {
           };
         }
 
+        const useWorker = getBulkJobRunner() === "worker";
         let reservedCredits = availableCredits;
         let reservedCreditsUsedTotal = shopData?.creditsUsedTotal ?? 0;
-        if (requiredCredits > 0) {
+        if (requiredCredits > 0 && !useWorker) {
           const creditSnapshot = await deductCredits({ shopDomain: session.shop, creditsUsed: requiredCredits });
           reservedCredits = creditSnapshot.credits;
           reservedCreditsUsedTotal = creditSnapshot.creditsUsedTotal;
@@ -1218,6 +1242,23 @@ export const action = async ({ request }) => {
           preserveOldDescription: preserveOldDescriptionFlag,
           removeImages: removeImagesFlag,
         };
+
+        if (useWorker) {
+          return queueWorkerJob({
+            intent,
+            shop: session.shop,
+            jobType: "collection_product",
+            items: jobItems.map((item) => ({
+              resourceId: item.productId,
+              collectionId: item.collectionId,
+              collectionTitle: item.collectionTitle,
+            })),
+            contentTypes: selectedContentTypes,
+            settings: jobSettings,
+            requiredCredits,
+            extra: { mode: COLLECTION_PRODUCTS_MODE },
+          });
+        }
 
         const job = await db.bulkJob.create({
           data: {
@@ -1302,9 +1343,10 @@ export const action = async ({ request }) => {
         };
       }
 
+      const useWorker = getBulkJobRunner() === "worker";
       let reservedCredits = availableCredits;
       let reservedCreditsUsedTotal = shopData?.creditsUsedTotal ?? 0;
-      if (requiredCredits > 0) {
+      if (requiredCredits > 0 && !useWorker) {
         const creditSnapshot = await deductCredits({ shopDomain: session.shop, creditsUsed: requiredCredits });
         reservedCredits = creditSnapshot.credits;
         reservedCreditsUsedTotal = creditSnapshot.creditsUsedTotal;
@@ -1326,6 +1368,18 @@ export const action = async ({ request }) => {
         preserveOldDescription: preserveOldDescriptionFlag,
         removeImages: removeImagesFlag,
       };
+
+      if (useWorker) {
+        return queueWorkerJob({
+          intent,
+          shop: session.shop,
+          jobType: "collection",
+          items: bulkCollections.map((c) => ({ resourceId: c.id })),
+          contentTypes: selectedContentTypes,
+          settings: jobSettings,
+          requiredCredits,
+        });
+      }
 
       const jobItems = bulkCollections.map((c) => ({
         id: c.id,

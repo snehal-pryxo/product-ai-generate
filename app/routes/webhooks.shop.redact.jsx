@@ -19,6 +19,7 @@ export const action = async ({ request }) => {
       db.collectionGeneratedContent.deleteMany({ where: { shop } }),
       db.collectionProductGeneratedContent.deleteMany({ where: { shop } }),
       db.blogGeneratedContent.deleteMany({ where: { shop } }),
+      db.bulkJobItem.deleteMany({ where: { job: { shop } } }),
       db.bulkJob.deleteMany({ where: { shop } }),
       db.aiVisibilitySchema.deleteMany({ where: { shop } }),
       db.aiVisibilityFaq.deleteMany({ where: { shop } }),

@@ -18,6 +18,16 @@ const OPENAI_OLLAMA_FALLBACK_ERROR_PATTERN =
   /quota|billing|insufficient_quota|OPENAI_API_KEY is missing|does not exist|do not have access|rate limit|too many requests|429/i;
 const ENABLED_ENV_VALUE_PATTERN = /^(1|true|yes)$/i;
 
+// Errors carry the HTTP status so the bulk worker can tell transient failures
+// (429/5xx — retry) from permanent ones (bad key, bad request — don't).
+function aiRequestError(message, status, retryAfterSeconds) {
+  const error = new Error(message);
+  error.source = "ai";
+  if (status) error.status = status;
+  if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) error.retryAfter = retryAfterSeconds;
+  return error;
+}
+
 // ---------------------------------------------------------------------------
 // DB helpers
 // ---------------------------------------------------------------------------
@@ -303,7 +313,7 @@ async function callWithAnthropic(prompt, systemPrompt, apiKey) {
   let payload = null;
   try { payload = await response.json(); } catch { payload = null; }
   if (!response.ok) {
-    throw new Error(payload?.error?.message || `Anthropic request failed with status ${response.status}.`);
+    throw aiRequestError(payload?.error?.message || `Anthropic request failed with status ${response.status}.`, response.status);
   }
   const generationMs = Date.now() - startMs;
   const rawContent = payload?.content?.[0]?.text;
@@ -331,7 +341,7 @@ async function callWithGemini(prompt, systemPrompt, apiKey) {
   });
   let payload = null;
   try { payload = await response.json(); } catch { payload = null; }
-  if (!response.ok) throw new Error(payload?.error?.message || `Gemini request failed with status ${response.status}.`);
+  if (!response.ok) throw aiRequestError(payload?.error?.message || `Gemini request failed with status ${response.status}.`, response.status);
   const generationMs = Date.now() - startMs;
   const rawContent = payload?.candidates?.[0]?.content?.parts?.[0]?.text || null;
   return parseAIResponse(rawContent, model, {
@@ -402,12 +412,14 @@ async function callWithOpenAI(prompt, systemPrompt, shopApiKey) {
   if (!result.ok) {
     const details = getOpenAiErrorDetails(result);
     if (OPENAI_QUOTA_ERROR_PATTERN.test(details.message) || details.code === "insufficient_quota") {
-      throw new Error(`${details.message} OpenAI project quota is exhausted.`);
+      const quotaError = aiRequestError(`${details.message} OpenAI project quota is exhausted.`, result.status);
+      quotaError.quotaExhausted = true;
+      throw quotaError;
     }
     if (OPENAI_RATE_LIMIT_ERROR_PATTERN.test(details.message) || details.code === "rate_limit_exceeded") {
-      throw new Error(`${details.message} OpenAI rate limits are exhausted. Wait and retry.`);
+      throw aiRequestError(`${details.message} OpenAI rate limits are exhausted. Wait and retry.`, result.status, result.retryAfterSeconds);
     }
-    throw new Error(details.message);
+    throw aiRequestError(details.message, result.status);
   }
 
   const generationMs = Date.now() - startMs;
@@ -1013,7 +1025,7 @@ async function callWithOpenAIRaw(prompt, systemPrompt, apiKey) {
   });
   let json = null;
   try { json = await res.json(); } catch { json = null; }
-  if (!res.ok) throw new Error(json?.error?.message || `OpenAI error ${res.status}`);
+  if (!res.ok) throw aiRequestError(json?.error?.message || `OpenAI error ${res.status}`, res.status);
   return json?.choices?.[0]?.message?.content || "";
 }
 
@@ -1036,7 +1048,7 @@ async function callWithAnthropicRaw(prompt, systemPrompt, apiKey) {
   });
   let json = null;
   try { json = await res.json(); } catch { json = null; }
-  if (!res.ok) throw new Error(json?.error?.message || `Anthropic error ${res.status}`);
+  if (!res.ok) throw aiRequestError(json?.error?.message || `Anthropic error ${res.status}`, res.status);
   return json?.content?.[0]?.text || "";
 }
 
@@ -1057,7 +1069,7 @@ async function callWithGeminiRaw(prompt, systemPrompt, apiKey) {
   );
   let json = null;
   try { json = await res.json(); } catch { json = null; }
-  if (!res.ok) throw new Error(json?.error?.message || `Gemini error ${res.status}`);
+  if (!res.ok) throw aiRequestError(json?.error?.message || `Gemini error ${res.status}`, res.status);
   return json?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 }
 
@@ -1278,4 +1290,153 @@ export async function addProductsToCollection(shop, accessToken, collectionId, p
   } catch (err) {
     console.error("addProductsToCollection failed:", err?.message);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Strict write-back (used by the bulk worker)
+//
+// Same Shopify writes as the apply* helpers above, but failures are thrown —
+// tagged with `source: "shopify"` and the HTTP status / Retry-After — instead of
+// being logged and swallowed, so the caller can retry transient errors and
+// record permanent ones. The helpers above are unchanged for existing callers.
+// ---------------------------------------------------------------------------
+
+function shopifyWriteError(message, { status, retryAfter, graphQLErrors, userErrors } = {}) {
+  const error = new Error(message);
+  error.source = "shopify";
+  if (status) error.status = status;
+  if (Number.isFinite(retryAfter) && retryAfter > 0) error.retryAfter = retryAfter;
+  if (graphQLErrors) error.graphQLErrors = graphQLErrors;
+  if (userErrors) error.userErrors = userErrors;
+  return error;
+}
+
+async function shopifyGraphQLStrict(shop, accessToken, query, variables) {
+  let response;
+  try {
+    response = await fetch(`https://${shop}/admin/api/${SHOPIFY_ADMIN_API_VERSION}/graphql.json`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": accessToken },
+      body: JSON.stringify({ query, variables }),
+    });
+  } catch (error) {
+    if (error && typeof error === "object") error.source = "shopify";
+    throw error;
+  }
+  let json = null;
+  try { json = await response.json(); } catch { json = null; }
+  if (!response.ok) {
+    const detail = typeof json?.errors === "string" ? json.errors : json?.errors ? JSON.stringify(json.errors) : "";
+    throw shopifyWriteError(
+      `Shopify request failed with status ${response.status}${detail ? `: ${detail.slice(0, 300)}` : "."}`,
+      { status: response.status, retryAfter: Number.parseFloat(response.headers.get("retry-after") || "") },
+    );
+  }
+  if (Array.isArray(json?.errors) && json.errors.length > 0) {
+    throw shopifyWriteError(json.errors.map((e) => e?.message).filter(Boolean).join("; ") || "Shopify GraphQL error.", {
+      graphQLErrors: json.errors,
+    });
+  }
+  return json;
+}
+
+function throwOnUserErrors(label, userErrors) {
+  if (Array.isArray(userErrors) && userErrors.length > 0) {
+    throw shopifyWriteError(`${label}: ${userErrors.map((e) => e?.message).filter(Boolean).join("; ")}`, { userErrors });
+  }
+}
+
+function stripAppendedFaqSection(html) {
+  return String(html || "")
+    .replace(/<section\b[^>]*data-content-ai-faq=["']true["'][^>]*>[\s\S]*?<\/section>/gi, "")
+    .trim();
+}
+
+export async function writeProductContentToShopify(shop, accessToken, productId, contentTypes) {
+  const content = await db.productGeneratedContent.findUnique({ where: { shop_productId: { shop, productId } } });
+  if (!content) throw shopifyWriteError("No generated content was found to save to Shopify.");
+
+  const productInput = { id: productId };
+  if (contentTypes.includes("description")) productInput.descriptionHtml = stripAppendedFaqSection(content.descriptionHtml);
+  const seo = {};
+  if (contentTypes.includes("meta_title")) seo.title = content.seoTitle || "";
+  if (contentTypes.includes("meta_description")) seo.description = content.seoDescription || "";
+  if (Object.keys(seo).length > 0) productInput.seo = seo;
+
+  if (Object.keys(productInput).length > 1) {
+    const result = await shopifyGraphQLStrict(shop, accessToken, SHOPIFY_PRODUCT_UPDATE_MUTATION, { product: productInput });
+    throwOnUserErrors("Shopify rejected the product update", result?.data?.productUpdate?.userErrors);
+  }
+
+  if (contentTypes.includes("faq")) {
+    const metafields = [];
+    if (content.faqJson) {
+      metafields.push({ ownerId: productId, namespace: "content_ai_geo", key: "faq_json", type: "json", value: content.faqJson });
+    }
+    if (content.faqHtml) {
+      metafields.push({ ownerId: productId, namespace: "content_ai_geo", key: "faq_html", type: "multi_line_text_field", value: content.faqHtml });
+    }
+    if (metafields.length > 0) {
+      const result = await shopifyGraphQLStrict(shop, accessToken, SHOPIFY_METAFIELDS_SET_MUTATION, { metafields });
+      throwOnUserErrors("Shopify rejected the FAQ metafields", result?.data?.metafieldsSet?.userErrors);
+    }
+  }
+
+  await db.productGeneratedContent.update({
+    where: { shop_productId: { shop, productId } },
+    data: { appliedToProduct: true },
+  });
+}
+
+export async function writeCollectionContentToShopify(shop, accessToken, collectionId, contentTypes) {
+  const content = await db.collectionGeneratedContent.findUnique({ where: { shop_collectionId: { shop, collectionId } } });
+  if (!content) throw shopifyWriteError("No generated content was found to save to Shopify.");
+
+  const collectionInput = { id: collectionId };
+  if (contentTypes.includes("description")) collectionInput.descriptionHtml = content.descriptionHtml || "";
+  const seo = {};
+  if (contentTypes.includes("meta_title")) seo.title = content.seoTitle || "";
+  if (contentTypes.includes("meta_description")) seo.description = content.seoDescription || "";
+  if (Object.keys(seo).length > 0) collectionInput.seo = seo;
+
+  const result = await shopifyGraphQLStrict(shop, accessToken, SHOPIFY_COLLECTION_UPDATE_MUTATION, { input: collectionInput });
+  throwOnUserErrors("Shopify rejected the collection update", result?.data?.collectionUpdate?.userErrors);
+
+  await db.collectionGeneratedContent.update({
+    where: { shop_collectionId: { shop, collectionId } },
+    data: { appliedToCollection: true },
+  });
+}
+
+export async function writeCollectionProductContentToShopify(shop, accessToken, collectionId, productId, contentTypes) {
+  const content = await db.collectionProductGeneratedContent.findUnique({
+    where: { shop_collectionId_productId: { shop, collectionId, productId } },
+  });
+  if (!content) throw shopifyWriteError("No generated content was found to save to Shopify.");
+
+  const productInput = { id: productId };
+  if (contentTypes.includes("description")) productInput.descriptionHtml = content.descriptionHtml || "";
+  const seo = {};
+  if (contentTypes.includes("meta_title")) seo.title = content.seoTitle || "";
+  if (contentTypes.includes("meta_description")) seo.description = content.seoDescription || "";
+  if (Object.keys(seo).length > 0) productInput.seo = seo;
+
+  const result = await shopifyGraphQLStrict(shop, accessToken, SHOPIFY_PRODUCT_UPDATE_MUTATION, { product: productInput });
+  throwOnUserErrors("Shopify rejected the product update", result?.data?.productUpdate?.userErrors);
+
+  await db.collectionProductGeneratedContent.update({
+    where: { shop_collectionId_productId: { shop, collectionId, productId } },
+    data: { appliedToProduct: true },
+  });
+}
+
+const ALREADY_IN_COLLECTION_PATTERN = /already/i;
+
+export async function addProductsToCollectionStrict(shop, accessToken, collectionId, productIds) {
+  if (!collectionId || !productIds?.length) return;
+  const result = await shopifyGraphQLStrict(shop, accessToken, COLLECTION_ADD_PRODUCTS_MUTATION, { id: collectionId, productIds });
+  // Re-adding a product that is already in the collection (e.g. a resumed job) is not a failure.
+  const userErrors = (result?.data?.collectionAddProducts?.userErrors || [])
+    .filter((e) => !ALREADY_IN_COLLECTION_PATTERN.test(String(e?.message || "")));
+  throwOnUserErrors("Shopify could not add the product to the collection", userErrors);
 }

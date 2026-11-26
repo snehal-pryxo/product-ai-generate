@@ -2,7 +2,12 @@
   "name": "nex-ai-seo-product-description",
   "private": true,
   "scripts": {
-    "build": "react-router build",
+    "build": "react-router build && node scripts/buildWorker.mjs",
+    "build:worker": "node scripts/buildWorker.mjs",
+    "worker:start": "node build/worker/index.js",
+    "test": "vitest run",
+    "test:db:up": "docker run -d --name nexai-test-db -e MARIADB_ROOT_PASSWORD=test -e MARIADB_DATABASE=nexai_test -p 127.0.0.1:3317:3306 mariadb:10.11",
+    "test:db:down": "docker rm -f nexai-test-db",
     "postinstall": "prisma generate",
     "vercel-build": "node scripts/migrate.js && prisma generate && react-router build",
     "migrate": "node scripts/migrate.js",
@@ -56,6 +61,7 @@
     "@types/react-dom": "^18.3.7",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
+    "esbuild": "^0.25.12",
     "eslint": "^8.57.1",
     "eslint-import-resolver-typescript": "^3.10.1",
     "eslint-plugin-import": "^2.32.0",
@@ -65,7 +71,8 @@
     "graphql-config": "^5.1.1",
     "prettier": "^3.6.2",
     "typescript": "^5.9.3",
-    "vite": "^6.3.6"
+    "vite": "^6.3.6",
+    "vitest": "^3.2.4"
   },
   "workspaces": [
     "extensions/*"

@@ -9,7 +9,7 @@ function buildDatasourceUrl() {
     // Each Lambda invocation gets its own process; without this cap, concurrent
     // invocations quickly hit the server-side connection limit (P2037 / error 1040).
     if (!url.searchParams.has("connection_limit")) {
-      url.searchParams.set("connection_limit", "3");
+      url.searchParams.set("connection_limit", process.env.DB_CONNECTION_LIMIT || "3");
     }
     if (!url.searchParams.has("pool_timeout")) {
       url.searchParams.set("pool_timeout", "10");

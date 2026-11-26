@@ -24,6 +24,12 @@ export const loader = async ({ request }) => {
       creditsUsed: true,
       createdAt: true,
       completedAt: true,
+      startedAt: true,
+      runner: true,
+      cancelRequestedAt: true,
+      creditsRefunded: true,
+      lastError: true,
+      writeBackFailedItems: true,
     },
   });
 
@@ -43,5 +49,15 @@ export const loader = async ({ request }) => {
     creditsUsed: job.creditsUsed,
     createdAt: job.createdAt,
     completedAt: job.completedAt,
+    startedAt: job.startedAt,
+    runner: job.runner,
+    processedItems: job.completedItems + job.failedItems,
+    remainingItems: ["pending", "processing"].includes(job.status)
+      ? Math.max(0, job.totalItems - job.completedItems - job.failedItems)
+      : 0,
+    cancelRequested: Boolean(job.cancelRequestedAt),
+    creditsRefunded: job.creditsRefunded,
+    lastError: job.lastError,
+    writeBackFailedItems: job.writeBackFailedItems,
   });
 };
