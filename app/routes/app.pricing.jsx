@@ -28,6 +28,7 @@ import {
 import {
   createExtraCreditPurchase,
   createRecurringSubscription,
+  isComplimentaryProShop,
 } from "../lib/billing.server";
 import { buildCustomCreditPackage } from "../lib/creditPurchaseOptions";
 
@@ -71,6 +72,10 @@ export const action = async ({ request }) => {
   const intent = String(formData.get("intent") || "");
 
   try {
+    if ((intent === "subscribe" || intent === "select_free") && isComplimentaryProShop(session.shop)) {
+      return { success: false, message: "This store has the Pro plan for free. There's no need to change the plan." };
+    }
+
     if (intent === "subscribe") {
       const planKey = String(formData.get("planKey") || "");
       const interval = String(formData.get("interval") || "monthly");

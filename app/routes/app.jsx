@@ -8,7 +8,7 @@ import { authenticate } from "../shopify.server";
 import db from "../db.server";
 import { recordAppOpen, shouldRecordAppOpen } from "../lib/activity.server";
 import { AddCreditModal, openAddCreditModal } from "../components/AddCreditModal";
-import { refreshMonthlyPlanCredits } from "../lib/billing.server";
+import { ensureComplimentaryProPlan, refreshMonthlyPlanCredits } from "../lib/billing.server";
 import { normalizeStoredGlobalSettings, writeGlobalSettings } from "../lib/globalSettings";
 import {
   getEmptyTemplateSelection,
@@ -106,6 +106,7 @@ export const loader = async ({ request }) => {
   }
 
   const { admin, session } = await authenticate.admin(request);
+  await ensureComplimentaryProPlan(session.shop);
   await refreshMonthlyPlanCredits(session.shop, admin);
   const shopData = await db.shop.findUnique({
     where: { shop: session.shop },
