@@ -384,6 +384,53 @@ export async function activateExtraCreditPurchase({ admin, shop, packageKey }) {
   };
 }
 
+const COMPLIMENTARY_PLAN_KEY = "growth"; // "Pro" plan
+
+// Stores listed in PRO_PLAN_SHOPS (comma-separated myshopify domains) get the
+// Pro plan for free — no Shopify charge. Intended for our own internal stores.
+export function isComplimentaryProShop(shop) {
+  if (!shop) return false;
+  const list = String(process.env.PRO_PLAN_SHOPS || "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+  return list.includes(String(shop).trim().toLowerCase());
+}
+
+export async function ensureComplimentaryProPlan(shop) {
+  if (!isComplimentaryProShop(shop)) return null;
+
+  const row = await db.shop.findUnique({
+    where: { shop },
+    select: { billingPlanKey: true, billingSubscriptionStatus: true },
+  });
+  if (row?.billingPlanKey === COMPLIMENTARY_PLAN_KEY && row?.billingSubscriptionStatus === "ACTIVE") {
+    return null; // already on Pro; monthly renewal is handled by refreshMonthlyPlanCredits
+  }
+
+  const plan = getSubscriptionPlan(COMPLIMENTARY_PLAN_KEY, process.env);
+  if (!plan) return null;
+
+  const now = new Date();
+  const planData = {
+    billingPlanKey: plan.key,
+    billingPlanName: plan.name,
+    billingPlanCredits: plan.credits,
+    billingPlanPrice: 0,
+    // No Shopify subscription exists, so refreshMonthlyPlanCredits skips the live status check.
+    billingSubscriptionId: null,
+    billingSubscriptionStatus: "ACTIVE",
+    billingPlanActivatedAt: now,
+    billingCreditsRenewedAt: now,
+  };
+
+  return db.shop.upsert({
+    where: { shop },
+    update: { ...planData, credits: { increment: plan.credits } },
+    create: { shop, installed: true, credits: plan.credits, ...planData },
+  });
+}
+
 export async function refreshMonthlyPlanCredits(shop, admin = null) {
   const row = await db.shop.findUnique({
     where: { shop },
