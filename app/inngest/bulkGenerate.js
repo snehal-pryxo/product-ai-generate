@@ -130,9 +130,9 @@ export const bulkGenerateFunction = inngest.createFunction(
       const { jobId, shop } = event.data.event.data;
       const job = await db.bulkJob.findUnique({
         where: { id: jobId },
-        select: { status: true, creditsAllocated: true, creditsUsed: true },
+        select: { status: true, creditsAllocated: true, creditsUsed: true, runner: true },
       });
-      if (job && !["completed", "partial", "failed"].includes(job.status)) {
+      if (job && job.runner !== "worker" && !["completed", "partial", "failed", "cancelled"].includes(job.status)) {
         const creditsToRefund = (job.creditsAllocated ?? 0) - (job.creditsUsed ?? 0);
         if (creditsToRefund > 0) {
           await refundCredits({ shopDomain: shop, creditsRefunded: creditsToRefund });
@@ -153,10 +153,11 @@ export const bulkGenerateFunction = inngest.createFunction(
     const job = await step.run("load-job", () =>
       db.bulkJob.findUnique({
         where: { id: jobId },
-        select: { jobType: true, itemsData: true, settings: true },
+        select: { jobType: true, itemsData: true, settings: true, runner: true },
       }),
     );
-    if (!job) return;
+    // Jobs owned by the database-backed worker must never also run here.
+    if (!job || job.runner === "worker") return;
     const jobType = job.jobType;
     const items = JSON.parse(job.itemsData || "[]");
     const settings = JSON.parse(job.settings || "{}");

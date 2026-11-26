@@ -4,8 +4,8 @@ import {
   AppDistribution,
   shopifyApp,
 } from "@shopify/shopify-app-react-router/server";
-import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
+import { OrderedPrismaSessionStorage } from "./lib/shopifySessionCoordination.server";
 import { fetchShopInfo, sendInstallEmails } from "./lib/email.server.js";
 import { ensureRedirectsOnInstall } from "./lib/llmsTxt.server";
 import { syncVboutContact } from "./lib/vbout.server.js";
@@ -21,7 +21,9 @@ const shopify = shopifyApp({
   scopes: process.env.SCOPES?.split(","),
   appUrl: process.env.SHOPIFY_APP_URL || "",
   authPathPrefix: "/auth",
-  sessionStorage: new PrismaSessionStorage(prisma),
+  // Keeps the newest offline token pair when the app and the bulk worker renew
+  // the same shop's token concurrently (see shopifySessionCoordination.server.js).
+  sessionStorage: new OrderedPrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
   future: {
     expiringOfflineAccessTokens: true,

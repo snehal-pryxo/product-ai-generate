@@ -337,8 +337,62 @@ model BulkJob {
   updatedAt        DateTime  @updatedAt
   completedAt      DateTime?
 
+  // --- Database-backed worker (runner = "worker") ---
+  // Which system runs this job. Legacy rows stay "inngest" so the worker never
+  // picks up a job Inngest may still be running.
+  runner            String    @default("inngest") @db.VarChar(32)
+  startedAt         DateTime?
+  lastError         String?   @db.Text
+  cancelRequestedAt DateTime?
+  // Lease: only the worker named in lockedBy may process or charge for this job
+  // until lockedUntil. An expired lease means the worker died; another may claim it.
+  lockedBy          String?   @db.VarChar(191)
+  lockedUntil       DateTime?
+  heartbeatAt       DateTime?
+  // Set exactly once, in the same transaction as the refund itself.
+  creditsRefunded   Int       @default(0)
+  refundedAt        DateTime?
+  // Items whose content was generated (and charged) but could not be saved to Shopify.
+  writeBackFailedItems Int    @default(0)
+
+  items BulkJobItem[]
+
   @@index([shop, createdAt], map: "bulk_jobs_shop_createdAt_idx")
+  @@index([runner, status, lockedUntil], map: "bulk_jobs_runner_status_lockedUntil_idx")
   @@map("bulk_jobs")
+}
+
+// One row per selected product/collection of a worker-run bulk job. Holds only
+// identifiers; product data is fetched fresh from Shopify a batch at a time.
+model BulkJobItem {
+  id              BigInt    @id @default(autoincrement())
+  jobId           String    @db.VarChar(191)
+  position        Int
+  resourceId      String    @db.VarChar(191) // product GID (collection GID for "collection" jobs)
+  collectionId    String?   @db.VarChar(191) // "collection_product" jobs only
+  collectionTitle String?   @db.VarChar(512)
+  title           String?   @db.VarChar(512) // filled in from Shopify when processed
+  status          String    @default("pending") @db.VarChar(32) // pending | completed | failed | cancelled
+  attempts        Int       @default(0)
+  error           String?   @db.Text
+  creditsCharged  Int       @default(0)
+  processedAt     DateTime?
+  // First time a worker picked this item up. Generated content saved at or after
+  // this moment belongs to this job, so a resumed attempt skips regenerating it.
+  firstPickedUpAt DateTime?
+  // Saving generated content to Shopify, tracked separately from generation:
+  // null (not applicable yet) | pending | applied | failed | skipped
+  writeBackStatus String?   @db.VarChar(32)
+  writeBackError  String?   @db.Text
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  job BulkJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, position], map: "bulk_job_items_jobId_position_key")
+  @@index([jobId, status, position], map: "bulk_job_items_jobId_status_position_idx")
+  @@index([jobId, writeBackStatus], map: "bulk_job_items_jobId_writeBackStatus_idx")
+  @@map("bulk_job_items")
 }
 
 model AiVisibilitySchema {
