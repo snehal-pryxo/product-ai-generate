@@ -5,6 +5,7 @@ import {
   PermanentItemError,
   withRetry,
 } from "../../app/lib/bulkJobs/errors.server";
+import { geminiRetryDelaySeconds } from "../../app/lib/generateContent.server";
 import { aiError } from "../support/fixtures";
 
 describe("classifyError", () => {
@@ -23,6 +24,18 @@ describe("classifyError", () => {
     const throttled = new Error("Throttled");
     throttled.graphQLErrors = [{ message: "Throttled", extensions: { code: "THROTTLED" } }];
     expect(classifyError(throttled)).toBe("transient");
+  });
+
+  it("retries Gemini per-minute rate limits, whose 429 says 'exceeded your current quota'", () => {
+    const gemini429 = aiError("You exceeded your current quota, please check your plan and billing details.", 429);
+    expect(classifyError(gemini429)).toBe("transient");
+  });
+
+  it("reads Gemini's retry hint from the error body", () => {
+    const body = { error: { details: [{ "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "36s" }] } };
+    expect(geminiRetryDelaySeconds(body)).toBe(36);
+    expect(geminiRetryDelaySeconds({ error: {} })).toBeNaN();
+    expect(geminiRetryDelaySeconds(null)).toBeNaN();
   });
 
   it("treats bad requests and deleted products as permanent for that item only", () => {
