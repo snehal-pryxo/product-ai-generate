@@ -325,6 +325,13 @@ async function callWithAnthropic(prompt, systemPrompt, apiKey) {
   });
 }
 
+// Gemini sends its retry hint in the body (google.rpc.RetryInfo, e.g. "36s"), not a Retry-After header.
+export function geminiRetryDelaySeconds(payload) {
+  const details = Array.isArray(payload?.error?.details) ? payload.error.details : [];
+  const info = details.find((d) => String(d?.["@type"] || "").endsWith("google.rpc.RetryInfo"));
+  return Number.parseFloat(String(info?.retryDelay ?? ""));
+}
+
 async function callWithGemini(prompt, systemPrompt, apiKey) {
   if (!apiKey) throw new Error("Gemini API key is not configured. Set GOOGLE_GEMINI_API_KEY in your environment.");
   const model = (process.env.GEMINI_MODEL || "gemini-2.5-flash-lite").trim();
@@ -341,7 +348,9 @@ async function callWithGemini(prompt, systemPrompt, apiKey) {
   });
   let payload = null;
   try { payload = await response.json(); } catch { payload = null; }
-  if (!response.ok) throw aiRequestError(payload?.error?.message || `Gemini request failed with status ${response.status}.`, response.status);
+  if (!response.ok) {
+    throw aiRequestError(payload?.error?.message || `Gemini request failed with status ${response.status}.`, response.status, geminiRetryDelaySeconds(payload));
+  }
   const generationMs = Date.now() - startMs;
   const rawContent = payload?.candidates?.[0]?.content?.parts?.[0]?.text || null;
   return parseAIResponse(rawContent, model, {
@@ -1025,7 +1034,11 @@ async function callWithOpenAIRaw(prompt, systemPrompt, apiKey) {
   });
   let json = null;
   try { json = await res.json(); } catch { json = null; }
-  if (!res.ok) throw aiRequestError(json?.error?.message || `OpenAI error ${res.status}`, res.status);
+  if (!res.ok) {
+    const error = aiRequestError(json?.error?.message || `OpenAI error ${res.status}`, res.status);
+    if (json?.error?.code === "insufficient_quota") error.quotaExhausted = true;
+    throw error;
+  }
   return json?.choices?.[0]?.message?.content || "";
 }
 
@@ -1069,7 +1082,7 @@ async function callWithGeminiRaw(prompt, systemPrompt, apiKey) {
   );
   let json = null;
   try { json = await res.json(); } catch { json = null; }
-  if (!res.ok) throw aiRequestError(json?.error?.message || `Gemini error ${res.status}`, res.status);
+  if (!res.ok) throw aiRequestError(json?.error?.message || `Gemini error ${res.status}`, res.status, geminiRetryDelaySeconds(json));
   return json?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 }
 

@@ -1,0 +1,22 @@
+FROM node:20-alpine
+RUN apk add --no-cache openssl
+
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+
+# prisma/ must exist before install: the postinstall hook runs `prisma generate`
+COPY prisma ./prisma
+
+# Full install — the bundle step needs esbuild from devDependencies
+RUN npm ci
+
+COPY . .
+
+# Only the worker bundle; the web app build is not needed here
+RUN npm run build:worker
+
+ENV NODE_ENV=production
+
+# No migrations: the main app container applies them at startup
+CMD ["npm", "run", "worker:start"]

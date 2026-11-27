@@ -58,7 +58,9 @@ const TRANSIENT_MESSAGE_PATTERN =
   /fetch failed|network|socket hang up|timed? ?out|overloaded|temporarily|try again|rate limit|too many requests|throttl|service unavailable|bad gateway/i;
 // The AI occasionally returns malformed JSON; a second attempt usually succeeds.
 const MALFORMED_AI_OUTPUT_PATTERN = /JSON|Unexpected token|non-array|parse/i;
-const QUOTA_PATTERN = /insufficient_quota|quota is exhausted|exceeded your current quota/i;
+// Not "exceeded your current quota": Gemini returns that on every 429, including
+// per-minute limits that clear in seconds. OpenAI quota errors set quotaExhausted.
+const QUOTA_PATTERN = /insufficient_quota|quota is exhausted/i;
 
 export function getErrorStatus(error) {
   const candidates = [
