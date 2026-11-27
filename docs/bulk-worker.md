@@ -48,12 +48,13 @@ from a worker whose lease expired are rejected.
 
 ## Coolify setup (second application)
 
-Create a second Coolify application from the same repository and Dockerfile:
+Create a second Coolify application from the same repository:
 
 | Setting            | Value                                                  |
 | ------------------ | ------------------------------------------------------ |
-| Start command      | `npm run worker:start`                                 |
-| Ports / domain     | none (the worker serves no HTTP)                       |
+| Build pack         | Dockerfile                                             |
+| Dockerfile path    | `/Dockerfile.worker` (CMD runs `npm run worker:start`) |
+| Ports / domain     | none (no HTTP; any port if Coolify requires one)       |
 | Health check       | disabled                                               |
 | Restart policy     | `unless-stopped` / always                              |
 | Environment        | same as the main app (`DATABASE_URL`, `SHOPIFY_*`, `SCOPES`, AI keys); the worker defaults `DB_CONNECTION_LIMIT` to 15 |
